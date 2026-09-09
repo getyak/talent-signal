@@ -23,39 +23,9 @@ export function retentionCompatibility(captureKind, retentionMode) {
       message: "Synthetic fixture transport makes no network request.",
     };
   }
-  if (captureKind === "visible_tab") {
-    return {
-      supported: retentionMode === "evidence_crop",
-      message: retentionMode === "evidence_crop"
-        ? "Only these reviewed pixels go to the shared Agent. They follow its 30-day task retention and source-deletion controls; profiles still require review. Public web research is off."
-        : "Choose reviewed evidence retention for image handoff. Immediate purge and full-source retention are not supported by this task.",
-    };
-  }
-  if (captureKind !== "selected_text") {
-    return {
-      supported: false,
-      message: "This capture transport has no governed retention contract.",
-    };
-  }
-  if (retentionMode === "full_source") {
-    return {
-      supported: false,
-      message:
-        "Selected text is only a reviewed excerpt, not the full source. Full-source retention is unavailable.",
-    };
-  }
-  if (retentionMode === "ephemeral") {
-    return {
-      supported: true,
-      message:
-        "After the backend commits the review handoff, submitted text is purged automatically. Only a receipt, non-source lineage, and derived proposal remain; Web cannot reopen the source text.",
-    };
-  }
-  return {
-    supported: true,
-    message:
-      "Only the final reviewed selection is retained for Web evidence review, with an enforceable deadline returned in the receipt.",
-  };
+  if (!["visible_tab", "selected_text", "page_text"].includes(captureKind)) return {supported:false,message:"Choose a source first."};
+  if (retentionMode !== "evidence_crop") return {supported:false,message:"This pipeline retains reviewed sources for up to 30 days. Other retention modes are not available."};
+  return {supported:true,message:"Only the reviewed text or pixels are sent for AI processing and reversible internal person filing. Sources expire after 30 days; you can delete them earlier in Web."};
 }
 
 export function normalizeLocalOrigin(value) {
@@ -67,8 +37,8 @@ export function normalizeLocalOrigin(value) {
     throw new Error("Enter a valid local service URL.");
   }
 
-  if (parsed.protocol !== "http:" || !LOCAL_ORIGINS.has(parsed.hostname)) {
-    throw new Error("The development handoff must use http://localhost or http://127.0.0.1.");
+  if (parsed.username || parsed.password || !(parsed.protocol === "https:" || (parsed.protocol === "http:" && LOCAL_ORIGINS.has(parsed.hostname)))) {
+    throw new Error("Use HTTPS for your workspace, or HTTP on localhost for development.");
   }
 
   return parsed.origin;
@@ -78,8 +48,8 @@ export function buildExactWebReviewUrl(localOrigin, captureId) {
   if (typeof captureId !== "string" || !CAPTURE_ID_PATTERN.test(captureId)) {
     throw new Error("The receipt did not include a valid capture identifier.");
   }
-  const target = new URL("/workspace", normalizeLocalOrigin(localOrigin));
-  target.searchParams.set("capture", captureId);
+  const target = new URL("/workspace/captures", normalizeLocalOrigin(localOrigin));
+  target.searchParams.set("task", captureId);
   target.searchParams.set("source", "browser-extension");
   return target.toString();
 }
@@ -126,6 +96,7 @@ export function buildHandoffEnvelope({
       title: draft.source.title,
       url: draft.source.url,
       captured_at: draft.source.captured_at,
+      time_basis: draft.source.time_basis ?? "captured_at",
     },
     review: reviewedAsset,
     authorization: {
@@ -155,6 +126,7 @@ export function classifyReceiptResponse(status, body = {}) {
       state: "received",
       receipt_id: receiptId,
       capture_id: captureId,
+      task_id: typeof body.task_id === "string" && CAPTURE_ID_PATTERN.test(body.task_id) ? body.task_id : null,
       duplicate: true,
       message: "This exact review packet was already received. No duplicate was created.",
     };
@@ -189,6 +161,7 @@ export function classifyReceiptResponse(status, body = {}) {
       state: "received",
       receipt_id: receiptId,
       capture_id: captureId,
+      task_id: typeof body.task_id === "string" && CAPTURE_ID_PATTERN.test(body.task_id) ? body.task_id : null,
       duplicate: Boolean(body.duplicate),
       retention,
       message:
@@ -200,7 +173,7 @@ export function classifyReceiptResponse(status, body = {}) {
     };
   }
 
-  if (status >= 200 && status < 300) {
+  if (body.code === "receipt_unknown" || status >= 500 || (status >= 200 && status < 300)) {
     return {
       state: "unknown",
       code: "receipt_unknown",

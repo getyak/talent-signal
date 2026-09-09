@@ -34,7 +34,7 @@ function envelope() {
       text: "Exact reviewed excerpt",
       edited_from_selection: false,
     },
-    retentionMode: "ephemeral",
+    retentionMode: "evidence_crop",
     requestIdentity,
     handoffTarget: "http://localhost:3000",
     sessionVersion: "session-version-4",
@@ -42,7 +42,7 @@ function envelope() {
   });
 }
 
-test("accepts only localhost development origins", () => {
+test("accepts HTTPS workspaces and loopback HTTP only", () => {
   assert.equal(
     normalizeLocalOrigin("http://localhost:3000/path"),
     "http://localhost:3000",
@@ -51,7 +51,8 @@ test("accepts only localhost development origins", () => {
     normalizeLocalOrigin("http://127.0.0.1:4173"),
     "http://127.0.0.1:4173",
   );
-  assert.throws(() => normalizeLocalOrigin("https://localhost:3000"));
+  assert.equal(normalizeLocalOrigin("https://talent-signal.example"), "https://talent-signal.example");
+  assert.throws(() => normalizeLocalOrigin("https://user:password@talent-signal.example"));
   assert.throws(() => normalizeLocalOrigin("http://talent-signal.example"));
 });
 
@@ -61,12 +62,12 @@ test("opens only a validated receipt on the local Web review surface", () => {
       "http://localhost:3000/path",
       "1f1d18be-0190-4b93-8a48-5cb68274cabf",
     ),
-    "http://localhost:3000/workspace?capture=1f1d18be-0190-4b93-8a48-5cb68274cabf&source=browser-extension",
+    "http://localhost:3000/workspace/captures?task=1f1d18be-0190-4b93-8a48-5cb68274cabf&source=browser-extension",
   );
   assert.throws(() =>
     buildExactWebReviewUrl("http://localhost:3000", "../../workspace"),
   );
-  assert.throws(() =>
+  assert.doesNotThrow(() =>
     buildExactWebReviewUrl(
       "https://talent-signal.example",
       "1f1d18be-0190-4b93-8a48-5cb68274cabf",
@@ -92,7 +93,7 @@ test("separates observed source, reviewed asset, authorization, and receipt", ()
 test("fails closed for unsupported browser retention combinations", () => {
   assert.equal(
     retentionCompatibility("selected_text", "ephemeral").supported,
-    true,
+    false,
   );
   assert.equal(
     retentionCompatibility("selected_text", "evidence_crop").supported,
@@ -169,7 +170,7 @@ test("classifies pending, received, duplicate, stale, and invalid responses trut
     classifyReceiptResponse(409, { code: "session_stale" }).code,
     "session_stale",
   );
-  assert.equal(classifyReceiptResponse(500, {}).state, "failed");
+  assert.equal(classifyReceiptResponse(500, {}).state, "unknown");
   assert.equal(classifyReceiptResponse(204, {}).state, "unknown");
 });
 

@@ -19,6 +19,7 @@ test("uses Manifest V3 and the exact minimum permission set", () => {
     "scripting",
     "sidePanel",
     "storage",
+    "desktopCapture",
   ]);
   assert.deepEqual(manifest.host_permissions, [
     "http://localhost/*",
@@ -31,9 +32,9 @@ test("declares no ambient collection or broad access surfaces", () => {
   assert.equal("content_scripts" in manifest, false);
   assert.equal("externally_connectable" in manifest, false);
   assert.equal("optional_permissions" in manifest, false);
-  assert.equal("optional_host_permissions" in manifest, false);
+  assert.deepEqual(manifest.optional_host_permissions, ["https://*/*"]);
   assert.doesNotMatch(
-    JSON.stringify(manifest),
+    JSON.stringify({...manifest,optional_host_permissions:undefined}),
     /<all_urls>|https:\/\/\*|http:\/\/\*|cookies|history|webRequest|tabCapture|"tabs"/,
   );
 });
@@ -44,14 +45,14 @@ test("ships only local extension code in the review page", () => {
   assert.match(html, /<script type="module" src="sidepanel\.js"><\/script>/);
 });
 
-test("uses the approved mark and discloses image handoff limits before capture", () => {
+test("uses the approved mark and discloses reviewed image handoff before capture", () => {
   assert.match(
     html,
     /M38 10\.5c-4\.3-2\.1-9\.2-2\.8-14-1\.6C12\.1 11\.8 5\.7 24\.2 9\.9 35\.6c3\.8 10\.2 14\.8 15\.8 25\.2 12\.9/,
   );
   assert.match(html, /Use selected text[\s\S]*continue to Web/);
-  assert.match(html, /Capture visible area[\s\S]*Local review only/);
-  assert.match(html, /Choose a screenshot[\s\S]*Web image intake is not connected/);
+  assert.match(html, /Capture visible area[\s\S]*Crop, redact, then sync/);
+  assert.match(html, /Choose a screenshot[\s\S]*same AI processing pipeline/);
 });
 
 test("provides unique landmarks, live status, and an ordered review path", () => {

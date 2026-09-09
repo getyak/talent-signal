@@ -25,12 +25,14 @@ export interface ContactAgentModel {
   run?: (input: {
     objective: string;
     images: ScreenshotContactTaskRequest["image"][];
+    text?: string;
     systemPrompt: string;
     state: unknown;
     assertCurrent(): Promise<void>;
     recordUnderstanding(extractions: ContactChatExtraction[], signal: AbortSignal): Promise<unknown>;
     invoke(name: ContactIntakeToolName, input: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
   }, signal: AbortSignal) => Promise<{ providerRequestID: string; model: string; inputTokens: number; outputTokens: number }>;
+  extractText?(text: string, signal: AbortSignal, promptText?: string): ReturnType<ContactAgentModel["extract"]>;
   extract(image: ScreenshotContactTaskRequest["image"], signal: AbortSignal, promptText?: string): Promise<{
     extraction: ContactChatExtraction;
     providerRequestID: string;
@@ -137,6 +139,23 @@ export class ZhipuContactAgentModel implements ContactAgentModel {
       inputTokens: tokens(payload.usage?.prompt_tokens), outputTokens: tokens(payload.usage?.completion_tokens) };
   }
 
+  async extractText(text: string, signal: AbortSignal, promptText?: string) {
+    const payload = await this.request(this.options.model, {
+      messages: [
+        { role: "system", content: [
+          promptText ?? (await resolveProductPrompt("capture/text-transcription")).text,
+          JSON.stringify(z.toJSONSchema(ContactChatExtractionSchema)),
+        ].join("\n\n") },
+        { role: "user", content: text },
+      ],
+      response_format: { type: "json_object" }, thinking: { type: "enabled" }, reasoning_effort: "low", max_tokens: 8_000,
+    }, signal);
+    const extraction = ContactChatExtractionSchema.parse(parseJSON(payload.choices![0]!.message!.content ?? ""));
+    groundContactTextExtraction(text, extraction);
+    return { extraction, providerRequestID: payload.id!, model: payload.model!,
+      inputTokens: tokens(payload.usage?.prompt_tokens), outputTokens: tokens(payload.usage?.completion_tokens) };
+  }
+
   async next(input: Parameters<ContactAgentModel["next"]>[0], signal: AbortSignal): Promise<ContactAgentModelReply> {
     if (input.remainingTokens < 256) throw new Error("CONTACT_AGENT_TOKEN_BUDGET_EXHAUSTED");
     const tools = input.tools.map((name) => ({ type: "function", function: {
@@ -167,4 +186,29 @@ export class ZhipuContactAgentModel implements ContactAgentModel {
       inputTokens: tokens(payload.usage?.prompt_tokens), outputTokens: tokens(payload.usage?.completion_tokens),
     };
   }
+}
+
+/** Validate exact reviewed text before it can reach shared filing tools. */
+export function groundContactTextExtraction(text: string, extraction: ContactChatExtraction, preserveDocumentBlocks = true) {
+    if (extraction.messages.some(message => !text.includes(message.text) ||
+        (message.speaker_label !== null && !text.includes(message.speaker_label)) ||
+        (message.time_text !== null && !text.includes(message.time_text))) ||
+        extraction.identity_clues.some(clue => !text.includes(clue.source_excerpt) || !clue.source_excerpt.includes(clue.value)) ||
+        (extraction.contact_name !== null && !text.includes(extraction.contact_name))) {
+      throw new Error("CONTACT_TEXT_EXTRACTION_NOT_SOURCE_GROUNDED");
+    }
+    extraction.identity_clues = extraction.identity_clues.map(({source_image_index: _image, ...clue}) => clue);
+    // A profile is not a chat. Preserve deterministic source blocks for the
+    // shared evidence pipeline instead of requiring the model to invent messages.
+    if (preserveDocumentBlocks && extraction.conversation_kind === "not_chat" && (extraction.contact_name || extraction.identity_clues.length)) {
+      extraction.messages = [];
+      for (let offset = 0; offset < text.length;) {
+        let end = Math.min(offset + 4000, text.length);
+        if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end -= 1;
+        const block = text.slice(offset, end).trim(); offset = end;
+        if (block) extraction.messages.push({message_id:`m${extraction.messages.length + 1}`,sequence:extraction.messages.length,text:block,speaker_side:"unknown",speaker_label:null,time_text:null});
+      }
+    }
+    extraction.messages = extraction.messages.map((message, index) => ({ message_id: `m${index + 1}`, sequence: index, text:message.text, speaker_side: "unknown", speaker_label:message.speaker_label, time_text:message.time_text }));
+  return extraction;
 }

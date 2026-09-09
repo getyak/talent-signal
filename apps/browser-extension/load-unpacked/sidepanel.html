@@ -96,10 +96,12 @@
             </span>
             <span class="capture-option__copy">
               <strong>Capture visible area</strong>
-              <small>Local review only · crop and redact before removing</small>
+              <small>Crop, redact, then sync to your workspace</small>
             </span>
             <span class="capture-option__arrow" aria-hidden="true">＋</span>
           </button>
+          <button id="capture-page" class="capture-option" type="button">Read page text →</button>
+          <button id="capture-screen" class="capture-option" type="button">Capture screen or window →</button>
           <input
             id="upload-image"
             class="sr-only"
@@ -115,7 +117,7 @@
             </span>
             <span class="capture-option__copy">
               <strong>Choose a screenshot</strong>
-              <small>Local review only · Web image intake is not connected</small>
+              <small>Review and send to the same AI processing pipeline</small>
             </span>
             <span class="capture-option__arrow" aria-hidden="true">＋</span>
           </label>
@@ -420,7 +422,7 @@
             token.
           </p>
           <label id="origin-field" class="origin-field">
-            <span>Local service</span>
+            <span>Web workspace address</span>
             <input id="local-origin" type="url" value="http://localhost:3000" />
           </label>
           <div class="inline-actions">
@@ -443,7 +445,7 @@
             </div>
             <div>
               <dt>Effect</dt>
-              <dd id="handoff-effect">Upload one reviewed capture for backend review only</dd>
+              <dd id="handoff-effect">Sync this source, identify people and create reversible internal records</dd>
             </div>
           </dl>
           <label class="retention-field">
@@ -501,7 +503,7 @@
 
     <footer class="app-footer">
       <span>Evidence stays a proposal until reviewed in Talent Signal.</span>
-      <span>Development build · localhost only</span>
+      <span>Intentional capture · your signed-in workspace</span>
     </footer>
 
     <script type="module" src="sidepanel.js"></script>
