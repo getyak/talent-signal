@@ -839,11 +839,29 @@ export async function createChatTask(
       await assertTelemetryContext(client, auth, request.telemetry);
     }
     let sourceObservation: import("@talent-signal/agent").RuntimeObservationContext | undefined;
-    const assertCurrent = remoteChatProvider?.providerId === "claude-agent-sdk"
+    let previousRunID: string | undefined;
+    let previousRunExpiresAt: Date | undefined;
+    const assertHarnessCurrent = remoteChatProvider?.providerId === "claude-agent-sdk"
       ? await createHarnessSourceGuard(client, auth, request.session_id, () => {
         const refs = sourceObservation?.source_refs;
         return refs?.kind === "product" ? { expiresAt: new Date(refs.expires_at), personIDs: refs.person_ids } : undefined;
-      }) : undefined;
+      }, pool) : undefined;
+    const assertPreviousCurrent = async () => {
+      if (!previousRunID) return;
+      if (!previousRunExpiresAt || previousRunExpiresAt.valueOf() <= Date.now())
+        throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available in this relationship.");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        // A short independent statement uses the current clock even though the
+        // surrounding product transaction began before model execution.
+        const current = await Promise.race([
+          pool.query<{available:boolean}>("SELECT product_run_source_available(id) AS available FROM product_runs WHERE id=$1 AND account_id=$2 AND user_id=$3",[previousRunID,auth.accountId,auth.userId]),
+          new Promise<never>((_,reject) => { timer=setTimeout(() => reject(new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer could not be revalidated.")),1000); }),
+        ]);
+        if (current.rows[0]?.available !== true) throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available in this relationship.");
+      } finally { if(timer) clearTimeout(timer); }
+    };
+    const assertCurrent = assertHarnessCurrent ? async () => { await assertHarnessCurrent(); await assertPreviousCurrent(); } : undefined;
     const responsePreference = assertCurrent ? await loadAgentResponsePreference(client, auth) : undefined;
     const sessionConversation = request.session_id
       ? await readAgentSessionConversation(client, auth, request.session_id, {
@@ -853,12 +871,14 @@ export async function createChatTask(
       : { messages: [] };
     const conversationHistory = boundedConversationHistory(sessionConversation.messages, request.message_id);
     if (request.previous_task_id && !request.session_id) {
-      const prior = (await client.query<{ objective:string; output:{blocks:Array<{body:string}>} }>(
-        `SELECT objective,output FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3
+      const prior = (await client.query<{ id:string; expires_at:Date; objective:string; output:{blocks:Array<{body:string}>} }>(
+        `SELECT id,expires_at,objective,output FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3
          AND input->'value'->>'person_id'=$4 AND input->'value'->>'relationship_context_id'=$5
          AND product_run_source_available(id) ORDER BY created_at LIMIT 1 FOR SHARE`,
         [auth.accountId,auth.userId,request.previous_task_id,request.person_id,request.relationship_context_id])).rows[0];
       if (!prior?.output?.blocks) throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available in this relationship.");
+      previousRunID=prior.id; previousRunExpiresAt=prior.expires_at;
+      await assertPreviousCurrent();
       conversationHistory.push(...boundedConversationHistory([
         {message_id:`${request.previous_task_id}:question`,role:"user",text:prior.objective},
         {message_id:request.previous_task_id,role:"assistant",text:prior.output.blocks.map(block=>block.body).join("\n\n")},
@@ -1212,6 +1232,12 @@ export async function createChatTask(
         input: feedbackInput, result: remoteChatResult, started_at: remoteStartedAt, finished_at: remoteEndedAt,
         reference_time: createdAt.toISOString(), policy_version: CHAT_POLICY_VERSION,
       });
+    }
+    if (previousRunID) {
+      // Preserve the account source generation while the final check commits.
+      await client.query("SELECT account_id FROM harness_source_generations WHERE account_id=$1 FOR SHARE NOWAIT",[auth.accountId]);
+      await assertCurrent?.();
+      await assertPreviousCurrent();
     }
     await completeIdempotency(client, idempotency, 201, response);
     return {

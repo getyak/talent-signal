@@ -70,6 +70,10 @@ const MIGRATIONS = [
   "059_harness_identity_lifecycle",
   "060_agent_user_preferences",
   "061_harness_generation_baseline",
+  "062_harness_lab_cleanup",
+  "063_product_run_source_binding",
+  "064_product_run_rebind_purge",
+  "065_screenshot_directory_authority",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

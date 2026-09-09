@@ -8,6 +8,7 @@ import { sha256 } from "../lib/hash.js";
 import type { AuthContext } from "./auth.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { labWorkspaceSessionActiveSQL } from "./labWorkspaceAccess.js";
+import { labStopAuthorityKeySQL } from "./labStopAuthority.js";
 
 type Query = Pick<Pool,"query"> | PoolClient;
 interface WorkspaceRow {
@@ -127,7 +128,8 @@ export class LabWorkspaceService {
       const w=(await client.query<WorkspaceRow>(`INSERT INTO lab_test_workspaces(id,owner_account_id,owner_user_id,target_account_id,target_user_id,
         duration_hours,expires_at,media_scope_hash) VALUES ($1,$2,$3,$4,$5,$6::integer,now()+$6::integer*interval '1 hour',$7) RETURNING *`,
         [request.id,auth.accountId,auth.userId,account,user,request.duration_hours,this.storage.labScopeID])).rows[0]!;
-      if(await this.dataRows(client,account,tables)!==0)throw new ApiError(409,"LAB_WORKSPACE_NOT_EMPTY","The new workspace did not verify as empty.");
+      const emptyBaseline = (await client.query("SELECT 1 FROM harness_source_generations WHERE account_id=$1 AND generation=0",[account])).rowCount;
+      if(emptyBaseline!==1 || await this.dataRows(client,account,tables)!==1)throw new ApiError(409,"LAB_WORKSPACE_NOT_EMPTY","The new workspace did not verify as empty.");
       w.empty_verified_at=(await client.query<{empty_verified_at:Date}>("UPDATE lab_test_workspaces SET empty_verified_at=now() WHERE id=$1 RETURNING empty_verified_at",[w.id])).rows[0]!.empty_verified_at;
       return this.describe(w,client);
     }); }catch(error){return translate(error);}
@@ -184,6 +186,11 @@ export class LabWorkspaceService {
 
   private async beginStop(id:string,stopId:string,reason:"manual"|"expired",auth?:AuthContext):Promise<void> {
     await inTransaction(this.pool,async client=>{
+      const admitted=auth?await this.row(client,auth,id):(await client.query<WorkspaceRow>("SELECT * FROM lab_test_workspaces WHERE id=$1",[id])).rows[0];
+      if(!admitted||admitted.state!=="active"||(reason==="expired"&&admitted.expires_at.getTime()>Date.now()))return;
+      // Publish stop intent before waiting for product writes' workspace SHARE
+      // locks. Independent SDK heartbeats see this lock and roll back promptly.
+      await client.query(`SELECT pg_advisory_xact_lock(${labStopAuthorityKeySQL})`,[admitted.target_account_id]);
       const w=auth?await this.row(client,auth,id,true):(await client.query<WorkspaceRow>("SELECT * FROM lab_test_workspaces WHERE id=$1 FOR UPDATE",[id])).rows[0];
       if(!w||w.state!=="active")return;
       if(reason==="expired"&&w.expires_at.getTime()>Date.now())return;
@@ -227,6 +234,7 @@ export class LabWorkspaceService {
         if(unsettled>0){failure="media_unsettled";throw new Error("A media write became unsettled");}
         // A single statement preserves the existing NO ACTION FK contract while
         // deleting the mutually referring account graph. Never disable constraints.
+        await client.query("SELECT set_config('talent_signal.lab_cleanup_account',$1,true)",[w.target_account_id]);
         const targets=[...tables,"sessions"];
         await client.query(`WITH ${targets.map((t,i)=>`d${i} AS (DELETE FROM "${t}" WHERE account_id=$1 RETURNING 1)`).join(",")}
           SELECT ${targets.map((_,i)=>`(SELECT count(*) FROM d${i})`).join("+")} AS removed`,[w.target_account_id]);

@@ -771,3 +771,81 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   boundaries and run current-head checks before PR delivery.
 - New iOS sync fix release build passes; selected unit/native execution remains
   active in `/tmp/get9-ios-sync-fixed-first.log`.
+
+
+### 2026-09-10 03:00 — GET-23 integration boundary repairs in progress
+
+- Checkpoint `276327b3`; incoming GET-23 merged with explicit conflict resolution
+  into `02a22813`. Preserved both complete migration slugs, both iOS project
+  additions/localizations, timezone and prior-task requests, capture wrapper
+  plus Harness guards. Pre-repair merged backend build passes.
+- Native pre-merge sync proof: six focused unit tests and RTL passed; latency
+  budget passed unchanged (200-second test). Actual Session PUT followed by
+  same-session chat POST 201 fixes the missing-session defect. Remaining citation
+  assertion failed because this isolated API deliberately has remote chat off
+  and the unscoped response is the local greeting. Keep this failure; next run
+  must configure actual Hao for the canonical relationship journeys rather
+  than dropping the citation assertion. Result `/tmp/get9-ios-sync-fixed-first.xcresult`.
+- Independent integration review confirmed: failed/null-task product-run capture
+  could retain revoked material outside the rolled-back product transaction;
+  previous-task history lacked runtime/final expiry checks; Lab manifest omitted
+  the four new account tables and the new-account generation baseline breaks its
+  zero-row assertion. Pending Lab stop also needs independent heartbeat checks.
+- UNCOMMITTED DRAFTS, not reviewed/passed: 062 classifies/guards four Harness tables
+  and only permits source-delete trigger bypass for an exact transaction-local
+  cleanup account, deleting Lab workspace and revoked lab user. Lab create admits
+  exactly its one zero-generation baseline; cleanup still requires zero rows.
+  Lab source guards/continuation probes now reject pending-stop locks through
+  an independent autocommit NOWAIT query. Need real stop/rollback/cleanup probe.
+- 063 draft binds product-run content to source generation and a nonfailed,
+  committed task. productRunCapture removes original image bytes/error prose;
+  productRunSink writes metadata first and buffers up to 16MB content until
+  source revalidation after commit. onSend holds request text in memory until
+  task binding. Dynamic and final previous-run checks use a fresh pool statement.
+- IMPORTANT remaining draft gaps before review: finish late background output
+  persistence protection, successful screenshot monitor compatibility (its own
+  source writes advance account generation), source expiry propagation, pending
+  span cleanup/late append races, exact source/data-loss regressions and all three
+  migration baselines (GET9, GET23, empty). Current draft has had one metadata
+  generic type error fixed; latest rebuild not yet verified. No 062/063 migration
+  applied yet. No claim of P1 closure, PR readiness, deployment or overall pass.
+
+### 2026-09-10 03:31 — integrated lifecycle proof and native latency failure
+
+- Existing merged backend suite passed 487/487; after the new regression cases,
+  491/491 passed. Agent 146 passed plus one explicit skip. Web 398 passed plus one
+  skip after updating stale function-name and platform-header expectations; lint
+  and types pass. Latest build and final affected checks remain active.
+- Real Lab creation/retained SDK/stop/cleanup regression passes. A stop-intent
+  advisory lock, checked by the independent autocommit heartbeat, rejects the
+  pending stop before product rollback. Independent probe confirms old main and
+  subagent entries plus preferences reach zero rows. Earlier NOWAIT-only failure
+  and the first UUID/text cast failure remain in the review evidence.
+- Previous-run root and parent-Session expiry pass four independent dynamic/host
+  final checks, with no new manifest committed. The repository's host-only
+  previous-run expiry regression and full feedback suite pass 23/23.
+- Two additional screenshot P1s were found: generation refresh could revive old
+  spans, and canonical candidate caches could outlive directory deletion. Draft
+  migrations 064/065 purge old-generation derivative contents, preserve only a
+  content-free admission envelope, clear unfiled screenshot directory caches on
+  source changes while preserving original images/extraction, and advance the
+  lease/revision so stale decisions require reread. Late output is checked against
+  the actual screenshot revision before locking/rebinding its diagnostic run.
+  Sinks fix their admission generation before execution, preventing late flush
+  from authorizing an earlier generation. Independent closure remains pending.
+- Added screenshot/capture-generation/late-output/Lab regressions: latest targeted
+  26/26 pass. Empty and GET-23 6dc16355 migration baselines both reach all 68 full
+  migration names and repeated application passes. Owned GET-9 databases also
+  upgrade; no existing applied checksum is changed. Failed 065 SQL parsing was
+  rolled back before correction and retained in /tmp/get9-migration-065.log.
+- Native integrated Release build and all 543 unit tests pass. Three real-Hao
+  canonical UI tests failed their existing waits. First observed path spends
+  17.9 seconds resolving an unscoped contact, then starts a second scoped model
+  request; the combined path exceeds the 60-second UI wait. Other failures are
+  retained in /tmp/get9-ios-integrated-hao.xcresult. This is not a complete native
+  acceptance pass or a demonstrated provider outage. One unchanged-gate retry
+  on the updated owned API is active; do not mask the first result.
+- Current integration changes remain uncommitted, no PR/deployment/merge/Linear
+  closure. Staging's new provider secrets/selectors are prepared, but running
+  TestFlight containers have not been replaced. Chrome install and physical
+  TestFlight device proof remain unverified.

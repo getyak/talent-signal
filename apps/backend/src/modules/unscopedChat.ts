@@ -101,6 +101,7 @@ export async function executeUnscopedChatTask(input: {
   request: UnscopedChatTaskRequest;
   provider: RemoteChatAnswerProviding | null;
   database?: DatabaseClient;
+  probePool?: Pool;
   auth?: AuthContext;
   createdAt?: Date;
   referenceTime?: Date;
@@ -119,7 +120,7 @@ export async function executeUnscopedChatTask(input: {
       personIDs: [...new Set([...sourcePeople, ...(refs?.kind === "product" ? refs.person_ids : [])])] };
   };
   const assertCurrent = input.provider?.providerId === "claude-agent-sdk" && input.database && input.auth
-    ? await createHarnessSourceGuard(input.database, input.auth, input.request.session_id, sources) : undefined;
+    ? await createHarnessSourceGuard(input.database, input.auth, input.request.session_id, sources, input.probePool ?? input.database) : undefined;
   // Scope failures must escape before provider fallbacks; they are not model errors.
   const responsePreference = assertCurrent && input.database && input.auth
     ? await loadAgentResponsePreference(input.database, input.auth) : undefined;
@@ -310,6 +311,7 @@ export async function createUnscopedChatTask(
       request,
       provider,
       database: client,
+      probePool: pool,
       auth,
       ...(referenceTime ? { referenceTime } : {}),
       ...(request.session_id ? { continuation: (sources: () => { expiresAt: Date; personIDs: readonly string[] }) => createHarnessContinuationFactory(client, pool, auth, request.session_id!, { kind: "workspace_conversation" }, sources) } : {}),

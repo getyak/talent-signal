@@ -1,8 +1,8 @@
 # GET-9 Harness acceptance evidence
 
 Status: **acceptance in progress**, 2026-09-10. This index routes to observations;
-it does not grant release authority. The current checkpoint is `fc0a023c` plus
-the reviewed source-literal, revocation and Web-continuity changes. Each live
+it does not grant release authority. The current checkpoint is `02a22813` plus integration repairs under review.
+GET-23 is merged into the work branch; release acceptance is still open. Each live
 artifact retains its effective prompt/skill hashes, model receipt and fixture.
 Earlier passing batches do not claim an identical final source revision.
 
@@ -41,7 +41,9 @@ No score, timeout, token budget or test threshold was lowered to pass a case.
   rejected before a different account can receive work or preference changes.
 - [iOS initial run](ios-full-first-interrupted.json): release build and 539 unit
   tests passed; 76 UI cases passed, five failed, three explicitly skipped.
-  Interrupted for diagnosis. Native-database reproduction is still running.
+  Interrupted for diagnosis. The integrated build passes all 543 unit tests;
+  three real-Hao canonical journeys failed the existing response waits in
+  `/tmp/get9-ios-integrated-hao.xcresult`. An unchanged-gate retry is active.
 - [Exa probe](exa-staging-live-probe.json): actual search and fetch succeeded.
   [TikHub probe](tikhub-staging-live-probe.json): credential/health proof only.
 - Chrome integrated extension contract checks passed; actual installed-extension
@@ -59,11 +61,16 @@ revocation-liveness and append-loss P1s using independent connection probes and
 Account-wide source metadata serialization remains a separate open performance
 question; do not infer its cause from an unrelated slow UI run.
 
-Latest backend source: all 477 tests passed across the main run (415 passed,
-62 environment-gated skips) and the targeted remaining database run (63 passed,
-including one overlap). Agent: 144 passed, one environment-gated skip. Logs:
-`/tmp/get9-backend-full-final-db.log`,
-`/tmp/get9-backend-final-remaining-db.log`, `/tmp/get9-agent-final-tests.log`.
-Web continuity typecheck, lint and production build passed; the build used an
-ephemeral process-only AUTH_SECRET after a missing-secret failure. Current-head
-CI remains pending. These are local checks, not merged-release proof.
+[Integrated checkpoint](get23-integration-checkpoint.json) retains the current
+checks and open native gates. After GET-23 integration, the latest full backend run passes all 491 tests with
+explicit database environments (`/tmp/get9-integrated-backend-full-third.log`).
+Agent: 146 passed plus one skip. Web: 398 passed plus one skip; lint and types
+pass, and the integrated production build passes. The earlier failed Web
+assertions remain in `/tmp/get9-web-integrated-tests.log`; corrected expectations
+include the platform header and shared UI cleanup helper name.
+
+[Integration boundary review](integration-draft-boundary-review.md) records all
+new P1 counterexamples and their independent follow-up. Empty and GET-23 database
+baselines reach 68 migrations and repeat successfully. These are local checks,
+not merged-release proof. Current-head CI, native surface acceptance, deployment
+and final Linear closure remain pending.

@@ -27,6 +27,36 @@ function sdkModel(run: NonNullable<ContactAgentModel["run"]>): ContactAgentModel
 const sdkReceipt = () => ({ providerRequestID:randomUUID(),model:"synthetic-sdk",inputTokens:10,outputTokens:10 });
 
 describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
+  it("clears deleted directory candidates and cached observations while keeping the original screenshot task resumable",async()=>{
+    const person=randomUUID(),context=randomUUID(),marker=`Deleted candidate ${randomUUID()}`;
+    await pool!.query("INSERT INTO subjects(id,account_id,external_ref,display_label) VALUES($1::uuid,$2,$1::text,$3)",[person,auth.accountId,marker]);
+    await pool!.query("INSERT INTO assignments(id,account_id,subject_id,external_ref,display_label) VALUES($1::uuid,$2,$3,$1::text,'Synthetic context')",[context,auth.accountId,person]);
+    const created=await createScreenshotContactTask(pool!,auth,input());
+    const task=created.body.task_id;
+    try {
+      const candidate={person_id:person,relationship_context_id:context,display_name:marker,relationship_label:'Synthetic context'};
+      const stored=(await pool!.query('SELECT state FROM screenshot_contact_tasks WHERE id=$1',[task])).rows[0]!.state;
+      stored.response.status='waiting_for_user';stored.response.candidates=[candidate];
+      stored.searches=[{query:'Synthetic',candidates:[candidate]}];stored.observations=[{tool:'search_contacts',result:{candidates:[candidate]}}];
+      await pool!.query("UPDATE screenshot_contact_tasks SET state=$2::jsonb,status='waiting_for_user' WHERE id=$1",[task,JSON.stringify(stored)]);
+      const before=await loadScreenshotContactTask(pool!,auth,task);expect(JSON.stringify(before)).toContain(marker);
+      await pool!.query('DELETE FROM assignments WHERE id=$1',[context]);
+      await pool!.query('DELETE FROM subjects WHERE id=$1',[person]);
+      const after=await loadScreenshotContactTask(pool!,auth,task);
+      expect(after.status).toBe('waiting_for_user');expect(after.candidates).toEqual([]);expect(after.revision).toBeGreaterThan(before.revision);
+      expect(JSON.stringify(after)).not.toContain(marker);
+      const current=(await pool!.query('SELECT state,input_manifest FROM screenshot_contact_tasks WHERE id=$1',[task])).rows[0]!;
+      expect(current.state.searches).toEqual([]);expect(current.state.observations).toEqual([]);
+      expect(current.input_manifest.image).toBeDefined();
+      await expect(resumeScreenshotContactTask(pool!,auth,task,{expected_revision:before.revision,selected_person_id:person,selected_relationship_context_id:context}))
+        .rejects.toMatchObject({code:'CONTACT_TASK_REVISION_CHANGED'});
+      expect((await resumeScreenshotContactTask(pool!,auth,task,{expected_revision:after.revision})).status).toBe('running');
+    } finally {
+      await pool!.query('DELETE FROM screenshot_contact_tasks WHERE id=$1',[task]);
+      await pool!.query('DELETE FROM assignments WHERE id=$1',[context]);await pool!.query('DELETE FROM subjects WHERE id=$1',[person]);
+    }
+  });
+
   it("stages an editable profile without writing a person, then reuses its confirmed account after review",async()=>{
     const name=`Profile draft ${randomUUID().slice(0,8)}`;const handle=`sdk-${randomUUID()}`;
     const profile:ContactChatExtraction={platform:"Synthetic social",conversation_kind:"not_chat",contact_name:name,

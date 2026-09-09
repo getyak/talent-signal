@@ -26,6 +26,6 @@ it("forwards with the same claims used for the binding and excludes the binding 
   upstream.mockResolvedValue(new Response(JSON.stringify({task_id:"synthetic"}),{status:201}));
   expect((await POST(request(),{params:Promise.resolve({path:["tasks"]})})).status).toBe(201);
   expect(readClaims).toHaveBeenCalledOnce();
-  expect(upstream.mock.calls[0]?.[1].headers).toEqual({authorization:"Bearer synthetic-session-A","content-type":"application/json"});
+  expect(upstream.mock.calls[0]?.[1].headers).toEqual({authorization:"Bearer synthetic-session-A","content-type":"application/json","x-talent-signal-platform":"web"});
   expect(version).toMatch(/^[a-f0-9]{64}$/u);expect(version).not.toContain(original.backendAccessToken);
 });

@@ -331,7 +331,7 @@ describe("relationship workspace accessibility contract", () => {
   });
 
   it("leaves no stale relationship shell after deleting its final source", () => {
-    expect(component).toContain("function handleRelationshipRemoved(");
+    expect(component).toContain("function clearOpenRelationship(");
     expect(relationshipResourceComposer).toContain(
       "onEvidenceChanged(announcement, true)",
     );

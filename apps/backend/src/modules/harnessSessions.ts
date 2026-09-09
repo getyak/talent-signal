@@ -1,3 +1,4 @@
+import { assertHarnessLabAuthority } from "./harnessSourceGuard.js";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { HarnessContinuation, HarnessContinuationFactory } from "@talent-signal/agent";
@@ -73,6 +74,7 @@ export function createHarnessContinuationFactory(client: PoolClient, probePool: 
       let appendFailure: unknown;
       const assertCurrent = async (fence = false) => {
         if (finished) throw unavailable();
+        await assertHarnessLabAuthority(probePool, auth);
         // An independent autocommit statement notices a pending source writer
         // without retaining a read lock or rolling back concurrent product SQL.
         // Pool starvation fails closed; a late queued query is read-only and its

@@ -656,7 +656,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '058_product_run_monitor'`,
+           WHERE version = '065_screenshot_directory_authority'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");

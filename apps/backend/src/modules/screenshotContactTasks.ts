@@ -73,6 +73,8 @@ async function rowFor(client: Pool | PoolClient, auth: AuthContext, id: string, 
 
 async function assertSourceCurrent(client: Pool | PoolClient, row: Row): Promise<void> {
   if (row.expires_at.getTime() <= Date.now() || row.status === "deleted") deny("CONTACT_TASK_SOURCE_UNAVAILABLE");
+  const directory=(await client.query<{available:boolean}>("SELECT contact_task_directory_available($1,$2::jsonb) AS available",[row.account_id,JSON.stringify(row.state)])).rows[0];
+  if(!directory?.available)deny("CONTACT_DIRECTORY_CHANGED_SEARCH_AGAIN");
   if (!row.capture_id) return;
   const found = await client.query(`SELECT 1 FROM captures c JOIN subjects s ON s.account_id=c.account_id AND s.id=c.subject_id
     JOIN source_retention_receipts r ON r.account_id=c.account_id AND r.capture_id=c.id
@@ -467,10 +469,10 @@ export class ScreenshotContactTaskRunner {
     const operation=this.observedRun(auth,id,image,controller.signal).finally(()=>{this.active.delete(key);this.controllers.delete(key);});this.active.set(key,operation);return operation;
   }
   private async observedRun(auth:AuthContext,id:string,image:ScreenshotContactTaskRequest["image"]|undefined,signal:AbortSignal) {
-    const result=await this.pool.query<{id:string}>("SELECT id FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3 ORDER BY created_at LIMIT 1",[auth.accountId,auth.userId,id]);
+    const result=await this.pool.query<{id:string;source_generation:string|null}>("SELECT id,source_generation FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3 ORDER BY created_at LIMIT 1",[auth.accountId,auth.userId,id]);
     const runID=result.rows[0]?.id;
     if(!runID) return this.run(auth,id,image,signal); // The initial POST already supplies its request-local sink.
-    const sink=productRunSink(this.pool,runID,error=>{ console.error("Product screenshot span persistence failed",error instanceof Error?error.name:"unknown"); });
+    const sink=productRunSink(this.pool,runID,error=>{ console.error("Product screenshot span persistence failed",error instanceof Error?error.name:"unknown"); },result.rows[0]?.source_generation);
     try { await withProductRunCapture(sink,()=>this.run(auth,id,image,signal)); } finally { await sink.flush(); }
   }
   async drain(){await Promise.allSettled(this.active.values());}
