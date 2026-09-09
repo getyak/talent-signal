@@ -27,9 +27,9 @@ not add privacy approval steps or treat missing feedback as positive feedback.
 
 ## Delivery state
 
-Implementation and independent review are complete locally. PR, current-head CI,
-merge and deployment verification remain pending; the Linear issue is not yet
-complete.
+Implementation and independent review are complete locally.
+[PR #170](https://github.com/getyak/talent-signal/pull/170) is open. Current-head
+CI, merge and deployment verification remain pending; Linear is not yet complete.
 
 ## Implemented
 
@@ -73,7 +73,7 @@ not live-model quality improvement.
 - `web-lab-comparison.jpg`: the case's original input run with baseline/concise,
   two completed attempts, independent structural checks and unknown semantics.
 - `ios-helpful-restored.jpg`: native helpful state restored from the backend.
-- Native unhelpful saved immediately; a reason and keyboard-entered note were
+- `ios-unhelpful-note.jpg`: native unhelpful saved immediately; a reason and keyboard-entered note were
   persisted and independently read back at feedback revision 4.
 - Web helpful and a new Web unrated request were exercised too.
   Native source-change recovery surfaced an existing stale Session source
@@ -90,6 +90,6 @@ request-ID and Lab navigation changes also passed focused independent review.
 
 ## Remaining delivery
 
-1. Commit and create the GET-23 PR, verify all latest-head CI and merge gates.
+1. Verify all latest-head CI and merge gates on PR #170.
 2. Merge, verify applicable deployed surfaces and release state, then close
    GET-23 only when its acceptance evidence is satisfied.
