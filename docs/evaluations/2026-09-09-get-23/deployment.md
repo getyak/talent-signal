@@ -13,3 +13,12 @@
 - [Owned acceptance account run readback](live-run-readback.json)
 
 The screenshot and run IDs use deliberately synthetic acceptance data. The actual model calls and feedback persistence ran against the deployed TestFlight backend. Prior native iOS click evidence remains in [the implementation plan](plan.md).
+
+## Native cross-platform acceptance
+
+A dedicated iOS Simulator signed into the same real backend acceptance account using the normal email/password screen. It read the Web-created synthetic person and made native Relationship Ask requests. The monitor recorded iOS as the source platform before any feedback. Native helpful, changed-to-unhelpful, and optional-note saves produced three preserved versions; reopening the native form and reading the Web monitor returned the exact saved note. A separate completed native answer was left unrated. The final six-run readback includes three Web and three iOS runs, including an earlier native run whose source-readback recovery stopped before showing its answer.
+
+- [Native saved-note readback](ios-live-provider-note.jpg)
+- [Same-page cross-platform history](web-live-cross-platform.jpg)
+
+Existing source-flow limitation observed during acceptance: direct Web notes can be marked reviewed without an explicit review receipt; native Ask demanded that receipt. The normal evidence-review API completed the synthetic fixture review. Retrying the old invalidated request then returned `IDEMPOTENCY_STATE_UNAVAILABLE`; a fresh question succeeded. This source-review recovery behavior is not changed by GET-23 and must not be mistaken for a successful original retry. No real candidate source or user account was altered.
