@@ -14,6 +14,7 @@ import type { ClaudeHarnessConfiguration } from "./claudeHarnessConfiguration.js
 export const CLAUDE_HARNESS_VERSION = "get9-v1";
 export const HARNESS_MCP_PREFIX = "mcp__talent_signal__";
 type SDKRetryEvidence = { afterMs: number; attempt: number; maxRetries: number; delayMs: number; httpStatus: number | null };
+type CleanupFailureCode = "SDK_STREAM_CLOSE_FAILED" | "SDK_STREAM_RETURN_FAILED" | "SDK_WARM_DISPOSE_FAILED" | "SDK_WORKSPACE_DISPOSE_FAILED" | "SDK_SESSION_FINALIZE_FAILED" | "SDK_OBSERVATION_COMPLETE_FAILED";
 
 function schemaRepairHint(schema: z.ZodObject, error: z.ZodError): string {
   try {
@@ -108,6 +109,7 @@ export interface ClaudeHarnessResult {
   /** Time to first completed assistant content-block receipt; not TTFB or final answer latency. */
   sdkTiming?: { initializedAfterMs: number | null; firstModelResponseAfterMs: number | null };
   apiRetries?: SDKRetryEvidence[];
+  cleanupFailures?: CleanupFailureCode[];
 }
 
 /** A failed SDK terminal result still owns usage; callers must not report zero. */
@@ -126,6 +128,7 @@ export class ClaudeHarnessInterruption extends Error {
     permissionDenials: string[]; usageComplete: false;
     sdkTiming?: { initializedAfterMs: number | null; firstModelResponseAfterMs: number | null };
     apiRetries?: SDKRetryEvidence[];
+    cleanupFailures?: CleanupFailureCode[];
   }, code: string) { super(code); this.name = "ClaudeHarnessInterruption"; }
 }
 
@@ -138,7 +141,23 @@ const INTERRUPTION_CODES = new Set([
   "HARNESS_SESSION_BATCH_LIMIT", "HARNESS_SESSION_ENTRY_CONFLICT", "HARNESS_SESSION_ENTRY_LIMIT",
   "HARNESS_SESSION_MIRROR_EMPTY", "HARNESS_SESSION_SIZE_LIMIT", "USER_CANCELLED",
   "SOURCE_REVOKED", "GENERATION_REVOKED", "SESSION_STORE_UNAVAILABLE",
+  "CLAUDE_HARNESS_CLEANUP_FAILED",
 ]);
+
+function preserveCleanupFailure(primary: unknown, output: ClaudeHarnessResult | undefined, code: CleanupFailureCode, cleanupError?: unknown): unknown {
+  if (primary instanceof ClaudeHarnessFailure || primary instanceof ClaudeHarnessInterruption) {
+    primary.receipt.cleanupFailures = [...(primary.receipt.cleanupFailures ?? []), code];
+    return primary;
+  }
+  if (primary !== undefined) return primary;
+  const knownCode = claudeHarnessInterruptionCode(cleanupError);
+  const failureCode = knownCode === "CLAUDE_HARNESS_RUN_INTERRUPTED" ? "CLAUDE_HARNESS_CLEANUP_FAILED" : knownCode;
+  if (output) {
+    const { text: _text, structuredOutput: _structuredOutput, ...receipt } = output;
+    return new ClaudeHarnessFailure({ ...receipt, terminalReason: failureCode === "CLAUDE_HARNESS_CLEANUP_FAILED" ? "cleanup_failed" : failureCode, cleanupFailures: [code] }, failureCode);
+  }
+  return new Error(failureCode);
+}
 
 /** Never treat arbitrary provider text (including all-caps text) as metadata. */
 export function claudeHarnessInterruptionCode(error: unknown): string {
@@ -189,7 +208,7 @@ export async function runClaudeHarness(
   observer?.addCredential(configuration.credential.value);
   let observation: RuntimeObservationSession | null = null;
   let output: ClaudeHarnessResult | undefined;
-  let failure: unknown;
+  let primaryError: unknown;
   let continuation: HarnessContinuation | undefined;
   try {
     signal.throwIfAborted();
@@ -205,15 +224,17 @@ export async function runClaudeHarness(
     if (continuation && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(continuation.sessionID)) {
       throw new Error("CLAUDE_HARNESS_SESSION_ID_INVALID");
     }
-    output = await executeClaudeHarness(configuration, request, signal, sdkQuery, observation, continuation); return output;
+    output = await executeClaudeHarness(configuration, request, signal, sdkQuery, observation, continuation);
   }
-  catch (error) { failure = error instanceof ClaudeHarnessFailure || error instanceof ClaudeHarnessInterruption
-    ? { code: error.message, receipt: error.receipt } : { code: "SDK_RUN_FAILED" }; throw error; }
-  finally {
-    try { await continuation?.finish(Boolean(output)); }
-    catch (error) { failure = { code: "SDK_SESSION_FINALIZE_FAILED", receipt: output }; output = undefined; throw error; }
-    finally { await observer?.complete(observation, output ?? failure, output ? "ok" : "error"); }
-  }
+  catch (error) { primaryError = error ?? new Error("SDK_RUN_FAILED"); }
+  try { await continuation?.finish(Boolean(output)); }
+  catch (error) { primaryError = preserveCleanupFailure(primaryError, output, "SDK_SESSION_FINALIZE_FAILED", error); output = undefined; }
+  const failure = primaryError instanceof ClaudeHarnessFailure || primaryError instanceof ClaudeHarnessInterruption
+    ? { code: primaryError.message, receipt: primaryError.receipt } : { code: "SDK_RUN_FAILED" };
+  try { await observer?.complete(observation, output ?? failure, output ? "ok" : "error"); }
+  catch (error) { primaryError = preserveCleanupFailure(primaryError, output, "SDK_OBSERVATION_COMPLETE_FAILED", error); output = undefined; }
+  if (primaryError !== undefined) throw primaryError;
+  return output!;
 }
 
 async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, request: ClaudeHarnessRequest,
@@ -255,6 +276,8 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
   }, 2_000);
   let stream: ReturnType<typeof query> | undefined;
   let warm: WarmQuery | undefined;
+  let primaryError: unknown;
+  let completedOutput: ClaudeHarnessResult | undefined;
   let toolCalls = 0;
   const messageUsage = new Map<string, { input: number; output: number }>();
   let result: SDKResultMessage | undefined;
@@ -438,13 +461,14 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
     }
     if (counts.input + counts.output > request.budget.maxTaskTokens) throw new Error("CLAUDE_HARNESS_TOKEN_BUDGET_EXHAUSTED");
     if (result.result && !streamedText && !request.outputSchema) request.onText?.(result.result);
-    return { text: result.result, structuredOutput: result.structured_output ?? null,
+    completedOutput = { text: result.result, structuredOutput: result.structured_output ?? null,
       sessionID: result.session_id, inputTokens: counts.input, outputTokens: counts.output,
       estimatedUsd: result.total_cost_usd, turns: result.num_turns, toolCalls,
       reportedModels: [...reportedModels], modelResponses: messageUsage.size, sdkTiming, apiRetries,
       terminalReason: result.terminal_reason ?? "completed", permissionDenials: [...denials, ...result.permission_denials.map(() => "SDK_PERMISSION_DENIED")] };
+    return completedOutput;
   } catch (error) {
-    if (error instanceof ClaudeHarnessFailure) throw error;
+    if (error instanceof ClaudeHarnessFailure) { primaryError = error; throw error; }
     const reason = controller.signal.aborted ? controller.signal.reason : error;
     const code = claudeHarnessInterruptionCode(reason);
     const counts = result ? Object.values(result.modelUsage).reduce((sum, entry) => ({
@@ -453,23 +477,26 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
     }), { input: 0, output: 0 }) : [...messageUsage.values()].reduce((sum, entry) => ({
       input: sum.input + entry.input, output: sum.output + entry.output,
     }), { input: 0, output: 0 });
-    throw new ClaudeHarnessInterruption({ sessionID: result?.session_id ?? observedSessionID,
+    primaryError = new ClaudeHarnessInterruption({ sessionID: result?.session_id ?? observedSessionID,
       inputTokens: result || messageUsage.size ? counts.input : null,
       outputTokens: result || messageUsage.size ? counts.output : null,
       estimatedUsd: result?.total_cost_usd ?? null, turns: result?.num_turns ?? null,
       toolCalls, reportedModels: [...reportedModels], modelResponses: messageUsage.size,
       terminalReason: code, permissionDenials: denials, usageComplete: false, sdkTiming, apiRetries }, code);
+    throw primaryError;
   } finally {
     clearTimeout(deadline);
     clearInterval(heartbeat);
     await checking;
     signal.removeEventListener("abort", abort);
-    try {
-      stream?.close();
-      if (stream?.return) await stream.return();
-      await warm?.[Symbol.asyncDispose]();
-    } finally {
-      await workspace.dispose();
-    }
+    const cleanup = async (code: CleanupFailureCode, operation: () => unknown) => {
+      try { await operation(); }
+      catch (error) { primaryError = preserveCleanupFailure(primaryError, completedOutput, code, error); }
+    };
+    await cleanup("SDK_STREAM_CLOSE_FAILED", () => stream?.close());
+    await cleanup("SDK_STREAM_RETURN_FAILED", () => stream?.return?.());
+    await cleanup("SDK_WARM_DISPOSE_FAILED", () => warm?.[Symbol.asyncDispose]());
+    await cleanup("SDK_WORKSPACE_DISPOSE_FAILED", () => workspace.dispose());
+    if (primaryError !== undefined) throw primaryError;
   }
 }

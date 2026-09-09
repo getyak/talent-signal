@@ -40,6 +40,22 @@ describe("Claude natural chat product adapter", () => {
     expect(answer.citation_ids).toEqual([]);
   });
 
+  it("supplies the frozen calendar clock as trusted instructions in both chat entry points", async () => {
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      expect(request.systemPrompt).toContain("today 2026-09-09; tomorrow 2026-09-10");
+      expect(request.systemPrompt).toContain("regardless of the SDK environment date");
+      return outcome;
+    });
+    const provider = new ClaudeChatProvider(configuration, execute);
+    const calendarContext = { sourceRequestID: "10000000-0000-4000-8000-000000000001", referenceTime: "2026-09-09T02:00:00Z", timeZone: "Asia/Shanghai" };
+    await provider.answer({ objective: "明天下午三点", prompt_snapshot: bundledPrompt("assistant/relationship"),
+      context_blocks: [], allowed_citation_ids: [], calendarContext });
+    await provider.runWithPromptPreset({ runID: "synthetic", objective: "明天下午三点", systemPrompt: "Synthetic",
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "account", sessionID: null, currentPersonID: null, currentRelationshipContextID: null },
+      toolManifest: [], calendarContext, budget: { maxTurns: 6, maxToolCalls: 6, maxDurationMs: 30_000, maxTaskTokens: 32_000, maxEstimatedUsd: 1 } },
+      async name => ({ callID: "unused", name, ok: true, data: {} }), new AbortController().signal, "baseline", vi.fn());
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
   it("rejects out-of-scope citations and records only successful citation tool receipts", async () => {
     const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
       const cite = request.tools[0]!;

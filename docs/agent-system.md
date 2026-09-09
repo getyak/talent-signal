@@ -77,9 +77,8 @@ Every run follows the same conceptual discipline:
 6. record the observation and checkpoint;
 7. continue, wait for a decision, or stop.
 
-The runtime stops when the outcome is complete, a human decision is required,
-authority changes, the budget ends, repeated failure exceeds policy, or the
-task is cancelled.
+The runtime stops when the outcome is complete, a human decision is required, authority changes,
+the budget ends, repeated failure exceeds policy, or the task is cancelled.
 
 ## Agent control plane
 
@@ -105,16 +104,12 @@ Capabilities progress through increasing consequence:
 | Device or external write | Change Contacts, Calendar, ATS, CRM, or communication | Exact-effect approval and verification |
 | Prohibited | Judge people, infer protected traits, or expose generic production access | Never available |
 
-The model proposes intent. The control plane determines whether a capability
-exists, is in scope, is currently allowed, and can be executed safely.
+The model proposes intent. The control plane decides whether a capability exists, is in scope, is currently allowed, and can execute safely.
 
-Validate original tool arguments before provider normalization can discard
-unknown fields. Rejection should help repair schema errors using bounded,
-schema-owned field names and error codes, without echoing rejected values or
-unknown input keys. Diagnostic failures preserve the original denial.
+Validate original tool arguments before provider normalization discards unknown fields.
+Repair hints use bounded schema-owned names/codes, never rejected values or unknown keys; diagnostic failures preserve denial.
 
-Fact confirmation, exact-effect approval and destination verification remain
-independent decisions; passing one never substitutes for another.
+Fact confirmation, exact-effect approval and destination verification remain independent decisions; passing one never substitutes for another.
 
 ## Context engineering
 

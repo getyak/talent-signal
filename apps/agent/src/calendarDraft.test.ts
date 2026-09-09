@@ -31,4 +31,15 @@ describe("review-only calendar capability", () => {
     expect(calendarDraftCapability(undefined, objective).tools).toEqual([]);
     expect(() => calendarDraftCapability({ ...context, sourceRequestID: "forged" }, objective)).toThrow("CONTEXT_INVALID");
   });
+  it("derives the next calendar date from the frozen zoned clock across month and year boundaries", () => {
+    for (const [referenceTime, timeZone, today, tomorrow] of [
+      ["2026-01-31T23:30:00Z", "Asia/Shanghai", "2026-02-01", "2026-02-02"],
+      ["2026-01-01T00:30:00Z", "America/Los_Angeles", "2025-12-31", "2026-01-01"],
+      ["2026-03-08T09:30:00Z", "America/Los_Angeles", "2026-03-08", "2026-03-09"],
+    ]) {
+      const capability = calendarDraftCapability({ ...context, referenceTime: referenceTime!, timeZone: timeZone! }, objective);
+      expect(capability.instructions).toContain(`today ${today}; tomorrow ${tomorrow}`);
+    }
+    expect(calendarDraftCapability(undefined, objective).instructions).toBe("");
+  });
 });

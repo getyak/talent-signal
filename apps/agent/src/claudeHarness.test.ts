@@ -78,6 +78,40 @@ describe("Claude harness deployment configuration", () => {
 });
 
 describe("SDK-owned harness", () => {
+  it("preserves budget usage through SDK, Session and observation cleanup failures", async () => {
+    let directory = "";
+    const close = vi.fn(() => { throw new Error("private-close-error"); });
+    const finish = vi.fn(async () => { throw new Error("private-session-error"); });
+    const complete = vi.fn(async () => { throw new Error("private-observer-error"); });
+    const sdk = ({ options }: any) => {
+      directory = options.cwd; let sent = false;
+      return { close, async return() { throw new Error("private-return-error"); },
+        async next() { if (sent) return { done: true }; sent = true;
+          return { done: false, value: { type: "assistant", message: { id: "budget", model: "synthetic", usage: { input_tokens: 1000, output_tokens: 2 } } } }; },
+        [Symbol.asyncIterator]() { return this; } };
+    };
+    const input = { ...request(), budget: { ...request().budget, maxTaskTokens: 100 },
+      continuation: async () => ({ sessionID: "10000000-0000-4000-8000-000000000001", resume: false, store: { append: vi.fn(), load: vi.fn(), delete: vi.fn(), listSubkeys: vi.fn() }, assertCurrent: async () => {}, finish }) };
+    const observer = { addCredential: vi.fn(), complete } as any;
+    const error = await runClaudeHarness(config, input, new AbortController().signal, sdk as any, observer).catch(error => error);
+    expect(error.message).toBe("CLAUDE_HARNESS_TOKEN_BUDGET_EXHAUSTED");
+    expect(error.receipt).toMatchObject({ inputTokens: 1000, outputTokens: 2, usageComplete: false,
+      cleanupFailures: ["SDK_STREAM_CLOSE_FAILED", "SDK_STREAM_RETURN_FAILED", "SDK_SESSION_FINALIZE_FAILED", "SDK_OBSERVATION_COMPLETE_FAILED"] });
+    expect(JSON.stringify(error.receipt)).not.toContain("private-");
+    expect(close).toHaveBeenCalledOnce(); expect(finish).toHaveBeenCalledWith(false);
+    expect(complete).toHaveBeenCalledWith(null, expect.objectContaining({ code: "CLAUDE_HARNESS_TOKEN_BUDGET_EXHAUSTED" }), "error");
+    await expect(access(directory)).rejects.toThrow();
+  });
+  it("does not report success when cleanup fails after a successful SDK result", async () => {
+    let directory = "";
+    const sdk = ({ options }: any) => ({ close() { throw new Error("private-close-error"); }, async *[Symbol.asyncIterator]() {
+      directory = options.cwd; yield result();
+    } });
+    await expect(runClaudeHarness(config, request(), new AbortController().signal, sdk as any, null)).rejects.toMatchObject({
+      message: "CLAUDE_HARNESS_CLEANUP_FAILED", receipt: { inputTokens: 10, outputTokens: 20, estimatedUsd: 0.01,
+        terminalReason: "cleanup_failed", cleanupFailures: ["SDK_STREAM_CLOSE_FAILED"] } });
+    await expect(access(directory)).rejects.toThrow();
+  });
   it("emits provisional main-session text before completion, without tool arguments or duplicate final prose", async () => {
     const chunks: string[] = [];
     const sdk = (({options}: any) => ({close: vi.fn(), async *[Symbol.asyncIterator]() {
