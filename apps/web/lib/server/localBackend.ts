@@ -101,8 +101,8 @@ async function authenticatedClient(clientLabel: string) {
   }
   const client = new TalentSignalClient(backendBaseUrl());
   const session = await client.login({
-    account_slug: LOCAL_ACCOUNT_SLUG,
-    user_email: LOCAL_USER_EMAIL,
+    account_slug: process.env.TALENT_SIGNAL_BACKEND_ACCOUNT_SLUG ?? LOCAL_ACCOUNT_SLUG,
+    user_email: process.env.TALENT_SIGNAL_BACKEND_USER_EMAIL ?? LOCAL_USER_EMAIL,
     client_label: clientLabel,
   });
   return { client, session };
@@ -749,6 +749,7 @@ export async function getLatestRelationshipResearch(
 }
 
 export type AskRelationshipChatInput = {
+  previous_task_id?: string;
   request_id: string;
   person_id: string;
   relationship_context_id: string;
@@ -809,6 +810,7 @@ export async function askRelationshipChat(
   }
   const objective = input.objective.trim();
   const { client } = await authenticatedClient("web-relationship-chat");
+  client.setClientPlatform("web");
   await client.compileKnowledge(
     input.person_id,
     input.relationship_context_id,
@@ -819,6 +821,7 @@ export async function askRelationshipChat(
   );
   return client.createChatTask({
     idempotency_key: `web-chat:${input.request_id}`,
+    ...(input.previous_task_id ? { previous_task_id: input.previous_task_id } : {}),
     objective,
     person_id: input.person_id,
     relationship_context_id: input.relationship_context_id,

@@ -10,6 +10,8 @@ candidate-data backend.
 - `/`: product narrative, interactive source-to-state redline, decision
   boundaries, research, and FAQ.
 - `/login`: Google, Apple, configured email/password, and optional default-account sign-in.
+- `/workspace/settings`: account/security and existing workspace member management.
+- `/workspace/settings/testing`: internal isolated test workspaces, entry and cleanup.
 - `/workspace`: authenticated eight-case evidence-review workspace with
   identity/time resolution, atomic fact decisions, separate action approval,
   and truthful fixture outcome states.
@@ -51,7 +53,10 @@ pnpm --filter @talent-signal/web auth:hash-password "your password"
 
 Place the output in `AUTH_DEFAULT_ACCOUNT_PASSWORD_SCRYPT`. The optional
 `AUTH_DEFAULT_ACCOUNT_QUICK_LOGIN=true` setting exposes a password-free default
-account button and should be used only for controlled demos.
+account button in development only. Configured default-account providers are
+disabled in production. Backend identities are required for account management.
+See [account access](../../docs/operations/account-access.md) for owners,
+active sessions, and isolated test workspaces.
 
 Google uses `/api/auth/callback/google`. Apple uses
 `/api/auth/callback/apple` and also requires an Apple Services ID, an associated

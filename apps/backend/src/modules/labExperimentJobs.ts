@@ -301,6 +301,22 @@ export class LabExperimentJobService {
     const scope = row.definition.task === "unscoped_chat" ? "workspace_conversation" : row.definition.task;
     const context: RuntimeObservationContext = { run_id: attempt.id, workspace_id: row.account_id,
       authorization_scope: scope, source_lab_job_id: row.id };
+    if (row.definition.regression_source) {
+      const productSource = (await this.pool.query<{ session_id: string | null; input: { value?: { person_id?: string; relationship_context_id?: string } }; expires_at: Date }>(
+        `SELECT p.session_id,p.input,p.expires_at FROM lab_regressions r JOIN product_runs p ON p.id=r.source_run_id
+         WHERE r.id=$1 AND r.account_id=$2 AND r.user_id=$3 AND product_run_source_available(p.id)`,
+        [row.definition.regression_source.id,row.account_id,row.user_id])).rows[0];
+      if (productSource) {
+        const frozen = JSON.parse(row.definition.cases[0]!.input_json) as { allowed_citation_ids: string[] };
+        const original = productSource.input.value;
+        const product = await productObservationContext(this.pool,{accountId:row.account_id,userId:row.user_id},attempt.id,scope,
+          { sessionID:productSource.session_id, ...(original?.person_id ? {personID:original.person_id}:{}),
+            ...(original?.relationship_context_id ? {contextID:original.relationship_context_id}:{}), fragmentIDs:frozen.allowed_citation_ids });
+        if (product.source_refs?.kind === "product") product.source_refs.expires_at = new Date(Math.min(
+          Date.parse(product.source_refs.expires_at),productSource.expires_at.valueOf(),row.expires_at.valueOf())).toISOString();
+        return {...product,source_lab_job_id:row.id,source_regression_id:row.definition.regression_source.id};
+      }
+    }
     const source = row.definition.regression_source ? (await this.pool.query<FeedbackExecutionRow & { data_class: string }>(
       `SELECT e.*,r.snapshot->>'data_class' AS data_class FROM lab_regressions r LEFT JOIN feedback_execution_snapshots e
         ON e.id=r.source_execution_id WHERE r.account_id=$1 AND r.user_id=$2 AND r.id=$3

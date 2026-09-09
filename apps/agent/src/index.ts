@@ -22,3 +22,5 @@ export * from "./promptRegistry.js";
 export * from "./runtimeObservation.js";
 export * from "./runtimeObservationOutbox.js";
 export * from "./relationshipTaskConfiguration.js";
+
+export * from "./productRunCapture.js";

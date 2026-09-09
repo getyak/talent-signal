@@ -64,7 +64,7 @@ export function browserCaptureInput(value: unknown, headers: Headers, claims: Ba
 export async function browserBackend(claims: BackendSessionClaims, path: string, body?: unknown) {
   return fetch(`${backendAuthBaseUrl()}/v1/contact-agent/${path}`, {
     method: body ? "POST" : "GET", cache:"no-store", redirect:"error",
-    headers:{authorization:`Bearer ${claims.backendAccessToken}`,"content-type":"application/json"},
+    headers:{authorization:`Bearer ${claims.backendAccessToken}`,"content-type":"application/json","x-talent-signal-platform":"web"},
     ...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(40_000),
   });
 }

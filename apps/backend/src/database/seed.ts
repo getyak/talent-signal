@@ -27,7 +27,11 @@ const IDS = {
 } as const;
 
 export async function seed(): Promise<void> {
-  const pool = createPool(loadConfig());
+  const config = loadConfig();
+  if (process.env.NODE_ENV === "production" || !config.simulatedAuthEnabled) {
+    throw new Error("Fixture accounts require explicit simulated authentication in a development backend.");
+  }
+  const pool = createPool(config);
   const adminPassword = await encodePasswordCredential(
     "cubxxw",
     "6375627878772d6c6f63616c2d61646d",

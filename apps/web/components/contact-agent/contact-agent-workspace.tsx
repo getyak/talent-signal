@@ -1,6 +1,9 @@
 "use client";
 
+import { workspaceSessionFetch } from "@/components/workspace-session-request";
+
 import Link from "next/link";
+import { ProductFeedback } from "@/components/product-feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenshotContactTaskResponse, ScreenshotContactTaskRequest, TextContactTaskRequest } from "@talent-signal/agent";
 import styles from "./contact-agent.module.css";
@@ -14,7 +17,7 @@ const failureCopy=(item:Task)=>item.limitations.includes("CONTACT_AGENT_PROVIDER
 const fields:Record<string,string>={headline:"一句话背景",company:"公司",job_title:"职位",location:"地点",professional_background:"职业背景",professional_topics:"职业议题",public_profile:"公开主页"};
 const tools:Record<string,string>={extract_chat_screenshot:"读取截图",extract_web_text:"读取网页文字",search_contacts:"查找已有联系人",read_contact:"读取联系人",create_contact:"创建联系人并保存消息",save_contact_chat:"保存聊天消息",search_contact_public:"搜索公开资料",fetch_contact_source:"读取公开来源",update_contact:"更新有来源的档案",finish_contact_task:"整理分析",ask_contact_clarification:"等待身份确认"};
 async function request<T>(path:string,body?:unknown):Promise<T>{
-  const response=await fetch(`/api/contact-agent/${path}`,{method:body?"POST":"GET",cache:"no-store",headers:{"content-type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
+  const response=await workspaceSessionFetch(`/api/contact-agent/${path}`,{method:body?"POST":"GET",cache:"no-store",headers:{"content-type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
   const value=await response.json();if(!response.ok)throw new Error(value.message??value.error?.message??"暂时无法完成，请重试。");return value as T;
 }
 async function imageInput(file:File):Promise<ScreenshotContactTaskRequest["image"]>{
@@ -130,6 +133,7 @@ export function ContactAgentWorkspace({personID,contextID,embedded=false,initial
           {item.source&&<div className={styles.sourceBar}><span>{item.source.kind.includes("text")?"网页文字":item.source.kind==="screen"?"屏幕截取":"截图"}</span><span>{item.source.title}</span>{/^https?:\/\//.test(item.source.url)&&<a href={item.source.url} target="_blank" rel="noreferrer">打开来源 ↗</a>}<span>{item.source.time_basis==="imported_at"?"导入时间":"截取时间"} · {new Date(item.source_captured_at??item.created_at).toLocaleString("zh-CN")}</span></div>}
           {item.source_text&&<details className={styles.sourceText}><summary>查看提交的原文</summary><pre>{item.source_text}</pre></details>}
           {(item.summary||failureCopy(item))&&<p className={styles.summary}>{["failed","partial"].includes(item.status)?failureCopy(item)??item.summary:item.summary}</p>}
+          {item.summary&&<ProductFeedback key={item.task_id} taskID={item.task_id}/> }
           {item.status==="running"&&<div className={styles.progress}><span className={styles.pulse}/><span>{tools[item.events.at(-1)?.tool??""]??"正在提取来源并查找人物"}</span><button onClick={()=>void request<Task>(`tasks/${item.task_id}/cancel`,{expected_revision:item.revision}).then(setTask).catch(e=>setError(e.message))}>停止</button></div>}
           {item.question&&<div className={styles.question}><h3>{item.question}</h3>{item.candidates.map(candidate=><button key={`${candidate.person_id}:${candidate.relationship_context_id}`} onClick={()=>void resume(item,candidate)} disabled={busy}>{candidate.display_name} · {candidate.relationship_label}</button>)}{item.extraction&&<><label className={styles.label}>或指定本次归档的联系人姓名<input value={name} onChange={e=>setName(e.target.value)} maxLength={200}/></label><button onClick={()=>void resume(item)} disabled={busy||(!name.trim()&&!attachments.length)}>确认并继续</button></>}</div>}
           {["failed","partial","cancelled"].includes(item.status)&&!item.limitations.includes("CONTACT_SOURCE_DELETION_PENDING")&&<button onClick={()=>void resume(item)} disabled={busy}>继续这个任务</button>}

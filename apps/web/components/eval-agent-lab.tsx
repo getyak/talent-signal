@@ -1,5 +1,7 @@
 "use client";
 
+import { workspaceSessionFetch } from "@/components/workspace-session-request";
+
 import {
   ArrowRight,
   CheckCircle,
@@ -160,7 +162,7 @@ export function EvalAgentLab({
       });
       requestStartedAt = new Date().toISOString();
       requestSpanId = traceSpanId(trace, "agent-lab-request");
-      const response = await fetch("/api/pursuit-agent-runs", {
+      const response = await workspaceSessionFetch("/api/pursuit-agent-runs", {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },

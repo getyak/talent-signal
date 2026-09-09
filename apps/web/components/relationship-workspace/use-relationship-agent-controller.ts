@@ -507,6 +507,7 @@ export function useRelationshipAgentController({
             person_id: requestScope.person.id,
             relationship_context_id: requestScope.relationship_context.id,
             objective: submitted,
+            ...(currentConversation.response ? {previous_task_id:currentConversation.response.task_id} : {}),
             telemetry: {
               trace_id: trace.trace_id,
               parent_span_id: trace.root_span_id,

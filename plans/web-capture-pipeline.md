@@ -11,6 +11,9 @@ Web workspace. No inferred field becomes a confirmed fact or external action.
 ## Evidence and approach
 
 - Baseline: `e9bbaa5b`, isolated branch `codex/web-capture-pipeline`.
+- Before deployment, preserve the currently deployed `cd402c98` account-scope and
+  product-feedback integration through a merge. Keep its scoped fetches, account
+  controls, feedback component and governed run lifecycle.
 - Existing browser handoff only admits one synthetic text fixture. Image upload
   is disabled in the extension despite the backend's newer governed image store.
 - Reuse the account/owner-scoped contact task runner, image lifecycle, canonical

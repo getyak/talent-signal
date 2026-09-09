@@ -1,4 +1,5 @@
 import "server-only";
+import { testWorkspaceSession } from "./testWorkspaceSession";
 
 import {
   TalentSignalClient,
@@ -75,9 +76,8 @@ export type BackendSessionClaims = {
   backendUsername: string | null;
 };
 
-// React discards this memoization between server requests; never persist tokens.
-// https://react.dev/reference/react/cache#caveats
-export const readBackendSessionClaims = cache(async (): Promise<BackendSessionClaims | null> => {
+// React discards this memoization between server requests.
+export const readPrimaryBackendSessionClaims = cache(async (): Promise<BackendSessionClaims | null> => {
   let requestHeaders: Headers;
   try {
     requestHeaders = await headers();
@@ -125,6 +125,16 @@ export const readBackendSessionClaims = cache(async (): Promise<BackendSessionCl
     backendUsername: token.backendUsername,
   };
 });
+
+export async function readBackendSessionClaims(): Promise<BackendSessionClaims | null> {
+  const primary = await readPrimaryBackendSessionClaims();
+  if (!primary) return null;
+  const test = await testWorkspaceSession(primary);
+  const claims = test?.claims ?? primary;
+  const expected = (await headers()).get("x-talent-signal-workspace");
+  if (expected && expected !== claims.backendAccountId) throw new BackendSessionExpiredError();
+  return claims;
+}
 
 export async function authenticatedBackendClient(): Promise<TalentSignalClient | null> {
   const claims = await readBackendSessionClaims();

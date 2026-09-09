@@ -1,0 +1,84 @@
+# Account and workspace access
+
+## Everyday access
+
+Use the account's configured Google, Apple, or email/password identity. A federated
+login does not create a default password. Web **Account and security** reports the
+actual configured methods and active sessions from the authenticated backend.
+Provider linking and password recovery are not implemented by this settings slice.
+
+The avatar menu opens `/workspace/settings`, workspace management, and internal
+test workspaces. Settings require a backend session and never use the legacy
+fixture fallback. Profile names and workspace names are editable; email and
+provider identity remain unchanged.
+
+## Ownership and management
+
+A new personal workspace explicitly belongs to its creator. Migration assigns an
+owner to existing personal workspaces only when exactly one active real user is
+the sole member. Ambiguous and fixture workspaces retain their existing roles;
+they are not silently claimed. Ownership is separate from the existing
+`admin`/`member` session contract so existing clients remain compatible.
+
+Owners manage the space name, existing member roles/status, and transfer ownership
+to another active real member. Admins manage the name and ordinary members; they
+cannot grant admin privileges, change another admin, change themselves, or modify
+the owner. Ownership is workspace-scoped, never platform-wide. This version does
+not add invitations or a global multi-workspace identity migration.
+
+Stopping a member or changing their role revokes their sessions. Reinstatement
+requires a new login. Each user can revoke their other sessions; current-session
+exit uses normal sign-out. Mutations recheck current authority, reject stale
+revisions, and retain idempotency and an account-scoped management record.
+These privileges do not authorize candidate-data collection or external effects.
+
+## Default development fixture
+
+Only an explicitly simulated, non-production seeded backend provides:
+
+| Field | Development fixture value |
+| --- | --- |
+| Username | `cubxxw` |
+| Email | `cubxxw@talentsignal.local` |
+| Password | `cubxxw` |
+| Workspace / role | `fixture-alpha` / admin |
+
+Use the email in the Web email field. These are public synthetic fixture values,
+not deployment credentials. Seeding resets fixture state and must not run against
+the shared TestFlight or production database. The seed command refuses production
+or disabled simulated authentication. Legacy configured default-account Web
+providers are disabled in production, even if their flags are set.
+
+Other `simulated_human` fixture identities have no password. Use the explicit
+simulated API in local evaluations, or an isolated internal test workspace.
+
+## Internal test workspaces
+
+`/workspace/settings/testing` uses the existing server-controlled Lab capability.
+A real signed-in user creates an empty, isolated test account for 1, 4, or 24 hours.
+No shared test password is required. Entry credentials remain in encrypted,
+HttpOnly cookies and the backend stores their hashes. The primary session stays
+separate; a persistent banner returns the user to their own workspace.
+
+Expired or mismatched test-session cookies fail closed. They never silently turn
+an in-progress test action into a real-workspace write. Workspace requests carry
+the rendered account scope, and stale tabs are refused if that scope changes.
+Test data may contain synthetic or explicitly authorized testing material only;
+isolation is not consent for external processing or retention.
+
+Ending a test workspace revokes access before data cleanup. The UI distinguishes
+cleanup pending/failed from verified deletion. New database tables must be
+explicitly classified in the Lab cleanup manifest and account-scoped tables need
+the Lab write guard. Unknown tables block creation/cleanup instead of silently
+leaving data behind. Restore normal access before creating another workspace.
+
+## Verification
+
+The account integration evaluation requires the disposable `account_proof`
+PostgreSQL database and `ACCOUNT_EVALUATION_DATABASE_URL`. Run migrations first,
+then `pnpm --filter @talent-signal/backend exec tsx src/evaluation/runAccountManagementEvaluation.ts`.
+It checks ownership, cross-account denial, replay/stale decisions, member
+revocation, transfer, and the full isolated test-workspace lifecycle.
+
+Credentials for deployed services remain in [Infisical](secrets.md). The Notion
+home contains a short access reference; this document owns operational details.

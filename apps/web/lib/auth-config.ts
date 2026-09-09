@@ -70,6 +70,7 @@ export function getDefaultAccount(
   const passwordScrypt =
     environment.AUTH_DEFAULT_ACCOUNT_PASSWORD_SCRYPT?.trim();
   const enabled =
+    environment.NODE_ENV !== "production" &&
     environment.AUTH_DEFAULT_ACCOUNT_ENABLED === "true" &&
     name.length > 0 &&
     z.string().email().safeParse(email).success;

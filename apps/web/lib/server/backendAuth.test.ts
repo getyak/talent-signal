@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const { getToken } = vi.hoisted(() => ({ getToken: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next-auth/jwt", () => ({ getToken }));
+vi.mock("./testWorkspaceSession", () => ({ testWorkspaceSession: async () => null }));
 
 import { authenticatedBackendClient, readBackendSessionClaims } from "./backendAuth";
 

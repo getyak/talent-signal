@@ -13,6 +13,9 @@ export const LabRegressionRequestSchema = Type.Object({
 }, { additionalProperties: false });
 export const LabRegressionSnapshotSchema = Type.Object({
   schema_version: Type.Literal("lab-regression.v1"), data_class: Type.Union([Type.Literal("registered_synthetic"), Type.Literal("private_business")]),
+  product_run_source: Type.Optional(Type.Object({ run_id: ID, original_output_hash: Hash,
+    feedback_revision: Type.Integer({ minimum: 0 }), sentiment: Type.Union([Type.Literal("helpful"), Type.Literal("unhelpful"), Type.Null()]),
+  }, { additionalProperties: false })),
   feedback_source: Type.Optional(Type.Object({
     feedback_id: ID, feedback_revision: Type.Integer({ minimum: 1 }), execution_id: ID,
     // Older frozen snapshots remain readable; optimizer admission requires this
