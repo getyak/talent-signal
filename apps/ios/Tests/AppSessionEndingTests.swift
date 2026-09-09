@@ -261,6 +261,19 @@ private final class EndingAuthentication: AppAuthenticationServing {
 }
 
 final class AuthenticationWelcomeGestureTests: XCTestCase {
+    func testPullTracksDirectlyThenResistsOverpullWithoutOvershoot() {
+        XCTAssertEqual(AuthenticationWelcomeGesture.progress(pull: -20, travel: 200), 0)
+        XCTAssertEqual(AuthenticationWelcomeGesture.progress(pull: 30, travel: 200), 0.15, accuracy: 0.001)
+        XCTAssertEqual(AuthenticationWelcomeGesture.progress(pull: 124, travel: 200), 0.62, accuracy: 0.001)
+        let longPull = AuthenticationWelcomeGesture.progress(pull: 200, travel: 200)
+        let overpull = AuthenticationWelcomeGesture.progress(pull: 400, travel: 200)
+        XCTAssertGreaterThan(longPull, 0.62)
+        XCTAssertGreaterThan(overpull, longPull)
+        XCTAssertLessThan(overpull, 1)
+        XCTAssertLessThan(overpull - longPull, longPull - 0.62)
+        XCTAssertEqual(AuthenticationWelcomeGesture.progress(pull: 100, travel: 0), 0)
+    }
+
     func testExploratoryAndSidewaysPullsDoNotCommit() {
         XCTAssertFalse(AuthenticationWelcomeGesture.shouldEnter(translation: CGSize(width: 0, height: -32),
             predicted: CGSize(width: 0, height: -400), travel: 210))
