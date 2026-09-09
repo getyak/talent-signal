@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
@@ -41,7 +42,7 @@ async function productSession() {
 }
 async function seed(id: string, sources = sourceDeadline) {
   return inTransaction(pool!, async client => {
-    const session = await createHarnessContinuationFactory(client, auth, id, scope, sources)(fingerprint);
+    const session = await createHarnessContinuationFactory(client, pool!, auth, id, scope, sources)(fingerprint);
     await session.store.append(key(session), [entry()]);
     await session.store.append(key(session, "subagents/agent-synthetic"), [entry()]);
     await session.finish(true);
@@ -107,7 +108,7 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
       const execution = await executeUnscopedChatTask({ database, auth,
         request: { session_id: id, idempotency_key: randomUUID(), objective: "Synthetic follow-up" },
         provider: { providerId: "claude-agent-sdk", model: "synthetic", supportsImageInput: false, answer },
-        continuation: sources => createHarnessContinuationFactory(client, auth, id, scope, sources),
+        continuation: sources => createHarnessContinuationFactory(client, pool!, auth, id, scope, sources),
       });
       expect(execution.remoteStatus).toBe("fallback");
     });
@@ -158,7 +159,7 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
     await new Promise(resolve => setTimeout(resolve, Math.max(0, deadline.valueOf() - Date.now() + 50)));
     expect((await pool!.query("SELECT status FROM identity_handles WHERE id=$1", [handle])).rows[0].status).toBe("confirmed");
     await inTransaction(pool!, async client => {
-      const session = await createHarnessContinuationFactory(client, auth, id, scope, sources)(fingerprint);
+      const session = await createHarnessContinuationFactory(client, pool!, auth, id, scope, sources)(fingerprint);
       expect(session.resume).toBe(false); expect(session.sessionID).not.toBe(old);
       await expect(session.store.load(key(session))).rejects.toThrow("working context");
       await session.finish(false);
@@ -175,8 +176,50 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
     expect((await pool!.query(`SELECT count(*)::int AS count FROM harness_session_entries e JOIN harness_sessions h
       ON h.account_id=e.account_id AND h.id=e.harness_session_id WHERE h.sdk_session_id=$1`, [old])).rows[0].count).toBe(0);
     await inTransaction(pool!, async client => {
-      const session = await createHarnessContinuationFactory(client, auth, id, scope, sourceDeadline)(fingerprint);
+      const session = await createHarnessContinuationFactory(client, pool!, auth, id, scope, sourceDeadline)(fingerprint);
       expect(session.resume).toBe(false); await session.finish(false);
+    });
+  });
+  it.each([false,true])("a heartbeat lets revocation complete before its deadline (resume=%s)", async resume => {
+    expect((await pool!.query("SELECT 1 FROM harness_source_generations WHERE account_id=$1",[auth.accountId])).rowCount).toBe(1);
+    const id=await productSession();if(resume)await seed(id);
+    const run=await pool!.connect(),revoke=await pool!.connect();let retraction:Promise<unknown>|undefined;
+    try {
+      await run.query("BEGIN");await revoke.query("BEGIN");await revoke.query("SET LOCAL statement_timeout='2500ms'");
+      const session=await createHarnessContinuationFactory(run,pool!,auth,id,scope,sourceDeadline)(fingerprint);
+      await session.store.append(key(session),[entry()]);
+      const pid=(await revoke.query<{pid:number}>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid;
+      retraction=revoke.query("INSERT INTO agent_session_retracted_tasks(account_id,task_id) VALUES($1,$2)",[auth.accountId,randomUUID()]);
+      void retraction.catch(()=>{});
+      const start=Date.now();let waiting=false;
+      while(Date.now()-start<1000){
+        waiting=(await pool!.query("SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock'",[pid])).rowCount===1;
+        if(waiting)break;await delay(5);
+      }
+      if(resume)expect(waiting).toBe(true);
+      else { await retraction;await revoke.query("COMMIT"); }
+      // This is the regular heartbeat check, not final finish(true).
+      await expect(session.assertCurrent()).rejects.toMatchObject({code:"HARNESS_SESSION_UNAVAILABLE"});
+      await session.finish(false);await run.query("COMMIT");
+      await retraction;await revoke.query("COMMIT");
+      expect(Date.now()-start).toBeLessThan(2500);
+      expect((await pool!.query("SELECT 1 FROM harness_session_entries WHERE account_id=$1",[auth.accountId])).rowCount).toBe(0);
+    }finally{
+      await run.query("ROLLBACK");await retraction?.catch(()=>{});await revoke.query("ROLLBACK");run.release();revoke.release();
+    }
+  });
+  it("concurrent heartbeat and store checks release their short read fences",async()=>{
+    const id=await productSession();await seed(id);
+    await inTransaction(pool!,async client=>{
+      const session=await createHarnessContinuationFactory(client,pool!,auth,id,scope,sourceDeadline)(fingerprint);
+      const added=entry();
+      await Promise.all([session.assertCurrent(),session.store.append(key(session),[added]),session.assertCurrent()]);
+      expect((await session.store.load(key(session)))?.some(row=>row.uuid===added.uuid)).toBe(true);
+      const other=await pool!.connect();
+      try {
+        await other.query("BEGIN");await other.query("SELECT generation FROM harness_source_generations WHERE account_id=$1 FOR UPDATE NOWAIT",[auth.accountId]);
+      }finally{await other.query("ROLLBACK");other.release();}
+      await session.finish(false);
     });
   });
   it("does not publish a successful checkpoint while source revocation is waiting on a running turn", async () => {
@@ -185,14 +228,14 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
     let retraction: Promise<unknown> | undefined;
     try {
       await run.query("BEGIN"); await revoke.query("BEGIN");
-      const session = await createHarnessContinuationFactory(run, auth, id, scope, sourceDeadline)(fingerprint);
+      const session = await createHarnessContinuationFactory(run, pool!, auth, id, scope, sourceDeadline)(fingerprint);
       await session.store.append(key(session), [entry()]);
       // The generation row is changed first, then physical purge waits for this
       // turn's row lock. Completion must fail immediately instead of deadlocking
       // or publishing a reply from the about-to-be-revoked source.
       await revoke.query("UPDATE harness_source_generations SET generation=generation+1 WHERE account_id=$1", [auth.accountId]);
       retraction = revoke.query("INSERT INTO agent_session_retracted_tasks(account_id,task_id) VALUES($1,$2)", [auth.accountId, randomUUID()]);
-      await expect(session.finish(true)).rejects.toMatchObject({ code: "55P03" });
+      await expect(session.finish(true)).rejects.toMatchObject({ code: "HARNESS_SESSION_UNAVAILABLE" });
       await run.query("COMMIT"); await retraction; await revoke.query("COMMIT");
       expect((await pool!.query("SELECT count(*)::int AS count FROM harness_session_entries WHERE account_id=$1", [auth.accountId])).rows[0].count).toBe(0);
     } finally {
@@ -203,7 +246,7 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
   it("resumes only the authenticated binding, deduplicates retries and rolls interrupted turns back", async () => {
     const id = await productSession(), initial = await seed(id);
     await inTransaction(pool!, async client => {
-      const session = await createHarnessContinuationFactory(client, auth, id, scope, sourceDeadline)(fingerprint);
+      const session = await createHarnessContinuationFactory(client, pool!, auth, id, scope, sourceDeadline)(fingerprint);
       expect(session.resume).toBe(true); expect(session.sessionID).toBe(initial);
       const before = await session.store.load(key(session));
       const next = entry(); await session.store.append(key(session), [next]); await session.store.append(key(session), [next]);
@@ -214,24 +257,24 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
       await session.finish(false);
     });
     await inTransaction(pool!, async client => {
-      const session = await createHarnessContinuationFactory(client, auth, id, scope, sourceDeadline)(fingerprint);
+      const session = await createHarnessContinuationFactory(client, pool!, auth, id, scope, sourceDeadline)(fingerprint);
       expect(await session.store.load(key(session))).toHaveLength(1);
       await session.finish(false);
     });
-    await expect(inTransaction(pool!, client => createHarnessContinuationFactory(client, { ...auth, userId: randomUUID() }, id, scope, sourceDeadline)(fingerprint))).rejects.toMatchObject({ code: "AGENT_SESSION_NOT_FOUND" });
+    await expect(inTransaction(pool!, client => createHarnessContinuationFactory(client, pool!, { ...auth, userId: randomUUID() }, id, scope, sourceDeadline)(fingerprint))).rejects.toMatchObject({ code: "AGENT_SESSION_NOT_FOUND" });
   });
   it("holds one writer per product Session and creates a fresh SDK identity after configuration changes", async () => {
     const id = await productSession(), old = await seed(id);
     const left = await pool!.connect(), right = await pool!.connect();
     try {
       await left.query("BEGIN"); await right.query("BEGIN");
-      const first = await createHarnessContinuationFactory(left, auth, id, scope, sourceDeadline)(fingerprint);
-      await expect(createHarnessContinuationFactory(right, auth, id, scope, sourceDeadline)(fingerprint)).rejects.toMatchObject({ code: "HARNESS_SESSION_BUSY" });
+      const first = await createHarnessContinuationFactory(left, pool!, auth, id, scope, sourceDeadline)(fingerprint);
+      await expect(createHarnessContinuationFactory(right, pool!, auth, id, scope, sourceDeadline)(fingerprint)).rejects.toMatchObject({ code: "HARNESS_SESSION_BUSY" });
       await first.finish(false);
       await left.query("COMMIT"); await right.query("ROLLBACK");
     } finally { left.release(); right.release(); }
     await inTransaction(pool!, async client => {
-      const session = await createHarnessContinuationFactory(client, auth, id, scope, sourceDeadline)("b".repeat(64));
+      const session = await createHarnessContinuationFactory(client, pool!, auth, id, scope, sourceDeadline)("b".repeat(64));
       expect(session.resume).toBe(false); expect(session.sessionID).not.toBe(old);
       expect(await session.store.load(key(session))).toBeNull();
       await session.store.append(key(session), [entry()]); await session.finish(true);
@@ -242,7 +285,7 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
   it("physically erases main/subagent copies on source retraction and prevents stale append resurrection", async () => {
     const id = await productSession(); await seed(id);
     await inTransaction(pool!, async client => {
-      const session = await createHarnessContinuationFactory(client, auth, id, scope, sourceDeadline)(fingerprint);
+      const session = await createHarnessContinuationFactory(client, pool!, auth, id, scope, sourceDeadline)(fingerprint);
       await client.query("INSERT INTO agent_session_retracted_tasks(account_id,task_id) VALUES($1,$2)", [auth.accountId, randomUUID()]);
       await expect(session.assertCurrent()).rejects.toThrow("working context");
       await expect(session.store.append(key(session), [entry()])).rejects.toThrow("working context");
@@ -251,7 +294,7 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
     });
     expect((await pool!.query(`SELECT count(*)::int AS count FROM harness_session_entries WHERE account_id=$1`, [auth.accountId])).rows[0].count).toBe(0);
     await inTransaction(pool!, async client => {
-      const session = await createHarnessContinuationFactory(client, auth, id, scope, sourceDeadline)(fingerprint);
+      const session = await createHarnessContinuationFactory(client, pool!, auth, id, scope, sourceDeadline)(fingerprint);
       expect(session.resume).toBe(false); await session.finish(false);
     });
   });

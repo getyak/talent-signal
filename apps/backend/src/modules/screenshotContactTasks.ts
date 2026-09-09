@@ -403,7 +403,7 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
       for(const field of args.fields){
         field.source_refs=field.source_refs.map(ref=>canonicalSourceRef(row,ref));
         sourceExcerpt(row,field.source_refs,field.source_excerpt,true);
-        if(field.epistemic_status==="source_statement"&&!field.source_excerpt.includes(field.value))field.epistemic_status="inference";
+        if(field.field!=="public_profile"&&field.epistemic_status==="source_statement"&&!field.source_excerpt.includes(field.value))deny("CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE");
         if(response.profile_fields.length>=50&&!response.profile_fields.some(f=>JSON.stringify(f)===JSON.stringify(field)))deny("CONTACT_PROFILE_FIELD_LIMIT");
         // A public name match alone does not establish that the source describes this contact.
         const publicSources=field.source_refs.map(ref=>response.public_sources.find(s=>s.source_id===ref)).filter((s):s is ContactPublicSource=>Boolean(s));
@@ -658,6 +658,8 @@ export class ScreenshotContactTaskRunner {
             const state=await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,name,{error:codeOf(error)},"denied");return currentToolState(r);});
             return {error:codeOf(error),current_state:state,instruction:codeOf(error)==="CONTACT_SUMMARY_ESCAPED_TEXT"
               ? "Write ordinary prose with actual line breaks, not literal backslash-n/backslash-r escape text. Retry only the rejected finish call."
+              : codeOf(error)==="CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE"
+              ? "A source_statement field value must copy a contiguous part of its exact cited excerpt. Keep only the supported source wording, or explicitly label a justified, qualified interpretation as inference. Discussing a topic does not prove work experience; separated dated roles do not establish a direct job transfer. Correct this update only; prior filing remains complete."
               : codeOf(error)==="CONTACT_CITATION_EXCERPT_MISMATCH"
               ? "Copy one contiguous exact excerpt from ONE cited source; never concatenate, translate, or insert ellipses. finish_contact_task findings can cite only original chat messages. Public claims belong in update_contact fields with their fetched page references. Correct the rejected call; completed filing must not be repeated."
               : "Choose from current allowed tools and use exact source tokens. Completed filing must not be repeated; no success is implied for this failed call."};

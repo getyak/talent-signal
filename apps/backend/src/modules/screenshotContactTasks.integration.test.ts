@@ -137,7 +137,7 @@ function input():ScreenshotContactTaskRequest{
   const bytes=Buffer.from([137,80,78,71,13,10,26,10,0]);
   return {idempotency_key:randomUUID(),objective:"File this synthetic chat and analyze the evidence.",image:{media_type:"image/png",byte_size:bytes.length,content_hash:createHash("sha256").update(bytes).digest("hex"),data_base64:bytes.toString("base64")},allow_public_research:false,captured_at:new Date().toISOString()};
 }
-function model(name:string,options:{badQuote?:boolean;group?:boolean}={}):ContactAgentModel{
+function model(name:string,options:{badQuote?:boolean;badStatement?:boolean;group?:boolean}={}):ContactAgentModel{
   let attemptedBad=false;
   const extraction:ContactChatExtraction={platform:"Synthetic IM",conversation_kind:options.group?"group":"direct",contact_name:name,
     identity_clues:[{kind:"name",value:name,source_excerpt:name}],messages:[{message_id:"m1",sequence:0,text:"I work at Example Labs. I can talk next Tuesday.",speaker_side:"left",speaker_label:null,time_text:null}],uncertainties:["Message date and speaker role are unknown."]};
@@ -151,6 +151,7 @@ function model(name:string,options:{badQuote?:boolean;group?:boolean}={}):Contac
     else if(!s.contact&&search.candidates.length===1)call={name:"read_contact",arguments:{person_id:search.candidates[0]!.person_id,relationship_context_id:search.candidates[0]!.relationship_context_id}};
     else if(!s.contact)call={name:"create_contact",arguments:{display_name:name}};
     else if(!s.capture_id)call={name:"save_contact_chat",arguments:{person_id:s.contact.person_id,relationship_context_id:s.contact.relationship_context_id}};
+    else if(options.badStatement&&!attemptedBad){attemptedBad=true;call={name:"update_contact",arguments:{person_id:s.contact.person_id,fields:[{field:"company",value:"Example Labs",source_refs:["m1"],source_excerpt:"I work at Example Labs.",epistemic_status:"source_statement"},{field:"professional_background",value:"Led engineering at Example Labs",source_refs:["m1"],source_excerpt:"I work at Example Labs.",epistemic_status:"source_statement"}]}};}
     else if(options.badQuote&&!attemptedBad){attemptedBad=true;call={name:"update_contact",arguments:{person_id:s.contact.person_id,fields:[{field:"company",value:"Invented Ltd",source_refs:["m1"],source_excerpt:"I work at Invented Ltd",epistemic_status:"source_statement"}]}};}
     else if(!s.profile_fields.length)call={name:"update_contact",arguments:{person_id:s.contact.person_id,fields:[{field:"company",value:"Example Labs",source_refs:["m1"],source_excerpt:"I work at Example Labs.",epistemic_status:"source_statement"}]}};
     else call={name:"finish_contact_task",arguments:{summary:"Saved the chat. A call is possible, but its date needs clarification.",findings:[{kind:"open_question",text:"Confirm which Tuesday before scheduling.",message_refs:["m1"],source_excerpt:"I can talk next Tuesday.",epistemic_status:"inference"}],limitations:[]}};
@@ -158,6 +159,42 @@ function model(name:string,options:{badQuote?:boolean;group?:boolean}={}):Contac
   }};
 }
 describe.skipIf(!pool)("screenshot contact database authority",()=>{
+  it("rejects non-literal source statements atomically and recovers with source wording",async()=>{
+    const request=input(), created=await createScreenshotContactTask(pool!,auth,request);
+    const base=model(`Literal ${randomUUID().slice(0,8)}`,{badStatement:true});let rejectedBatchChecked=false;
+    const checked:ContactAgentModel={...base,next:async(arg,signal)=>{
+      if(!rejectedBatchChecked&&JSON.stringify(arg.observations).includes("CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE")){
+        rejectedBatchChecked=true;
+        expect((await pool!.query("SELECT id FROM contact_profile_observations WHERE account_id=$1 AND task_id=$2",[auth.accountId,created.body.task_id])).rowCount).toBe(0);
+        expect((arg.state as {profile_fields:unknown[]}).profile_fields).toEqual([]);
+      }
+      return base.next(arg,signal);
+    }};
+    await new ScreenshotContactTaskRunner(pool!,{model:checked,research:null}).start(auth,created.body.task_id,request.image);
+    expect(rejectedBatchChecked).toBe(true);
+    const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(result.status).toBe("completed");
+    expect(result.profile_fields.map(field=>[field.value,field.epistemic_status])).toEqual([["Example Labs","source_statement"]]);
+    expect(result.events.some(event=>event.tool==="update_contact"&&event.status==="denied")).toBe(true);
+    const rows=await pool!.query("SELECT observation FROM contact_profile_observations WHERE account_id=$1 AND task_id=$2",[auth.accountId,created.body.task_id]);
+    expect(rows.rows.map(row=>row.observation.value)).toEqual(["Example Labs"]);
+    expect(JSON.stringify((await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id])).rows[0].state.observations)).toContain("CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE");
+  });
+
+  it("preserves an explicitly labeled supported paraphrase without calling it source wording",async()=>{
+    const request=input(),created=await createScreenshotContactTask(pool!,auth,request),base=model(`Paraphrase ${randomUUID().slice(0,8)}`);
+    const inferred:ContactAgentModel={...base,next:async(arg,signal)=>{
+      const reply=await base.next(arg,signal);
+      const call=reply.calls[0];
+      if(call?.name==="update_contact")call.arguments={person_id:(arg.state as {contact:{person_id:string}}).contact.person_id,fields:[{field:"professional_background",value:"Reports employment at Example Labs; role is unspecified.",source_refs:["m1"],source_excerpt:"I work at Example Labs.",epistemic_status:"inference"}]};
+      return reply;
+    }};
+    await new ScreenshotContactTaskRunner(pool!,{model:inferred,research:null}).start(auth,created.body.task_id,request.image);
+    const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(result.status).toBe("completed");expect(result.profile_fields[0]?.epistemic_status).toBe("inference");
+    expect(result.profile_fields[0]?.value).toBe("Reports employment at Example Labs; role is unspecified.");
+  });
+
   it("creates one contact and exact unreviewed IM, reuses it on a second import, and does not replay writes",async()=>{
     const name=`Contact proof ${randomUUID().slice(0,8)}`;const request=input();
     const runner=new ScreenshotContactTaskRunner(pool!,{model:model(name),research:null});

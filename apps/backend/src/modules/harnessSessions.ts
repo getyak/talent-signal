@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type { HarnessContinuation, HarnessContinuationFactory } from "@talent-signal/agent";
 import type { AuthContext } from "./auth.js";
 import { assertSessionForChat } from "./agentSessionSources.js";
@@ -33,7 +33,7 @@ export async function sweepHarnessSessions(database: DatabaseClient, accountID?:
  * it and rolls back every mirrored entry. SDK projectKey is not an authority input:
  * each adapter closes over one authenticated binding and admits only its SDK UUID.
  */
-export function createHarnessContinuationFactory(client: PoolClient, auth: AuthContext, productSessionID: string,
+export function createHarnessContinuationFactory(client: PoolClient, probePool: Pool, auth: AuthContext, productSessionID: string,
   scope: { kind: "workspace_conversation" } | { kind: "relationship"; personID: string; contextID: string }, sources: () => { expiresAt: Date; personIDs: readonly string[] }): HarnessContinuationFactory {
   let acquired = false;
   return async configurationFingerprint => {
@@ -50,8 +50,9 @@ export function createHarnessContinuationFactory(client: PoolClient, auth: AuthC
       if (!locked) throw new ApiError(409, "HARNESS_SESSION_BUSY", "Another turn is still using this Session.");
       const expires = await assertSessionForChat(client, auth, productSessionID);
       await sweepHarnessSessions(client, auth.accountId);
-      await client.query("INSERT INTO harness_source_generations(account_id) VALUES($1) ON CONFLICT DO NOTHING", [auth.accountId]);
-      const generation = (await client.query<{ generation: string }>("SELECT generation FROM harness_source_generations WHERE account_id=$1", [auth.accountId])).rows[0]!.generation;
+      // Account creation commits this baseline before any long SDK transaction.
+      const generation = (await client.query<{ generation: string }>("SELECT generation FROM harness_source_generations WHERE account_id=$1", [auth.accountId])).rows[0]?.generation;
+      if (generation === undefined) throw unavailable();
       const scopeFingerprint = digestValue({ owner: auth.userId, session: productSessionID, ...scope });
       let binding = (await client.query<Binding>(`SELECT id,sdk_session_id,configuration_fingerprint,scope_fingerprint,source_generation,committed_turns
         FROM harness_sessions WHERE account_id=$1 AND product_session_id=$2 AND owner_user_id=$3 AND invalidated_at IS NULL`,
@@ -72,6 +73,24 @@ export function createHarnessContinuationFactory(client: PoolClient, auth: AuthC
       let appendFailure: unknown;
       const assertCurrent = async (fence = false) => {
         if (finished) throw unavailable();
+        // An independent autocommit statement notices a pending source writer
+        // without retaining a read lock or rolling back concurrent product SQL.
+        // Pool starvation fails closed; a late queued query is read-only and its
+        // connection is released automatically when the statement completes.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const visible = await Promise.race([
+            probePool.query(`SELECT 1 FROM harness_source_generations g JOIN agent_sessions s ON s.account_id=g.account_id
+              WHERE g.account_id=$1 AND g.generation=$2 AND s.id=$3 AND s.created_by_user_id=$4
+                AND s.deleted_at IS NULL AND s.expires_at>clock_timestamp()
+              FOR SHARE OF g,s NOWAIT`, [auth.accountId, current.source_generation, productSessionID, auth.userId]),
+            new Promise<never>((_, reject) => { timer=setTimeout(() => reject(unavailable()), 1000); }),
+          ]);
+          if (!visible.rowCount || finished) throw unavailable();
+        } catch(error) {
+          if (error && typeof error === "object" && "code" in error && error.code === "55P03") throw unavailable();
+          throw error;
+        } finally { if (timer) clearTimeout(timer); }
         const authority = sources();
         if (!Number.isFinite(authority.expiresAt.valueOf())) throw unavailable();
         // A matched account can age out without any worker changing its status.

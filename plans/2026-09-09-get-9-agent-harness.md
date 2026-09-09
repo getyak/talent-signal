@@ -693,3 +693,81 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   production build/CI, provider cutover/deployment, PR merge and issue closure
   remain outstanding. Chrome manual unpacked-extension load remains pending
   user action due to browser URL security policy; no bypass is authorized.
+
+### 2026-09-10 02:25 — delivery checkpoint and revocation correction
+
+- Implementation checkpoint `5a71aa5e` is committed; GET-25 merged cleanly as
+  `fc0a023c`. Merged Web verification passed 398 tests (one existing skip),
+  typecheck and lint. No PR, push, deployment or issue closure yet.
+- E05 tenth and E07 fifth both passed execution 3/3 but quality only 2/3.
+  E05 added unsupported participation/transfer claims; E07 added unsolicited
+  contact verification to simple recall. Both groups remain retained. Profile
+  source statements now require a literal field value (validated URL exception
+  retained), with explicit qualified inference still supported. Actual mixed
+  batch rollback, literal, inference and URL checks pass locally. E05 eleventh
+  completed execution 3/3 and awaits independent scoring. E07 next run awaits
+  current build and source-lifecycle review.
+- Stopped the original iOS full suite after failures accumulated. All completed
+  parts were APFS-cloned to `/tmp/get9-ios-first-full.parts` (3.3GB); original
+  log and `ios-full-first-interrupted.json` retain pass/failure denominator.
+  Release and 539 unit passes stand; the full UI gate is NOT passed. Exact
+  aligned logs show roughly 9s/12s Today reads and source-write lock timeouts,
+  not proof of a missing canonical workspace or a harmless test flake.
+- Independent review confirmed P1: a long mirror transaction can delay source
+  revocation beyond its write timeout. An initial same-client savepoint probe
+  was rejected by review: it can roll back concurrent successful appends and
+  cannot detect a new uncommitted generation row. That intermediate patch was
+  never delivered. Current correction uses an independent autocommit Pool
+  probe with bounded queue wait, preserves the final transaction fence, and
+  initializes generation with account creation plus migration 061 backfill.
+  First/resumed revocation and concurrent append/probe regressions are active;
+  P1 stays open until independent retest closes it. Source metadata-trigger
+  serialization is a separate performance concern, not claimed fixed.
+- Preparing a separate `get9_ios_eval` database on the owned native PG18 server
+  for equivalent deterministic iOS fixtures, to diagnose failed paths before
+  resuming the remaining UI cases. Do not alter Swift, weaken timing gates or
+  use Simulator-only evidence as physical TestFlight proof.
+
+
+### 2026-09-10 02:38 — independent closure and native Session diagnosis
+
+- Two revocation/append P1s independently closed; latest backend 477/477 across
+  main plus explicit environment-gated DB runs, Agent 144/144 plus one skip.
+  Regression tests, rather than broad always-on rules, own the interleaving
+  counterexamples. Canonical agent guidance now requires revocation liveness
+  and no unrelated transaction rollback. `docs:check` passes at the 320-line cap.
+- E05 eleventh and E07 seventh independently pass 3/3 each. E07 sixth retains
+  two pre-first-response 60-second timeouts; identical prompt/fixture/budget in
+  seventh. No gateway-cause or reliability claim. See the new evidence README.
+- Web return-to-conversation actual UI retains the same Session, prior calendar
+  draft and accurate follow-up. User bubble contrast corrected and DOM-read
+  back. Production build passed with an ephemeral process-only build AUTH_SECRET;
+  first missing-secret build failure retained. Lint and types pass.
+- Native iOS retry uses isolated `get9_ios_eval` on native PostgreSQL and owned
+  API 3347 (3346 belongs to unrelated Next work and was not touched). Canonical
+  workspace reads now complete in milliseconds. Ask nevertheless returns 404:
+  loopback fixture login occurs inside URLPursuitWorkspaceClient, but the view
+  skips Session sync because its initializer has no access token. This is an
+  identified client defect, distinct from prior database lock observations.
+- Native five-case retry interrupted after reproducing the missing-session
+  failure; `/tmp/get9-ios-native-five.log` and result bundle retained. A current
+  fix routes Session sync through the same authenticated workspace client and
+  fails closed when a canonical service cannot sync. Added loopback credential
+  reuse and remote-login-denial unit checks; build/test/review pending.
+- No deployment, PR, merge or Linear closure yet. Staging provider remains
+  unchanged. Actual Chrome extension installation and physical-device proof
+  remain unverified, not converted into fixture passes.
+
+
+### 2026-09-10 02:44 — staging preparation and incoming GET-23
+
+- Securely copied only the dedicated Hao credential plus six allowlisted Harness
+  selectors/options into staging/shared. Readback validation passes. Existing
+  privacy admissions and Exa/TikHub configuration remain unchanged. Running
+  TestFlight containers still use their previous environment until deployment.
+- Origin main advanced to `6dc16355` (GET-23 #170), touching product-run capture,
+  chat, iOS feedback and migrations. Integrate after the in-flight native build
+  to avoid mixing source revisions inside one Xcode result; re-review affected
+  boundaries and run current-head checks before PR delivery.
+- New iOS sync fix release build passes; selected unit/native execution remains
+  active in `/tmp/get9-ios-sync-fixed-first.log`.

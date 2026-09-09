@@ -91,6 +91,50 @@ final class SessionConversationClientTests: XCTestCase {
         } catch { XCTAssertTrue(requested) }
     }
 
+    func testLoopbackSessionSyncUsesTheSameAuthenticatedClientAsChat() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [SessionConversationURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); SessionConversationURLProtocol.handler = nil }
+        let client = URLPursuitWorkspaceClient(baseURL: URL(string: "http://127.0.0.1:3347")!, session: network)
+        let messageID = UUID()
+        var paths: [String] = []
+        SessionConversationURLProtocol.handler = { request in
+            let path = request.url!.path
+            paths.append(path)
+            if path == "/v1/auth/simulated-login" {
+                return try JSONSerialization.data(withJSONObject: [
+                    "contract_version": TalentSignalAPIContract.version,
+                    "access_token": "owned-loopback-test-token",
+                    "account": ["id": UUID().uuidString],
+                    "user": ["id": UUID().uuidString, "display_name": "Synthetic recruiter"]
+                ])
+            }
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer owned-loopback-test-token")
+            if path == "/v1/agent-sessions" {
+                return try JSONSerialization.data(withJSONObject: [
+                    "contract_version": TalentSignalAPIContract.version,
+                    "sessions": [], "complete": true, "next_cursor": NSNull()
+                ])
+            }
+            XCTAssertEqual(path, "/v1/chat/unscoped-tasks")
+            return try self.response(sourceMessageID: messageID, relationshipContext: "")
+        }
+        let page = try await client.list(after: nil)
+        XCTAssertTrue(page.complete)
+        _ = try await client.chatUnscoped(objective: "Save Mira Chen, mira@example.com", idempotencyKey: "same-intent",
+            sessionID: UUID(), messageID: messageID)
+        XCTAssertEqual(paths, ["/v1/auth/simulated-login", "/v1/agent-sessions", "/v1/chat/unscoped-tasks"])
+    }
+
+    func testSessionSyncCannotSimulateLoginOnARemoteEndpoint() async throws {
+        let client = URLPursuitWorkspaceClient(baseURL: URL(string: "https://example.invalid")!)
+        do {
+            _ = try await client.list(after: nil)
+            XCTFail("An unauthenticated remote endpoint must not receive fixture login")
+        } catch PursuitWorkspaceClientError.loopbackOnly { }
+    }
+
     private func makeClient() -> (URLPursuitWorkspaceClient, URLSession) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [SessionConversationURLProtocol.self]

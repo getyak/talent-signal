@@ -1033,7 +1033,7 @@ export async function createChatTask(
           && feedbackInput.observation?.source_refs?.kind === "product") {
           await client.query("SAVEPOINT harness_product_reply");
           continuationSavepoint = true;
-          feedbackInput.continuation = createHarnessContinuationFactory(client, auth, request.session_id,
+          feedbackInput.continuation = createHarnessContinuationFactory(client, pool, auth, request.session_id,
             { kind: "relationship", personID: request.person_id, contextID: request.relationship_context_id },
             () => { const refs = feedbackInput!.observation!.source_refs!; return { expiresAt: new Date(refs.kind === "product" ? refs.expires_at : 0), personIDs: refs.kind === "product" ? refs.person_ids : [] }; });
         }

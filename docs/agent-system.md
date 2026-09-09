@@ -157,7 +157,8 @@ scope, runtime configuration and source generation. It preserves the earliest
 source and identity deadline; a lifecycle worker's delay never extends access.
 Correction, rebinding, revocation, deletion or scope change invalidates hidden
 summaries and subagent copies as well as the visible transcript. Concurrent
-turns and source changes must fail safely at the final product commit.
+turns and source changes must fail safely at commit without blocking revocation.
+Authority checks must not roll back unrelated writes in the product transaction.
 
 Local SDK files require explicit ownership and crash recovery, including
 copies created before an initialization hook runs. Retaining a successful SDK

@@ -13182,7 +13182,8 @@ article[data-temporal-role="historical"]
   padding: 13px 16px;
 }
 
-.context-agent-user-message {
+.context-agent-user-message,
+.context-chat__response .context-agent-user-message {
   background: var(--ink);
   border-radius: 12px 12px 4px 12px;
   color: var(--background);

@@ -36,7 +36,7 @@ describe.skipIf(!pool)("user-owned response preference", () => {
       updatedAt: new Date().toISOString(), isUnread: false, turns: [],
     } });
     await inTransaction(pool!, async client => {
-      const lease = await createHarnessContinuationFactory(client, auth, id, { kind: "workspace_conversation" },
+      const lease = await createHarnessContinuationFactory(client, pool!, auth, id, { kind: "workspace_conversation" },
         () => ({ expiresAt: new Date(Date.now() + 86_400_000), personIDs: [] }))("a".repeat(64));
       await lease.store.append({ projectKey: "synthetic", sessionId: lease.sessionID }, [{ type: "user", uuid: randomUUID(), message: "Saved reply preference" }]);
       await lease.finish(true);

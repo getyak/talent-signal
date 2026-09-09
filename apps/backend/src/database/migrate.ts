@@ -67,6 +67,7 @@ const MIGRATIONS = [
   "058_claude_harness_sessions",
   "059_harness_identity_lifecycle",
   "060_agent_user_preferences",
+  "061_harness_generation_baseline",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

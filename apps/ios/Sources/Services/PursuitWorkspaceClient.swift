@@ -616,7 +616,7 @@ struct PursuitActionOperationReadback: Decodable, Equatable {
     }
 }
 
-actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
+actor URLPursuitWorkspaceClient: PursuitWorkspaceServing, AgentSessionSyncServing {
     private let baseURL: URL
     private let accountSlug: String
     private let userEmail: String
@@ -645,6 +645,26 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
                 user: .init(id: userID, displayName: userDisplayName)
             )
         }
+    }
+
+    private func authenticatedSessionSyncClient() async throws -> AgentSessionSyncClient {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        return AgentSessionSyncClient(baseURL: baseURL, bearerToken: login.accessToken, session: session)
+    }
+
+    func list(after: String?) async throws -> AgentSessionRemotePage {
+        try await authenticatedSessionSyncClient().list(after: after)
+    }
+
+    func put(_ payload: PersistedAgentSession, expectedRevision: Int, idempotencyKey: UUID) async throws -> AgentSessionRemoteRecord {
+        try await authenticatedSessionSyncClient().put(payload, expectedRevision: expectedRevision, idempotencyKey: idempotencyKey)
+    }
+
+    func delete(id: UUID, expectedRevision: Int, idempotencyKey: UUID) async throws -> AgentSessionRemoteRecord {
+        try await authenticatedSessionSyncClient().delete(id: id, expectedRevision: expectedRevision, idempotencyKey: idempotencyKey)
     }
 
     func loadWorkspace() async throws -> PursuitWorkspaceSnapshot {

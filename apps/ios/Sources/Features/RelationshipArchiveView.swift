@@ -984,8 +984,10 @@ struct RelationshipArchiveView: View {
     }
 
     private func synchronizeAgentSessions(_ requiredSessionID: UUID? = nil) async -> Bool {
-        guard let reviewBaseURL, let authenticatedAccessToken, workspaceStore.isCanonical else { return true }
-        let client = AgentSessionSyncClient(baseURL: reviewBaseURL, bearerToken: authenticatedAccessToken)
+        guard workspaceStore.isCanonical else { return true }
+        // Use the same authenticated client as chat, including loopback fixtures
+        // whose login is established after the workspace view is initialized.
+        guard let client = workspaceStore.sessionSyncService else { return false }
         while sessionStore.isSynchronizing {
             do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
         }

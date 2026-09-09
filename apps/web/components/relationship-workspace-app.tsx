@@ -359,7 +359,7 @@ export function RelationshipWorkspaceApp({
     );
   }
 
-  function handleRelationshipRemoved(announcement: string) {
+  function clearOpenRelationship(announcement: string) {
     setWorkspace(null);
     setRelationshipScope(null);
     setIdentityResolutionCase(null);
@@ -877,6 +877,15 @@ export function RelationshipWorkspaceApp({
               ) : null}
             </div>
             <div>
+              {activeScope && relationshipAgent.workspaceChat.turns.length > 0 ? (
+                <button
+                  className="context-secondary-button"
+                  onClick={() => clearOpenRelationship("已返回刚才的对话。")}
+                  type="button"
+                >
+                  返回刚才的对话
+                </button>
+              ) : null}
               <Link href="/workspace/boundaries">边界案例</Link>
               <Link href="/workspace/preferences">回复偏好</Link>
               <button
@@ -992,7 +1001,7 @@ export function RelationshipWorkspaceApp({
                 onCommitted={handleResourcesCommitted}
                 onEvidenceChanged={(announcement, relationshipRemoved) => {
                   if (relationshipRemoved) {
-                    handleRelationshipRemoved(
+                    clearOpenRelationship(
                       announcement ??
                         "来源链路已删除，没有活跃关系保留。",
                     );
@@ -1121,7 +1130,7 @@ export function RelationshipWorkspaceApp({
                   relationshipRemoved,
                 ) => {
                   if (relationshipRemoved) {
-                    handleRelationshipRemoved(
+                    clearOpenRelationship(
                       announcement ??
                         "来源链路已删除，没有活跃关系保留。",
                     );

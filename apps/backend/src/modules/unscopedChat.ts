@@ -312,7 +312,7 @@ export async function createUnscopedChatTask(
       database: client,
       auth,
       ...(referenceTime ? { referenceTime } : {}),
-      ...(request.session_id ? { continuation: (sources: () => { expiresAt: Date; personIDs: readonly string[] }) => createHarnessContinuationFactory(client, auth, request.session_id!, { kind: "workspace_conversation" }, sources) } : {}),
+      ...(request.session_id ? { continuation: (sources: () => { expiresAt: Date; personIDs: readonly string[] }) => createHarnessContinuationFactory(client, pool, auth, request.session_id!, { kind: "workspace_conversation" }, sources) } : {}),
     });
     // A failed SDK run must not consume this client intent with a cached 201.
     // The transaction rollback preserves same-key retry after the user chooses

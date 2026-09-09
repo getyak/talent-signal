@@ -265,6 +265,7 @@ final class PursuitWorkspaceStore: ObservableObject {
 
     let isCanonical: Bool
     private let service: PursuitWorkspaceServing?
+    var sessionSyncService: (any AgentSessionSyncServing)? { service as? any AgentSessionSyncServing }
     private let actionCompletions: PursuitActionCompletionPersisting
     private let operationIDFactory: () -> UUID
 
