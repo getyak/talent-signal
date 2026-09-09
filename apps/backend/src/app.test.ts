@@ -30,7 +30,7 @@ describe("readiness rate limiting", () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
         {
-          version: "057_feedback_learning",
+          version: "059_lab_account_cleanup",
         },
       ],
     });
@@ -56,13 +56,13 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("057_feedback_learning"),
+      expect.stringContaining("059_lab_account_cleanup"),
     );
   }, 10_000);
 
-  it("stays unavailable until the feedback migration is applied", async () => {
+  it("stays unavailable until the account and Lab cleanup migrations are applied", async () => {
     const query = vi.fn().mockImplementation(async (sql: string) => ({
-      rows: sql.includes("057_feedback_learning") ? [] : [{ version: "056_agent_session_chat_lifecycle" }],
+      rows: sql.includes("059_lab_account_cleanup") ? [] : [{ version: "056_agent_session_chat_lifecycle" }],
     }));
     const app = await buildApp({ config, pool: { query } as unknown as Pool });
     apps.push(app);

@@ -1,5 +1,7 @@
 "use client";
 
+import { workspaceSessionFetch } from "@/components/workspace-session-request";
+
 import type {
   LabFailureCategory,
   LabJob,
@@ -104,7 +106,7 @@ async function requestJSON<T>(
   options: RequestInit,
   fallback: string,
 ): Promise<T> {
-  const response = await fetch(path, { cache: "no-store", ...options });
+  const response = await workspaceSessionFetch(path, { cache: "no-store", ...options });
   const payload = (await response.json().catch(() => null)) as T | null;
   if (!response.ok || !payload) throw new Error(responseMessage(payload, fallback));
   return payload;

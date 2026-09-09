@@ -1,3 +1,4 @@
+import type { AccountSettings, AccountMutation } from "./accountSchemas.js";
 import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
 import type {
   AnalysisProposalResponse,
@@ -235,6 +236,14 @@ export class TalentSignalClient {
     });
     this.setAccessToken(response.access_token);
     return response;
+  }
+
+  accountSettings(): Promise<AccountSettings> {
+    return this.request<AccountSettings>("/v1/account/settings", { method: "GET" });
+  }
+
+  updateAccountSettings(input: AccountMutation): Promise<AccountSettings> {
+    return this.request<AccountSettings>("/v1/account/settings", {method: "POST", body: input});
   }
 
   currentSession(): Promise<CurrentSessionResponse> {

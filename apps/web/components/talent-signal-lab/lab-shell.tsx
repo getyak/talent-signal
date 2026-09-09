@@ -1,5 +1,7 @@
 "use client";
 
+import { workspaceSessionFetch } from "@/components/workspace-session-request";
+
 import type {
   LabComparison,
   LabEvalCase,
@@ -80,7 +82,7 @@ function responseMessage(payload: unknown, fallback: string): string {
 }
 
 async function post<T>(path: string, body: unknown, fallback: string): Promise<T> {
-  const response = await fetch(path, {
+  const response = await workspaceSessionFetch(path, {
     method: "POST",
     cache: "no-store",
     headers: { "content-type": "application/json" },
@@ -331,7 +333,7 @@ export function TalentSignalLabShell({
     let cancelled = false;
     const controller = new AbortController();
     const timeoutID = window.setTimeout(() => controller.abort(), 6_000);
-    void fetch("/api/lab", {
+    void workspaceSessionFetch("/api/lab", {
       cache: "no-store",
       signal: controller.signal,
     })
