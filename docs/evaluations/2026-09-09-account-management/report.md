@@ -12,7 +12,7 @@ membership migration is represented as implemented.
 - Backend TypeScript check passed.
 - Backend unit suite: 375 passed, 71 pre-existing skipped tests across 3 files.
 - Web lint and TypeScript checks passed.
-- Web unit suite: 361 passed, 1 pre-existing skipped test.
+- Final Web unit suite: 363 passed, 1 pre-existing skipped test.
 - Production Web build passed with transient Infisical development configuration.
 - Documentation, generated Wiki and architecture checks passed.
 - Disposable PostgreSQL integration: ownership bootstrap and transfer, own profile
@@ -50,4 +50,24 @@ membership migration is represented as implemented.
   the compact account/testing entry section. Existing product notes, native page
   references and all embedded databases remain present.
 - Destination: https://app.notion.com/p/3d3a444a6c00814b8a11f4ae419c23e6
-- Local backend deployment and authenticated browser inspection remain pending.
+- Rebuilt and deployed the local TestFlight backend from `90763636`. Read back
+  that exact container revision and ready migration `059_lab_account_cleanup`.
+  Deployment probes passed, including Apple challenge and voice/chat providers.
+- The current Google login remained usable at `http://localhost:3000`.
+  Browser inspection verified the configured Google method, absence of a
+  password method, current session and personal-workspace owner status.
+- Browser flow created one empty one-hour workspace, entered an isolated Test
+  user with zero work items, and returned to the original account twice.
+- Visual inspection found the Lab launcher covered the return button. Grouping
+  the button beside its workspace label fixed the overlap; a second screenshot
+  verified the visible return action and correct child-workspace account title.
+- The empty workspace cleanup confirmation is awaiting manual browser dismissal:
+  CUA lost access to the JavaScript dialog. Backend cleanup is independently
+  covered by both disposable integration evaluations above.
+- CI caught an unregistered evaluation database environment variable. It is now
+  owned by the existing Infisical manifest and its policy tests pass.
+- The overloaded 6 GB Colima VM needed a temporary 1 GB swap file during the
+  build (`/tmp/talent-signal-account-build.swap`). It is not persisted in boot
+  configuration. Retained at handoff because almost all swap remained in use
+  and available RAM was below that amount; forced removal could disrupt other
+  running services. Remove with `swapoff` only after resource pressure subsides.

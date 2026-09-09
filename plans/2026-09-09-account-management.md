@@ -26,8 +26,9 @@ contracts and other active development.
 
 1. Complete: backend authority, typed account readback and mutations, focused tests.
 2. Complete: Web account controls, settings and isolated test workspace lifecycle.
-3. Active: runtime verification, documentation, local backend deployment, Notion
-   update and destination readback.
+3. Complete: local backend deployment, account and isolated-session browser
+   verification, documentation, Notion update and destination readback.
+4. Active: final CI, temporary runtime cleanup, and browser handoff.
 
 ## Proof
 
@@ -49,7 +50,7 @@ browser behavior and read back Notion. Do not reset or seed the shared backend.
 - PostgreSQL integration evaluation passed: ownership bootstrap/transfer,
   credential redaction, replay/stale revision, cross-account denial, member
   suspension/reinstatement, and isolated Lab entry/verified cleanup.
-- Web suite: 361 passed, 1 skipped; two additional request-scope tests passed.
+- Final Web suite: 363 passed, 1 skipped, including request-scope tests.
 - Backend suite: 375 passed, 71 pre-existing skipped tests. TypeScript, Web lint,
   production Web build and documentation checks passed.
 - Full Lab lifecycle evaluation verified physical media deletion, parent
@@ -57,4 +58,11 @@ browser behavior and read back Notion. Do not reset or seed the shared backend.
   behavior for unknown tables/media and late writes.
 - Inspection found missing Lab table coverage for post-045 migrations; an explicit
   migration now covers the known account tables and two global Google tables.
-- Production preview/deployment and Notion readback remain pending.
+- Local backend deployed from `90763636`; migration 059 and revision read back.
+- Browser verified the real Google login/owner, created a one-hour empty test
+  workspace, entered it and returned to the primary account twice. A visible
+  banner overlap was corrected and rechecked.
+- Notion access summary updated and read back without replacing existing page
+  content. Draft delivery: https://github.com/getyak/talent-signal/pull/169.
+- Empty workspace cleanup currently awaits a native browser confirmation that
+  CUA cannot access. Its one-hour expiry remains active.

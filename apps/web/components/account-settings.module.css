@@ -30,6 +30,6 @@
 .member { border-top: 1px solid var(--line); padding: 20px 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
 .member > div { flex: 1; min-width: 180px; }
 .member span { font-size: 12px; color: var(--muted); }
-.banner { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:12px 24px; background:var(--surface); border-bottom:1px solid var(--line); font-size:13px; }
+.banner { display:flex; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap:20px; padding:12px 24px; background:var(--surface); border-bottom:1px solid var(--line); font-size:13px; }
 .banner button { background:transparent; border:1px solid var(--line); color:var(--ink); padding:8px 12px; border-radius:8px; cursor:pointer; }
 @media(max-width:640px) { .page { padding:28px 20px 100px; } .tabs { gap:20px; font-size:14px; } .row { align-items:flex-start; flex-wrap:wrap; gap:8px; } .member { align-items:flex-start; } }

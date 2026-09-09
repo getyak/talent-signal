@@ -94,9 +94,10 @@ export default async function WorkspaceLayout({
   const fixtureFallback =
     !backendAccount && process.env.TALENT_SIGNAL_INTEGRATION_MODE === "true";
   const fixtureWorkspace = Boolean(testName) || (settings?.workspace.is_test ?? backendAccount?.slug.startsWith("fixture-") ?? fixtureFallback);
+  const workspaceName = settings?.workspace.name ?? backendAccount?.name;
   const accountTitle = fixtureWorkspace
-    ? `${accountName} · ${backendAccount?.name ?? "Alpha 寻访测试"} · 合成测试工作台`
-    : `${accountName} · ${backendAccount?.name ?? "账号专属工作台"}`;
+    ? `${accountName} · ${workspaceName ?? "Alpha 寻访测试"} · 合成测试工作台`
+    : `${accountName} · ${workspaceName ?? "账号专属工作台"}`;
   let labManifest: Awaited<ReturnType<typeof loadLabManifest>> | null = null;
   try {
     labManifest = await loadLabManifest();
