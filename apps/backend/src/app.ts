@@ -1,4 +1,5 @@
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
+import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
@@ -653,7 +654,9 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '058_product_run_monitor'`,
+           WHERE version = '058_product_run_monitor'
+             AND EXISTS (SELECT 1 FROM schema_migrations WHERE version='058_account_management')
+             AND EXISTS (SELECT 1 FROM schema_migrations WHERE version='059_lab_account_cleanup')`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -787,6 +790,7 @@ export async function buildApp(
   registerGoogleAuth(app, pool, config);
   const authenticate = createAuthGuard(pool, deploymentExposure?.workspaceIds);
   registerProductRunMonitoring(app, pool, authenticate);
+  registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
   registerAgentSessionRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];

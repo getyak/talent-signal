@@ -60,7 +60,7 @@ describe("readiness rate limiting", () => {
     );
   }, 10_000);
 
-  it("stays unavailable until the feedback migration is applied", async () => {
+  it("stays unavailable until the account and Lab cleanup migrations are applied", async () => {
     const query = vi.fn().mockImplementation(async (sql: string) => ({
       rows: sql.includes("058_product_run_monitor") ? [] : [{ version: "056_agent_session_chat_lifecycle" }],
     }));

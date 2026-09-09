@@ -304,3 +304,13 @@
     transition: none;
   }
 }
+
+.accountMenu { position: relative; }
+.accountMenu summary { cursor: pointer; list-style: none; }
+.accountMenu summary::-webkit-details-marker { display: none; }
+.accountMenu summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.accountPopover { position: absolute; left: 52px; bottom: 0; width: 220px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px #0002; display: grid; gap: 3px; z-index: 100; }
+.accountPopover strong { padding: 10px; font-size: 13px; overflow-wrap: anywhere; }
+.accountPopover a { padding: 12px 10px; border-radius: 8px; font-size: 14px; }
+.accountPopover a:hover { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
+@media(max-width:760px) { .accountPopover { left: auto; right: 0; bottom: auto; top: 44px; } }

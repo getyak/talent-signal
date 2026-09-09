@@ -1,4 +1,5 @@
 "use client";
+import { workspaceSessionFetch } from "./workspace-session-request";
 import { useEffect, useRef, useState } from "react";
 import { ThumbsUp, ThumbsDown, Check, ArrowClockwise } from "@phosphor-icons/react";
 import type { ProductRunDetail, ProductRunFeedbackMutation } from "@talent-signal/contracts";
@@ -10,7 +11,7 @@ export const reasonLabels: Record<string, string> = {
 };
 const reasons = { helpful: Object.keys(reasonLabels).slice(0, 4), unhelpful: Object.keys(reasonLabels).slice(4) };
 async function load(taskID: string): Promise<ProductRunDetail> {
-  const response = await fetch(`/api/product-runs/tasks/${taskID}`, { cache: "no-store" });
+  const response = await workspaceSessionFetch(`/api/product-runs/tasks/${taskID}`, { cache: "no-store" });
   const value = await response.json(); if (!response.ok) throw new Error(value.message); return value;
 }
 export function ProductFeedback({ taskID, onCorrect }: { taskID: string; onCorrect?: (correction: string) => void }) {
@@ -38,7 +39,7 @@ export function ProductFeedback({ taskID, onCorrect }: { taskID: string; onCorre
         correction: sentiment && notes ? correction : "", selected_text: sentiment && notes ? passage : "",
       };
       pending.current = request;
-      const response = await fetch(`/api/product-runs/tasks/${taskID}/feedback`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
+      const response = await workspaceSessionFetch(`/api/product-runs/tasks/${taskID}/feedback`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
       const value = await response.json();
       if (!response.ok) {
         if (response.status === 409) {

@@ -1,4 +1,5 @@
 import "server-only";
+import { testWorkspaceSession } from "./testWorkspaceSession";
 
 import {
   TalentSignalClient,
@@ -74,7 +75,7 @@ export type BackendSessionClaims = {
   backendUsername: string | null;
 };
 
-export async function readBackendSessionClaims(): Promise<BackendSessionClaims | null> {
+export async function readPrimaryBackendSessionClaims(): Promise<BackendSessionClaims | null> {
   let requestHeaders: Headers;
   try {
     requestHeaders = await headers();
@@ -121,6 +122,16 @@ export async function readBackendSessionClaims(): Promise<BackendSessionClaims |
     backendUserId: token.backendUserId,
     backendUsername: token.backendUsername,
   };
+}
+
+export async function readBackendSessionClaims(): Promise<BackendSessionClaims | null> {
+  const primary = await readPrimaryBackendSessionClaims();
+  if (!primary) return null;
+  const test = await testWorkspaceSession(primary);
+  const claims = test?.claims ?? primary;
+  const expected = (await headers()).get("x-talent-signal-workspace");
+  if (expected && expected !== claims.backendAccountId) throw new BackendSessionExpiredError();
+  return claims;
 }
 
 export async function authenticatedBackendClient(): Promise<TalentSignalClient | null> {

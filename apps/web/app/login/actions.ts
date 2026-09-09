@@ -1,5 +1,8 @@
 "use server";
 
+import { TalentSignalClient } from "@talent-signal/contracts";
+import { clearTestWorkspaceSession } from "@/lib/server/testWorkspaceSession";
+import { readPrimaryBackendSessionClaims, backendAuthBaseUrl } from "@/lib/server/backendAuth";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { prepareGoogleSignIn, bindGoogleNonce } from "@/lib/server/google-session";
@@ -171,5 +174,10 @@ export async function signOutOfWorkspace() {
     // Local sign-out must still succeed if the backend session expired or the
     // account service is temporarily unreachable.
   }
+  try {
+    const primary = await readPrimaryBackendSessionClaims();
+    if (primary) await logoutBackendWithinDeadline(() => new TalentSignalClient(backendAuthBaseUrl(), primary.backendAccessToken).logout());
+  } catch { /* Local sign-out remains available during an outage. */ }
+  await clearTestWorkspaceSession();
   await signOut({ redirectTo: "/" });
 }

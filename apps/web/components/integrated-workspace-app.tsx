@@ -1,5 +1,7 @@
 "use client";
 
+import { workspaceSessionFetch } from "@/components/workspace-session-request";
+
 import type { WorkspaceReviewResponse } from "@talent-signal/contracts";
 import {
   ArrowClockwise,
@@ -193,7 +195,7 @@ export function IntegratedWorkspaceApp({
     setError(null);
     setAnnouncement(`${label}.`);
     try {
-      const response = await fetch(path, {
+      const response = await workspaceSessionFetch(path, {
         cache: "no-store",
         ...options,
         signal: controller.signal,
@@ -280,7 +282,7 @@ export function IntegratedWorkspaceApp({
         },
       );
       syntheticHandoff.current = request;
-      const response = await fetch("/api/browser-extension/captures", {
+      const response = await workspaceSessionFetch("/api/browser-extension/captures", {
         method: "POST",
         headers: request.headers,
         body: JSON.stringify(request.body),
@@ -298,7 +300,7 @@ export function IntegratedWorkspaceApp({
         });
         throw failure;
       }
-      const nextResponse = await fetch("/api/local-integration/workspace", {
+      const nextResponse = await workspaceSessionFetch("/api/local-integration/workspace", {
         cache: "no-store",
       });
       const nextPayload = (await nextResponse.json()) as
@@ -395,7 +397,7 @@ export function IntegratedWorkspaceApp({
     setError(null);
     setAnnouncement("Revoking local effect permission.");
     try {
-      const response = await fetch(
+      const response = await workspaceSessionFetch(
         "/api/local-integration/authorizations/revocation",
         { method: "POST" },
       );
@@ -464,7 +466,7 @@ export function IntegratedWorkspaceApp({
     setError(null);
     setAnnouncement("Deleting source and registered derivatives.");
     try {
-      const response = await fetch(
+      const response = await workspaceSessionFetch(
         `/api/local-integration/captures/${workspace.capture.id}/deletion`,
         { method: "POST" },
       );
