@@ -22,3 +22,12 @@ A dedicated iOS Simulator signed into the same real backend acceptance account u
 - [Same-page cross-platform history](web-live-cross-platform.jpg)
 
 Existing source-flow limitation observed during acceptance: direct Web notes can be marked reviewed without an explicit review receipt; native Ask demanded that receipt. The normal evidence-review API completed the synthetic fixture review. Retrying the old invalidated request then returned `IDEMPOTENCY_STATE_UNAVAILABLE`; a fresh question succeeded. This source-review recovery behavior is not changed by GET-23 and must not be mistaken for a successful original retry. No real candidate source or user account was altered.
+
+## Live feedback-to-evaluation replay
+
+The monitor saved native source run `542893c3-1e5c-76b4-a17e-d2b015614fee` as regression `bff7dbeb-0e58-4e8b-a4af-ed64c10c0093`, then opened that exact frozen case in the existing Lab. Job `6a20900f-7b17-4d92-9475-7f4851938843` completed two real GLM-5.3 requests using baseline and concise prompt configurations. Both passed execution/contract checks; semantic checks remain unknown and the job remains `needs_review`. No human comparison was fabricated.
+
+Agent observation, not a human verdict: the baseline answer asks for both the time and meeting method, while the concise answer asks only for the time. The latter omits one explicit expected item. This illustrates an inspectable prompt difference, not proof of a general model improvement.
+
+- [Exact replay results and provider request IDs](live-lab-replay.json)
+- [Actual A/B comparison](live-lab-comparison.jpg)
