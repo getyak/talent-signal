@@ -250,3 +250,52 @@ its log remains separate. The controlled exemption requires the exact target
 account flag, deleting Lab workspace and revoked Lab user. Ordinary source
 DELETE without that cleanup transaction still invokes cache invalidation, as
 the independent candidate-deletion probe demonstrates.
+
+
+## Follow-up: Lab display count and named-contact routing
+
+No new P0/P1 was found in this bounded delta. `LabWorkspaceService.describe`
+excludes only `harness_source_generations` from the displayed content count.
+The complete table manifest and write guards are still validated first.
+Creation still requires exactly one physical row, the generation-zero baseline;
+cleanup still deletes all account tables and requires a raw zero-row readback
+before declaring the workspace deleted. This is not an exemption from physical
+cleanup. The parent-run real evaluation log
+`/tmp/get9-ci-lab-reproduction-second.log` reports 222 original-workspace rows
+preserved, zero rows after target deletion and zero external model/business calls.
+The reviewer inspected that log and the implementation, without rerunning this
+whole evaluation.
+
+The new Claude guidance permits a current-message name for read-only directory
+search, requires a uniquely grounded read, and directs the model to stop routing
+there. Existing runtime gates still reject searches grounded only in old dialogue,
+ambiguous reads and unauthorized creation/update proposals. Independent focused
+tests passed: `claudeChatProvider.test.ts` 7/7 and
+`workspaceConversationAgent.test.ts` 28/28. The later guidance-only wording and
+updated probe passed code review and independent `node --check`.
+
+The reviewer inspected every trial and nested tool result in
+[the third lookup attempt](contact-lookup-third.json). The actual SDK used a
+controlled synthetic directory; this does not test the subsequent scoped answer,
+HTTP/DB integration or native UI. The unchanged completion gate passed **2/3**:
+
+| Trial | Result | Observed evidence |
+| --- | --- | --- |
+| 1 | Failed, 62.008 s | Timeout; no tool calls. One assistant receipt with partial usage, three API retries with unknown HTTP status. |
+| 2 | Passed, 14.285 s | Name search, exact person/context read and correct handoff; two recorded tools match the SDK count. |
+| 3 | Passed, 40.118 s | Search; read rejected for extra `reason`; read rejected for missing context; corrected exact read and handoff. Four tool records match the SDK count. |
+
+Trial 3 demonstrates tool-error recovery, rated 3/4 for correcting the rejected
+inputs after two invalid attempts. Trial 2 did not exercise recovery; Trial 1
+failed to recover before its deadline. Neither successful product output invents
+relationship evidence or claims a write. Both SDK raw prose responses still
+infer missing records from header-only access and fail to stop as instructed;
+the production adapter replaces that prose with the successful read receipt's
+handoff block. The prose behavior itself is not claimed fixed.
+
+The updated probe preserves typed failure receipts and all observed tool results;
+the third attempt's tool counts reconcile. That closes its demonstrated P2
+observability gap, without retroactively supplying missing tool/error details in
+[the first attempt](contact-lookup-first.json). The second attempt's script syntax
+failure remains a pre-model failure. Earlier failures, including Memory eighth,
+are not replaced by these results. Full GET-9 and native acceptance remain open.
