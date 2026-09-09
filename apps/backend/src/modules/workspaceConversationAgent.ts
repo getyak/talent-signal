@@ -6,6 +6,7 @@ import {
   WORKSPACE_CONVERSATION_SYSTEM_PROMPT,
   resolveProductPrompt, promptReference, type PromptSnapshot,
   DEFAULT_AGENT_BUDGET,
+  AGENT_BUDGET_CEILING,
   WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES,
   WorkspaceConversationFinalOutputSchema,
   fingerprint,
@@ -176,6 +177,10 @@ export async function executeWorkspaceConversationAgentCore(input: {
   promptSnapshot?: PromptSnapshot;
   runID?: string;
   observation?: RuntimeObservationContext;
+  continuation?: import("@talent-signal/agent").HarnessContinuationFactory;
+  assertCurrent?: () => Promise<void>;
+  responsePreference?: import("@talent-signal/agent").ResponsePreference;
+  calendarContext?: import("@talent-signal/agent").CalendarDraftContext;
 }): Promise<WorkspaceConversationAgentExecution> {
   const searchResults = new Map<string, WorkspaceContactSearchResult>();
   const readableScopes = new Set<string>();
@@ -186,16 +191,23 @@ export async function executeWorkspaceConversationAgentCore(input: {
     proposal: WorkspaceConversationAgentEvent | null;
   } = { readScope: null, proposal: null };
   let toolCallCount = 0;
+  // SDK startup and tool turns share the same admitted wall-clock ceiling as
+  // scoped Chat. Keep the legacy HTTP adapter's tighter existing deadline.
+  const durationMs = input.provider.id === "claude-agent-sdk"
+    ? AGENT_BUDGET_CEILING.maxDurationMs : WORKSPACE_CONVERSATION_TIMEOUT_MS;
   const abort = new AbortController();
   const timeout = setTimeout(
-    () => abort.abort(new Error("Workspace conversation Agent timed out.")),
-    WORKSPACE_CONVERSATION_TIMEOUT_MS,
+    () => abort.abort(new Error("WORKSPACE_CONVERSATION_TIMEOUT")),
+    durationMs,
   );
 
   const invokeTool = async (
     name: string,
     rawInput: unknown,
+    executionSignal?: AbortSignal,
   ): Promise<AgentToolResult> => {
+    abort.signal.throwIfAborted();
+    executionSignal?.throwIfAborted();
     toolCallCount += 1;
     if (toolCallCount > 6) {
       return toolFailure(
@@ -461,10 +473,15 @@ export async function executeWorkspaceConversationAgentCore(input: {
 
   try {
     const snapshot = input.promptSnapshot ?? await resolveProductPrompt("assistant/workspace");
+    await input.assertCurrent?.();
     const providerResult = await measureLabServerStage("model_adapter", () => input.provider.run(
       {
         runID: input.runID ?? randomUUID(),
         ...(input.observation ? { observation: input.observation } : {}),
+        ...(input.continuation ? { continuation: input.continuation } : {}),
+        ...(input.assertCurrent ? { assertCurrent: input.assertCurrent } : {}),
+        ...(input.responsePreference ? { responsePreference: input.responsePreference } : {}),
+        ...(input.calendarContext ? { calendarContext: input.calendarContext } : {}),
         objective: input.objective,
         conversationHistory: input.conversationHistory ?? [],
         systemPrompt: snapshot.text,
@@ -482,7 +499,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
           ...DEFAULT_AGENT_BUDGET,
           maxTurns: Math.min(DEFAULT_AGENT_BUDGET.maxTurns, 6),
           maxToolCalls: Math.min(DEFAULT_AGENT_BUDGET.maxToolCalls, 6),
-          maxDurationMs: WORKSPACE_CONVERSATION_TIMEOUT_MS,
+          maxDurationMs: durationMs,
         },
       },
       (...args) => measureLabServerStage("tool", () => invokeTool(...args)),
@@ -612,9 +629,15 @@ export async function executeWorkspaceConversationAgent(input: {
   conversationHistory?: readonly ConversationMessage[];
   runID?: string;
   observation?: RuntimeObservationContext;
+  continuation?: import("@talent-signal/agent").HarnessContinuationFactory;
+  assertCurrent?: () => Promise<void>;
+  responsePreference?: import("@talent-signal/agent").ResponsePreference;
+  calendarContext?: import("@talent-signal/agent").CalendarDraftContext;
+  recordSourcePerson?: (personID: string) => void;
 }): Promise<WorkspaceConversationAgentExecution> {
   const refs = input.observation?.source_refs;
   const recordScope = (personID: string, contextIDs: string[]) => {
+    input.recordSourcePerson?.(personID);
     if (refs?.kind !== "product") return;
     if (!refs.person_ids.includes(personID)) refs.person_ids.push(personID);
     for (const id of contextIDs) if (!refs.relationship_context_ids.includes(id)) refs.relationship_context_ids.push(id);
@@ -657,6 +680,10 @@ export async function executeWorkspaceConversationAgent(input: {
     contacts,
     ...(input.runID ? { runID: input.runID } : {}),
     ...(input.observation ? { observation: input.observation } : {}),
+    ...(input.continuation ? { continuation: input.continuation } : {}),
+        ...(input.assertCurrent ? { assertCurrent: input.assertCurrent } : {}),
+        ...(input.responsePreference ? { responsePreference: input.responsePreference } : {}),
+        ...(input.calendarContext ? { calendarContext: input.calendarContext } : {}),
     ...(input.messageID === undefined ? {} : { messageID: input.messageID }),
     ...(input.conversationHistory === undefined ? {} : { conversationHistory: input.conversationHistory }),
     ...(input.sessionID === undefined ? {} : { sessionID: input.sessionID }),

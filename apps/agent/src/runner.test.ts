@@ -197,6 +197,13 @@ function deterministicRuntime(): AgentRuntimeDependencies {
 }
 
 describe("bounded Agent control plane", () => {
+  it("keeps unreported provider usage unknown after a transport failure", async () => {
+    const provider = proposalProvider();
+    provider.run = async () => { throw new Error("Synthetic transport interruption"); };
+    const receipt = await runBoundedAgent(request(provider));
+    expect(receipt.usage).toMatchObject({inputTokens:null,outputTokens:null,totalTokens:null,estimatedUsd:null,turns:null});
+    expect(receipt.externalEffects).toEqual([]);
+  });
   it("commits one review-only Proposal only after matching structured output", async () => {
     const gateway = new Gateway();
     const journal = new MemoryAgentRunJournal();

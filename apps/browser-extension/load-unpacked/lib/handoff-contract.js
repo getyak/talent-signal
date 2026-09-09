@@ -25,9 +25,10 @@ export function retentionCompatibility(captureKind, retentionMode) {
   }
   if (captureKind === "visible_tab") {
     return {
-      supported: false,
-      message:
-        "Visible-tab images cannot be submitted: the localhost backend has no governed image-asset lifecycle yet. Use reviewed selected text.",
+      supported: retentionMode === "evidence_crop",
+      message: retentionMode === "evidence_crop"
+        ? "Only these reviewed pixels go to the shared Agent. They follow its 30-day task retention and source-deletion controls; profiles still require review. Public web research is off."
+        : "Choose reviewed evidence retention for image handoff. Immediate purge and full-source retention are not supported by this task.",
     };
   }
   if (captureKind !== "selected_text") {

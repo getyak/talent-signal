@@ -183,6 +183,25 @@ export class RuntimeObservationSession {
     this.input = this.capture(input);
   }
   private capture(value: unknown) { return captureObservationContent(value, this.policy.max_content_bytes, this.secrets); }
+  /** SDK response receipt time only: the SDK does not expose transport start/retry clocks.
+   * Upsert by message ID so repeated complete-message frames never double-count usage.
+   * Inputs remain unavailable at this leaf; the authorized Run input is on the root.
+   */
+  recordSDKAssistant(message: { id: string; model: string; usage: { input_tokens: number; output_tokens: number;
+    cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null } }, output: unknown,
+    promptRevision: string): void {
+    const id = observationID(`${this.id}:${this.attemptID}:sdk:${message.id}`);
+    const now = new Date().toISOString();
+    const span: RuntimeObservationSpan = { id, parent_span_id: null, name: "sdk.assistant.observed", kind: "llm",
+      operation_id: `sdk:${message.id}`.slice(0, 200), attempt: 1, retry_of: null,
+      started_at: now, ended_at: now, status: "ok", error_code: null, model: message.model,
+      provider: "claude-agent-sdk", prompt_revision: promptRevision, input: this.capture(undefined), output: this.capture(output),
+      usage: { input_tokens: message.usage.input_tokens + (message.usage.cache_read_input_tokens ?? 0) + (message.usage.cache_creation_input_tokens ?? 0),
+        output_tokens: message.usage.output_tokens, source: "provider", cost_usd: null, cost_source: "unavailable", accounting: "leaf" } };
+    const previous = this.spans.findIndex(entry => entry.id === id);
+    if (previous >= 0) this.spans[previous] = span; else this.spans.push(span);
+    this.lastModelSpan = id;
+  }
   async step<T>(name: string, kind: "llm" | "tool", input: unknown, execute: () => Promise<T>,
     config: { model?: string; provider?: string; prompt_revision?: string; operation_id?: string } = {},
     usage?: (result: T) => RuntimeObservationSpan["usage"]): Promise<T> {
@@ -197,7 +216,7 @@ export class RuntimeObservationSession {
     let result: T | undefined; let succeeded = false;
     try { result = await execute(); succeeded = true; return result; }
     finally {
-      const denied = kind === "tool" && result !== null && typeof result === "object" && "ok" in result && result.ok === false;
+      const denied = kind === "tool" && result !== null && typeof result === "object" && (("ok" in result && result.ok === false) || ("isError" in result && result.isError === true));
       const failed = !succeeded || denied;
       this.operations.get(operation)!.failed = failed;
       this.spans.push({ id, parent_span_id: parent, name, kind, operation_id: operation.slice(0, 200),

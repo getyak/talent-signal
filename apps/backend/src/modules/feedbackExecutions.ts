@@ -42,6 +42,8 @@ export async function recordFeedbackExecution(client: DatabaseClient, auth: Auth
   const result = value.result;
   const input: FeedbackExecutionSnapshot["input"] = {
     objective: value.input.objective, context_blocks: structuredClone(value.input.context_blocks),
+    ...(value.input.responsePreference ? { responsePreference: structuredClone(value.input.responsePreference) } : {}),
+    ...(value.input.calendarContext ? { calendarContext: structuredClone(value.input.calendarContext) } : {}),
     ...(value.input.reference_time ? { reference_time: value.input.reference_time } : {}),
     allowed_citation_ids: [...value.input.allowed_citation_ids],
     ...(value.input.conversation_history ? { conversation_history: structuredClone(value.input.conversation_history) } : {}),
@@ -51,9 +53,11 @@ export async function recordFeedbackExecution(client: DatabaseClient, auth: Auth
   const output = { kind: result.kind, title: result.title, body: result.body, citation_ids: result.citation_ids };
   const attempt: LabJobAttempt = {
     id, ordinal: 0, case_id: caseID, configuration_index: 0, repetition: 1, status: "completed",
-    started_at: value.started_at, finished_at: value.finished_at, requested_model: result.model, actual_model: result.model,
+    started_at: value.started_at, finished_at: value.finished_at, requested_model: result.model,
+    actual_model: Object.hasOwn(result, "reported_model") ? result.reported_model ?? null : result.model,
     prompt_revision: result.prompt_revision ?? "unreported", actual_prompt_revision: result.prompt_revision ?? null,
-    execution: "remote", remote_requests_started: 1, provider_request_id: result.provider_request_id,
+    execution: "remote", remote_requests_started: result.remote_requests_started === undefined ? 1 : result.remote_requests_started,
+    provider_request_id: result.provider_request_id,
     duration_ms: Math.max(0, Date.parse(value.finished_at) - Date.parse(value.started_at)),
     input_tokens: result.usage_reported === false ? null : result.input_tokens,
     output_tokens: result.usage_reported === false ? null : result.output_tokens,

@@ -52,6 +52,7 @@ import { workspaceSessionFetch } from "./workspace-session-request";
 
 type Props = {
   initialAccountId: string | null;
+  initialSessionVersion?: string | null;
   initialAgentHistory: RelationshipAgentHistory | null;
   initialIdentityResolutionCase: IdentityResolutionCase | null;
   initialKnowledgeSnapshot: KnowledgeSnapshot | null;
@@ -83,6 +84,7 @@ const createContactDraftScope = {
 
 export function RelationshipWorkspaceApp({
   initialAccountId,
+  initialSessionVersion = null,
   initialAgentHistory,
   initialIdentityResolutionCase,
   initialKnowledgeSnapshot,
@@ -215,6 +217,7 @@ export function RelationshipWorkspaceApp({
 
   const relationshipAgent = useRelationshipAgentController({
     accountId,
+    browserSessionVersion: initialSessionVersion,
     initialCreateOpen,
     onAnnouncement: setAnnouncement,
     onBusyChange: setBusy,
@@ -833,6 +836,8 @@ export function RelationshipWorkspaceApp({
         </p>
         {!activeScope ? (
           <RelationshipAgentStartPanel
+            busy={relationshipAgent.workspaceChat.busy}
+            turns={relationshipAgent.workspaceChat.turns}
             contactDraft={relationshipAgent.contactDraft}
             createOpen={relationshipAgent.createOpen}
             identityResolutionCase={identityResolutionCase}
@@ -866,6 +871,7 @@ export function RelationshipWorkspaceApp({
             </div>
             <div>
               <Link href="/workspace/boundaries">边界案例</Link>
+              <Link href="/workspace/preferences">回复偏好</Link>
               <button
                 className="context-primary-button context-primary-button--compact"
                 onClick={() => setCaptureOpen(true)}

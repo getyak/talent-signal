@@ -2,17 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { backendAuthBaseUrl, readBackendSessionClaims } from "@/lib/server/backendAuth";
 import { backendSessionIsExpired } from "@/lib/backend-session";
 import { isAllowedMutationOrigin } from "@/lib/request-origin";
+import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
 
 export const dynamic = "force-dynamic";
 type Context={params:Promise<{path?:string[]}>};
 const uuid="[0-9a-fA-F-]{36}";
-const routes=[new RegExp(`^tasks(?:/${uuid}(?:/(?:resume|cancel|images/[0-9]))?)?$`),new RegExp(`^people/${uuid}/(?:contact-intelligence|archive)$`),new RegExp(`^archives/${uuid}/restore$`)];
+const routes=[new RegExp(`^tasks(?:/${uuid}(?:/(?:resume|cancel|profile-confirmation|images/[0-9]))?)?$`),new RegExp(`^people/${uuid}/(?:contact-intelligence|archive)$`),new RegExp(`^archives/${uuid}/restore$`)];
 async function proxy(request:NextRequest,context:Context){
   const path=(await context.params).path?.join("/")??"";
   if(!routes.some(r=>r.test(path)))return NextResponse.json({message:"入口不存在。"},{status:404});
   if(request.method!=="GET"&&!isAllowedMutationOrigin(request.headers))return NextResponse.json({message:"请求来源不受支持。"},{status:403});
   const claims=await readBackendSessionClaims();
   if(!claims||backendSessionIsExpired(claims.backendExpiresAt))return NextResponse.json({message:"请重新登录。"},{status:401});
+  const expectedSession=request.headers.get("x-contact-handoff-session");
+  if(expectedSession!==null&&expectedSession!==contactHandoffSessionVersion(claims))return NextResponse.json({code:"session_stale",message:"登录会话已改变，请重新审阅截图。"},{status:409});
   let body:string|undefined;
   if(request.method==="POST"){
     const reader=request.body?.getReader();const chunks:Uint8Array[]=[];let size=0;

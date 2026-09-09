@@ -19,6 +19,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.260
         version: 0.3.260(@anthropic-ai/sdk@0.120.0(zod@4.5.4))(@modelcontextprotocol/sdk@1.30.0(supports-color@7.1.0)(zod@4.5.4))(zod@4.5.4)
+      '@talent-signal/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       zod:
         specifier: ^4.5.4
         version: 4.5.4

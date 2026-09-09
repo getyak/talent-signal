@@ -181,7 +181,6 @@ struct AgentSourceSettingsView: View {
         } message: {
             Text(importError ?? "")
         }
-        .task { loadFixtureImportIfRequested() }
     }
 
     private var importSection: some View {
@@ -349,6 +348,12 @@ struct AgentSourceSettingsView: View {
     private func chooseFile(for kind: ContactImportSourceKind) {
         selectedImportKind = kind
         importError = nil
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--fixture-agent-contact-import") {
+            loadFixtureImportIfRequested()
+            return
+        }
+#endif
         isFileImporterPresented = true
     }
 

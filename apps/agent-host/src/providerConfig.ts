@@ -1,6 +1,7 @@
 import {
   BigModelAgentProvider,
   ClaudeAgentSDKProvider,
+  claudeHarnessConfiguration,
   OpenRouterAgentProvider,
   type AgentProvider,
 } from "@talent-signal/agent";
@@ -44,14 +45,8 @@ function configuredAgentProvider(
   imageInputEnabled: boolean,
 ): AgentProvider {
   if (provider === "claude") {
-    if (
-      !environment.ANTHROPIC_API_KEY?.trim() &&
-      !environment.ANTHROPIC_AUTH_TOKEN?.trim() &&
-      !environment.CLAUDE_CODE_OAUTH_TOKEN?.trim()
-    ) {
-      throw new Error("A local Anthropic credential is required.");
-    }
-    return new ClaudeAgentSDKProvider(model);
+    return new ClaudeAgentSDKProvider(model, undefined,
+      claudeHarnessConfiguration({ ...environment, TALENT_SIGNAL_AGENT_MODEL: model }), imageInputEnabled);
   }
   if (provider === "openrouter") {
     return new OpenRouterAgentProvider({

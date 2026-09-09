@@ -3,6 +3,33 @@ import XCTest
 @testable import TalentSignal
 
 final class SessionConversationClientTests: XCTestCase {
+    func testReplyPreferencePreservesIntentAndRequiresMatchingReadback() async throws {
+        let (client, network) = makeClient()
+        defer { network.invalidateAndCancel(); SessionConversationURLProtocol.handler = nil }
+        let intent = UUID().uuidString
+        var methods: [String] = []
+        var readbackRevision = 2
+        SessionConversationURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/v1/agent/preferences")
+            methods.append(request.httpMethod ?? "")
+            if request.httpMethod == "PUT" {
+                let body = try self.body(request)
+                XCTAssertEqual(body["idempotency_key"] as? String, intent)
+                XCTAssertEqual(body["expected_revision"] as? Int, 1)
+                XCTAssertEqual(body["response_style"] as? String, "conclusion_first")
+            }
+            return try JSONSerialization.data(withJSONObject: ["preference": ["response_style": "conclusion_first",
+                "revision": request.httpMethod == "PUT" ? 2 : readbackRevision, "updated_at": "2026-09-09T00:00:00Z"]])
+        }
+        let mutation = AgentReplyPreferenceMutation(idempotencyKey: intent, expectedRevision: 1, responseStyle: .conclusionFirst)
+        let saved = try await client.saveReplyPreference(mutation)
+        XCTAssertEqual(saved.responseStyle, .conclusionFirst)
+        XCTAssertEqual(methods, ["PUT", "GET"])
+        readbackRevision = 3
+        do { _ = try await client.saveReplyPreference(mutation); XCTFail("A changed readback cannot be reported as saved") }
+        catch PursuitWorkspaceClientError.scopeReadbackMismatch { }
+    }
+
     func testUnscopedFollowupAndRetryKeepSessionMessageAndIntentIDs() async throws {
         let sessionID = UUID(), messageID = UUID()
         let (client, network) = makeClient()
@@ -11,6 +38,7 @@ final class SessionConversationClientTests: XCTestCase {
         SessionConversationURLProtocol.handler = { request in
             count += 1
             XCTAssertEqual(request.url?.path, "/v1/chat/unscoped-tasks")
+            XCTAssertEqual(request.timeoutInterval, 120)
             let body = try self.body(request)
             XCTAssertEqual((body["session_id"] as? String).flatMap(UUID.init(uuidString:)), sessionID)
             XCTAssertEqual((body["message_id"] as? String).flatMap(UUID.init(uuidString:)), messageID)
@@ -47,6 +75,7 @@ final class SessionConversationClientTests: XCTestCase {
         SessionConversationURLProtocol.handler = { request in
             requested = true
             XCTAssertEqual(request.url?.path, "/v1/chat/tasks")
+            XCTAssertEqual(request.timeoutInterval, 120)
             let body = try self.body(request)
             XCTAssertEqual((body["session_id"] as? String).flatMap(UUID.init(uuidString:)), sessionID)
             XCTAssertEqual((body["message_id"] as? String).flatMap(UUID.init(uuidString:)), messageID)

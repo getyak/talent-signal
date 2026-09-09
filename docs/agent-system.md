@@ -4,10 +4,6 @@
 
 Talent Signal uses agents to extend human judgment, not replace ownership of relationship truth or consequential action.
 
-The system is:
-
-> an evidence compiler, temporal relationship memory, and governed action control plane, with open-ended agents attached only where flexibility creates measurable value.
-
 ## Architecture
 
 ![Talent Signal agent control plane](talent-signal-agent-control-plane.png)
@@ -29,22 +25,19 @@ changing product truth or authorization.
 Use a governed workflow when the stages, review points, and outcome checks are
 known.
 
-The capture-to-action loop belongs here because identity, time, evidence,
-permission, and recovery are consequential. A workflow may call several
-models, but deterministic state decides what happens next.
+The capture-to-action loop retains deterministic identity, evidence, permission,
+recovery and effect gates. Inside an admitted Agent task, the Claude Agent SDK
+owns planning, model/tool iteration, context management and delegated work.
+Product services validate each requested capability; they do not run a second
+model planner around the SDK.
 
 ### Open-ended agent task
 
 Use an open-ended agent when the sources or number of steps cannot be known in
 advance and partial artifacts remain useful.
 
-Good uses include:
-
-- company and market research;
-- meeting preparation;
-- contradiction investigation;
-- client-update or interview-question drafts;
-- repository and product work.
+Good uses include company and market research, meeting preparation,
+contradiction investigation, client-update/interview drafts and product work.
 
 An open-ended agent may produce an artifact or proposal. A task may also grant
 specific reversible internal filing operations, enforced by domain tools. It
@@ -59,12 +52,14 @@ grant. The separately gated contact-filing task below adds that explicit grant.
 
 ### Runtime placement
 
-Runtime follows capability ownership. The backend owns contact-filing vision
-extraction and the durable tool loop. Only public identity anchors and typed
-research calls cross to the Agent Host, which owns open-web credentials and
-network policy, never database access or authority to change a contact. The
-legacy read-only definition forwards process-only image input to that host
-without granting filing authority.
+Runtime follows capability ownership. The backend owns contact-filing scope,
+durable product state and domain tools. The shared SDK runtime can inspect the
+authorized original images directly and request typed understanding, research
+or reviewable drafts. Recognition is a capability, not a compulsory planning
+stage. Only public identity anchors and typed research calls cross to the Agent
+Host, which owns open-web credentials and network policy, never database access
+or authority to change a contact. The legacy read-only definition forwards
+process-only image input to that host without granting filing authority.
 
 The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision. The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
 
@@ -113,13 +108,8 @@ Capabilities progress through increasing consequence:
 The model proposes intent. The control plane determines whether a capability
 exists, is in scope, is currently allowed, and can be executed safely.
 
-## Three decisions
-
-The system preserves three independent gates:
-
-1. Fact confirmation: is this understanding supported and correctly scoped?
-2. Action approval: should this exact effect happen now?
-3. Outcome verification: did the intended destination actually change?
+Fact confirmation, exact-effect approval and destination verification remain
+independent decisions; passing one never substitutes for another.
 
 ## Context engineering
 
@@ -130,6 +120,11 @@ Opik mirrors versions for experiments, with selected drafts imported as source
 changes. Tool descriptions own usage, the host owns authorization and validation,
 and adapters add terminal protocol. Give useful partial answers and clarify
 material gaps. See [prompt operations](operations/opik-prompts.md).
+
+Conversation uses natural prose. Typed data belongs at tool and durable artifact
+boundaries, where product validation can act on it. Curated Skills describe
+methods; loading a Skill or delegating a read does not add permissions, expand
+evidence access, or create execution authority.
 
 Use this order:
 
@@ -156,17 +151,40 @@ Screenshots, web pages, files, connector results, and generated wiki text remain
 untrusted content. They cannot modify policy, permissions, or approval
 requirements.
 
+SDK working context is an expendable derivative of one authenticated product
+Session, not long-term relationship Memory. Continuation binds its owner,
+scope, runtime configuration and source generation. It preserves the earliest
+source and identity deadline; a lifecycle worker's delay never extends access.
+Correction, rebinding, revocation, deletion or scope change invalidates hidden
+summaries and subagent copies as well as the visible transcript. Concurrent
+turns and source changes must fail safely at the final product commit.
+
+Local SDK files require explicit ownership and crash recovery, including
+copies created before an initialization hook runs. Retaining a successful SDK
+turn is conditional on the product accepting the reply; interrupted or rejected
+turns cannot advance its durable checkpoint. A fresh Session recovers sourced
+Memory through current domain reads, never by inheriting an old transcript.
+
+Response style is a user-owned, revisioned preference in the product database.
+The Agent reads it through a scoped capability; current explicit instructions
+take precedence. Saving or resetting a preference invalidates affected working
+context. Web reads, turns, and preference writes bind the initiating login before
+forwarding its credential; stale tabs cannot act under a replacement account.
+Clients verify a matching readback before displaying a saved setting.
+
+Calendar preparation is a typed draft with a host reference clock, explicit
+client timezone and literal user source. The Agent cannot execute it. Clients
+keep source text separate from editable title/time: Web exports an ICS for
+calendar-app review; iOS requires an exact confirmation before EventKit writes.
+The native client persists a write claim before execution. Unknown outcomes
+survive reconstruction and cannot silently retry creation. Saved UI uses the
+actual event receipt, including reviewed fields, rather than the original draft.
+
 ## Memory and Agent Wiki
 
-Do not flatten memory into one page or one retrieval index.
-
-The system distinguishes:
-
-- source memory: what was captured;
-- episodic memory: what happened and in what order;
-- semantic memory: what is currently understood;
-- procedural memory: what action may work in a recurring situation;
-- operational memory: how an Agent should perform a task.
+Source memory preserves captures; episodic memory preserves event order;
+semantic memory represents current understanding. Procedural and operational
+memory describe reusable action and task methods without granting authority.
 
 New model output enters as a proposal or hypothesis. Confirmed facts and
 verified outcomes may update active relationship memory. Repeated corrections
@@ -236,19 +254,13 @@ database, or obtain a generic browser or shell over candidate data.
 Channels such as WeChat are capture and attention surfaces, not tenant
 boundaries or systems of record.
 
-## V1 bounded runtime
+## Bounded product tasks
 
-`@talent-signal/agent` is the provider-neutral runner. Each Pursuit, company/market, public-person, or workspace-conversation definition receives only its small Tool manifest; a second gate rejects every other Tool, and terminal output remains schema-validated rather than becoming a Tool call.
-
-The backend freezes scope, context, objective, and budget; persists fingerprints,
-validated output, usage, and one terminal receipt without raw tool payloads;
-and allows only a `needs_review` Proposal or durable `no_action`. External
-effects remain empty and recovery uses durable state, not provider memory.
-
-The company/market public-research definition assembles `search_web`, `fetch_web`, and `create_research_artifact`.
-The local host selects one provider, isolates credentials, guards fetches, checkpoints observations, and writes drafts with no publication authority.
-
-The account-scoped workspace-conversation definition may answer directly or call only `contact_workspace`: `search`, `read`, `propose_create`, and `propose_update`. Search clues must come from the message; one uniquely resolved header may be read and handed to governed relationship Ask, while ambiguity stops for clarification. Same-Run authorization binds reads and update targets. Proposal fields and source excerpts must be grounded in the message or unchanged exact-target labels; the Tool returns a fingerprint and `needs_review`, never an apply operation or canonical mutation.
+Each definition receives a small host-enforced capability manifest. The backend
+freezes scope, objective, context and budget, then retains validated artifacts,
+usage and terminal receipts. Workspace contact search uses current-message
+clues; ambiguity requires clarification. Proposals retain exact source excerpts
+and current-target revisions. Public research has no publication authority.
 
 ### Authorized screenshot contact filing
 
@@ -279,19 +291,11 @@ The governed Pursuit Task adds durable attempts, snapshots, checkpoints, artifac
 
 ## Evaluation
 
-Evaluate layers independently:
-
-- evidence quality and support;
-- identity and temporal-state correctness;
-- proposal usefulness and `no_action` judgment;
-- review effort and user control;
-- effect correctness, reconciliation, and recovery;
-- memory grounding, staleness, and deletion;
-- open-ended trajectory, artifact quality, and budget;
-- relationship and workflow outcomes.
+Evaluate evidence, identity and temporal correctness separately from proposal
+usefulness, review effort and user control. Check effect reconciliation, Memory
+grounding/deletion, trajectory quality and budget alongside workflow outcomes.
 
 Evaluate both trajectory and outcome. An agent saying it is finished is not evidence that the environment is correct.
-
 Internal evaluation binds frozen inputs, lineage, reference time and actual configuration; real corrections, Agent judgments and human gold remain distinct.
 Codex may review independently verified candidates within explicit budget and release scope; generators cannot see holdouts or approve releases, and business-action authority is unchanged. See [ADR 0015](decisions/0015-private-evaluation-and-delegated-prompt-improvement.md).
 
@@ -303,13 +307,8 @@ Release boundaries include:
 - duplicate and unknown-result writes remain safe;
 - source deletion reaches every governed derivative.
 
-## V1 proof boundary
-Deterministic and credentialed trials share the real database protocol; neither authorizes production data or broader tools.
-The Wiki rationale is in [ADR 0004](decisions/0004-agent-wiki-knowledge-layer.md).
-
-## Research
-The cross-system research and source links live in
-[Agent systems research](research/agent-systems.md).
+Deterministic and credentialed trials share the real database protocol; neither authorizes production data or broader tools. See [Wiki rationale](decisions/0004-agent-wiki-knowledge-layer.md)
+and [Agent systems research](research/agent-systems.md).
 
 ## Reconsider when
 

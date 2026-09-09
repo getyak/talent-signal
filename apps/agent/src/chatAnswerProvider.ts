@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { configuredClaudeChatProvider } from "./claudeChatProvider.js";
 import { createEnvironmentRuntimeObserver, type RuntimeObserver } from "./runtimeObservationOutbox.js";
 import { type RuntimeObservationContext, type RuntimeObservationSession, type RuntimeObservationSpan } from "./runtimeObservation.js";
 import { AGENT_TOOL_CATALOG, agentToolJsonSchema, contactWorkspaceOperationTools } from "./toolCatalog.js";
@@ -24,12 +25,17 @@ export interface RemoteChatContextBlock {
 export type ChatPromptPreset = "baseline" | "concise" | "evidence_first";
 
 export interface RemoteChatAnswerRequest {
+  calendarContext?: import("./calendarDraft.js").CalendarDraftContext;
   /** Host-captured reference time, shared with frozen evaluation input. */
   reference_time?: string;
   /** Internal frozen Lab configuration, never accepted from a public request. */
   prompt_snapshot?: PromptSnapshot;
   /** Host-provided trace identity; never accepted as observation authority from public input. */
   observation?: RuntimeObservationContext;
+  continuation?: import("./claudeHarnessContinuation.js").HarnessContinuationFactory;
+  /** Host-only source admission captured before compiling private context. */
+  assertCurrent?: () => Promise<void>;
+  responsePreference?: import("./responsePreference.js").ResponsePreference;
   prompt_preset?: ChatPromptPreset;
   mode?: "relationship" | "unscoped_conversation";
   objective: string;
@@ -55,16 +61,20 @@ export interface RemoteChatImageInput {
 }
 
 export interface RemoteChatAnswerResult {
+  calendarDraft?: import("@talent-signal/contracts").CalendarDraft;
   kind: RemoteChatBlockKind;
   title: string;
   body: string;
   citation_ids: string[];
-  provider_id: "zhipu-chat-completions";
+  provider_id: "zhipu-chat-completions" | "claude-agent-sdk";
   model: string;
   provider_request_id: string | null;
   input_tokens: number;
   output_tokens: number;
   usage_reported?: boolean;
+  reported_model?: string | null;
+  /** null when the SDK does not expose transport attempts. */
+  remote_requests_started?: number | null;
   prompt_revision?: string;
   prompt_snapshot?: PromptSnapshot;
 }
@@ -73,7 +83,7 @@ export interface AgentRunConfigurationEvidence {
   actual_model: string | null;
   prompt_revision: string;
   actual_prompt_revision: string | null;
-  requests_started: number;
+  requests_started: number | null;
   responses_received: number;
   input_tokens: number | null;
   output_tokens: number | null;
@@ -82,11 +92,13 @@ export interface AgentRunConfigurationEvidence {
 
 export interface RemoteChatAnswerProviding {
   readonly loadedTaskConfiguration?: ReturnType<typeof loadedRelationshipTaskConfiguration>;
-  readonly providerId: "zhipu-chat-completions";
+  readonly providerId: "zhipu-chat-completions" | "claude-agent-sdk";
   readonly model: string;
   readonly supportsImageInput: boolean;
   readonly imageModel?: string | null;
   readonly supportsPromptPresets?: boolean;
+  effectivePrompt?(text: string, preset: ChatPromptPreset): { text: string; revision: string };
+  matchesReportedModel?(reported: string | null): boolean;
   answer(request: RemoteChatAnswerRequest): Promise<RemoteChatAnswerResult>;
   runWithPromptPreset?(
     request: AgentProviderRequest,
@@ -932,8 +944,11 @@ export function createEnvironmentChatAnswerProvider(
       "TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING must be true or false.",
     );
   }
+  if (environment.TALENT_SIGNAL_CHAT_PROVIDER?.trim() === "claude") {
+    return configuredClaudeChatProvider(environment);
+  }
   if (environment.TALENT_SIGNAL_CHAT_PROVIDER?.trim() !== "zhipu") {
-    throw new Error("Remote Chat admission requires TALENT_SIGNAL_CHAT_PROVIDER=zhipu.");
+    throw new Error("Remote Chat admission requires TALENT_SIGNAL_CHAT_PROVIDER=zhipu or claude.");
   }
   const apiKey = environment.ZHIPU_API_KEY?.trim();
   const model = environment.TALENT_SIGNAL_CHAT_MODEL?.trim();

@@ -19,6 +19,15 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
         enum CodingKeys: String, CodingKey { case messageID = "message_id", text, speakerSide = "speaker_side", timeText = "time_text", sourceImageIndex = "source_image_index" }
     }
     struct Extraction: Decodable, Equatable { let messages: [Message]; let uncertainties: [String] }
+    struct ProfileDraft: Decodable, Equatable {
+        struct Field: Decodable, Equatable, Identifiable {
+            let clueIndex: Int; let kind: String; let value: String; let sourceExcerpt: String; let sourceImageIndex: Int
+            var id: Int { clueIndex }
+            enum CodingKeys: String, CodingKey { case clueIndex = "clue_index", kind, value, sourceExcerpt = "source_excerpt", sourceImageIndex = "source_image_index" }
+        }
+        let platform: String; let displayName: String; let fields: [Field]
+        enum CodingKeys: String, CodingKey { case platform, displayName = "display_name", fields }
+    }
     struct Finding: Decodable, Equatable {
         let kind: String; let text: String; let messageRefs: [String]; let sourceExcerpt: String; let epistemicStatus: String
         enum CodingKeys: String, CodingKey { case kind, text, messageRefs = "message_refs", sourceExcerpt = "source_excerpt", epistemicStatus = "epistemic_status" }
@@ -51,6 +60,8 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
     let sourceResourceID: String?
     let messageCount: Int
     let extraction: Extraction?
+    var contactDraft: ProfileDraft? = nil
+    var reviewedProfile: ProfileDraft? = nil
     let summary: String
     let findings: [Finding]
     let profileFields: [ProfileField]
@@ -62,7 +73,7 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
     var id: String { taskID }
     enum CodingKeys: String, CodingKey {
         case sourceImages = "source_images", taskID = "task_id", revision, status, contact, captureID = "capture_id", sourceResourceID = "source_resource_id", messageCount = "message_count"
-        case extraction, summary, findings, profileFields = "profile_fields", publicSources = "public_sources", question, candidates, limitations, events
+        case extraction, contactDraft = "contact_draft", reviewedProfile = "reviewed_profile", summary, findings, profileFields = "profile_fields", publicSources = "public_sources", question, candidates, limitations, events
     }
 }
 
@@ -114,5 +125,24 @@ struct ScreenshotContactResumeBody: Encodable {
     var selectedRelationshipContextID: String? = nil
     var newContactName: String? = nil
     var image: ScreenshotContactTaskBody.Image? = nil
+    // Local dispatch only; the explicit decision is sent to its dedicated endpoint.
+    var profileConfirmation: ScreenshotContactProfileConfirmation? = nil
     enum CodingKeys: String, CodingKey { case expectedRevision = "expected_revision", selectedPersonID = "selected_person_id", selectedRelationshipContextID = "selected_relationship_context_id", newContactName = "new_contact_name", image }
+}
+
+struct ScreenshotContactProfileConfirmation: Encodable {
+    struct Field: Encodable {
+        let clueIndex: Int; let value: String
+        enum CodingKeys: String, CodingKey { case clueIndex = "clue_index", value }
+    }
+    let expectedRevision: Int
+    let decision = "save_reviewed_profile"
+    let displayName: String
+    let fields: [Field]
+    let selectedPersonID: String?
+    let selectedRelationshipContextID: String?
+    enum CodingKeys: String, CodingKey {
+        case expectedRevision = "expected_revision", decision, displayName = "display_name", fields
+        case selectedPersonID = "selected_person_id", selectedRelationshipContextID = "selected_relationship_context_id"
+    }
 }

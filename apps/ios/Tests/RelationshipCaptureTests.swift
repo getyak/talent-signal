@@ -482,11 +482,38 @@ final class RelationshipCaptureTests: XCTestCase {
         )
     }
 
+    func testCalendarPendingWriteSurvivesStoreRecreationAndCannotBeClaimedTwice() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let suite = "calendar-pending-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { try? FileManager.default.removeItem(at: directory); defaults.removePersistentDomain(forName: suite) }
+        let proposal = DeviceCalendarProposal(sourceID: UUID().uuidString, personDisplayName: "Synthetic",
+            title: "Synthetic event", startDate: Date(timeIntervalSince1970: 1000), endDate: Date(timeIntervalSince1970: 2800),
+            timeZoneIdentifier: "Asia/Shanghai", evidenceQuote: "Private source", detectedDateText: "", durationWasExplicit: true)
+        let first = DeviceCalendarReceiptStore(defaults: defaults, attemptDirectory: directory)
+        XCTAssertTrue(try first.claimWrite(for: proposal))
+        // EventKit may have committed; no receipt reaches the UI before recreation.
+        let restored = DeviceCalendarReceiptStore(defaults: defaults, attemptDirectory: directory)
+        XCTAssertTrue(restored.hasPendingWrite(for: proposal.sourceID))
+        XCTAssertFalse(try restored.claimWrite(for: proposal))
+        XCTAssertNil(restored.receipt(for: proposal.sourceID))
+        let edited = DeviceCalendarSavedEvent(identifier: "verified-event", title: "Reviewed title",
+            startDate: proposal.startDate.addingTimeInterval(3600), endDate: proposal.endDate.addingTimeInterval(3600), timeZoneIdentifier: "Asia/Shanghai")
+        XCTAssertTrue(restored.recordSaved(sourceID: proposal.sourceID, eventIdentifier: "verified-event", savedEvent: edited))
+        defaults.removePersistentDomain(forName: suite)
+        let durable = DeviceCalendarReceiptStore(defaults: defaults, attemptDirectory: directory)
+        XCTAssertEqual(durable.receipt(for: proposal.sourceID)?.eventIdentifier, "verified-event")
+        XCTAssertEqual(durable.receipt(for: proposal.sourceID)?.savedEvent, edited)
+        XCTAssertFalse(try durable.claimWrite(for: proposal))
+    }
+
     func testCalendarReceiptStoreKeepsOneSavedResultPerCapture() throws {
         let suiteName = "calendar-receipt-tests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = DeviceCalendarReceiptStore(defaults: defaults)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = DeviceCalendarReceiptStore(defaults: defaults, attemptDirectory: directory)
         let firstDate = Date(timeIntervalSince1970: 1_800_000_000)
         let secondDate = firstDate.addingTimeInterval(60)
 
@@ -511,6 +538,7 @@ final class RelationshipCaptureTests: XCTestCase {
             )
         )
         XCTAssertNil(store.receipt(for: "capture-2"))
+        XCTAssertNil(store.receipt(for: "capture-1")?.savedEvent)
     }
 
     func testPendingInboxQueuesDistinctCapturesAndDeduplicatesExactRetry() async throws {

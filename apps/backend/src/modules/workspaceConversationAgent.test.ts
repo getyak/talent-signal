@@ -72,6 +72,17 @@ function personRow(options: {
 }
 
 describe("workspace conversation Agent", () => {
+  it.each([["claude-agent-sdk", 60_000], ["scripted", 35_000]])("admits the %s adapter's complete execution budget", async (id, duration) => {
+    const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Ready", body: "Ready" });
+    const run = vi.fn<AgentProvider["run"]>(async request => {
+      expect(request.budget.maxDurationMs).toBe(duration);
+      return { structuredOutput: { outcome: "reply", title: "Ready", body: "Ready" }, inputTokens: 0,
+        outputTokens: 0, estimatedUsd: 0, turns: 1, permissionDenials: [] };
+    });
+    await executeWorkspaceConversationAgentCore({ workspaceID: auth.accountId, objective: "Hello",
+      contacts: { search: vi.fn(), read: vi.fn() }, provider: { ...provider, id: String(id), run } });
+    expect(run).toHaveBeenCalledOnce();
+  });
   it("can reply without opening the contact workspace", async () => {
     const query = vi.fn();
     const execution = await executeWorkspaceConversationAgent({

@@ -27,12 +27,13 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc6 -p tsconfig.build.json",
-    "typecheck": "tsc6 -p tsconfig.json --noEmit",
+    "build": "pnpm --filter @talent-signal/contracts build && tsc6 -p tsconfig.build.json",
+    "typecheck": "pnpm --filter @talent-signal/contracts build && tsc6 -p tsconfig.json --noEmit",
     "test": "vitest run src"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.260",
+    "@talent-signal/contracts": "workspace:*",
     "zod": "^4.5.4"
   },
   "devDependencies": {

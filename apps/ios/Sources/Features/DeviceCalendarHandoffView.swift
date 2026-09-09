@@ -1,21 +1,54 @@
 import EventKit
+import CryptoKit
 import SwiftUI
 
 struct DeviceCalendarWriteReceipt: Codable, Equatable {
     let sourceID: String
     let eventIdentifier: String?
     let savedAt: Date
+    var savedEvent: DeviceCalendarSavedEvent? = nil
 }
 
 struct DeviceCalendarReceiptStore {
     private let defaults: UserDefaults
+    private let attemptDirectory: URL
     private let key = "talent-signal.calendar-handoff-receipts.v1"
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, attemptDirectory: URL? = nil) {
         self.defaults = defaults
+        self.attemptDirectory = attemptDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("CalendarWriteAttempts", isDirectory: true)
+    }
+
+    private func attemptURL(_ sourceID: String) -> URL {
+        let digest = SHA256.hash(data: Data(sourceID.utf8)).map { String(format: "%02x", $0) }.joined()
+        return attemptDirectory.appendingPathComponent("\(digest).json")
+    }
+
+    func hasPendingWrite(for sourceID: String) -> Bool {
+        FileManager.default.fileExists(atPath: attemptURL(sourceID).path)
+    }
+
+    /// An exclusive durable file exists before EventKit can be called. Crashes
+    /// or uncertain saves retain it, including across view/process recreation.
+    func claimWrite(for proposal: DeviceCalendarProposal) throws -> Bool {
+        guard receipt(for: proposal.sourceID) == nil, !hasPendingWrite(for: proposal.sourceID) else { return false }
+        try FileManager.default.createDirectory(at: attemptDirectory, withIntermediateDirectories: true)
+        let record: [String: Any] = ["sourceID": proposal.sourceID, "title": proposal.title,
+            "startsAt": proposal.startDate.timeIntervalSince1970, "endsAt": proposal.endDate.timeIntervalSince1970,
+            "timeZone": proposal.timeZoneIdentifier, "state": "pending_or_unknown"]
+        try JSONSerialization.data(withJSONObject: record).write(to: attemptURL(proposal.sourceID), options: .withoutOverwriting)
+        return true
+    }
+
+    func clearDefiniteNoWrite(for sourceID: String) {
+        try? FileManager.default.removeItem(at: attemptURL(sourceID))
     }
 
     func receipt(for sourceID: String) -> DeviceCalendarWriteReceipt? {
+        if let data = try? Data(contentsOf: attemptURL(sourceID)),
+           let saved = try? JSONDecoder().decode(DeviceCalendarWriteReceipt.self, from: data),
+           saved.sourceID == sourceID { return saved }
         guard let data = defaults.data(forKey: key),
               let receipts = try? JSONDecoder().decode(
                 [String: DeviceCalendarWriteReceipt].self,
@@ -26,11 +59,12 @@ struct DeviceCalendarReceiptStore {
         return receipts[sourceID]
     }
 
-    func recordSaved(
+    @discardableResult func recordSaved(
         sourceID: String,
         eventIdentifier: String?,
-        savedAt: Date = Date()
-    ) {
+        savedAt: Date = Date(),
+        savedEvent: DeviceCalendarSavedEvent? = nil
+    ) -> Bool {
         var receipts: [String: DeviceCalendarWriteReceipt] = [:]
         if let data = defaults.data(forKey: key),
            let decoded = try? JSONDecoder().decode(
@@ -42,10 +76,16 @@ struct DeviceCalendarReceiptStore {
         receipts[sourceID] = DeviceCalendarWriteReceipt(
             sourceID: sourceID,
             eventIdentifier: eventIdentifier,
-            savedAt: savedAt
+            savedAt: savedAt,
+            savedEvent: savedEvent
         )
-        guard let encoded = try? JSONEncoder().encode(receipts) else { return }
+        guard let encoded = try? JSONEncoder().encode(receipts), let receipt = receipts[sourceID] else { return false }
+        do {
+            try FileManager.default.createDirectory(at: attemptDirectory, withIntermediateDirectories: true)
+            try JSONEncoder().encode(receipt).write(to: attemptURL(sourceID), options: .atomic)
+        } catch { return false }
         defaults.set(encoded, forKey: key)
+        return true
     }
 }
 
@@ -80,9 +120,11 @@ protocol DeviceCalendarSyncing: AnyObject {
 @MainActor
 final class EventKitDeviceCalendarSyncService: DeviceCalendarSyncing {
     private let eventStore: EKEventStore
+    private let destinationCalendar: EKCalendar?
 
-    init(eventStore: EKEventStore = EKEventStore()) {
+    init(eventStore: EKEventStore = EKEventStore(), destinationCalendar: EKCalendar? = nil) {
         self.eventStore = eventStore
+        self.destinationCalendar = destinationCalendar
     }
 
     func createEvent(
@@ -95,7 +137,7 @@ final class EventKitDeviceCalendarSyncService: DeviceCalendarSyncing {
             guard try await ensureWriteAccess() else {
                 return .failure(.permissionDenied)
             }
-            guard let destination = eventStore.defaultCalendarForNewEvents else {
+            guard let destination = destinationCalendar ?? eventStore.defaultCalendarForNewEvents else {
                 return .failure(.noDefaultCalendar)
             }
 
@@ -106,14 +148,17 @@ final class EventKitDeviceCalendarSyncService: DeviceCalendarSyncing {
             event.endDate = proposal.endDate
             event.timeZone = TimeZone(identifier: proposal.timeZoneIdentifier)
             try eventStore.save(event, span: .thisEvent, commit: true)
+            guard let identifier = event.eventIdentifier, !identifier.isEmpty else {
+                return .failure(.saveFailed("Calendar returned no event identifier."))
+            }
 
             return .success(
                 DeviceCalendarSavedEvent(
-                    identifier: event.eventIdentifier ?? "",
-                    title: proposal.title,
-                    startDate: proposal.startDate,
-                    endDate: proposal.endDate,
-                    timeZoneIdentifier: proposal.timeZoneIdentifier
+                    identifier: identifier,
+                    title: event.title,
+                    startDate: event.startDate,
+                    endDate: event.endDate,
+                    timeZoneIdentifier: event.timeZone?.identifier ?? proposal.timeZoneIdentifier
                 )
             )
         } catch {
@@ -203,7 +248,8 @@ final class EventKitDeviceCalendarSyncService: DeviceCalendarSyncing {
 }
 
 struct DeviceCalendarHandoffView: View {
-    let proposal: DeviceCalendarProposal
+    @State private var proposal: DeviceCalendarProposal
+    private let allowsEditing: Bool
 
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -211,6 +257,7 @@ struct DeviceCalendarHandoffView: View {
     private var isCalendarSyncEnabled = true
     @State private var showsEvidence = false
     @State private var result: DeviceCalendarHandoffResult
+    @State private var canonicalSaved = false
 
     private let receiptStore: DeviceCalendarReceiptStore
     private let calendarSync: any DeviceCalendarSyncing
@@ -219,18 +266,22 @@ struct DeviceCalendarHandoffView: View {
 
     init(
         proposal: DeviceCalendarProposal,
+        allowsEditing: Bool = false,
         receiptStore: DeviceCalendarReceiptStore = DeviceCalendarReceiptStore(),
         calendarSync: (any DeviceCalendarSyncing)? = nil,
         activityStore: (any RelationshipCalendarActivityPersisting)? = nil,
         canonicalActivity: RelationshipCalendarActivity? = nil
     ) {
-        self.proposal = proposal
+        _proposal = State(initialValue: proposal)
+        self.allowsEditing = allowsEditing
         self.receiptStore = receiptStore
         self.calendarSync = calendarSync ?? EventKitDeviceCalendarSyncService()
         self.activityStore = activityStore
         self.canonicalActivity = canonicalActivity
         if let receipt = receiptStore.receipt(for: proposal.sourceID) {
             _result = State(initialValue: .saved(receipt))
+        } else if receiptStore.hasPendingWrite(for: proposal.sourceID) {
+            _result = State(initialValue: .unknown("Apple Calendar returned an uncertain result. Check Apple Calendar before taking any further action."))
         } else {
             _result = State(initialValue: .notStarted)
         }
@@ -288,6 +339,20 @@ struct DeviceCalendarHandoffView: View {
             }
             .accessibilityElement(children: .combine)
 
+            Text(verbatim: proposal.timeZoneIdentifier)
+                .font(.caption).foregroundStyle(Color.tsMutedInk)
+            if allowsEditing {
+                DisclosureGroup(appLanguage.text("Edit")) {
+                    TextField(appLanguage.text("Title"), text: Binding(get: { proposal.title }, set: { revise(title: $0) }))
+                        .textFieldStyle(.roundedBorder).accessibilityIdentifier("calendar-draft-title")
+                    DatePicker(appLanguage.text("Start"), selection: Binding(get: { proposal.startDate }, set: { revise(start: $0) }))
+                        .accessibilityIdentifier("calendar-draft-start")
+                    DatePicker(appLanguage.text("End time"), selection: Binding(get: { proposal.endDate }, set: { revise(end: $0) }))
+                        .accessibilityIdentifier("calendar-draft-end")
+                }
+                .environment(\.timeZone, TimeZone(identifier: proposal.timeZoneIdentifier) ?? .current)
+            }
+
             HStack(spacing: 8) {
                 Label(
                     appLanguage.text("Only title and time"),
@@ -343,6 +408,8 @@ struct DeviceCalendarHandoffView: View {
             appLanguage.text("Saves this event and syncs it to Apple Calendar.")
         )
         .accessibilityIdentifier("add-calendar-proposal")
+        .disabled(proposal.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || proposal.title.count > 200
+            || proposal.endDate <= proposal.startDate || proposal.endDate.timeIntervalSince(proposal.startDate) > 7 * 86_400)
 
         Button(role: .destructive) {
             result = .dismissed
@@ -409,7 +476,8 @@ struct DeviceCalendarHandoffView: View {
     private func failedContent(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(
-                appLanguage.text("Saved in Talent Signal · Calendar sync failed"),
+                appLanguage.text(canonicalSaved
+                    ? "Saved in Talent Signal · Calendar sync failed" : "Calendar sync failed"),
                 systemImage: "exclamationmark.shield"
             )
                 .font(.headline)
@@ -453,12 +521,18 @@ struct DeviceCalendarHandoffView: View {
             .font(.headline)
             .foregroundStyle(Color.tsConfirmed)
             .accessibilityIdentifier("calendar-saved")
-            Text(proposal.title)
+            if let saved = receipt.savedEvent {
+            Text(saved.title)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
-            Text(dateText)
+            Text(calendarDateText(saved.startDate, timeZone: saved.timeZoneIdentifier))
                 .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
+            Text(calendarDateText(saved.endDate, timeZone: saved.timeZoneIdentifier))
+                .font(.subheadline).foregroundStyle(Color.tsMutedInk)
+            Text(verbatim: saved.timeZoneIdentifier)
+                .font(.caption).foregroundStyle(Color.tsMutedInk)
+            }
             if let identifier = receipt.eventIdentifier, !identifier.isEmpty {
                 Text(
                     verbatim: "\(appLanguage.text("Receipt")) \(identifier.prefix(8))"
@@ -474,6 +548,13 @@ struct DeviceCalendarHandoffView: View {
         max(1, Int(proposal.endDate.timeIntervalSince(proposal.startDate) / 60))
     }
 
+    private func revise(title: String? = nil, start: Date? = nil, end: Date? = nil) {
+        proposal = DeviceCalendarProposal(sourceID: proposal.sourceID, personDisplayName: proposal.personDisplayName,
+            title: title ?? proposal.title, startDate: start ?? proposal.startDate, endDate: end ?? proposal.endDate,
+            timeZoneIdentifier: proposal.timeZoneIdentifier, evidenceQuote: proposal.evidenceQuote,
+            detectedDateText: proposal.detectedDateText, durationWasExplicit: true)
+    }
+
     private var durationText: String {
         let editableSuffix = proposal.durationWasExplicit
             ? ""
@@ -485,16 +566,24 @@ struct DeviceCalendarHandoffView: View {
     }
 
     private var dateText: String {
+        calendarDateText(proposal.startDate, timeZone: proposal.timeZoneIdentifier)
+    }
+
+    private func calendarDateText(_ date: Date, timeZone: String) -> String {
         let formatter = DateFormatter()
         formatter.locale = appLanguage.locale
-        formatter.timeZone = TimeZone(identifier: proposal.timeZoneIdentifier)
+        formatter.timeZone = TimeZone(identifier: timeZone)
             ?? .current
-        formatter.setLocalizedDateFormatFromTemplate("EEE MMM d HH:mm")
-        return formatter.string(from: proposal.startDate)
+        formatter.setLocalizedDateFormatFromTemplate("y EEE MMM d HH:mm")
+        return formatter.string(from: date)
     }
 
     private func sync() {
         guard result != .syncing else { return }
+        if let receipt = receiptStore.receipt(for: proposal.sourceID) { result = .saved(receipt); return }
+        guard !receiptStore.hasPendingWrite(for: proposal.sourceID) else {
+            result = .unknown(uncertainResultMessage(providerMessage: "")); return
+        }
         if var canonicalActivity, let activityStore {
             canonicalActivity.calendarSyncState = isCalendarSyncEnabled
                 ? .syncing
@@ -504,6 +593,7 @@ struct DeviceCalendarHandoffView: View {
                 : nil
             do {
                 try activityStore.save(canonicalActivity)
+                canonicalSaved = true
             } catch {
                 result = .failed(
                     appLanguage.text(
@@ -517,6 +607,13 @@ struct DeviceCalendarHandoffView: View {
                 return
             }
         }
+        do {
+            guard try receiptStore.claimWrite(for: proposal) else {
+                result = .unknown(uncertainResultMessage(providerMessage: "")); return
+            }
+        } catch {
+            result = .unknown(uncertainResultMessage(providerMessage: "")); return
+        }
         result = .syncing
         Task { @MainActor in
             switch await calendarSync.createEvent(from: proposal) {
@@ -529,15 +626,17 @@ struct DeviceCalendarHandoffView: View {
                         )
                     )
                 }
-                receiptStore.recordSaved(
+                guard receiptStore.recordSaved(
                     sourceID: proposal.sourceID,
-                    eventIdentifier: event.identifier
-                )
+                    eventIdentifier: event.identifier,
+                    savedEvent: event
+                ) else { result = .unknown(uncertainResultMessage(providerMessage: "")); return }
                 result = .saved(
                     DeviceCalendarWriteReceipt(
                         sourceID: proposal.sourceID,
                         eventIdentifier: event.identifier,
-                        savedAt: Date()
+                        savedAt: Date(),
+                        savedEvent: event
                     )
                 )
             case let .failure(.saveFailed(message)):
@@ -550,6 +649,7 @@ struct DeviceCalendarHandoffView: View {
                     uncertainResultMessage(providerMessage: message)
                 )
             case let .failure(failure):
+                receiptStore.clearDefiniteNoWrite(for: proposal.sourceID)
                 if let canonicalActivity, let activityStore {
                     try? activityStore.save(
                         canonicalActivity.updatingCalendarSync(.failed)
@@ -561,7 +661,7 @@ struct DeviceCalendarHandoffView: View {
     }
 
     private func failureMessage(_ failure: DeviceCalendarSyncFailure) -> String {
-        let appState = canonicalActivity != nil && activityStore != nil
+        let appState = canonicalSaved
             ? appLanguage.text("The event is saved in Talent Signal.") + " "
             : ""
         switch failure {
@@ -587,7 +687,7 @@ struct DeviceCalendarHandoffView: View {
     }
 
     private func uncertainResultMessage(providerMessage _: String) -> String {
-        let appState = canonicalActivity != nil && activityStore != nil
+        let appState = canonicalSaved
             ? appLanguage.text("The event is saved in Talent Signal.") + " "
             : ""
         return appState + appLanguage.text(
@@ -645,11 +745,17 @@ struct DeviceCalendarHandoffScenarioView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                DeviceCalendarHandoffView(
-                    proposal: proposal,
-                    calendarSync: DeterministicDeviceCalendarSyncService()
-                )
-                    .padding(20)
+                #if targetEnvironment(simulator)
+                if let data = ProcessInfo.processInfo.environment["TS_GET9_CALENDAR_DRAFT"]?.data(using: .utf8),
+                   let draft = try? JSONDecoder().decode(AgentCalendarDraft.self, from: data),
+                   let liveProposal = draft.deviceProposal {
+                    GET9CalendarProofView(proposal: liveProposal)
+                } else {
+                    scenarioCard
+                }
+                #else
+                scenarioCard
+                #endif
             }
             .background(Color.tsCanvas)
             .navigationTitle("Screenshot reviewed")
@@ -657,10 +763,114 @@ struct DeviceCalendarHandoffScenarioView: View {
             .accessibilityIdentifier("calendar-handoff-scenario")
         }
     }
+
+    private var scenarioCard: some View {
+                DeviceCalendarHandoffView(
+                    proposal: proposal,
+                    calendarSync: DeterministicDeviceCalendarSyncService()
+                )
+                    .padding(20)
+    }
+}
+
+#if targetEnvironment(simulator)
+/// Debug Simulator proof only: the production button/service saves to an owned
+/// local calendar, then a separate EventKit store verifies the actual event.
+@MainActor
+private final class GET9CalendarProofService: ObservableObject, DeviceCalendarSyncing {
+    @Published var state = "before_confirmation"
+    private let store = EKEventStore()
+    private var ownedCalendar: EKCalendar?
+    private var proof: [String: Any] = [:]
+    private var sourceID: String?
+
+    func createEvent(from proposal: DeviceCalendarProposal) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure> {
+        guard state == "before_confirmation", #available(iOS 17.0, *) else { return .failure(.unsupportedOS) }
+        sourceID = proposal.sourceID
+        state = "confirming"
+        do {
+            guard try await store.requestFullAccessToEvents() else { state = "permission_denied"; return .failure(.permissionDenied) }
+            guard let local = store.sources.first(where: { $0.sourceType == .local }) else {
+                state = "no_local_calendar_source"; return .failure(.noDefaultCalendar)
+            }
+            let calendar = EKCalendar(for: .event, eventStore: store)
+            calendar.title = "GET-9 synthetic \(proposal.sourceID)"
+            calendar.source = local
+            try store.saveCalendar(calendar, commit: true)
+            ownedCalendar = calendar
+            let service = EventKitDeviceCalendarSyncService(eventStore: store, destinationCalendar: calendar)
+            let outcome = await service.createEvent(from: proposal)
+            guard case let .success(receipt) = outcome else { state = "save_failed"; return outcome }
+            let readback = EKEventStore()
+            guard let event = readback.event(withIdentifier: receipt.identifier),
+                  event.calendar.calendarIdentifier == calendar.calendarIdentifier,
+                  event.title == proposal.title, event.startDate == proposal.startDate,
+                  event.endDate == proposal.endDate, event.timeZone?.identifier == proposal.timeZoneIdentifier,
+                  event.notes == nil, event.attendees?.isEmpty != false, event.alarms?.isEmpty != false else {
+                state = "readback_mismatch"; return .failure(.saveFailed("Synthetic Calendar readback failed."))
+            }
+            let predicate = readback.predicateForEvents(withStart: proposal.startDate.addingTimeInterval(-1),
+                end: proposal.endDate.addingTimeInterval(1), calendars: [event.calendar])
+            let count = readback.events(matching: predicate).count
+            guard count == 1 else { state = "duplicate_event"; return .failure(.saveFailed("Synthetic Calendar count mismatch.")) }
+            proof = ["dataClass": "synthetic", "sourceID": proposal.sourceID, "confirmedByProductionButton": true,
+                "eventIdentifier": receipt.identifier, "calendarIdentifier": calendar.calendarIdentifier,
+                "title": event.title ?? "", "startsAt": ISO8601DateFormatter().string(from: event.startDate),
+                "endsAt": ISO8601DateFormatter().string(from: event.endDate), "timeZone": proposal.timeZoneIdentifier,
+                "independentEventKitReadback": true, "eventCount": count, "sourceQuoteExported": false,
+                "attendees": 0, "alarms": 0, "cleanupVerified": false]
+            try persistProof()
+            state = "verified"
+            return outcome
+        } catch { state = "proof_failed"; return .failure(.saveFailed(error.localizedDescription)) }
+    }
+
+    func updateEvent(eventIdentifier: String, from proposal: DeviceCalendarProposal) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure> {
+        .failure(.eventNotFound)
+    }
+
+    func cleanup() {
+        guard let calendar = ownedCalendar else { return }
+        do {
+            let id = calendar.calendarIdentifier
+            try store.removeCalendar(calendar, commit: true)
+            guard EKEventStore().calendar(withIdentifier: id) == nil else { state = "cleanup_failed"; return }
+            ownedCalendar = nil
+            proof["cleanupVerified"] = true
+            try persistProof()
+            state = "cleaned"
+        } catch { state = "cleanup_failed" }
+    }
+
+    private func persistProof() throws {
+        guard let sourceID, UUID(uuidString: sourceID) != nil else { return }
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("GET9CalendarProof", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: proof, options: [.prettyPrinted, .sortedKeys])
+            .write(to: directory.appendingPathComponent("\(sourceID).json"), options: .atomic)
+    }
+}
+
+private struct GET9CalendarProofView: View {
+    let proposal: DeviceCalendarProposal
+    @StateObject private var service = GET9CalendarProofService()
+
+    var body: some View {
+        VStack(spacing: 20) {
+            DeviceCalendarHandoffView(proposal: proposal,
+                receiptStore: DeviceCalendarReceiptStore(defaults: UserDefaults(suiteName: "get9-calendar-\(ProcessInfo.processInfo.processIdentifier)")!,
+                    attemptDirectory: FileManager.default.temporaryDirectory.appendingPathComponent("get9-calendar-\(ProcessInfo.processInfo.processIdentifier)")),
+                calendarSync: service)
+            Text(verbatim: service.state).accessibilityIdentifier("get9-calendar-proof-state")
+            Button(action: service.cleanup) { Text(verbatim: "Remove synthetic calendar") }
+                .accessibilityIdentifier("get9-calendar-cleanup")
+        }.padding(20)
+    }
 }
 #endif
+#endif
 
-struct DeviceCalendarSavedEvent: Equatable {
+struct DeviceCalendarSavedEvent: Codable, Equatable {
     let identifier: String
     let title: String
     let startDate: Date

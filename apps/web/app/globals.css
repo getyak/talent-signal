@@ -15346,3 +15346,37 @@ article[data-state="unresolved"]
 .marketing-header .desktop-nav a { font-size: 13px; min-height: 44px; display: inline-flex; align-items: center; }
 .marketing-header .site-header__actions .button { border-color: transparent; min-height: 44px; }
 @media(max-width:1040px) { .marketing-header .site-header__inner { padding-inline: 20px; max-width: 100%; } }
+
+/* An unscoped conversation is a primary working surface, including editable
+   calendar drafts; its fields must not inherit the narrow relationship rail. */
+@media (min-width: 841px) {
+  .context-workspace--embedded[data-has-scope="false"] .context-chat--standalone {
+    width: clamp(400px, 44vw, 640px);
+  }
+  .context-workspace--embedded[data-has-scope="false"] .context-main {
+    margin-left: clamp(400px, 44vw, 640px);
+  }
+}
+.context-chat--standalone .context-chat__response {
+  min-width: 0;
+}
+.context-chat--standalone .context-chat__response > article {
+  margin-bottom: 24px;
+}
+@media (max-width: 840px) {
+  .context-workspace--embedded[data-has-scope="false"] .context-chat--standalone {
+    width: auto;
+  }
+  .context-workspace--embedded[data-has-scope="false"] .context-main {
+    margin-left: 0;
+  }
+  .context-chat--standalone[data-has-conversation="true"] .context-agent-thread {
+    display: block;
+  }
+}
+.context-workspace--embedded[data-has-scope="false"] .context-onboarding__workbench {
+  grid-template-columns: minmax(0, 1fr);
+}
+.context-workspace--embedded[data-has-scope="false"] .context-resource-composer__text {
+  grid-template-columns: minmax(0, 1fr);
+}

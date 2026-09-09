@@ -320,3 +320,22 @@ describe("private runtime observation", () => {
     await expect(transport.remove(value.id, value.spans.map((span) => span.id))).rejects.toThrow("DELETE_UNVERIFIED");
   });
 });
+
+
+it("accounts repeated SDK messages once, distinguishes tool rejection and never invents model request timing", async () => {
+  let retained: RuntimeObservation | undefined;
+  const session = new RuntimeObservationSession(policy, context, { objective: "Synthetic SDK input" },
+    { enqueue: async value => { retained = value; } }, ["synthetic-credential"]);
+  const message = { id: "sdk-message-1", model: "claude-sonnet-5", usage: { input_tokens: 20, output_tokens: 7, cache_read_input_tokens: 4 } };
+  session.recordSDKAssistant(message, { ...message, text: "synthetic-credential" }, "revision");
+  session.recordSDKAssistant(message, { ...message, text: "synthetic-credential" }, "revision");
+  await session.step("read_memory", "tool", {}, async () => ({ isError: true, content: [{ type: "text", text: "SOURCE_UNAVAILABLE" }] }));
+  await session.complete({ inputTokens: 24, outputTokens: 7 }, "ok");
+  const modelSpans = retained!.spans.filter(span => span.kind === "llm");
+  expect(modelSpans).toHaveLength(1);
+  expect(modelSpans[0]!.usage).toMatchObject({ input_tokens: 24, output_tokens: 7, accounting: "leaf", cost_usd: null });
+  expect(modelSpans[0]!.started_at).toBe(modelSpans[0]!.ended_at);
+  expect(modelSpans[0]!.input.status).toBe("unavailable");
+  expect(retained!.spans.find(span => span.kind === "tool")).toMatchObject({ status: "error", parent_span_id: modelSpans[0]!.id });
+  expect(JSON.stringify(retained)).not.toContain("synthetic-credential");
+});

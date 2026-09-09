@@ -332,24 +332,24 @@ function usage(
   } | null,
   nowMs: number,
 ): AgentUsage {
-  const inputTokens = provider?.inputTokens ?? 0;
-  const outputTokens = provider?.outputTokens ?? 0;
+  const inputTokens = provider?.inputTokens ?? null;
+  const outputTokens = provider?.outputTokens ?? null;
   return {
     inputTokens,
     outputTokens,
-    totalTokens: inputTokens + outputTokens,
-    estimatedUsd: provider?.estimatedUsd ?? 0,
-    turns: provider?.turns ?? 0,
+    totalTokens: inputTokens === null || outputTokens === null ? null : inputTokens + outputTokens,
+    estimatedUsd: provider?.estimatedUsd ?? null,
+    turns: provider?.turns ?? null,
     toolCalls,
     durationMs: Math.max(0, nowMs - startedAtMs),
   };
 }
 
 function exceededBudget(value: AgentUsage, budget: AgentBudget): string | null {
-  if (value.turns > budget.maxTurns) return "MAX_TURNS_EXCEEDED";
+  if (value.turns !== null && value.turns > budget.maxTurns) return "MAX_TURNS_EXCEEDED";
   if (value.toolCalls > budget.maxToolCalls) return "MAX_TOOL_CALLS_EXCEEDED";
-  if (value.totalTokens > budget.maxTaskTokens) return "MAX_TASK_TOKENS_EXCEEDED";
-  if (value.estimatedUsd > budget.maxEstimatedUsd) return "MAX_COST_EXCEEDED";
+  if (value.totalTokens !== null && value.totalTokens > budget.maxTaskTokens) return "MAX_TASK_TOKENS_EXCEEDED";
+  if (value.estimatedUsd !== null && value.estimatedUsd > budget.maxEstimatedUsd) return "MAX_COST_EXCEEDED";
   if (value.durationMs > budget.maxDurationMs) return "MAX_DURATION_EXCEEDED";
   return null;
 }

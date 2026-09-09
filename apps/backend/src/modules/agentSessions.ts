@@ -1,3 +1,4 @@
+import { sweepHarnessSessions } from "./harnessSessions.js";
 import { FormatRegistry } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import {
@@ -143,6 +144,7 @@ export async function sweepAgentSessions(
   client: DatabaseClient,
   accountId?: string,
 ): Promise<void> {
+  await sweepHarnessSessions(client, accountId);
   await client.query(
     `UPDATE agent_sessions SET payload=NULL,deleted_at=now(),updated_at=now(),revision=revision+1
     WHERE deleted_at IS NULL AND expires_at<=now() AND ($1::uuid IS NULL OR account_id=$1)`,

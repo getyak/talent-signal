@@ -1,3 +1,7 @@
+import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
+import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
+import { loadAgentResponsePreference } from "./agentPreferences.js";
+import { createHarnessContinuationFactory } from "./harnessSessions.js";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
 import { randomUUID } from "node:crypto";
 
@@ -121,7 +125,8 @@ function remoteAnswerBlock(answer: RemoteChatAnswerResult): ChatResponseBlock {
           ? "needs_review"
           : "informational",
     citation_dependency_ids: answer.citation_ids,
-    requires_user_decision: answer.kind === "clarification",
+    requires_user_decision: answer.kind === "clarification" || Boolean(answer.calendarDraft),
+    ...(answer.calendarDraft ? { calendar_draft: answer.calendarDraft, status: "needs_review" as const } : {}),
   };
 }
 
@@ -829,6 +834,13 @@ export async function createChatTask(
     if (request.telemetry) {
       await assertTelemetryContext(client, auth, request.telemetry);
     }
+    let sourceObservation: import("@talent-signal/agent").RuntimeObservationContext | undefined;
+    const assertCurrent = remoteChatProvider?.providerId === "claude-agent-sdk"
+      ? await createHarnessSourceGuard(client, auth, request.session_id, () => {
+        const refs = sourceObservation?.source_refs;
+        return refs?.kind === "product" ? { expiresAt: new Date(refs.expires_at), personIDs: refs.person_ids } : undefined;
+      }) : undefined;
+    const responsePreference = assertCurrent ? await loadAgentResponsePreference(client, auth) : undefined;
     const sessionConversation = request.session_id
       ? await readAgentSessionConversation(client, auth, request.session_id, {
           personId: request.person_id,
@@ -897,6 +909,7 @@ export async function createChatTask(
       ),
     );
     const createdAt = new Date();
+    const calendarContext = calendarDraftContextForRequest(taskId, request.time_zone, createdAt);
     const mediaIds = request.media_ids ?? [];
 
     await client.query(
@@ -973,6 +986,7 @@ export async function createChatTask(
     let remoteStartedAt: string | null = null;
     let remoteEndedAt: string | null = null;
     let remoteFailed = false;
+    let continuationSavepoint = false;
     if (
       remoteChatProvider &&
       (mediaIds.length === 0 ||
@@ -996,8 +1010,11 @@ export async function createChatTask(
               };
             }));
         feedbackInput = {
+          ...(responsePreference ? { responsePreference } : {}),
+          ...(assertCurrent ? { assertCurrent } : {}),
           objective: request.objective,
           reference_time: createdAt.toISOString(),
+          ...(calendarContext ? { calendarContext } : {}),
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           ...(sessionConversation.sources?.length ? { permits_unconfirmed_session_context_answer: true } : {}),
           context_blocks: selectedBlocks.map(remoteContextBlock),
@@ -1010,6 +1027,16 @@ export async function createChatTask(
               screenshotTaskIDs: sessionConversation.sources?.map((source) => source.taskID) ?? [],
             }),
         };
+        sourceObservation = feedbackInput.observation;
+        await assertCurrent?.();
+        if (remoteChatProvider.providerId === "claude-agent-sdk" && request.session_id && !images.length
+          && feedbackInput.observation?.source_refs?.kind === "product") {
+          await client.query("SAVEPOINT harness_product_reply");
+          continuationSavepoint = true;
+          feedbackInput.continuation = createHarnessContinuationFactory(client, auth, request.session_id,
+            { kind: "relationship", personID: request.person_id, contextID: request.relationship_context_id },
+            () => { const refs = feedbackInput!.observation!.source_refs!; return { expiresAt: new Date(refs.kind === "product" ? refs.expires_at : 0), personIDs: refs.kind === "product" ? refs.person_ids : [] }; });
+        }
         remoteChatResult = await measureLabServerStage("model_adapter", () => remoteChatProvider!.answer(feedbackInput!));
         remoteEndedAt = new Date().toISOString();
         const nextBlocks = insertAfterPersonBrief(
@@ -1026,7 +1053,7 @@ export async function createChatTask(
           blocks,
           remoteFailureBlock(
             "AI answer unavailable",
-            "Zhipu AI did not complete this turn. The governed relationship summary remains available below; ask again to retry. No action was taken.",
+            "The AI service did not complete this turn. The governed relationship summary remains available below; ask again to retry. No action was taken.",
           ),
         );
       }
@@ -1036,9 +1063,13 @@ export async function createChatTask(
         blocks,
         remoteFailureBlock(
           "Attachments were not sent to remote AI",
-          "This turn uses the governed relationship summary only. Talent Signal did not send the attached images to Zhipu AI, and no action was taken.",
+          "This turn uses the governed relationship summary only. Talent Signal did not send the attached images to the AI service, and no action was taken.",
         ),
       );
+    }
+    if (continuationSavepoint) {
+      if (remoteChatStatus !== "completed") await client.query("ROLLBACK TO SAVEPOINT harness_product_reply");
+      await client.query("RELEASE SAVEPOINT harness_product_reply");
     }
     const personResearch = await runPersonResearchChatIngress({
       provider: personResearchProvider,
@@ -1116,8 +1147,8 @@ export async function createChatTask(
             "gen_ai.provider.name":
               remoteChatResult?.provider_id ?? "configured-provider",
             "gen_ai.request.model": remoteChatResult?.model ?? "unknown",
-            "gen_ai.usage.input_tokens": remoteChatResult?.input_tokens ?? 0,
-            "gen_ai.usage.output_tokens": remoteChatResult?.output_tokens ?? 0,
+            "gen_ai.usage.input_tokens": remoteChatResult?.input_tokens ?? null,
+            "gen_ai.usage.output_tokens": remoteChatResult?.output_tokens ?? null,
             "ts.reasoning.capture_status": "unavailable",
             ...(remoteFailed ? { "error.type": "provider_failure" } : {}),
           },
@@ -1150,8 +1181,8 @@ export async function createChatTask(
         remote_chat_prompt_source: remoteChatResult?.prompt_snapshot?.source ?? null,
         remote_chat_provider_request_id:
           remoteChatResult?.provider_request_id ?? null,
-        remote_chat_input_tokens: remoteChatResult?.input_tokens ?? 0,
-        remote_chat_output_tokens: remoteChatResult?.output_tokens ?? 0,
+        remote_chat_input_tokens: remoteChatResult?.input_tokens ?? null,
+        remote_chat_output_tokens: remoteChatResult?.output_tokens ?? null,
       },
     );
     await recordSessionChatSources(client, auth, request.session_id, taskId, sessionConversation.sources ?? [], conversationHistory.filter((message) => message.role === "assistant").map((message) => message.message_id));

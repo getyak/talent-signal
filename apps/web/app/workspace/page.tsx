@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { TalentSignalHttpError } from "@talent-signal/contracts";
 import { auth } from "@/auth";
+import { readBackendSessionClaims } from "@/lib/server/backendAuth";
+import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
 import { RelationshipWorkspaceApp } from "@/components/relationship-workspace-app";
 import { WorkspaceApp } from "@/components/workspace-app";
 import {
@@ -164,8 +166,10 @@ export default async function WorkspacePage({
         }
       }
     }
+    const browserClaims = await readBackendSessionClaims();
     return (
       <RelationshipWorkspaceApp
+        initialSessionVersion={browserClaims ? contactHandoffSessionVersion(browserClaims) : null}
         initialAccountId={initialRead?.accountId ?? null}
         initialAgentHistory={initialRead?.agentHistory ?? null}
         initialCaptureOpen={parameters.intent === "capture"}

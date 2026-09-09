@@ -42,6 +42,7 @@ export function taskPromptSnapshot(entry: LabTaskModel): PromptSnapshot {
 
 export function taskPromptRevision(entry: LabTaskModel, preset: ChatPromptPreset, snapshot = taskPromptSnapshot(entry)): string {
   if (snapshot.name !== taskPromptSnapshot(entry).name || promptRevision(snapshot.text) !== snapshot.revision) throw new Error("Invalid frozen prompt snapshot.");
+  if (entry.provider.effectivePrompt) return entry.provider.effectivePrompt(snapshot.text, preset).revision;
   if (entry.task === "unscoped_chat" && isAgentProvider(entry.provider)) {
     return configuredAgentPrompt(snapshot.text, preset).revision;
   }
@@ -94,6 +95,7 @@ export function trialProvider(entry: LabTaskModel, preset: ChatPromptPreset,
         actual = await entry.provider.answer({ ...request, prompt_snapshot: snapshot,
           ...(entry.provider.supportsPromptPresets ? { prompt_preset: preset } : {}) });
         if (actual.model !== entry.model
+          || (entry.provider.matchesReportedModel && !entry.provider.matchesReportedModel(actual.reported_model ?? null))
           || (entry.provider.supportsPromptPresets && actual.prompt_revision !== promptRevision)) {
           throw new Error("Actual configuration did not match the trial.");
         }
@@ -101,9 +103,9 @@ export function trialProvider(entry: LabTaskModel, preset: ChatPromptPreset,
         return actual;
       } finally {
         measured({ execution: actual ? "remote" : dispatched ? "unknown" : "local_only",
-          remote_requests_started: actual ? 1 : dispatched ? null : 0,
+          remote_requests_started: actual ? actual.remote_requests_started === undefined ? 1 : actual.remote_requests_started : dispatched ? null : 0,
           requested_model: entry.model, resolved_model: entry.model,
-          actual_model: actual?.model ?? null, prompt_revision: promptRevision,
+          actual_model: actual ? Object.hasOwn(actual, "reported_model") ? actual.reported_model ?? null : actual.model : null, prompt_revision: promptRevision,
           actual_prompt_revision: actual?.prompt_revision ?? null,
           duration_ms: Math.round(performance.now() - start),
           input_tokens: actual?.usage_reported ? actual.input_tokens : null,
@@ -124,7 +126,7 @@ export function trialProvider(entry: LabTaskModel, preset: ChatPromptPreset,
         const result = await original.runWithPromptPreset!({ ...request, systemPrompt: snapshot.text }, invokeTool, signal, preset, (value) => { evidence = value; });
         WorkspaceConversationFinalOutputSchema.parse(result.structuredOutput);
         if (!evidence || evidence.prompt_revision !== promptRevision
-          || (evidence.requests_started > 0 && (evidence.actual_model !== entry.model || evidence.actual_prompt_revision !== promptRevision))) {
+          || ((evidence.requests_started !== 0 || evidence.responses_received > 0) && (!(original.matchesReportedModel ? original.matchesReportedModel(evidence.actual_model) : evidence.actual_model === entry.model) || evidence.actual_prompt_revision !== promptRevision))) {
           throw new Error("Actual Agent configuration did not match the trial.");
         }
         status = "completed";
@@ -133,7 +135,7 @@ export function trialProvider(entry: LabTaskModel, preset: ChatPromptPreset,
         measured({ requested_model: entry.model, resolved_model: entry.model,
           actual_model: evidence?.actual_model ?? null, prompt_revision: promptRevision,
           actual_prompt_revision: evidence?.actual_prompt_revision ?? null,
-          execution: evidence ? evidence.requests_started > 0 ? "remote" : "local_only" : "unknown",
+          execution: evidence ? evidence.responses_received > 0 || (evidence.requests_started ?? 0) > 0 ? "remote" : evidence.requests_started === 0 ? "local_only" : "unknown" : "unknown",
           remote_requests_started: evidence?.requests_started ?? null,
           duration_ms: Math.round(performance.now() - start), input_tokens: evidence?.input_tokens ?? null,
           output_tokens: evidence?.output_tokens ?? null, provider_request_id: evidence?.provider_request_id ?? null,

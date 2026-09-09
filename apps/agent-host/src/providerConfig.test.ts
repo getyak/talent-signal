@@ -4,11 +4,26 @@ import {
   LOCAL_PERSON_PROFILE_PROVIDER_REGISTRY,
   LOCAL_WEB_SEARCH_PROVIDER_REGISTRY,
   configuredLocalPersonProfileProvider,
+  configuredLocalAgentProvider,
   configuredLocalVisionAgentProvider,
   configuredLocalWebSearchProvider,
 } from "./providerConfig.js";
 
 describe("local third-party Tool provider registry", () => {
+  it("binds only the explicit Claude environment and requires a dedicated Hao credential", () => {
+    const environment = {
+      TALENT_SIGNAL_AGENT_PROVIDER: "claude", TALENT_SIGNAL_AGENT_MODEL: "anthropic/claude-sonnet-5",
+      TALENT_SIGNAL_AGENT_VISION_MODEL: "anthropic/claude-sonnet-5",
+      TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: "true",
+      ANTHROPIC_BASE_URL: "https://api.hao.ai/anthropic", HAO_ANTHROPIC_API_KEY: "synthetic-hao-key",
+    };
+    expect(configuredLocalAgentProvider(environment).id).toBe("claude-agent-sdk");
+    expect(configuredLocalVisionAgentProvider(environment).inputCapabilities.imageUnderstanding).toBe(true);
+    expect(() => configuredLocalAgentProvider({ ...environment, HAO_ANTHROPIC_API_KEY: "",
+      ANTHROPIC_API_KEY: "other-gateway", CLAUDE_CODE_OAUTH_TOKEN: "ambient-oauth" })).toThrow("CREDENTIAL_AMBIGUOUS_OR_MISSING");
+    expect(() => configuredLocalAgentProvider({ ...environment, ANTHROPIC_BASE_URL: "https://unadmitted.invalid" })).toThrow("ENDPOINT_NOT_ADMITTED");
+  });
+
   it("declares credential and subscription ownership without fallback", () => {
     expect(Object.keys(LOCAL_WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
       "brave",

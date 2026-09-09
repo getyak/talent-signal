@@ -1,4 +1,5 @@
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
+import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
@@ -239,7 +240,7 @@ import {
   type PersonResearchAgentProviding,
 } from "./modules/personResearchAgentClient.js";
 import { createPersonResearchTask } from "./modules/personResearchTasks.js";
-import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask,
+import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask, confirmScreenshotContactProfile,
   cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, loadScreenshotContactImage,
   environmentScreenshotContactDependencies, ScreenshotContactTaskRunner,
   type ScreenshotContactDependencies } from "./modules/screenshotContactTasks.js";
@@ -467,6 +468,8 @@ export interface AppDependencies {
   labCIVerifier?: LabCIVerifying | null;
   personResearchProvider?: PersonResearchAgentProviding | null;
   screenshotContact?: ScreenshotContactDependencies | null;
+  /** Host-only reference clock for reproducible relative-date evaluations. */
+  chatReferenceClock?: () => Date;
 }
 
 export async function buildApp(
@@ -788,6 +791,7 @@ export async function buildApp(
   registerAgentSessionRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
+  registerAgentPreferenceRoutes(app, pool, authenticate, remoteChatProvider?.providerId === "claude-agent-sdk");
   registerRuntimeManifest(app, config);
   registerLoadedRuntimeConfiguration(app, config, authenticate, remoteChatProvider?.loadedTaskConfiguration, deploymentExposure);
   registerLabWorkspaceRoutes(app,new LabWorkspaceService(pool,chatMediaStorage,config.sessionTtlSeconds),authenticate,config.internalLabEnabled===true);
@@ -2487,7 +2491,7 @@ export async function buildApp(
       const trial = config.internalLabEnabled ? labTrials.taskContext(request.auth, "unscoped_chat", request.body.idempotency_key) : null;
       let productOutcome: "accepted" | "fallback" | "product_failed" | "unverified" = "product_failed";
       const result = await createUnscopedChatTask(
-        pool, request.auth, request.body, remoteChatProvider, trial?.select,
+        pool, request.auth, request.body, remoteChatProvider, trial?.select, dependencies.chatReferenceClock?.(),
       ).then((result) => { productOutcome = result.labProductOutcome ?? "unverified"; return result; }).finally(async () => {
         const persisted = await trial?.finish(productOutcome);
         if (persisted != null) reply.header("lab-observation-persisted", String(persisted));
@@ -2581,6 +2585,9 @@ export async function buildApp(
       const result=await resumeScreenshotContactTask(pool,request.auth,request.params.id,request.body);
       void screenshotRunner.start(request.auth,result.task_id,request.body.image).catch(()=>{});return result;
     });
+  app.post<{Params:{id:string};Body:unknown}>("/v1/contact-agent/tasks/:id/profile-confirmation",{preHandler:authenticate,bodyLimit:16_000,
+    schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},
+    async request=>confirmScreenshotContactProfile(pool,request.auth,request.params.id,request.body));
   app.post<{Params:{id:string};Body:{expected_revision:number}}>("/v1/contact-agent/tasks/:id/cancel",{preHandler:authenticate,
     schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1})},{additionalProperties:false})}},
     async request=>cancelScreenshotContactTask(pool,request.auth,request.params.id,request.body.expected_revision));

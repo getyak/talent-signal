@@ -64,11 +64,11 @@ export const AgentFingerprintsSchema = Type.Object(
 
 export const AgentUsageSchema = Type.Object(
   {
-    input_tokens: Type.Integer({ minimum: 0 }),
-    output_tokens: Type.Integer({ minimum: 0 }),
-    total_tokens: Type.Integer({ minimum: 0 }),
-    estimated_usd: Type.Number({ minimum: 0 }),
-    turns: Type.Integer({ minimum: 0 }),
+    input_tokens: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+    output_tokens: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+    total_tokens: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+    estimated_usd: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+    turns: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
     tool_calls: Type.Integer({ minimum: 0 }),
     duration_ms: Type.Integer({ minimum: 0 }),
   },

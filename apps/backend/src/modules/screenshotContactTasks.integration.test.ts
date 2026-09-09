@@ -1,17 +1,138 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { ContactResearchToolRequestSchema } from "@talent-signal/agent";
 import type { ContactAgentModel, ContactChatExtraction, ScreenshotContactTaskRequest } from "@talent-signal/agent";
-import { createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage } from "./screenshotContactTasks.js";
+import { createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage, confirmScreenshotContactProfile } from "./screenshotContactTasks.js";
 import type { AuthContext } from "./auth.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { executeGrantedContactArchive, restoreContactArchive } from "./contactArchive.js";
 
 const database=process.env.CONTACT_AGENT_TEST_DATABASE_URL;
-const pool=database?new Pool({connectionString:database}):null;
+const pool=database?new Pool({connectionString:database,connectionTimeoutMillis:30_000,max:4,idleTimeoutMillis:0}):null;
 const auth:AuthContext={accountId:"10000000-0000-4000-8000-000000000001",accountSlug:"fixture-alpha",userId:"10000000-0000-4000-8000-000000000011",userEmail:"recruiter@alpha.local",userKind:"simulated_human",sessionId:randomUUID()};
 afterAll(async()=>{await pool?.end();});
+// Establish the Docker transport before measuring product operations. On macOS
+// the initial forwarded-port handshake can exceed the per-test operation budget.
+beforeAll(async()=>{
+  if(!pool)return;
+  const clients=await Promise.all(Array.from({length:4},()=>pool.connect()));
+  try{await Promise.all(clients.map(client=>client.query("SELECT 1")));}finally{clients.forEach(client=>client.release());}
+},30_000);
+
+function sdkModel(run: NonNullable<ContactAgentModel["run"]>): ContactAgentModel {
+  return { run, extract: vi.fn(async()=>{throw new Error("UNEXPECTED_OCR_PREPASS");}),
+    next: vi.fn(async()=>{throw new Error("UNEXPECTED_OUTER_MODEL_LOOP");}) };
+}
+const sdkReceipt = () => ({ providerRequestID:randomUUID(),model:"synthetic-sdk",inputTokens:10,outputTokens:10 });
+
+describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
+  it("stages an editable profile without writing a person, then reuses its confirmed account after review",async()=>{
+    const name=`Profile draft ${randomUUID().slice(0,8)}`;const handle=`sdk-${randomUUID()}`;
+    const profile:ContactChatExtraction={platform:"Synthetic social",conversation_kind:"not_chat",contact_name:name,
+      identity_clues:[{kind:"name",value:name,source_excerpt:name},{kind:"handle",value:handle,source_excerpt:handle},
+        {kind:"company",value:"Old example",source_excerpt:"Old example"}],messages:[],uncertainties:[]};
+    const sdk=sdkModel(async(request,signal)=>{await request.recordUnderstanding([profile],signal);return sdkReceipt();});
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null});
+    let personID:string|undefined;
+    for(let index=0;index<2;index++){
+      const request={...input(),browser_source:{title:"Synthetic reviewed profile",locator:"https://example.com/profile"}};
+      const created=await createScreenshotContactTask(pool!,auth,request);await runner.start(auth,created.body.task_id,request.image);
+      const draft=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+      expect(draft.status).toBe("waiting_for_user");expect(draft.contact).toBeNull();expect(draft.capture_id).toBeNull();
+      expect(draft.contact_draft?.fields[2]?.source_excerpt).toBe("Old example");
+      expect((await pool!.query("SELECT id FROM subjects WHERE account_id=$1 AND display_label=$2",[auth.accountId,name])).rowCount).toBe(index);
+      const confirmation={expected_revision:draft.revision,decision:"save_reviewed_profile",display_name:name,
+        fields:draft.contact_draft!.fields.map(f=>({clue_index:f.clue_index,value:f.kind==="company"?"Reviewed example":f.value}))};
+      await expect(confirmScreenshotContactProfile(pool!,auth,draft.task_id,{...confirmation,expected_revision:draft.revision-1})).rejects.toMatchObject({code:"CONTACT_TASK_REVISION_CHANGED"});
+      const saved=await confirmScreenshotContactProfile(pool!,auth,draft.task_id,confirmation);
+      expect(saved.status).toBe("completed");expect(saved.message_count).toBe(0);expect(saved.contact_draft).toBeUndefined();
+      if(index===0)personID=saved.contact!.person_id;
+      expect(saved.contact!.person_id).toBe(personID);expect(saved.contact!.disposition).toBe(index?"reused":"created");
+      expect(saved.extraction!.identity_clues[2]!.source_excerpt).toBe("Old example");
+      expect(saved.reviewed_profile?.fields[2]).toMatchObject({value:"Reviewed example",source_excerpt:"Old example"});
+      expect((await loadScreenshotContactTask(pool!,auth,saved.task_id)).reviewed_profile).toEqual(saved.reviewed_profile);
+      expect((await pool!.query("SELECT input_channel,source_locator FROM source_resources WHERE account_id=$1 AND id=$2",[auth.accountId,saved.source_resource_id])).rows[0])
+        .toEqual({input_channel:"browser_extension",source_locator:request.browser_source.locator});
+      const stored=await pool!.query("SELECT text_content,review_status,attributed_actor,attribution_status,fragment_kind FROM evidence_fragments WHERE capture_id=$1 ORDER BY sequence",[saved.capture_id]);
+      expect(stored.rows).toHaveLength(4);
+      expect(stored.rows[3]).toMatchObject({text_content:"Reviewed example",review_status:"reviewed",attributed_actor:"recruiter",attribution_status:"confirmed",fragment_kind:"contact_field"});
+      await expect(confirmScreenshotContactProfile(pool!,auth,draft.task_id,confirmation)).rejects.toMatchObject({code:"CONTACT_TASK_REVISION_CHANGED"});
+    }
+    expect((await pool!.query("SELECT id FROM subjects WHERE account_id=$1 AND display_label=$2",[auth.accountId,name])).rowCount).toBe(1);
+  });
+
+  it("files from the main Agent image understanding and reuses one existing contact",async()=>{
+    const name=`SDK reuse ${randomUUID().slice(0,8)}`;
+    const original=await model(name).extract(input().image,new AbortController().signal);
+    const sdk=sdkModel(async(request,signal)=>{
+      expect(request.images).toHaveLength(1);
+      await request.recordUnderstanding([original.extraction],signal);
+      const search=await request.invoke("search_contacts",{query:name},signal) as {candidates:Array<{person_id:string;relationship_context_id:string}>};
+      if(search.candidates.length){
+        const candidate=search.candidates[0]!;
+        const target={person_id:candidate.person_id,relationship_context_id:candidate.relationship_context_id};
+        await request.invoke("read_contact",target,signal);
+        await request.invoke("save_contact_chat",target,signal);
+      }else await request.invoke("create_contact",{display_name:name},signal);
+      await request.invoke("finish_contact_task",{summary:"Synthetic screenshot filed.",findings:[],limitations:[]},signal);
+      return sdkReceipt();
+    });
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null});
+    let person:string|undefined;
+    for(let attempt=0;attempt<2;attempt++){
+      const request={...input(),browser_source:{title:"Synthetic reviewed chat",locator:"https://example.com/chat"}};
+      const created=await createScreenshotContactTask(pool!,auth,request);
+      expect((await pool!.query("SELECT input_manifest->'browser_source' AS source FROM screenshot_contact_tasks WHERE account_id=$1 AND id=$2",[auth.accountId,created.body.task_id])).rows[0]?.source).toEqual(request.browser_source);
+      await expect(createScreenshotContactTask(pool!,auth,{...request,browser_source:{...request.browser_source,locator:"https://example.com/other"}})).rejects.toMatchObject({code:"CONTACT_TASK_IDEMPOTENCY_CONFLICT"});
+      await runner.start(auth,created.body.task_id,request.image);
+      const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+      expect(result.status,JSON.stringify(result)).toBe("completed");
+      if(attempt===0)person=result.contact!.person_id;
+      expect(result.contact!.person_id).toBe(person);
+      expect(result.contact!.disposition).toBe(attempt===0?"created":"reused");
+      expect(result.external_effects).toEqual([]);
+      expect((await pool!.query("SELECT input_channel,source_locator FROM source_resources WHERE account_id=$1 AND id=$2",[auth.accountId,result.source_resource_id])).rows[0])
+        .toEqual({input_channel:"browser_extension",source_locator:request.browser_source.locator});
+    }
+    expect(sdk.extract).not.toHaveBeenCalled();expect(sdk.next).not.toHaveBeenCalled();
+  });
+
+  it("blocks conflicting per-image identities and rejects a forced selection on resume",async()=>{
+    const storage=new TestImageStorage();const request={...input(),additional_images:[input().image]};
+    const first=await model("SDK Alice").extract(request.image,new AbortController().signal);
+    const second=await model("SDK Bob").extract(request.image,new AbortController().signal);
+    const sdk=sdkModel(async(input,signal)=>{await input.recordUnderstanding([first.extraction,second.extraction],signal);return sdkReceipt();});
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null},storage);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage);await runner.start(auth,created.body.task_id);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting.status).toBe("waiting_for_user");expect(waiting.contact).toBeNull();expect(waiting.capture_id).toBeNull();
+    await expect(resumeScreenshotContactTask(pool!,auth,waiting.task_id,{expected_revision:waiting.revision,new_contact_name:"SDK Alice"})).rejects.toMatchObject({code:"CONTACT_BATCH_IDENTITY_CONFLICT"});
+  });
+
+  it("does not execute a queued contact write after SDK cancellation",async()=>{
+    const name=`SDK cancel ${randomUUID().slice(0,8)}`;const request=input();
+    const original=await model(name).extract(request.image,new AbortController().signal);
+    const created=await createScreenshotContactTask(pool!,auth,request);
+    const sdk=sdkModel(async(input,signal)=>{
+      await input.recordUnderstanding([original.extraction],signal);
+      await input.invoke("search_contacts",{query:name},signal);
+      const lock=await pool!.connect();await lock.query("BEGIN");
+      await lock.query("SELECT id FROM screenshot_contact_tasks WHERE id=$1 FOR UPDATE",[created.body.task_id]);
+      const cancelled=new AbortController();
+      const queued=input.invoke("create_contact",{display_name:name},cancelled.signal);
+      const rejection=expect(queued).rejects.toThrow("SDK_BUDGET_CANCELLED");
+      cancelled.abort(new Error("SDK_BUDGET_CANCELLED"));
+      await lock.query("ROLLBACK");lock.release();await rejection;
+      throw new Error("SDK_BUDGET_CANCELLED");
+    });
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null});
+    await runner.start(auth,created.body.task_id,request.image);
+    const final=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(final.status).toBe("failed");expect(final.contact).toBeNull();expect(final.capture_id).toBeNull();
+    expect((await pool!.query("SELECT id FROM subjects WHERE account_id=$1 AND display_label=$2",[auth.accountId,name])).rowCount).toBe(0);
+  });
+});
 function input():ScreenshotContactTaskRequest{
   const bytes=Buffer.from([137,80,78,71,13,10,26,10,0]);
   return {idempotency_key:randomUUID(),objective:"File this synthetic chat and analyze the evidence.",image:{media_type:"image/png",byte_size:bytes.length,content_hash:createHash("sha256").update(bytes).digest("hex"),data_base64:bytes.toString("base64")},allow_public_research:false,captured_at:new Date().toISOString()};

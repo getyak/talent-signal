@@ -1,5 +1,7 @@
 "use client";
 
+import { CalendarDraftReview } from "@/components/calendar-draft-review";
+
 import type {
   ChatTaskResponse,
   IdentityResolutionCase,
@@ -357,12 +359,13 @@ export function RelationshipAgentPanel({
               </header>
               <h2>{block.title}</h2>
               <p>{block.body}</p>
+              {block.calendar_draft && block.calendar_draft.source_request_id === response.task_id ? <CalendarDraftReview draft={block.calendar_draft} /> : null}
               <footer>
                 <span>
                   <LinkSimple aria-hidden="true" size={14} />
                   {block.citation_dependency_ids.length} 条受治理引用
                 </span>
-                {block.requires_user_decision ? (
+                {block.requires_user_decision && !block.calendar_draft ? (
                   reviewMode ? (
                     <a href="#next-move">
                       行动前审阅

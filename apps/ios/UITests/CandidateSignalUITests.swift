@@ -380,6 +380,52 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Calendar proposal confirmed in app")
     }
 
+    /// Exact three live SDK drafts from E10 eighth attempt; each uses an owned synthetic Calendar.
+    func testGET9LiveCalendarDraftTrial1RequiresConfirmationAndRealReadback() throws {
+        try verifyGET9CalendarDraft(#"{"id":"ca3322d4-4534-4e6c-95df-b0ffed3c0574","title":"和陈夏聊天","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"b31d4f3e-fa98-4eea-8b57-7a278d10dd41","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 1)
+    }
+
+    func testGET9LiveCalendarDraftTrial2RequiresConfirmationAndRealReadback() throws {
+        try verifyGET9CalendarDraft(#"{"id":"2a0a7186-4047-4dd4-a4c8-34354a887c72","title":"和陈夏聊","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"77f1398c-c7b3-42bf-a352-bc9aad0414c6","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 2)
+    }
+
+    func testGET9LiveCalendarDraftTrial3RequiresConfirmationAndRealReadback() throws {
+        try verifyGET9CalendarDraft(#"{"id":"aac2e37f-abe9-48bb-a48a-6a91c2f6920f","title":"和陈夏聊天","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"958b17f3-263d-4dff-9b25-25960161441d","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 3)
+    }
+
+    private func verifyGET9CalendarDraft(_ draft: String, trial: Int) throws {
+        app.launchArguments = ["--scenario", "calendar-handoff", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchEnvironment["TS_GET9_CALENDAR_DRAFT"] = draft
+        app.launch()
+        let state = app.staticTexts["get9-calendar-proof-state"]
+        let confirm = app.buttons["add-calendar-proposal"]
+        XCTAssertTrue(state.waitForExistence(timeout: 10))
+        XCTAssertEqual(state.label, "before_confirmation")
+        XCTAssertTrue(confirm.exists)
+        XCTAssertFalse(element("calendar-saved").exists)
+        preserveScreenshot("GET9 trial \(trial) live draft before human confirmation")
+        let permission = addUIInterruptionMonitor(withDescription: "Synthetic Simulator Calendar permission") { alert in
+            let allow = alert.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Allow Full Access")).firstMatch
+            guard allow.exists else { return false }
+            allow.tap()
+            return true
+        }
+        defer { removeUIInterruptionMonitor(permission) }
+        confirm.tap()
+        let systemAllow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow Full Access"]
+        if systemAllow.waitForExistence(timeout: 5) { systemAllow.tap() }
+        let verified = NSPredicate(format: "label == %@", "verified")
+        expectation(for: verified, evaluatedWith: state)
+        waitForExpectations(timeout: 20)
+        XCTAssertTrue(element("calendar-saved").exists)
+        XCTAssertFalse(confirm.exists)
+        preserveScreenshot("GET9 trial \(trial) independent EventKit readback after confirmation")
+        app.buttons["get9-calendar-cleanup"].tap()
+        XCTAssertEqual(state.label, "cleaned")
+        preserveScreenshot("GET9 trial \(trial) owned Calendar cleanup verified")
+        app.terminate()
+    }
+
     func testCalendarProposalRecordsOneDirectSyncReceipt() throws {
         app.launchArguments = [
             "--scenario", "calendar-handoff",
@@ -923,11 +969,11 @@ final class CandidateSignalUITests: XCTestCase {
         app.buttons["close-capture-review"].tap()
 
         XCTAssertTrue(app.buttons["Keep for later"].waitForExistence(timeout: 3))
-        let discard = app.buttons["Discard capture"]
+        let discard = app.buttons["Remove local copy"]
         XCTAssertTrue(discard.exists)
         XCTAssertTrue(
             app.staticTexts[
-                "Keeping it preserves the screenshot and reviewed draft for the next app launch."
+                "Review progress stays on this device for up to 30 days. Removing the local copy does not delete an uploaded source."
             ].exists
         )
         XCTAssertFalse(app.buttons["submit-reviewed-capture"].isHittable)
@@ -1636,7 +1682,9 @@ final class CandidateSignalUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH %@", "agent-session-")
         )
         XCTAssertGreaterThanOrEqual(rows.count, 1)
-        let first = rows.element(boundBy: 0)
+        // Pending capture imports may add unread rows ahead of the two seeded
+        // Sessions. This command comparison owns the known read fixture.
+        let first = app.buttons["agent-session-90000000-0000-4000-8000-000000000001"]
 
         openSessionActions(first)
         XCTAssertTrue(app.buttons["Open session"].waitForExistence(timeout: 5))
@@ -1672,12 +1720,12 @@ final class CandidateSignalUITests: XCTestCase {
         let deletionMessage = app.staticTexts.matching(
             NSPredicate(
                 format: "label == %@",
-                "This deletes this session’s local messages, Agent responses, and receipts. Saved drafts, People, Pursuits, and workspace evidence stay unchanged."
+                "This removes this preview Session, its messages, and its unsaved drafts from this device. Other Sessions and saved contacts stay unchanged."
             )
         ).firstMatch
         XCTAssertTrue(deletionMessage.exists)
         XCTAssertEqual(sessionRows.count, initialSessionCount)
-        app.buttons["Cancel"].tap()
+        app.alerts.buttons["cancel-delete-session"].firstMatch.tap()
         XCTAssertEqual(sessionRows.count, initialSessionCount)
 
         openSessionActions(first)
@@ -1717,7 +1765,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue((scope.value as? String)?.contains("Leila Hartmann") == true)
         XCTAssertFalse(element("ask-response-turn").exists)
         let askSheet = element("relationship-ask-screen")
-        let closeAsk = app.buttons["ask-close"]
+        let closeAsk = app.navigationBars.buttons["BackButton"]
         XCTAssertTrue(closeAsk.waitForExistence(timeout: 5))
         closeAsk.tap()
         XCTAssertTrue(askSheet.waitForNonExistence(timeout: 5))
@@ -1921,9 +1969,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         app.buttons["archive-tab-sessions"].tap()
         XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 8))
-        let session = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "agent-session-")
-        ).firstMatch
+        let session = app.buttons["agent-session-90000000-0000-4000-8000-000000000001"]
         XCTAssertTrue(session.waitForExistence(timeout: 5))
         session.press(forDuration: 0.8)
 
@@ -1984,7 +2030,7 @@ final class CandidateSignalUITests: XCTestCase {
             if trial >= 3 {
                 sessionOpenSamples.append(elapsed)
             }
-            app.buttons["Close"].firstMatch.tap()
+            app.navigationBars.buttons["BackButton"].tap()
             XCTAssertTrue(
                 element("relationship-ask-screen").waitForNonExistence(timeout: 3)
             )
@@ -2188,7 +2234,7 @@ final class CandidateSignalUITests: XCTestCase {
         let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
-        let message = "Add Amara Singh for the health search"
+        let message = "Add Amara Singh for the health search, email amara@example.com"
         typeTextReliably(message, into: composer)
         XCTAssertEqual(composer.value as? String, message)
 
@@ -2231,7 +2277,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         send.tap()
 
-        XCTAssertTrue(element("ask-chat-header").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-new-session-header").exists)
         XCTAssertTrue(app.staticTexts["Session"].exists)
         assertFillsAppWindow(element("relationship-ask-screen"))
@@ -2985,7 +3031,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
         XCTAssertLessThanOrEqual(composer.frame.maxY, app.frame.maxY)
-        let header = element("ask-chat-header")
+        let header = app.navigationBars.firstMatch
         XCTAssertTrue(header.exists)
         XCTAssertLessThanOrEqual(header.frame.height, 68)
 

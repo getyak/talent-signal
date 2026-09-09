@@ -201,7 +201,7 @@ struct RelationshipAgentStudioView: View {
     private var destinationList: some View {
         VStack(spacing: 0) {
             NavigationLink {
-                AgentMemoryOverviewView()
+                AgentMemoryOverviewView(workspaceStore: workspaceStore)
             } label: {
                 AgentDestinationRow(
                     systemImage: "brain.head.profile",
@@ -306,10 +306,19 @@ struct RelationshipAgentStudioView: View {
 }
 
 private struct AgentMemoryOverviewView: View {
+    @ObservedObject var workspaceStore: PursuitWorkspaceStore
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         List {
+            Section {
+                NavigationLink {
+                    AgentResponsePreferenceView(workspaceStore: workspaceStore)
+                } label: {
+                    Text(appLanguage.text("Reply preference"))
+                }
+                .accessibilityIdentifier("agent-open-reply-preference")
+            }
             Section {
                 AgentCapabilityRow(
                     title: appLanguage.text("Relationship context"),

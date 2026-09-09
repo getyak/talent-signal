@@ -1,4 +1,5 @@
 import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
+import type { AgentPreferenceMutation, AgentPreferenceResponse } from "./agentPreferenceSchemas.js";
 import type {
   AnalysisProposalResponse,
   AppleLoginChallengeRequest,
@@ -64,6 +65,8 @@ import type {
   ChatMediaAsset,
   ChatMediaDeleteResponse,
   ChatTaskRequest,
+  UnscopedChatTaskRequest,
+  UnscopedChatTaskResponse,
   ChatTaskReadback,
   ChatTaskResponse,
   CreateChatMediaRequest,
@@ -774,6 +777,10 @@ export class TalentSignalClient {
     );
   }
 
+  createUnscopedChatTask(request: UnscopedChatTaskRequest): Promise<UnscopedChatTaskResponse> {
+    return this.request("/v1/chat/unscoped-tasks", { method: "POST", body: request });
+  }
+
   createChatTask(request: ChatTaskRequest): Promise<ChatTaskResponse> {
     return this.request("/v1/chat/tasks", {
       method: "POST",
@@ -1003,6 +1010,14 @@ export class TalentSignalClient {
 
   listAgentSessions(after?: string): Promise<AgentSessionListResponse> {
     return this.request(`/v1/agent-sessions${after ? `?after=${encodeURIComponent(after)}` : ""}`, { method: "GET" });
+  }
+
+  getAgentPreference(): Promise<AgentPreferenceResponse> {
+    return this.request("/v1/agent/preferences", { method: "GET" });
+  }
+
+  saveAgentPreference(request: AgentPreferenceMutation): Promise<AgentPreferenceResponse> {
+    return this.request("/v1/agent/preferences", { method: "PUT", body: request });
   }
 
   getAgentSession(id: string): Promise<AgentSessionResponse> {

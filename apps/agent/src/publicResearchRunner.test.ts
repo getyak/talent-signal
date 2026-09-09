@@ -118,6 +118,14 @@ class MemoryResearchHost
 }
 
 describe("local public-research Agent", () => {
+  it("keeps unreported provider usage unknown after a transport failure", async () => {
+    const host = new MemoryResearchHost();
+    const provider = new ScriptedAgentProvider([], {});
+    provider.run = async () => { throw new Error("Synthetic transport interruption"); };
+    const receipt = await runPublicResearchAgent({scope,budget:{...DEFAULT_AGENT_BUDGET},provider,gateway:host,journal:host});
+    expect(receipt.usage).toMatchObject({inputTokens:null,outputTokens:null,totalTokens:null,estimatedUsd:null,turns:null});
+    expect(host.artifacts).toEqual([]);
+  });
   it("searches, fetches, checkpoints, and creates a cited local draft", async () => {
     const host = new MemoryResearchHost();
     const resultID = fingerprint({

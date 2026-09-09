@@ -14,9 +14,13 @@ import { useState } from "react";
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
 import type { AgentContactDraft } from "@/lib/agent-contact-intake";
+import { CalendarDraftReview } from "@/components/calendar-draft-review";
+import type { WorkspaceChatTurn } from "./use-workspace-chat";
 import { AgentVoiceInput } from "./agent-voice-input";
 
 export function RelationshipAgentStartPanel({
+  busy = false,
+  turns = [],
   createOpen,
   contactDraft,
   identityResolutionCase,
@@ -30,6 +34,8 @@ export function RelationshipAgentStartPanel({
   onScreenshot,
   onObjectiveChange,
 }: {
+  busy?: boolean;
+  turns?: WorkspaceChatTurn[];
   createOpen: boolean;
   contactDraft: AgentContactDraft | null;
   identityResolutionCase: IdentityResolutionCase | null;
@@ -62,6 +68,7 @@ export function RelationshipAgentStartPanel({
       aria-labelledby="relationship-chat-title"
       className="context-chat context-chat--standalone"
       id="relationship-chat"
+      data-has-conversation={turns.length > 0 || createOpen || Boolean(identityResolutionCase)}
     >
       <div className="context-agent-heading">
         <span>
@@ -89,23 +96,34 @@ export function RelationshipAgentStartPanel({
             onCommitted={onCommitted}
             onDeferred={onDeferred}
           />
+        ) : turns.length ? (
+          <div className="context-chat__response" aria-live="polite">
+            {turns.map(turn => <article key={turn.response.task_id}>
+              <p className="context-agent-user-message">{turn.objective}</p>
+              {turn.response.blocks.map(block => <div key={block.id}>
+                <p style={{ whiteSpace: "pre-wrap" }}>{block.body}</p>
+                {block.calendar_draft?.source_request_id === turn.response.task_id ? <CalendarDraftReview draft={block.calendar_draft} /> : null}
+              </div>)}
+            </article>)}
+          </div>
         ) : (
           <div className="context-agent-welcome">
             <span><ChatCircleDots aria-hidden="true" size={16} /></span>
             <div>
-              <strong>像给同事发消息一样，自然地添加联系人。</strong>
+              <strong>聊聊近况，或一起想清楚下一步。</strong>
               <p>
-                “添加 Maya Chen 到首席产品官寻访。Elena 推荐了她，她下周二可以沟通。”我会先检查联系人目录，再准备创建、关联或身份审阅。任何状态都不会静默改变。
+                可以直接聊天、回顾之前的约定，或准备日历草稿。资料和日程会留给你核对。
               </p>
             </div>
           </div>
         )}
       </div>
+      {busy ? <p role="status">正在准备回复…</p> : null}
       <form
         className="context-chat__composer context-chat__composer--start"
         onSubmit={(event) => {
           event.preventDefault();
-          if (isComposing) return;
+          if (isComposing || busy) return;
           onAsk();
         }}
       >
@@ -121,6 +139,7 @@ export function RelationshipAgentStartPanel({
           <label className="context-chat__objective">
             <span className="sr-only">给关系智能助理发消息</span>
             <textarea
+              disabled={busy}
               autoFocus
               id="relationship-agent-composer"
               maxLength={1_000}
@@ -150,7 +169,7 @@ export function RelationshipAgentStartPanel({
             <button
               aria-label="发送给智能助理"
               className="context-primary-button"
-              disabled={isComposing || !objective.trim()}
+              disabled={busy || isComposing || !objective.trim()}
               type="submit"
             >
               <ArrowUp aria-hidden="true" size={18} weight="bold" />

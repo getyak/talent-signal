@@ -104,13 +104,13 @@ test("fails closed for unsupported browser retention combinations", () => {
   );
   assert.equal(
     retentionCompatibility("visible_tab", "evidence_crop").supported,
-    false,
+    true,
   );
   assert.throws(() =>
     buildHandoffEnvelope({
       draft: { ...draft, kind: "visible_tab" },
       reviewedAsset: { type: "reviewed_image" },
-      retentionMode: "evidence_crop",
+      retentionMode: "ephemeral",
       requestIdentity: createRequestIdentity(draft.id, () => "request-2"),
       handoffTarget: "http://localhost:3000",
     }),

@@ -343,11 +343,11 @@ export interface AgentFingerprints {
 }
 
 export interface AgentUsage {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  estimatedUsd: number;
-  turns: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  estimatedUsd: number | null;
+  turns: number | null;
   toolCalls: number;
   durationMs: number;
 }
@@ -369,8 +369,13 @@ export interface ConversationMessage {
 }
 
 export interface AgentProviderRequest {
+  calendarContext?: import("./calendarDraft.js").CalendarDraftContext;
   /** Trusted host source lineage for opt-in private observation; never model authority. */
   observation?: import("./runtimeObservation.js").RuntimeObservationContext;
+  continuation?: import("./claudeHarnessContinuation.js").HarnessContinuationFactory;
+  /** Host-only source admission captured before compiling private context. */
+  assertCurrent?: () => Promise<void>;
+  responsePreference?: import("./responsePreference.js").ResponsePreference;
   runID: string;
   objective: string;
   conversationHistory?: readonly ConversationMessage[];
@@ -407,6 +412,7 @@ export interface AgentProviderRequest {
 }
 
 export interface AgentProviderResult {
+  calendarDraft?: import("@talent-signal/contracts").CalendarDraft;
   prompt?: import("./promptRegistry.js").PromptReference;
   structuredOutput: unknown;
   inputTokens: number;
@@ -425,7 +431,7 @@ export interface AgentProvider {
   readonly inputCapabilities: AgentProviderInputCapabilities;
   run(
     request: AgentProviderRequest,
-    invokeTool: (name: string, input: unknown) => Promise<AgentToolResult>,
+    invokeTool: (name: string, input: unknown, executionSignal?: AbortSignal) => Promise<AgentToolResult>,
     signal: AbortSignal,
   ): Promise<AgentProviderResult>;
 }
