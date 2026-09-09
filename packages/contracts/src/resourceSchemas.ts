@@ -1680,6 +1680,7 @@ export const ChatTaskRequestSchema = Type.Object(
   {
     time_zone: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
     idempotency_key: IdempotencyKey,
+    previous_task_id: Type.Optional(Id),
     session_id: Type.Optional(Id),
     message_id: Type.Optional(Id),
     objective: Type.String({ minLength: 1, maxLength: 1_000 }),

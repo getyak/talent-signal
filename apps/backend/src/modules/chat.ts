@@ -2,6 +2,7 @@ import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
 import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
 import { loadAgentResponsePreference } from "./agentPreferences.js";
 import { createHarnessContinuationFactory } from "./harnessSessions.js";
+import { captureProductStep } from "@talent-signal/agent";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
 import { randomUUID } from "node:crypto";
 
@@ -807,6 +808,9 @@ export async function createChatTask(
       request,
     );
     if (idempotency.replay) {
+      if (request.previous_task_id && !(await client.query(`SELECT 1 FROM product_runs WHERE account_id=$1 AND user_id=$2
+        AND task_id=$3 AND product_run_source_available(id)`,[auth.accountId,auth.userId,request.previous_task_id])).rowCount)
+        throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available.");
       if (request.session_id) await assertSessionForChat(client, auth, request.session_id, true);
       const replay = idempotency.replay.body as ChatTaskResponse;
       if (replay?.task_id) await assertSessionChatSourcesAvailable(client, auth, replay.task_id);
@@ -848,6 +852,18 @@ export async function createChatTask(
         })
       : { messages: [] };
     const conversationHistory = boundedConversationHistory(sessionConversation.messages, request.message_id);
+    if (request.previous_task_id && !request.session_id) {
+      const prior = (await client.query<{ objective:string; output:{blocks:Array<{body:string}>} }>(
+        `SELECT objective,output FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3
+         AND input->'value'->>'person_id'=$4 AND input->'value'->>'relationship_context_id'=$5
+         AND product_run_source_available(id) ORDER BY created_at LIMIT 1 FOR SHARE`,
+        [auth.accountId,auth.userId,request.previous_task_id,request.person_id,request.relationship_context_id])).rows[0];
+      if (!prior?.output?.blocks) throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available in this relationship.");
+      conversationHistory.push(...boundedConversationHistory([
+        {message_id:`${request.previous_task_id}:question`,role:"user",text:prior.objective},
+        {message_id:request.previous_task_id,role:"assistant",text:prior.output.blocks.map(block=>block.body).join("\n\n")},
+      ]));
+    }
     if (sessionConversation.unavailableScreenshotContext && !sessionConversation.sources?.length)
       throw new ApiError(409, "AGENT_SESSION_CONTEXT_UNAVAILABLE", "The screenshot summary is not currently available. Review its current task before continuing from it.");
 
@@ -1037,7 +1053,7 @@ export async function createChatTask(
             { kind: "relationship", personID: request.person_id, contextID: request.relationship_context_id },
             () => { const refs = feedbackInput!.observation!.source_refs!; return { expiresAt: new Date(refs.kind === "product" ? refs.expires_at : 0), personIDs: refs.kind === "product" ? refs.person_ids : [] }; });
         }
-        remoteChatResult = await measureLabServerStage("model_adapter", () => remoteChatProvider!.answer(feedbackInput!));
+        remoteChatResult = await measureLabServerStage("model_adapter", () => captureProductStep("relationship.answer", "context", feedbackInput!, () => remoteChatProvider!.answer(feedbackInput!)));
         remoteEndedAt = new Date().toISOString();
         const nextBlocks = insertAfterPersonBrief(
           blocks,

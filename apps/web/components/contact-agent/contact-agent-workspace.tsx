@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ProductFeedback } from "@/components/product-feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenshotContactTaskResponse, ScreenshotContactTaskRequest, ContactProfileConfirmation } from "@talent-signal/agent";
 import { ContactProfileReview, ReviewedContactProfile } from "./contact-profile-review";
@@ -118,7 +119,7 @@ export function ContactAgentWorkspace({personID,contextID,initialTaskID}:{person
         {shown.map(item=><section className={styles.card} key={item.task_id} id={`contact-task-${item.task_id}`} aria-label="联系人分析卡片">
           <div className={styles.cardHeading}><div><p className={styles.eyebrow} role="status">{states[item.status]}</p><h2>{item.contact?.display_name??item.contact_draft?.display_name??"正在识别截图"}</h2></div>{item.contact&&<Link className={styles.profileLink} href={`/contact-agent/people/${item.contact.person_id}?context=${item.contact.relationship_context_id}`}>打开档案 ↗</Link>}</div>
           {item.contact&&<p className={styles.muted}>{item.contact.disposition==="created"?"已创建联系人":"已复用已有联系人"} · 已保存 {item.message_count} 条消息 · {new Date(item.created_at).toLocaleDateString("zh-CN")}</p>}
-          {item.summary&&<p className={styles.summary}>{item.summary}</p>}
+          {item.summary&&<><p className={styles.summary}>{item.summary}</p><ProductFeedback key={item.task_id} taskID={item.task_id} /></>}
           {item.status==="running"&&<div className={styles.progress}><span className={styles.pulse}/><span>{tools[item.events.at(-1)?.tool??""]??"Agent 正在读取截图并选择下一步"}</span><button onClick={()=>void request<Task>(`tasks/${item.task_id}/cancel`,{expected_revision:item.revision}).then(setTask).catch(e=>setError(e.message))}>停止</button></div>}
           {item.contact_draft&&<ContactProfileReview key={item.task_id} task={item} busy={busy} onConfirm={review=>confirmProfile(item,review)}/>}
           {item.reviewed_profile&&<ReviewedContactProfile profile={item.reviewed_profile}/>}

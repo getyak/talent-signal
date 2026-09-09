@@ -23,6 +23,9 @@ Read only the documents needed for the task. For example, a visual change
 usually needs Product and Design System, while a retention change needs
 Architecture and Agent System.
 
+- [Product runs and feedback](operations/product-feedback.md): Web/iOS ratings,
+  unified execution previews, and feedback-derived Lab cases.
+
 ## How the project works
 
 - [Documentation system](documentation.md): where knowledge belongs, how it is

@@ -33,14 +33,15 @@ function backendUrl(): URL {
   );
 }
 
-async function authenticatedLabClient(label: string): Promise<TalentSignalClient> {
+export async function authenticatedLabClient(label: string): Promise<TalentSignalClient> {
   const signedIn = await signedInBackendClient();
-  if (signedIn) return signedIn;
+  if (signedIn) { signedIn.setClientPlatform("web"); return signedIn; }
   const url = backendUrl();
   if (!LOOPBACK_HOSTS.has(url.hostname) || !isPursuitIntegrationMode()) {
     throw new Error("Production Web-to-backend identity exchange is not configured for Lab.");
   }
   const client = new TalentSignalClient(url.origin);
+  client.setClientPlatform("web");
   await client.login({
     account_slug:
       process.env.TALENT_SIGNAL_BACKEND_ACCOUNT_SLUG ?? DEFAULT_ACCOUNT_SLUG,

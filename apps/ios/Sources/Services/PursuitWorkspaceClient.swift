@@ -1494,6 +1494,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing, AgentSessionSyncServin
         if path == "v1/chat/tasks" || path == "v1/chat/unscoped-tasks" {
             request.timeoutInterval = 120
         }
+        request.setValue("ios", forHTTPHeaderField: "x-talent-signal-platform")
         request.setValue("application/json", forHTTPHeaderField: "accept")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
@@ -1572,6 +1573,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing, AgentSessionSyncServin
         if let authenticatedSession { return authenticatedSession }
         var request = URLRequest(url: baseURL.appending(path: "v1/auth/simulated-login"))
         request.httpMethod = "POST"
+        request.setValue("ios", forHTTPHeaderField: "x-talent-signal-platform")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONEncoder().encode(
             WorkspaceLoginBody(

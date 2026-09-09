@@ -1300,6 +1300,11 @@ struct RelationshipAskView: View {
                                 onCorrect: answerFeedbackClient == nil ? nil : {
                                     guard let activeSessionID else { return }
                                     answerFeedbackSelection = AnswerFeedbackSelection(sessionID: activeSessionID, turn: turn)
+                                },
+                                productFeedbackClient: answerFeedbackClient,
+                                onFeedbackCorrection: { text in
+                                    draft = appLanguage.text("Revise your previous answer using this correction: ", zhHans: "请根据以下纠正修改刚才的回答：") + text
+                                    composerFocused = true
                                 }
                             )
                                 .id(item.id)
@@ -7306,6 +7311,8 @@ private struct AskTurnView: View {
     let onRegenerate: () -> Void
     let onFeedback: (AgentSessionFeedback) -> Void
     let onCorrect: (() -> Void)?
+    var productFeedbackClient: (any AnswerFeedbackServing)? = nil
+    var onFeedbackCorrection: ((String) -> Void)? = nil
     @State private var didCopy = false
 
     var body: some View {
@@ -7533,6 +7540,9 @@ private struct AskTurnView: View {
                 )
                 didCopy = true
             }
+            if let productFeedbackClient {
+                ProductRunFeedbackControls(client: productFeedbackClient, taskID: turn.response.taskID, onCorrection: onFeedbackCorrection)
+            } else {
             responseControl(
                 symbol: turn.feedback == .helpful ? "hand.thumbsup.fill" : "hand.thumbsup",
                 title: language.text("Helpful"),
@@ -7545,6 +7555,7 @@ private struct AskTurnView: View {
                 identifier: "ask-feedback-unhelpful"
             ) { onFeedback(.unhelpful) }
             .accessibilityValue(turn.feedback == .unhelpful ? language.text("Selected") : "")
+            }
             if let onCorrect {
                 responseControl(symbol: "text.bubble", title: language.text("Correct answer"),
                     identifier: "ask-feedback-correct", action: onCorrect)

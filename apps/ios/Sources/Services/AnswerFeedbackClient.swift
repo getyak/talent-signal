@@ -64,6 +64,8 @@ struct AnswerFeedbackMutation: Encodable {
 }
 
 protocol AnswerFeedbackServing {
+    func productRun(taskID: String) async throws -> ProductRunFeedbackDetail
+    func react(taskID: String, request: ProductRunFeedbackRequest) async throws -> ProductRunFeedbackDetail
     func source(sessionID: UUID, turnID: UUID) async throws -> AnswerFeedbackSource
     func list(sessionID: UUID, turnID: UUID) async throws -> [AnswerFeedbackRecord]
     func submit(id: UUID, mutation: AnswerFeedbackMutation) async throws -> AnswerFeedbackRecord

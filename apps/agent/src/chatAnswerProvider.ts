@@ -1,3 +1,4 @@
+import { captureProductStep } from "./productRunCapture.js";
 import { createHash } from "node:crypto";
 import { configuredClaudeChatProvider } from "./claudeChatProvider.js";
 import { createEnvironmentRuntimeObserver, type RuntimeObserver } from "./runtimeObservationOutbox.js";
@@ -660,14 +661,14 @@ export class ZhipuChatAnswerProvider
 
   private async requestCompletion(body: Record<string, unknown>, signal: AbortSignal,
     observation: RuntimeObservationSession | null, revision: string): Promise<ZhipuChatResponse | null> {
-    const execute = async () => {
+    const execute = () => captureProductStep("chat.completions", "llm", body, async () => {
       const response = await this.fetcher(`${this.baseUrl}/chat/completions`, {
         method: "POST", headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
         body: JSON.stringify(body), signal,
       });
       if (!response.ok) throw new Error(`Zhipu Chat request failed with ${response.status}.`);
       return await response.json().catch(() => null) as ZhipuChatResponse | null;
-    };
+    }, { provider: this.providerId, model: body.model, prompt_revision: revision });
     return observation ? observation.step("chat.completions", "llm", body, execute,
       { model: String(body.model), provider: this.providerId, prompt_revision: revision }, (payload): RuntimeObservationSpan["usage"] => {
         const input = payload?.usage?.prompt_tokens, output = payload?.usage?.completion_tokens;
@@ -689,8 +690,8 @@ export class ZhipuChatAnswerProvider
       source_session_id: request.scopeSummary.kind === "workspace_conversation" ? request.scopeSummary.sessionID : null }, request) ?? null : null;
     let output: AgentProviderResult | undefined;
     try {
-      output = await this.runInternalBody(request, observation ? (name, input) =>
-        observation.step(name, "tool", input, () => invokeTool(name, input)) : invokeTool, signal, preset, observed, observation);
+      output = await this.runInternalBody(request, (name, input) => captureProductStep(name, "tool", input,
+        () => observation ? observation.step(name, "tool", input, () => invokeTool(name, input)) : invokeTool(name, input)), signal, preset, observed, observation);
       return output;
     } finally { await this.observer?.complete(observation, output, output ? "ok" : "error"); }
   }

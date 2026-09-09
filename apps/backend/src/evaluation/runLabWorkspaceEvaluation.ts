@@ -60,6 +60,15 @@ try {
   await request(child,"POST","/v1/lab/workspaces",{id:randomUUID(),duration_hours:1},403);
 
   const person=randomUUID(),context=randomUUID();
+  const productRun=randomUUID();
+  await pool.query(`INSERT INTO product_runs(id,account_id,user_id,platform,task_kind,objective,input,output,output_hash)
+    VALUES ($1,$2,$3,'ios','relationship.answer','Synthetic feedback cleanup proof','{}','{}','proof')`,
+    [productRun,created.account_id,created.user_id]);
+  await pool.query("INSERT INTO product_run_spans(id,run_id,span) VALUES ($1,$2,'{}')",[randomUUID(),productRun]);
+  await pool.query(`INSERT INTO product_run_feedback_events(id,run_id,revision,output_hash,platform,sentiment,reasons,comment,correction,selected_text,output,request_hash)
+    VALUES ($1,$2,1,'proof','ios','helpful','[]','','','','{}','proof')`,[randomUUID(),productRun]);
+  await pool.query(`INSERT INTO lab_regressions(id,account_id,user_id,request_hash,content_hash,source_run_id)
+    VALUES ($1,$2,$3,'proof','proof',$4)`,[randomUUID(),created.account_id,created.user_id,productRun]);
   await pool.query("INSERT INTO subjects(id,account_id,external_ref,display_label) VALUES ($1,$2,$3,'Synthetic person')",
     [person,created.account_id,`lab-person-${person}`]);
   await pool.query("INSERT INTO assignments(id,account_id,subject_id,external_ref,display_label) VALUES ($1,$2,$3,$4,'Synthetic context')",
@@ -102,6 +111,7 @@ try {
   await purgeObserved;
   const deleting=(await pool.query<{state:string}>("SELECT state FROM lab_test_workspaces WHERE id=$1",[workspaceId])).rows[0];
   assert.equal(deleting?.state,"deleting");
+  await assert.rejects(pool.query("UPDATE product_runs SET objective='Too late' WHERE id=$1",[productRun]),/LAB_TEST_WORKSPACE_CLOSED/);
   await assert.rejects(pool.query("INSERT INTO subjects(id,account_id,external_ref,display_label) VALUES ($1,$2,$3,'Too late')",
     [randomUUID(),created.account_id,`too-late-${randomUUID()}`]),/LAB_TEST_WORKSPACE_CLOSED/);
   continuePurge();
@@ -109,6 +119,11 @@ try {
   storage.purgeForLab=realPurge;
   assert.equal(deleted.state,"deleted");assert.equal(deleted.stop_id,stopId);assert.equal(deleted.data_rows,0);
   assert.equal(deleted.active_sessions,0);assert.equal(deleted.pending_media_writes,0);
+  for (const table of ["product_runs","product_run_spans","product_run_feedback_events","lab_regressions"]) {
+    const key=table==="product_runs"?"id":table==="lab_regressions"?"source_run_id":"run_id";
+    assert.equal(Number((await pool.query(`SELECT count(*) AS n FROM ${table} WHERE ${key}=$1`,[productRun])).rows[0].n),0,
+      `${table} must be removed with the test workspace`);
+  }
   assert.equal((await request(returnSession,"POST",`/v1/lab/workspaces/${workspaceId}/stop`,{id:stopId})).json().workspace.deleted_at,deleted.deleted_at);
   await request(child3,"GET","/v1/auth/session",undefined,401);
   await assert.rejects(readFile(join(mediaDirectory,created.account_id,person,media.id)),{code:"ENOENT"});
@@ -143,7 +158,7 @@ try {
     creation_empty_verified:true,credential_replay_same_session:true,credential_echoed:false,
     child_logout_recorded_entry:true,parent_revocation_invalidated_child:true,physical_media_deleted:true,data_rows_after_delete:deleted.data_rows,
     original_workspace_rows_preserved:parentBefore,schema_drift_blocked:true,unknown_media_blocked_receipt:true,
-    in_flight_write_drained:true,late_write_blocked:true,expiry_cleanup_verified:true,
+    in_flight_write_drained:true,late_write_blocked:true,expiry_cleanup_verified:true,product_run_feedback_cleanup_verified:true,
     external_model_calls:0,external_business_writes:0};
   console.log(JSON.stringify(report,null,2));
 } finally {

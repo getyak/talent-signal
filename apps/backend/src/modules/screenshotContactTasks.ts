@@ -1,3 +1,5 @@
+import { withProductRunCapture, captureProductStep } from "@talent-signal/agent";
+import { saveProductRunOutput, productRunSink } from "./productRunStorage.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import {
@@ -96,6 +98,7 @@ async function save(client: PoolClient, row: Row) {
   row.capture_id=response.capture_id;
   row.subject_id=response.contact?.person_id??null;
   response.revision=row.revision;response.updated_at=result.rows[0].updated_at.toISOString();
+  await saveProductRunOutput(client,{accountID:row.account_id,taskID:row.id},response as unknown as Record<string,unknown>,response.status);
 }
 
 export async function loadScreenshotContactTask(pool: Pool, auth: AuthContext, id: string): Promise<Response> {
@@ -461,7 +464,14 @@ export class ScreenshotContactTaskRunner {
   start(auth:AuthContext,id:string,image?:ScreenshotContactTaskRequest["image"]):Promise<void> {
     const key=`${auth.accountId}:${id}`;const existing=this.active.get(key);if(existing)return existing;
     const controller=new AbortController();this.controllers.set(key,controller);
-    const operation=this.run(auth,id,image,controller.signal).finally(()=>{this.active.delete(key);this.controllers.delete(key);});this.active.set(key,operation);return operation;
+    const operation=this.observedRun(auth,id,image,controller.signal).finally(()=>{this.active.delete(key);this.controllers.delete(key);});this.active.set(key,operation);return operation;
+  }
+  private async observedRun(auth:AuthContext,id:string,image:ScreenshotContactTaskRequest["image"]|undefined,signal:AbortSignal) {
+    const result=await this.pool.query<{id:string}>("SELECT id FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3 ORDER BY created_at LIMIT 1",[auth.accountId,auth.userId,id]);
+    const runID=result.rows[0]?.id;
+    if(!runID) return this.run(auth,id,image,signal); // The initial POST already supplies its request-local sink.
+    const sink=productRunSink(this.pool,runID,error=>{ console.error("Product screenshot span persistence failed",error instanceof Error?error.name:"unknown"); });
+    try { await withProductRunCapture(sink,()=>this.run(auth,id,image,signal)); } finally { await sink.flush(); }
   }
   async drain(){await Promise.allSettled(this.active.values());}
   async close(){for(const controller of this.controllers.values())controller.abort(new Error("CONTACT_AGENT_SERVER_STOPPED"));await this.drain();}
@@ -538,9 +548,9 @@ export class ScreenshotContactTaskRunner {
         const call=reply.calls[0];if(reply.calls.length!==1||!call)deny("CONTACT_AGENT_EXPECTED_ONE_TOOL_CALL");
         try{
           if(!tools.includes(call.name as ContactIntakeToolName))deny("CONTACT_TOOL_NOT_AUTHORIZED");
-          if(call.name==="search_contact_public"||call.name==="fetch_contact_source")await this.research(auth,id,epoch,call,signal);
+          if(call.name==="search_contact_public"||call.name==="fetch_contact_source")await captureProductStep(call.name,"tool",call.arguments,()=>this.research(auth,id,epoch,call,signal));
           else await this.checkpoint(auth,id,epoch,async(client,r)=>{
-            const result=await executeLocalTool(client,auth,r,call);this.observe(r,call.name,result,"completed");
+            const result=await captureProductStep(call.name,"tool",call.arguments,()=>executeLocalTool(client,auth,r,call));this.observe(r,call.name,result,"completed");
             await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.tool_completed","screenshot_contact_task",id,
               {tool:call.name,model:reply.model,provider_request_id:reply.providerRequestID,turn:r.state.turns});
           });
@@ -710,6 +720,7 @@ export class ScreenshotContactTaskRunner {
       for(const source of result.sources){const i=row.state.response.public_sources.findIndex(s=>s.source_id===source.source_id);if(i>=0)row.state.response.public_sources[i]=source;else row.state.response.public_sources.push(source);}
       row.state.pending_research=null;this.observe(row,call.name,{sources:result.sources},"completed");
     });
+    return result;
   }
 }
 

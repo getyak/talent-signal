@@ -32,3 +32,4 @@ export * from "./claudeHarnessContinuation.js";
 export * from "./claudeHarnessWorkspace.js";
 
 export * from "./calendarDraft.js";
+export * from "./productRunCapture.js";

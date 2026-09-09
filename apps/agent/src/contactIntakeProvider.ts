@@ -1,3 +1,4 @@
+import { captureProductStep } from "./productRunCapture.js";
 import { resolveProductPrompt } from "./promptRegistry.js";
 import { z } from "zod";
 import {
@@ -87,6 +88,7 @@ export class ZhipuContactAgentModel implements ContactAgentModel {
   }
 
   private async request(model: string, body: object, signal: AbortSignal): Promise<ProviderPayload> {
+    return captureProductStep("contact.chat.completions", "llm", { model, ...body, stream: false, temperature: 0 }, async () => {
     const response = await this.fetcher(`${this.baseUrl}/chat/completions`, {
       method: "POST", redirect: "error",
       headers: { authorization: `Bearer ${this.options.apiKey}`, "content-type": "application/json" },
@@ -115,6 +117,7 @@ export class ZhipuContactAgentModel implements ContactAgentModel {
       throw new Error("CONTACT_AGENT_PROVIDER_IDENTITY_MISMATCH");
     }
     return payload;
+    }, { provider: "zhipu", model });
   }
 
   async extract(image: ScreenshotContactTaskRequest["image"], signal: AbortSignal, promptText?: string) {

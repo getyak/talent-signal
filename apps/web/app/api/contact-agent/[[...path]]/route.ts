@@ -25,7 +25,7 @@ async function proxy(request:NextRequest,context:Context){
   const upstreamPath=path.startsWith("people/")?`/v1/${path}`:path.startsWith("archives/")?`/v1/contact-${path}`:`/v1/contact-agent/${path}`;
   try{
     const upstream=await fetch(`${backendAuthBaseUrl()}${upstreamPath}${request.nextUrl.search}`,{method:request.method,
-      headers:{authorization:`Bearer ${claims.backendAccessToken}`,"content-type":"application/json"},
+      headers:{authorization:`Bearer ${claims.backendAccessToken}`,"content-type":"application/json","x-talent-signal-platform":"web"},
       ...(body?{body}:{}),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(40_000)});
     return new NextResponse(await upstream.arrayBuffer(),{status:upstream.status,headers:{"content-type":upstream.headers.get("content-type")??"application/json","cache-control":"no-store","x-content-type-options":"nosniff"}});
   }catch{return NextResponse.json({message:"暂时无法读取任务；稍后重试会继续核对原任务。"},{status:503});}
