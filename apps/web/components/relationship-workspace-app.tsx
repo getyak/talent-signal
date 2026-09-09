@@ -12,6 +12,7 @@ import {
 } from "@talent-signal/contracts";
 import { Plus, ShieldCheck, UserPlus } from "@phosphor-icons/react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import {
@@ -35,7 +36,6 @@ import {
   relationshipWorkspaceReadbackBoundaryError,
   requestRelationshipWorkspaceMutation,
 } from "./relationship-workspace/relationship-workspace-command";
-import { CapturePanel } from "./relationship-workspace/screenshot-capture-panel";
 import {
   PersonMergeReview,
   type PersonMergeWorkflowResponse,
@@ -49,6 +49,13 @@ import {
 } from "./relationship-workspace/use-relationship-workspace-readback";
 import { useWorkspaceSessionRecovery } from "./use-workspace-session-recovery";
 import { workspaceSessionFetch } from "./workspace-session-request";
+
+// The capture editor and image-processing code load only when capture opens.
+// https://nextjs.org/docs/app/guides/lazy-loading#nextdynamic
+const CapturePanel = dynamic(() =>
+  import("./relationship-workspace/screenshot-capture-panel").then((module) => module.CapturePanel),
+  { loading: () => <p role="status">正在打开截图导入…</p> },
+);
 
 type Props = {
   initialAccountId: string | null;

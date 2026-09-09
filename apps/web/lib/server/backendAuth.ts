@@ -9,6 +9,7 @@ import {
 } from "@talent-signal/contracts";
 import { headers } from "next/headers";
 import { getToken } from "next-auth/jwt";
+import { cache } from "react";
 
 import {
   BackendSessionExpiredError,
@@ -75,7 +76,8 @@ export type BackendSessionClaims = {
   backendUsername: string | null;
 };
 
-export async function readPrimaryBackendSessionClaims(): Promise<BackendSessionClaims | null> {
+// React discards this memoization between server requests.
+export const readPrimaryBackendSessionClaims = cache(async (): Promise<BackendSessionClaims | null> => {
   let requestHeaders: Headers;
   try {
     requestHeaders = await headers();
@@ -122,7 +124,7 @@ export async function readPrimaryBackendSessionClaims(): Promise<BackendSessionC
     backendUserId: token.backendUserId,
     backendUsername: token.backendUsername,
   };
-}
+});
 
 export async function readBackendSessionClaims(): Promise<BackendSessionClaims | null> {
   const primary = await readPrimaryBackendSessionClaims();
