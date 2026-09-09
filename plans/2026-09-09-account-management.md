@@ -39,7 +39,7 @@ browser behavior and read back Notion. Do not reset or seed the shared backend.
 
 ## Sources
 
-- Next.js bundled 16.3.3 documentation: Server Functions, cookies and data security.
+- Next.js bundled 16.3.4 documentation: Server Functions, cookies and data security.
 - https://react.dev/reference/react/useActionState
 - https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/
 - Existing `labWorkspaceRoutes.ts` / `labWorkspaces.ts` lifecycle contracts.
@@ -49,7 +49,12 @@ browser behavior and read back Notion. Do not reset or seed the shared backend.
 - PostgreSQL integration evaluation passed: ownership bootstrap/transfer,
   credential redaction, replay/stale revision, cross-account denial, member
   suspension/reinstatement, and isolated Lab entry/verified cleanup.
-- Web suite: 358 passed, 1 skipped before added test-session boundary coverage.
+- Web suite: 361 passed, 1 skipped; two additional request-scope tests passed.
+- Backend suite: 375 passed, 71 pre-existing skipped tests. TypeScript, Web lint,
+  production Web build and documentation checks passed.
+- Full Lab lifecycle evaluation verified physical media deletion, parent
+  revocation, expiry, zero residual data, preserved original rows and fail-closed
+  behavior for unknown tables/media and late writes.
 - Inspection found missing Lab table coverage for post-045 migrations; an explicit
   migration now covers the known account tables and two global Google tables.
 - Production preview/deployment and Notion readback remain pending.
