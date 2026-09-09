@@ -8,6 +8,7 @@ import {
 } from "@talent-signal/contracts";
 import { headers } from "next/headers";
 import { getToken } from "next-auth/jwt";
+import { cache } from "react";
 
 import {
   BackendSessionExpiredError,
@@ -74,7 +75,9 @@ export type BackendSessionClaims = {
   backendUsername: string | null;
 };
 
-export async function readBackendSessionClaims(): Promise<BackendSessionClaims | null> {
+// React discards this memoization between server requests; never persist tokens.
+// https://react.dev/reference/react/cache#caveats
+export const readBackendSessionClaims = cache(async (): Promise<BackendSessionClaims | null> => {
   let requestHeaders: Headers;
   try {
     requestHeaders = await headers();
@@ -121,7 +124,7 @@ export async function readBackendSessionClaims(): Promise<BackendSessionClaims |
     backendUserId: token.backendUserId,
     backendUsername: token.backendUsername,
   };
-}
+});
 
 export async function authenticatedBackendClient(): Promise<TalentSignalClient | null> {
   const claims = await readBackendSessionClaims();

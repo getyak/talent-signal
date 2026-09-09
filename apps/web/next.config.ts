@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
   distDir: process.env.TALENT_SIGNAL_NEXT_DIST_DIR || ".next",
   allowedDevOrigins: ["127.0.0.1"],
   experimental: {
+    // https://nextjs.org/docs/app/api-reference/config/next-config-js/optimizePackageImports
+    optimizePackageImports: ["@phosphor-icons/react", "@phosphor-icons/react/dist/ssr"],
     // Next.js needs the TypeScript 6 API while the workspace CLI uses native TypeScript 7.
     useTypeScriptCli: false,
   },
