@@ -1,3 +1,5 @@
+import { ProductRunService } from "./productRuns.js";
+import { saveProductRunCase } from "./productRunCases.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
@@ -193,6 +195,48 @@ async function revokeWhilePaused(capture: string, gate: ReturnType<typeof paused
 }
 
 describe.skipIf(!pool)("Authenticated product feedback learning PostgreSQL loop", () => {
+  it("resolves a Web correction from its owned prior task and invalidates its descendants", async () => {
+    const f=await fixture();
+    const ask=async (payload:Record<string,unknown>, authHeaders=headers)=>app.inject({method:"POST",url:"/v1/chat/tasks",headers:authHeaders,payload});
+    const first=await ask({idempotency_key:randomUUID(),person_id:f.person,relationship_context_id:f.context,objective:"Explain the tentative meeting."});
+    expect(first.statusCode,first.body).toBe(201);
+    const previous=first.json().task_id;
+    const payload={idempotency_key:randomUUID(),person_id:f.person,relationship_context_id:f.context,
+      previous_task_id:previous,objective:`请修改上一条回答：${"保留待确认状态。".repeat(110)}`};
+    const correction=await ask(payload);expect(correction.statusCode,correction.body).toBe(201);
+    const childDetail=await new ProductRunService(pool!).detail(auth,correction.json().task_id,true);
+    const childCaseID=randomUUID();
+    await saveProductRunCase(pool!,auth,childDetail,{id:childCaseID,output_hash:childDetail.run.output_hash!,expected_behavior:"Preserve the corrected tentative date."});
+    expect(requests.at(-1)!.conversation_history).toEqual(expect.arrayContaining([
+      expect.objectContaining({role:"user",text:"Explain the tentative meeting."}),
+      expect.objectContaining({role:"assistant",text:expect.stringContaining("Clarify the current date")}),
+    ]));
+    const denied=await ask({...payload,idempotency_key:randomUUID()},otherHeaders);expect(denied.statusCode).toBe(409);
+    const different=await fixture();
+    const wrongScope=await ask({...payload,idempotency_key:randomUUID(),person_id:different.person,relationship_context_id:different.context});
+    expect(wrongScope.statusCode).toBe(409);
+    await pool!.query("INSERT INTO agent_session_retracted_tasks(account_id,task_id) VALUES($1,$2)",[auth.accountId,previous]);
+    const detail=await new ProductRunService(pool!).detail(auth,correction.json().task_id,true);
+    expect(detail.run.content_available).toBe(false);expect(detail.output).toBeNull();
+    await pool!.query("UPDATE product_runs SET input=NULL,output=NULL WHERE id=$1",[detail.run.id]);
+    expect((await new ProductRunService(pool!).detail(auth,correction.json().task_id,true)).run.content_available).toBe(false);
+    await expect(regressions.read(auth,childCaseID)).rejects.toMatchObject({code:"LAB_REGRESSION_GONE"});
+    const retry=await ask(payload);expect(retry.statusCode).toBe(409);
+  },30_000);
+  it("replays a product run without a thumb through the existing Lab and retracts invalidated sources", async () => {
+    const f=await fixture(), original=await turn(f);
+    const detail=await new ProductRunService(pool!).detail(auth,original.response.task_id,true);
+    expect(detail.run.feedback.sentiment).toBeNull();
+    const id=randomUUID();
+    await saveProductRunCase(pool!,auth,detail,{id,output_hash:detail.run.output_hash!,expected_behavior:"Retain the tentative date and ask for clarification."});
+    const {saved,job}=await rerun(id);
+    expect(saved.snapshot.product_run_source?.run_id).toBe(detail.run.id);
+    expect(job.attempts).toHaveLength(2);
+    expect(job.definition.cases[0]!.input_hash).toBe(saved.snapshot.case.input_hash);
+    await pool!.query("INSERT INTO agent_session_retracted_tasks(account_id,task_id) VALUES($1,$2)",[auth.accountId,original.response.task_id]);
+    await expect(regressions.read(auth,id)).rejects.toMatchObject({code:"LAB_REGRESSION_GONE"});
+    await expect(jobs.read(auth,job.id)).rejects.toMatchObject({code:"LAB_REGRESSION_GONE"});
+  },30_000);
   it("exports the same trusted Session group for distinct product turns and preserves legacy Lab readability", async () => {
     const submit = async (source: FeedbackSource) => {
       // This independent synthetic client has its own route quota; the shared

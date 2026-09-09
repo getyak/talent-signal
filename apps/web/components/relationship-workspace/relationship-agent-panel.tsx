@@ -24,6 +24,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
+import { ProductFeedback } from "@/components/product-feedback";
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
 import { initials } from "./relationship-display";
@@ -384,6 +385,7 @@ export function RelationshipAgentPanel({
               </footer>
             </article>
           ))}
+          <ProductFeedback key={response.task_id} taskID={response.task_id} onCorrect={text => onObjectiveChange(`请修改上一条回答：${text}`)} />
         </div>
       ) : (
         <p className="context-chat__empty">

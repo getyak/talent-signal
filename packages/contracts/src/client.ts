@@ -1,3 +1,4 @@
+import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } from "./productRunSchemas.js";
 import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
 import type {
   AnalysisProposalResponse,
@@ -176,6 +177,16 @@ interface ErrorEnvelope {
 export class TalentSignalClient {
   readonly baseUrl: string;
   private accessToken: string | undefined;
+  private clientPlatform: "web" | "ios" | "unknown" = "unknown";
+
+  setClientPlatform(platform: "web" | "ios" | "unknown"): void { this.clientPlatform = platform; }
+
+  createProductRunCase(id: string, body: { id: string; output_hash: string; expected_behavior: string }): Promise<{ id: string }> {
+    return this.request(`/v1/product-runs/${encodeURIComponent(id)}/cases`, { method: "POST", body });
+  }
+  listProductRuns(query = ""): Promise<ProductRunList> { return this.request(`/v1/product-runs${query}`, { method: "GET" }); }
+  getProductRun(id: string, byTask = false): Promise<ProductRunDetail> { return this.request(`/v1/product-runs/${byTask ? "tasks/" : ""}${encodeURIComponent(id)}`, { method: "GET" }); }
+  submitProductRunFeedback(taskID: string, body: ProductRunFeedbackMutation): Promise<ProductRunDetail> { return this.request(`/v1/product-runs/tasks/${encodeURIComponent(taskID)}/feedback`, { method: "PUT", body }); }
 
   constructor(baseUrl: string, accessToken?: string) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
@@ -1072,6 +1083,7 @@ export class TalentSignalClient {
       method: options.method,
       headers: {
         ...(options.headers ?? {}),
+        "x-talent-signal-platform": this.clientPlatform,
         ...(authenticated
           ? { authorization: `Bearer ${this.accessToken}` }
           : {}),

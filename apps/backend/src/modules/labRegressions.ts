@@ -19,10 +19,10 @@ const scoped = (auth: Pick<AuthContext, "accountId" | "userId">, id: string) => 
 
 export async function regressionLineageCurrent(client: DatabaseClient, id: string): Promise<boolean> {
   const result = await client.query<{ valid: boolean | null }>(`WITH RECURSIVE lineage AS (
-    SELECT id,parent_id,deleted_at,expires_at,source_execution_id,source_feedback_id,snapshot FROM lab_regressions WHERE id=$1
-    UNION ALL SELECT r.id,r.parent_id,r.deleted_at,r.expires_at,r.source_execution_id,r.source_feedback_id,r.snapshot
+    SELECT id,parent_id,deleted_at,expires_at,source_execution_id,source_feedback_id,source_run_id,snapshot FROM lab_regressions WHERE id=$1
+    UNION ALL SELECT r.id,r.parent_id,r.deleted_at,r.expires_at,r.source_execution_id,r.source_feedback_id,r.source_run_id,r.snapshot
       FROM lab_regressions r JOIN lineage ON r.id=lineage.parent_id
-  ) SELECT bool_and(deleted_at IS NULL AND expires_at > now() AND (source_execution_id IS NULL OR
+  ) SELECT bool_and(deleted_at IS NULL AND expires_at > now() AND (source_run_id IS NULL OR product_run_source_available(source_run_id)) AND (source_execution_id IS NULL OR
     (feedback_execution_source_state(source_execution_id)='available' AND EXISTS (SELECT 1 FROM product_feedback f
       WHERE f.id=lineage.source_feedback_id AND f.status='active'
         AND feedback_execution_source_state(f.execution_id)='available'
@@ -125,15 +125,16 @@ export class LabRegressionService {
       }
       const snapshot: LabRegressionSnapshot = { schema_version: "lab-regression.v1", data_class: parent?.data_class ?? "registered_synthetic",
         ...(parent?.feedback_source ? { feedback_source: parent.feedback_source } : {}),
+        ...(parent?.product_run_source ? { product_run_source: parent.product_run_source } : {}),
         task: row.definition.task,
         source_job_id: request.source_job_id, source_definition_hash: row.definition_hash, source_attempt: row.record,
         case: sample, configurations: row.definition.configurations, reference_time: row.definition.reference_time,
         backend_revision: row.definition.backend_revision, instrument_revision: row.definition.instrument_revision,
         failure_categories: request.failure_categories, expected_behavior: request.expected_behavior.trim(), review_note: request.review_note.trim(),
         reviewer_id: auth.userId, reviewed_at: row.now.toISOString() };
-      await client.query(`INSERT INTO lab_regressions(id,account_id,user_id,request_hash,content_hash,snapshot,parent_id,source_execution_id,source_feedback_id)
-        VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9)`, [request.id, auth.accountId, auth.userId, requestHash, labHash(snapshot), JSON.stringify(snapshot), row.regression_id,
-        parent?.feedback_source?.execution_id ?? null, parent?.feedback_source?.feedback_id ?? null]);
+      await client.query(`INSERT INTO lab_regressions(id,account_id,user_id,request_hash,content_hash,snapshot,parent_id,source_execution_id,source_feedback_id,source_run_id)
+        VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`, [request.id, auth.accountId, auth.userId, requestHash, labHash(snapshot), JSON.stringify(snapshot), row.regression_id,
+        parent?.feedback_source?.execution_id ?? null, parent?.feedback_source?.feedback_id ?? null, parent?.product_run_source?.run_id ?? null]);
     });
     return this.read(auth, request.id);
   }
@@ -158,7 +159,8 @@ export class LabRegressionService {
     ) SELECT * FROM lab_regressions WHERE account_id=$1 AND user_id=$2 AND id NOT IN (SELECT id FROM gone)
       ORDER BY created_at DESC LIMIT 100`, [auth.accountId, auth.userId]);
     const verification = await this.ci?.states(auth, result.rows.map((row) => row.id));
-    return result.rows.map((row) => ({ id: row.id, content_hash: row.content_hash, title: row.snapshot!.case.title,
+    const current = await Promise.all(result.rows.map(async row => await regressionLineageCurrent(this.pool, row.id) ? row : null));
+    return current.filter((row): row is RegressionRow => row !== null).map((row) => ({ id: row.id, content_hash: row.content_hash, title: row.snapshot!.case.title,
       failure_categories: row.snapshot!.failure_categories, created_at: row.created_at.toISOString(), expires_at: row.expires_at.toISOString(), release_check: verification?.get(row.id)?.releaseCheck ?? "not_connected" }));
   }
 

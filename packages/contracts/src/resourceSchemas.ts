@@ -1677,6 +1677,7 @@ export const ChatTaskReadbackSchema = Type.Object(
 export const ChatTaskRequestSchema = Type.Object(
   {
     idempotency_key: IdempotencyKey,
+    previous_task_id: Type.Optional(Id),
     session_id: Type.Optional(Id),
     message_id: Type.Optional(Id),
     objective: Type.String({ minLength: 1, maxLength: 1_000 }),

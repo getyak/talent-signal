@@ -185,7 +185,8 @@ describe("paired Workspace Agent tool failure proof", () => {
     expect(report.categories.execution_integrity).toBe("fail");
     expect(report.categories.semantic_quality).not.toBe("pass");
     expect(report.releaseAuthority).toBe("none");
-  });
+    // Twelve paired runs also flush and read back the durable observation outbox.
+  }, 30_000);
 
   it("rejects a candidate's fabricated success after a failed tool even though the native output parser accepts a reply", async () => {
     const { report, proofs } = await compare([cases[0]!], true);

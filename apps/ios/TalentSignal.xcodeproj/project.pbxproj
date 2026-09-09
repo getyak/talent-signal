@@ -197,6 +197,7 @@
 		BB3580A3464A58431968556E /* TextSignalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA3B1B8042B74DA1B5D1670 /* TextSignalCaptureView.swift */; };
 		BDF4779B9E1909474BF99AFF /* LabSessionEndingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06ADD1619E8386FC4116FD31 /* LabSessionEndingsView.swift */; };
 		BE1192A4538E648C5C0DF9D6 /* ProductLabUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32026C689AEC61DA656EF0CC /* ProductLabUITests.swift */; };
+		BE6880476712412EEA3C9D83 /* ProductRunFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9BB7D5308619F3CD55EC33E /* ProductRunFeedbackTests.swift */; };
 		C27B408CB107A9A3C1FC2309 /* AnswerFeedbackClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1479D8420C5DDDC3737B4D2 /* AnswerFeedbackClient.swift */; };
 		C2A1CED1AC72DDDAC7FF3ACF /* LabFeatureOverrideStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0875AC9189D11935C0FEA846 /* LabFeatureOverrideStore.swift */; };
 		C2CD13773507FE9D6E9311FE /* DeviceCalendarHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382034DC80F815EB41351067 /* DeviceCalendarHandoffView.swift */; };
@@ -210,6 +211,7 @@
 		CE35A34564136E92390F588E /* AgentWorkActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF4110EBF1C86CED7EFCED7 /* AgentWorkActivity.swift */; };
 		D08C2E84FC404988E0F82AE0 /* PursuitWorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */; };
 		D0A27182CBC7B809B9E99260 /* LabClientDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32DF7502592C73D42007EAB /* LabClientDiagnostics.swift */; };
+		D12D1593E3ED2481FEC190E1 /* ProductRunFeedbackClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1701C7E0486A536D7D6E42E /* ProductRunFeedbackClient.swift */; };
 		D232A19CB53AF4F95547908A /* GoogleSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6215CA433BAEDC5DB807D7D3 /* GoogleSignInFlow.swift */; };
 		D2D82942CCD916156DBE1562 /* AgentAskLiveActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DCF08378478F3EB4965310B /* AgentAskLiveActivityUITests.swift */; };
 		D3873CA0595F191A0F3D7AD6 /* LabRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB3E02683C96CA56520CB12 /* LabRegressionTests.swift */; };
@@ -228,6 +230,7 @@
 		E46E0A63D343F423B10F2C1A /* LabDiagnosticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFCC78A34D94A81860D97866 /* LabDiagnosticsStore.swift */; };
 		E58B9B2999CDED58FBEE5A99 /* AgentSessionContinuityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B3CDAD0540EAB1F5D74736 /* AgentSessionContinuityTests.swift */; };
 		E5D75A0095F3C32C3AAA9E0D /* CandidateSignalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */; };
+		E60E21902AD81398CBFA253E /* ProductRunFeedbackControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D123FA3F36D597FE20C6C0 /* ProductRunFeedbackControls.swift */; };
 		EA38E93593D1C984DD0D9DE1 /* TalentSignalLabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99715DDDEFB0F06319D06588 /* TalentSignalLabTests.swift */; };
 		EA6EA4AEAC8EDD736735E7A8 /* CandidateSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E1DC0CB9D729B8B77463673 /* CandidateSignal.swift */; };
 		EC03818C4A0DC080E11CF0F2 /* RelationshipCaptureClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2B7831196A17D268065375 /* RelationshipCaptureClient.swift */; };
@@ -370,6 +373,7 @@
 		56E964E1942AD295B505F9A3 /* AppSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsView.swift; sourceTree = "<group>"; };
 		571E43C7E25C147610C6614C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		57290E32D0671B36A811B4B0 /* LabTaskTrialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabTaskTrialStore.swift; sourceTree = "<group>"; };
+		57D123FA3F36D597FE20C6C0 /* ProductRunFeedbackControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductRunFeedbackControls.swift; sourceTree = "<group>"; };
 		59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalUITests.swift; sourceTree = "<group>"; };
 		5A0B2CF0673EDC6A86EC6A28 /* AgentSourceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSourceSettingsView.swift; sourceTree = "<group>"; };
 		5B1750D9C713D5C7F54F4423 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -529,12 +533,14 @@
 		EFCC78A34D94A81860D97866 /* LabDiagnosticsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabDiagnosticsStore.swift; sourceTree = "<group>"; };
 		F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureSyncClient.swift; sourceTree = "<group>"; };
 		F1479D8420C5DDDC3737B4D2 /* AnswerFeedbackClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerFeedbackClient.swift; sourceTree = "<group>"; };
+		F1701C7E0486A536D7D6E42E /* ProductRunFeedbackClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductRunFeedbackClient.swift; sourceTree = "<group>"; };
 		F170F1FA5E3CCFE86BAAA3C7 /* LabExperiment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabExperiment.swift; sourceTree = "<group>"; };
 		F1D2BA6C0C47D3F0EA682072 /* AuthenticationWelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationWelcomeView.swift; sourceTree = "<group>"; };
 		F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalView.swift; sourceTree = "<group>"; };
 		F4A5D22923CCC606F2FA73CC /* LabTaskTrialTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabTaskTrialTests.swift; sourceTree = "<group>"; };
 		F53E8ACA4C974310ADDAD651 /* RuntimeEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeEnvironmentTests.swift; sourceTree = "<group>"; };
 		F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalComponents.swift; sourceTree = "<group>"; };
+		F9BB7D5308619F3CD55EC33E /* ProductRunFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductRunFeedbackTests.swift; sourceTree = "<group>"; };
 		FA4DE25B40A661065D2904DC /* LabMetricKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabMetricKitView.swift; sourceTree = "<group>"; };
 		FBC1A0D411E14B92F259BD21 /* AgentWorkShowcaseStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkShowcaseStoreTests.swift; sourceTree = "<group>"; };
 		FBE09192F33FB568C5DDD402 /* AuthenticationWelcomeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationWelcomeUITests.swift; sourceTree = "<group>"; };
@@ -600,6 +606,7 @@
 				F4A5D22923CCC606F2FA73CC /* LabTaskTrialTests.swift */,
 				C22DD07C8A3CC5DF320D396B /* LabWorkspaceTests.swift */,
 				358CF9D54C9748EFCB0468A7 /* ProductLabTests.swift */,
+				F9BB7D5308619F3CD55EC33E /* ProductRunFeedbackTests.swift */,
 				78788A89F71A15312E2EC139 /* PursuitProposalReviewStoreTests.swift */,
 				0FBD9D5361A32C8957D22B4E /* RelationshipArchiveTests.swift */,
 				8E1B56C282E5480FFC9368B0 /* RelationshipCaptureTests.swift */,
@@ -746,6 +753,7 @@
 				35643A5A42A9001D1E2A25BA /* LabWorkspaceClient.swift */,
 				AEC3F58B55D23FBF07C26F9F /* LabWorkspaceJourneyStore.swift */,
 				E43E2D32DD9913AC4F6E097A /* PendingCaptureInbox.swift */,
+				F1701C7E0486A536D7D6E42E /* ProductRunFeedbackClient.swift */,
 				C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */,
 				D91833FC9D20274A1A85C004 /* PursuitWorkspaceClient.swift */,
 				AA2B7831196A17D268065375 /* RelationshipCaptureClient.swift */,
@@ -830,6 +838,7 @@
 				AE3ABCAB879646B50E6D13A3 /* LabWorkspaceStore.swift */,
 				8D97B7AF0950AA0C0F99B97E /* LabWorkspaceView.swift */,
 				CB87A075089AF37BF5A926CC /* ProductLabView.swift */,
+				57D123FA3F36D597FE20C6C0 /* ProductRunFeedbackControls.swift */,
 				0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */,
 				080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */,
 				E0AB9B7264527674C941D66E /* RelationshipAgentStudioView.swift */,
@@ -1139,6 +1148,7 @@
 				23AFFBC6AD9A2A44E9B5542A /* LabTaskTrialTests.swift in Sources */,
 				51955724A4CC1CE0BADEDF64 /* LabWorkspaceTests.swift in Sources */,
 				51CC4576387A30B5422FED93 /* ProductLabTests.swift in Sources */,
+				BE6880476712412EEA3C9D83 /* ProductRunFeedbackTests.swift in Sources */,
 				706A5D1C083A3CDD32642F00 /* PursuitProposalReviewStoreTests.swift in Sources */,
 				83A4A3CE04DF7FFBCC223E1F /* RelationshipArchiveTests.swift in Sources */,
 				8CBFB9AE9F1F7B22F53A20B7 /* RelationshipCaptureTests.swift in Sources */,
@@ -1304,6 +1314,8 @@
 				028A2559C5DD59ED1867A7D4 /* LivingConnectionMark.swift in Sources */,
 				14CBE52224646433A28484EB /* PendingCaptureInbox.swift in Sources */,
 				9FB627ED726DA10B9878C338 /* ProductLabView.swift in Sources */,
+				D12D1593E3ED2481FEC190E1 /* ProductRunFeedbackClient.swift in Sources */,
+				E60E21902AD81398CBFA253E /* ProductRunFeedbackControls.swift in Sources */,
 				0579CDAB80FE992D88E870AF /* PursuitProposalReviewClient.swift in Sources */,
 				9E9FCCE762A1387B509C2685 /* PursuitProposalReviewStore.swift in Sources */,
 				0F66097E97A12D5433BD6CBE /* PursuitWorkspace.swift in Sources */,
