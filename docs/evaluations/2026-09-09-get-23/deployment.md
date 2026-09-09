@@ -5,7 +5,7 @@
 - Deployment script completed successfully: Apple authentication, real voice provider and `zhipu-chat-completions/glm-5.3` Relationship Ask probes passed; API and research service are healthy behind the existing tailnet endpoint.
 - Browser acceptance against the deployed backend used a newly created GET-23 Acceptance account and explicitly synthetic source. Three actual GLM-5.3 calls are visible together as helpful 1 / unhelpful 1 / unrated 1. The negative rating includes a note identifying it as a workflow test, not a model-quality verdict. The monitor read back the exact answer, GLM model and nested execution spans, and both versions of the negative feedback.
 - Live local Web entry: http://localhost:3346/workspace/monitor. The public Vercel site still has its pre-existing unopened workspace login configuration; this change does not claim public account access is enabled.
-- Latest PR CI has passed backend, Web, Eval/control-plane, repository/docs and security checks. iOS release smoke is still running; PR merge and TestFlight completion remain pending.
+- PR #170 merged as `6dc163555d07447fe46b3cea4d213e6948532ebb` after all current-head CI and independent review passed. The merged main tree is byte-identical to the tested PR tree. TestFlight release [34386752052](https://github.com/getyak/talent-signal/actions/runs/34386752052) completed successfully; version **0.1.70**, build **20260909180520**, is processed by App Store Connect. The main-branch iOS rerun remains the final delivery gate.
 
 ## Evidence
 
@@ -31,3 +31,13 @@ Agent observation, not a human verdict: the baseline answer asks for both the ti
 
 - [Exact replay results and provider request IDs](live-lab-replay.json)
 - [Actual A/B comparison](live-lab-comparison.jpg)
+
+## Release receipt
+
+[The exact TestFlight receipt](testflight-release-receipt.json) identifies the merged commit, version and build, with processing completed at `2026-09-09T18:18:42Z`. The [published release](https://github.com/getyak/talent-signal/releases/tag/v0.1.70) retains the IPA and receipt. Public Vercel deployments for the merged commit succeeded.
+
+## Main-branch CI follow-up
+
+The first main-branch CI attempt failed only the existing `AnswerFeedbackTests.testCorrectionSheetRendersInChineseWithLargeText` hosted-window test: `canEdit` remained false with no editor error at its 10-second deadline. The 539-unit-test suite had one failure; all nine isolated UI journeys passed, with zero skips. The test is unchanged since GET-11 commit `5dffa3d3`. Its fixture performs no network calls; all adjacent editor tests passed.
+
+[The failed attachment](ci-hosted-sheet-first-attempt.png) shows the rendered Chinese large-text correction sheet in its loading state. It does not prove a server or product feedback failure. Independent read-only review found one unchanged-job rerun justified by the identical-tree PR pass and the asynchronous hosting evidence. Attempt 2 was started without changes to code, timeouts, assertions or test selection. A repeated failure would require explicit hosting lifecycle diagnostics rather than blindly increasing the timeout or preloading the editor to bypass SwiftUI's task.

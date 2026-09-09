@@ -27,9 +27,13 @@ not add privacy approval steps or treat missing feedback as positive feedback.
 
 ## Delivery state
 
-Implementation and independent review are complete locally.
-[PR #170](https://github.com/getyak/talent-signal/pull/170) is open. Current-head
-CI, merge and deployment verification remain pending; Linear is not yet complete.
+Implementation, independent review and all current-head CI passed.
+[PR #170](https://github.com/getyak/talent-signal/pull/170) merged as
+`6dc163555d07447fe46b3cea4d213e6948532ebb`. The shared backend is deployed,
+real Web/native iOS acceptance and live two-configuration replay passed, and
+TestFlight 0.1.70 (20260909180520) is processed. The main-branch iOS rerun
+remains pending; Linear stays In Progress until this final gate passes. See
+[deployment acceptance](deployment.md) for exact evidence and known limitations.
 
 ## Implemented
 
@@ -102,6 +106,5 @@ request-ID and Lab navigation changes also passed focused independent review.
 
 ## Remaining delivery
 
-1. Verify all latest-head CI and merge gates on PR #170.
-2. Merge, verify applicable deployed surfaces and release state, then close
-   GET-23 only when its acceptance evidence is satisfied.
+1. Confirm the main-branch CI rerun [34386680924](https://github.com/getyak/talent-signal/actions/runs/34386680924).
+2. Close GET-23 after this final gate, preserving the deployment and release receipts.
