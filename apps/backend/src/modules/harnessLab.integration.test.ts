@@ -26,7 +26,7 @@ describe.skipIf(!pool)('Harness Lab stop authority',()=>{
       await pool!.query("INSERT INTO users(id,account_id,email,display_name,kind) VALUES($1,$2,$3,'Synthetic','simulated_human')",[owner.userId,owner.accountId,owner.userEmail]);
       await pool!.query("INSERT INTO sessions(id,account_id,user_id,token_hash,client_label,expires_at) VALUES($1,$2,$3,$4,'Synthetic',now()+interval '1 hour')",[owner.sessionId,owner.accountId,owner.userId,randomUUID()]);
       const created=await service.create(owner,{id,duration_hours:1});
-      expect(created.state).toBe('active');expect(created.empty_verified_at).not.toBeNull();
+      expect(created.state).toBe('active');expect(created.empty_verified_at).not.toBeNull();expect(created.data_rows).toBe(0);
       target={...owner,accountId:created.account_id,userId:created.user_id,userKind:'lab_human'};
       await pool!.query("INSERT INTO agent_user_preferences(account_id,user_id,response_style,revision) VALUES($1,$2,'conclusion_first',1)",[target.accountId,target.userId]);
       const sessionID=randomUUID();

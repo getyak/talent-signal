@@ -1,7 +1,7 @@
 # GET-9 Harness acceptance evidence
 
 Status: **acceptance in progress**, 2026-09-10. This index routes to observations;
-it does not grant release authority. The current checkpoint is `02a22813` plus integration repairs under review.
+it does not grant release authority. The committed integration checkpoint is `fc900819`; reviewed lookup guidance and Lab display-count repairs follow it.
 GET-23 is merged into the work branch; release acceptance is still open. Each live
 artifact retains its effective prompt/skill hashes, model receipt and fixture.
 Earlier passing batches do not claim an identical final source revision.
@@ -18,7 +18,7 @@ no fault and repair occurred. Small passing batches do not establish reliability
 | E02 original profile image | [fifth quality review](e02-e04-fifth-quality-review.json) | 3/3; real image/SDK/HTTP/database and scripted human field review, not UI upload. |
 | E04 existing identity | [same fifth review](e02-e04-fifth-quality-review.json) | 3/3; stable handle reuses person, seeded relationship Memory preserved. |
 | E05 research | [eleventh quality review](e05-eleventh-quality-review.json) | 3/3; actual SDK and product research with controlled Exa-shaped fictional pages, not real public-search recall. |
-| E07 fresh-Session Memory | [seventh quality review](e07-seventh-quality-review.json) | 3/3; fresh Session retrieves source and saved preference. Sixth remains 1/3 with two pre-response SDK timeouts. |
+| E07 fresh-Session Memory | [eighth live evidence](e07-eighth-live.json) | 2/3; one 60-second timeout with no model response or tool call. Earlier seventh quality batch remains 3/3; not a reliability claim. |
 | E10 calendar | [eighth combined review](e10-eighth-combined-quality-review.json) | 3/3 eventual drafts plus exact native confirmation, EventKit readback and cleanup. Trial 2 required explicit retry; not a complete live-chat-to-device UI journey. |
 
 Every previous attempt remains in this directory, including failed quality,
@@ -27,6 +27,13 @@ into unsupported professional experience. Literal field checks now reject
 that observation label, while qualified inference still requires semantic review.
 E07 fifth remains 2/3 because one answer added an unnecessary clarification.
 No score, timeout, token budget or test threshold was lowered to pass a case.
+
+Named-contact routing [third live batch](contact-lookup-third.json) and
+[independent review](contact-lookup-third-review.json) remain **2/3**. One SDK
+timeout, one clean lookup/read, one successful recovery from two invalid tool
+requests. Successful host handoffs do not validate the subsequent scoped answer.
+The [first batch](contact-lookup-first.json) remains 2/3 with incomplete tool
+instrumentation; a second command failed syntax checking before model execution.
 
 ## Surface and provider proof
 
@@ -43,7 +50,7 @@ No score, timeout, token budget or test threshold was lowered to pass a case.
   tests passed; 76 UI cases passed, five failed, three explicitly skipped.
   Interrupted for diagnosis. The integrated build passes all 543 unit tests;
   three real-Hao canonical journeys failed the existing response waits in
-  `/tmp/get9-ios-integrated-hao.xcresult`. An unchanged-gate retry is active.
+  `/tmp/get9-ios-integrated-hao.xcresult`. A second run also failed all three canonical journeys: one missing citation after skipped lookup and two response waits. The latest lookup guidance requires a new native run.
 - [Exa probe](exa-staging-live-probe.json): actual search and fetch succeeded.
   [TikHub probe](tikhub-staging-live-probe.json): credential/health proof only.
 - Chrome integrated extension contract checks passed; actual installed-extension

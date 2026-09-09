@@ -27,6 +27,7 @@ describe("Claude natural chat product adapter", () => {
       expect(request.systemPrompt).toContain("natural prose");
       expect(request.context).toContain("我今天刚做完演讲");
       expect(request.tools).toEqual([]);
+      expect(request.systemPrompt).toContain("Use only tools supplied in this Run");
       return outcome;
     });
     const provider = new ClaudeChatProvider(configuration, execute);
@@ -103,6 +104,7 @@ describe("Claude natural chat product adapter", () => {
 
   it("uses the product's proposal receipt rather than an invented completion in prose", async () => {
     const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      expect(request.systemPrompt).toContain("a name is sufficient for a read-only lookup");
       await request.tools[0]!.execute({ operation: "search", query: "陈夏" }, new AbortController().signal);
       return { ...outcome, text: "联系人已经创建。" };
     });

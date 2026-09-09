@@ -849,3 +849,30 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   closure. Staging's new provider secrets/selectors are prepared, but running
   TestFlight containers have not been replaced. Chrome install and physical
   TestFlight device proof remain unverified.
+
+### 2026-09-10 03:50 — draft PR and honest live-routing checkpoint
+
+- Committed/pushed integration fixes as `fc900819`; independent review closes all
+  confirmed integration P0/P1. Draft PR #172 exists; no merge or Linear closure.
+- Latest-head CI backend failed only the new Lab generation baseline display
+  count. Reviewed fix excludes that coordination row from displayed data rows;
+  raw creation and deletion invariants remain unchanged. Actual full Lab eval
+  passes, retains 222 original workspace rows and verifies zero rows on cleanup.
+- Agent tests pass 146 with one explicit skip; Lab/workspace selected tests pass
+  29. Web, repository/docs, security and phase-one cloud checks pass; cloud iOS
+  smoke is still running. A new push is required for the backend fix.
+- Native second real-Hao batch still fails all three canonical UI journeys. One
+  model skipped named-contact lookup and returned no evidence; two requests
+  exceeded the existing waits. Reviewed prompt now requires current-name search
+  and unique read, then finishes routing without claiming evidence is absent.
+- New instrumented live lookup third batch is 2/3: first times out at 62 seconds
+  (one response, zero tools, three API retries, unknown HTTP status); second uses
+  two tools; third recovers from two invalid calls with four total tools. Host
+  replaces incorrect SDK prose with verified handoff. No scoped/native pass.
+- E07 eighth is 2/3, with one 60-second pre-response timeout. Preserve every
+  failed batch; no gate, budget or quality threshold is relaxed. Serialize
+  upcoming model evaluations to isolate concurrency without claiming causality.
+- Running TestFlight containers are still old; deployment, native acceptance and
+  installed Chrome proof remain outstanding. The latest native check will reuse
+  the unchanged Release binary already proved by the second run; only backend
+  code changed. No claim of a fresh Release build for that focused retry.

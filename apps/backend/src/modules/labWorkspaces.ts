@@ -86,7 +86,9 @@ export class LabWorkspaceService {
 
   private async describe(w:WorkspaceRow,client:Query=this.pool):Promise<LabWorkspace> {
     let count:number|null=null, schemaChanged=false;
-    try { count=await this.dataRows(client,w.target_account_id,await this.tables(client)); }
+    // The UI counts test content; the generation baseline is coordination
+    // metadata. Creation and final cleanup still inspect every physical table.
+    try { count=await this.dataRows(client,w.target_account_id,(await this.tables(client)).filter(table=>table!=="harness_source_generations")); }
     catch(error) {if(!(error instanceof ApiError) || error.code!=="LAB_WORKSPACE_SCHEMA_CHANGED")throw error;schemaChanged=true;}
     const metadata=(await client.query<{sessions:string;pending:string}>(`SELECT
       (SELECT count(*) FROM sessions JOIN users ON users.id=sessions.user_id AND users.account_id=sessions.account_id
