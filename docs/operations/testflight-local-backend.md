@@ -18,14 +18,34 @@ Create the backend names from `deploy/testflight/environment.example` under
 `staging:/backend` in Infisical and the Relationship Ask and recruiter-
 dictation names from the same example under `staging:/shared`. Put the TikHub
 credential and base URL only under `staging:/agent-host`. Give staging a
-dedicated Zhipu key; never reuse the development credential. Keep
-`TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING=false` until that key exists and
+provider credential authorized for this environment. The Zhipu configuration
+in the example remains supported; the Claude Harness uses the settings below. Keep
+`TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING=false` until the selected credential exists and
 the operator intends to admit the documented minimized context. Replace the
 PostgreSQL value, and set
 `TALENT_SIGNAL_API_BASE_URL` and `ALLOWED_ORIGINS` to this Mac's exact Tailscale
 MagicDNS HTTPS origin. Generate a URL-safe PostgreSQL password such as
 `openssl rand -hex 24`. Authenticate the operator with `infisical login`; the
 deployment script injects the values only into its child process.
+
+For the Claude Agent SDK, set both `TALENT_SIGNAL_AGENT_PROVIDER` and
+`TALENT_SIGNAL_CHAT_PROVIDER` to `claude`. Pin `TALENT_SIGNAL_AGENT_MODEL`;
+that shared Harness model governs chat as well. Set `TALENT_SIGNAL_CHAT_MODEL`
+to the same value for operator clarity. `ANTHROPIC_BASE_URL` must match the
+server's admitted endpoint list in
+[`claudeHarnessConfiguration.ts`](../../apps/agent/src/claudeHarnessConfiguration.ts).
+Hao requires its dedicated `HAO_ANTHROPIC_API_KEY`; another gateway's ambient
+`ANTHROPIC_API_KEY` is never reused. Other admitted Anthropic endpoints require
+exactly one of `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`. Credentials stay in
+`staging:/shared`, never in clients or repository files.
+
+The GET-9 Hao probe uses `https://api.hao.ai/anthropic` and
+`anthropic/claude-sonnet-5`, with `TALENT_SIGNAL_CLAUDE_TASK_BUDGET_ENABLED=false`
+for gateway compatibility. Host time, tool, token and cost limits still apply.
+There is no automatic provider fallback. The deployment validator and synthetic
+probe must pass for the selected runtime; configuration alone is not proof.
+See [GET-9 acceptance evidence](../evaluations/get9-harness/README.md) for actual
+model receipts and the still-open native reliability gate.
 
 The TestFlight Compose boundary differs from synthetic development:
 
@@ -36,7 +56,7 @@ The TestFlight Compose boundary differs from synthetic development:
 - the API publishes only on `127.0.0.1`;
 - the API has explicit runtime DNS for Apple public-key verification;
 - Relationship Ask has its own remote-processing gate, fixed provider/model,
-  official-endpoint allowlist, server-only key, and synthetic provider probe;
+  server-owned endpoint allowlist, server-only key, and synthetic provider probe;
 - screenshot public-profile research has a separate disabled-by-default gate,
   a credential-isolated Agent Host sidecar, an owner-only Unix socket, bounded
   TikHub tools, and no identity or effect authority; the authenticated API's
@@ -67,7 +87,7 @@ also sends one synthetic silent WAV from inside the API container to the real
 ASR provider. An accepted no-speech response proves credentials, entitlement,
 DNS, and provider reachability without sending candidate or recruiter speech.
 When Relationship Ask is admitted, the deployment also sends one clearly
-synthetic relationship block and question to Zhipu. It requires a structured,
+synthetic relationship block and question to the selected provider. It requires a typed,
 evidence-cited response before the runtime is reported ready; the probe prints
 only provider/model and token counts. When the gate is explicitly disabled,
 the probe records a safe skip and the existing deterministic Ask path remains
@@ -116,14 +136,18 @@ If the Mac uses a local HTTP proxy, exclude the MagicDNS hostname when probing
 from the Mac. The deployment script already bypasses process proxy variables
 for its tailnet health and Apple challenge checks.
 
-To pause access without deleting PostgreSQL data:
+To pause this backend without deleting PostgreSQL data or changing other Serve handlers:
 
 ```bash
-tailscale serve reset
 ./scripts/infisical/run.sh staging /shared /backend /agent-host -- \
   docker compose --project-name talent-signal-testflight-local \
     --file compose.testflight.yaml down
 ```
+
+The owned Serve endpoint will return unavailable while the containers are stopped.
+Inspect `tailscale serve status --json` before removing that exact handler; do
+not reset node-wide Serve configuration because other paths or ports may be owned
+by unrelated services.
 
 The database volume remains candidate-data storage subject to the repository's
 authorization, retention, deletion, and access boundaries. Never use Funnel for

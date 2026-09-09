@@ -3,7 +3,9 @@ TALENT_SIGNAL_API_BASE_URL=https://your-mac.your-tailnet.ts.net
 
 # Relationship Ask belongs in Infisical staging:/shared. Only the user's
 # question and the minimum reviewed, published relationship context are sent.
-# Keep this false until staging has its own Zhipu key; never reuse a dev key.
+# Keep this false until the chosen provider credential is authorized for staging.
+# Claude Harness configuration is documented in docs/operations/testflight-local-backend.md;
+# its model/endpoint and dedicated gateway key replace the Zhipu selection below.
 TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING=false
 TALENT_SIGNAL_CHAT_PROVIDER=zhipu
 TALENT_SIGNAL_CHAT_MODEL=glm-5.3
