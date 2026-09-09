@@ -108,6 +108,11 @@ Capabilities progress through increasing consequence:
 The model proposes intent. The control plane determines whether a capability
 exists, is in scope, is currently allowed, and can be executed safely.
 
+Validate original tool arguments before provider normalization can discard
+unknown fields. Rejection should help repair schema errors using bounded,
+schema-owned field names and error codes, without echoing rejected values or
+unknown input keys. Diagnostic failures preserve the original denial.
+
 Fact confirmation, exact-effect approval and destination verification remain
 independent decisions; passing one never substitutes for another.
 

@@ -164,6 +164,37 @@ describe("SDK-owned harness", () => {
     const outcome = await runClaudeHarness(config, input, new AbortController().signal, sdk.run as any);
     expect(outcome.permissionDenials).toEqual(["TOOL_INPUT_INVALID", "TOOL_INPUT_INVALID", "TOOL_INPUT_INVALID"]);
   });
+  it("returns schema-owned repair locations without rejected values or unknown keys", async () => {
+    const execute = vi.fn();
+    const input = { ...request(), tools: [{ name: "record_profile", description: "Synthetic profile", readOnly: false,
+      schema: z.strictObject({ images: z.array(z.strictObject({ kind: z.enum(["name", "handle"]), value: z.string() })) }), execute }] };
+    const sdk = queryMock(async ({ options }) => {
+      const gate = options.hooks.PreToolUse[0].hooks[0];
+      const dispatch = (args: object) => gate({ hook_event_name: "PreToolUse", tool_name: "mcp__talent_signal__record_profile", tool_input: args });
+      const denied = (await dispatch({ images: [{ kind: "private-invalid-value", value: "private-profile-value", "private-unknown-key": true }] })).hookSpecificOutput;
+      expect(denied.permissionDecision).toBe("deny");
+      expect(denied.permissionDecisionReason).toContain("images.[].kind: invalid_value");
+      expect(denied.permissionDecisionReason).toContain("unrecognized_keys");
+      expect(denied.permissionDecisionReason).not.toContain("private-");
+      expect(execute).not.toHaveBeenCalled();
+      expect((await dispatch({ images: [{ kind: "handle", value: "private-profile-value" }] })).hookSpecificOutput.permissionDecision).toBe("allow");
+    });
+    const outcome = await runClaudeHarness(config, input, new AbortController().signal, sdk.run as any);
+    expect(outcome.permissionDenials).toEqual(["TOOL_INPUT_INVALID"]);
+  });
+  it("preserves denial when diagnostic schema conversion fails", async () => {
+    const metadata: Record<string, unknown> = {}; metadata.circular = metadata;
+    const schema = z.strictObject({ value: z.string() }).meta(metadata);
+    const sdk = queryMock(async ({ options }) => {
+      const gate = options.hooks.PreToolUse[0].hooks[0];
+      const denied = await gate({ hook_event_name: "PreToolUse", tool_name: "mcp__talent_signal__read_value", tool_input: {} });
+      expect(denied.hookSpecificOutput.permissionDecision).toBe("deny");
+      expect(denied.hookSpecificOutput.permissionDecisionReason).toMatch(/^TOOL_INPUT_INVALID:/);
+    });
+    const outcome = await runClaudeHarness(config, { ...request(), tools: [{ name: "read_value", description: "Read value", schema, readOnly: true,
+      execute: vi.fn() }] }, new AbortController().signal, sdk.run as any);
+    expect(outcome.permissionDenials).toEqual(["TOOL_INPUT_INVALID"]);
+  });
   it("checks current authority for allowed tools and rejects subagent escalation", async () => {
     const input = request();
     input.tools = [{ name: "read_memory", description: "Scoped memory", schema: z.object({}), readOnly: true,

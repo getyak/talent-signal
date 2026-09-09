@@ -15,6 +15,32 @@ export const CLAUDE_HARNESS_VERSION = "get9-v1";
 export const HARNESS_MCP_PREFIX = "mcp__talent_signal__";
 type SDKRetryEvidence = { afterMs: number; attempt: number; maxRetries: number; delayMs: number; httpStatus: number | null };
 
+function schemaRepairHint(schema: z.ZodObject, error: z.ZodError): string {
+  try {
+    // Only names in the host-owned schema may appear in diagnostics. Zod issue
+    // messages, rejected values and unknown input keys can contain private data.
+    const names = new Set<string>();
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) { node.forEach(visit); return; }
+      const record = node as Record<string, unknown>;
+      if (record.properties && typeof record.properties === "object") {
+        Object.keys(record.properties).forEach(name => names.add(name));
+      }
+      Object.values(record).forEach(visit);
+    };
+    visit(z.toJSONSchema(schema, { unrepresentable: "any" }));
+    const hints = error.issues.slice(0, 5).map(issue => {
+      const path = issue.path.slice(0, 8).map(part => typeof part === "number" ? "[]" : names.has(String(part)) ? String(part) : "[field]").join(".") || "input";
+      return `${path}: ${issue.code}`;
+    });
+    return `TOOL_INPUT_INVALID: ${hints.join("; ")}. Repair these fields using the declared schema, including its allowed enum values. Preserve other supported evidence fields; do not discard valid clues to avoid a validation error.`;
+  } catch {
+    // Diagnostic conversion must never replace a denial with a thrown error.
+    return "TOOL_INPUT_INVALID: Supply every required schema field, use its allowed values and remove extra fields. Preserve valid evidence clues.";
+  }
+}
+
 export interface HarnessTool {
   name: string;
   description: string;
@@ -292,12 +318,13 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       // The SDK MCP server rebuilds a shape and can strip unknown keys before
       // our handler sees them. Validate the model's original arguments here.
       const capability = request.tools.find(entry => `${HARNESS_MCP_PREFIX}${entry.name}` === input.tool_name);
-      const validInput = !capability || capability.schema.safeParse(args).success;
+      const validation = capability?.schema.safeParse(args);
+      const validInput = !validation || validation.success;
       const allow = permitted && delegated && validInput;
       if (!allow) denials.push(permitted && delegated && !validInput ? "TOOL_INPUT_INVALID" : "TOOL_NOT_AUTHORIZED");
       return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: allow ? "allow" : "deny",
         permissionDecisionReason: allow ? "Current product capability grant." : permitted && delegated && !validInput
-          ? "TOOL_INPUT_INVALID: Supply every required field from this tool's schema and remove extra fields."
+          ? schemaRepairHint(capability!.schema, validation!.error!)
           : "Not granted for this Run or subagent." } };
     }] }];
     const content: SDKUserMessage["message"]["content"] = [

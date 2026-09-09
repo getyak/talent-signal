@@ -90,6 +90,7 @@ try {
           handleExact: fields.some(f => f.kind === "handle" && f.value.replace(/^@/u, "") === report.fixture.handle && f.source_excerpt.includes(report.fixture.handle)),
           noInventedMessages: draft.message_count === 0 && draft.extraction?.messages.length === 0,
           noExternalEffects: draft.external_effects.length === 0 };
+        active.checks = checks;
         if (checks.editableDraft) {
           // Explicit evaluator-owned human intent, limited to this synthetic account.
           const confirmation = { expected_revision: draft.revision, decision: "save_reviewed_profile", display_name: report.fixture.name,
@@ -99,7 +100,7 @@ try {
           checks.confirmationReadback = saved.status === "completed" && (await request(`/v1/contact-agent/tasks/${draft.task_id}`)).revision === saved.revision;
           checks.exactEditedValueStored = (await pool.query("SELECT 1 FROM evidence_fragments WHERE capture_id=$1 AND text_content='LatticeWorks Studio'",[saved.capture_id])).rowCount === 1;
           checks.originalQuotePreserved = saved.extraction.identity_clues.some(f => f.kind === "company" && f.source_excerpt.includes("LatticeWorks") && !f.source_excerpt.includes("Studio"));
-          if (caseID === "E02") {
+          if (caseID === "E02" && saved.status === "completed" && saved.contact) {
             checks.createdOnce = await peopleCount() === 1; originalContact = saved.contact;
             const resourceID = randomUUID(), now = new Date().toISOString();
             const capture = await client.createResourceCapture({ contract_version: CONTRACT_VERSION, idempotency_key: randomUUID(), channel: "chat",
@@ -114,15 +115,19 @@ try {
             memory = { captureID: capture.capture_id, snapshotID: snapshot.id, snapshotHash: createHash("sha256").update(JSON.stringify(snapshot)).digest("hex"),
               evidence: await profileMemoryEvidence(pool, account, capture.capture_id) };
             active.memory = memory;
-          } else {
-            checks.stablePersonReused = saved.contact.person_id === originalContact?.person_id && saved.contact.disposition === "reused";
+          } else if (caseID === "E04") {
+            checks.stablePersonReused = saved.contact?.person_id === originalContact?.person_id && saved.contact?.disposition === "reused";
             checks.personCountUnchanged = await peopleCount() === before && before === 1;
-            active.memoryReadback = await verifyProfileMemory({ pool, client, accountID: account, contact: originalContact, memory });
-            Object.assign(checks, active.memoryReadback.checks);
+            if (originalContact && memory) {
+              active.memoryReadback = await verifyProfileMemory({ pool, client, accountID: account, contact: originalContact, memory });
+              Object.assign(checks, active.memoryReadback.checks);
+            } else {
+              checks.priorMemoryFixtureAvailable = false;
+            }
           }
         }
         active.checks = checks; active.status = Object.values(checks).every(Boolean) ? "checks_passed" : "checks_failed";
-      } catch(error) { active.status = "failed"; active.errorCode = claudeHarnessInterruptionCode(error); }
+      } catch(error) { active.status = "failed"; active.errorCode = active.sdkFailure?.code ?? "EVALUATION_OR_PRODUCT_FAILURE"; }
       active.durationMs = Date.now() - started; report.trials.push(active);
       await writeFile(args[7], JSON.stringify(report,null,2)+"\n",{mode:0o600});
       console.log(JSON.stringify({caseID,trial,status:active.status}));
