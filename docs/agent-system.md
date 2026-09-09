@@ -107,7 +107,7 @@ Capabilities progress through increasing consequence:
 The model proposes intent. The control plane decides whether a capability exists, is in scope, is currently allowed, and can execute safely.
 
 Validate original tool arguments before provider normalization discards unknown fields.
-Repair hints use bounded schema-owned names/codes, never rejected values or unknown keys; diagnostic failures preserve denial.
+Repair hints use bounded schema-owned names/codes, never rejected values or unknown keys; diagnostic failures preserve denial. Per-Run SDK observations may omit identical successful state metadata; changed/error state and source evidence remain intact, and tool authority is checked anew.
 
 Fact confirmation, exact-effect approval and destination verification remain independent decisions; passing one never substitutes for another.
 

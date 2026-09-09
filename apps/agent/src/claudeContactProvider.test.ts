@@ -35,4 +35,35 @@ describe("multimodal contact SDK adapter", () => {
     await expect(model.extract()).rejects.toThrow("USE_MULTIMODAL_RUN");
     await expect(model.next()).rejects.toThrow("USE_SDK_TOOL_LOOP");
   });
+  it("omits only identical successful navigation state and preserves changed state, errors, evidence and run isolation", async () => {
+    const initial = {allowed_tools:["search_contacts"],contact:null};
+    const changed = {allowed_tools:[],contact:{person_id:"synthetic-person"}};
+    const source = Object.freeze({current_state:initial, source_excerpt:"Exact original evidence", source_refs:["m1"]});
+    const invoke = vi.fn();
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      const tool = request.tools.find(tool => tool.name === "search_contacts")!;
+      const call = async () => {
+        const result = await tool.execute({query:"Synthetic"}, new AbortController().signal) as {content:Array<{text:string}>;isError:boolean};
+        return {data:JSON.parse(result.content[0]!.text),isError:result.isError};
+      };
+      invoke.mockResolvedValueOnce(source).mockResolvedValueOnce(source)
+        .mockResolvedValueOnce({error:"CONTACT_TOOL_NOT_AUTHORIZED",current_state:changed})
+        .mockResolvedValueOnce(source)
+        .mockResolvedValueOnce({current_state:changed,source_excerpt:"New exact evidence"});
+      expect(await call()).toEqual({data:source,isError:false});
+      expect(await call()).toEqual({data:{source_excerpt:source.source_excerpt,source_refs:["m1"]},isError:false});
+      expect(await call()).toEqual({data:{error:"CONTACT_TOOL_NOT_AUTHORIZED",current_state:changed},isError:true});
+      expect(await call()).toEqual({data:source,isError:false});
+      expect(await call()).toEqual({data:{current_state:changed,source_excerpt:"New exact evidence"},isError:false});
+      expect(source.current_state).toBe(initial);
+      return {text:"Synthetic",structuredOutput:null,sessionID:"synthetic",inputTokens:10,outputTokens:10,
+        estimatedUsd:0,turns:1,toolCalls:5,terminalReason:"completed",permissionDenials:[],reportedModels:["synthetic"]};
+    });
+    const model = new ClaudeContactAgentModel(claudeHarnessConfiguration({ANTHROPIC_API_KEY:"synthetic",TALENT_SIGNAL_AGENT_MODEL:"synthetic"}),execute);
+    for (let run=0;run<2;run++) await model.run({objective:"Synthetic",systemPrompt:"Synthetic",state:{},images:[],
+      assertCurrent:async()=>{},recordUnderstanding:vi.fn(),invoke},new AbortController().signal);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(invoke).toHaveBeenCalledTimes(10);
+  });
+
 });
