@@ -42,8 +42,8 @@ tests verify both behaviors and reject invented excerpts.
 
 Two rendered directions were compared: A retains a left source list next to a
 bounded reading panel; B moves the list above a wider reading area. A was chosen
-because the active source remains visible while reviewing a long result, and
-line lengths support evidence review. Mobile stacks the source list below the result to keep the selected task first.
+because source context sits beside the selected result, and line lengths support
+evidence review. Mobile stacks the source list below the result to keep the selected task first.
 Light and dark themes use the existing neutral and vermilion system.
 
 Local synthetic-only artifacts are under `output/web-capture-pipeline/`:
@@ -82,3 +82,7 @@ confirmation discloses.
 
 Local TestFlight deployment and final runtime revision are recorded in the
 [implementation plan](../../../plans/web-capture-pipeline.md).
+After preserving the deployed account and feedback integration, production-mode
+Web on 3050 also passed real synthetic-account login, original image readback
+through browser-managed cookies and exact Person heading verification. The
+user-facing Web on 3049 connects to the deployed 4317 backend; 3050 was proof only.

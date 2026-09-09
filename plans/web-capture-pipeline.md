@@ -30,7 +30,7 @@ Web workspace. No inferred field becomes a confirmed fact or external action.
 1. Complete: extend durable task admission, source provenance and text extraction.
 2. Complete: connect extension capture and receipt reconciliation to real authenticated tasks.
 3. Complete: integrate the capture inbox with workspace navigation and complete UI states.
-4. Active: verify focused tests, browser surfaces, database readback, and local deployment.
+4. Complete: verify focused tests, browser surfaces, database readback, and local deployment.
 
 ## Completion evidence
 
@@ -66,3 +66,37 @@ Person, including recovery of the same task after a backend restart and provider
 429. Original image readback returned HTTP 200. Screenshots are in
 `output/web-capture-pipeline/` (synthetic sources only). See the
 [evaluation record](../docs/evaluations/2026-09-10-web-capture/README.md).
+
+## Deployment and handoff
+
+- `./scripts/deploy/testflight-local.sh` completed successfully on 2026-09-10.
+  Deployed backend revision: `c8d775ecae2b02aef175b8af1631aed46c08e1e7`.
+  Subsequent commits only refine Web labels and record evidence.
+- Repository-configured, host-ready, runtime-ready and tailnet-ready: verified.
+  API remains on `127.0.0.1:4317`; its PostgreSQL has no host-published port.
+  Existing `/ops-health` and HTTPS 8443 handlers were preserved.
+- Exact tailnet origin: `https://smile-m4-minimac-mini.tail25e61f.ts.net`.
+  Readiness, Apple authentication challenge, synthetic voice and Relationship Ask
+  provider probes passed. The new browser receipt endpoint rejects anonymous
+  requests with 401. No physical-device or new CI release proof is claimed;
+  backward-compatible backend admission needs no new iOS archive.
+- Web production build is running at `http://127.0.0.1:3049/workspace/captures`,
+  against the deployed backend. Existing Web 3000 was preserved. Start from this
+  worktree with:
+
+  ```sh
+  ./scripts/infisical/run.sh dev /shared /web -- env \
+    TALENT_SIGNAL_BACKEND_URL=http://127.0.0.1:4317 \
+    AUTH_URL=http://127.0.0.1:3049 AUTH_TRUST_HOST=true \
+    TALENT_SIGNAL_INTEGRATION_MODE=false \
+    pnpm --filter @talent-signal/web exec next start --hostname 127.0.0.1 --port 3049
+  ```
+
+- A separate production-mode Web proof on 3050 used the isolated synthetic
+  backend: real password login, browser-managed secure session, original image
+  GET 200 and the correct Person heading all passed after the merge.
+- Load `apps/chrome-extension/dist` as an unpacked Chrome extension and connect
+  to `http://127.0.0.1:3049`. The distributable ZIP is
+  `output/web-capture-pipeline/talent-signal-capture-0.2.0.zip`.
+- Remaining manual surface check: the native screen/window selection dialog.
+  Text and reviewed image upload were verified through the actual extension.
