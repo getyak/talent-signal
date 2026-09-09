@@ -29471,6 +29471,216 @@
           }
         }
       }
+    },
+    "Add a note · optional": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "补充说明 · 可选"
+          }
+        }
+      }
+    },
+    "Feedback was not confirmed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈尚未确认。请核对回答后重试。"
+          }
+        }
+      }
+    },
+    "Your rating is saved": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刚才的评价已保存"
+          }
+        }
+      }
+    },
+    "What helped most?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "哪一点让你觉得特别有用？"
+          }
+        }
+      }
+    },
+    "How could this help more?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "怎样才能更有帮助？"
+          }
+        }
+      }
+    },
+    "Anything to add? (optional)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "补充一句，也可以直接说出你的想法"
+          }
+        }
+      }
+    },
+    "Keep the note within 2,000 characters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "补充说明请控制在 2,000 字以内。"
+          }
+        }
+      }
+    },
+    "Keep the correction within 900 characters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改要求请控制在 900 字以内。"
+          }
+        }
+      }
+    },
+    "Could not save. Retry keeps the same submission.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未保存，重试会继续同一次提交。"
+          }
+        }
+      }
+    },
+    "Save note": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存补充"
+          }
+        }
+      }
+    },
+    "Revise with this": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按此修改"
+          }
+        }
+      }
+    },
+    "Answer feedback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回答反馈"
+          }
+        }
+      }
+    },
+    "A new insight": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想到了我没想到的"
+          }
+        }
+      }
+    },
+    "Remembered context": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记住了关键背景"
+          }
+        }
+      }
+    },
+    "A clear next step": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让我知道下一步"
+          }
+        }
+      }
+    },
+    "Ready to use": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以直接用"
+          }
+        }
+      }
+    },
+    "Misunderstood my request": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "理解错我的意思"
+          }
+        }
+      }
+    },
+    "Missing or wrong context": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记错或漏掉背景"
+          }
+        }
+      }
+    },
+    "Incorrect or outdated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信息不对或过时"
+          }
+        }
+      }
+    },
+    "Not useful in practice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建议用不上"
+          }
+        }
+      }
+    },
+    "Wording or tone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表达不合适"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

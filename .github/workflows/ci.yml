@@ -268,6 +268,11 @@ jobs:
         run: |
           pnpm --filter @talent-signal/backend exec vitest run src/modules/feedback.integration.test.ts src/modules/runtimeObservationLifecycle.integration.test.ts src/modules/productRuns.integration.test.ts
 
+      - name: Verify Lab workspace feedback cleanup
+        env:
+          LAB_WORKSPACE_EVALUATION_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+        run: pnpm --filter @talent-signal/backend test:lab-workspaces
+
       - name: Preserve Lab regression fixture metadata
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

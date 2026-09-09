@@ -57,6 +57,15 @@ CI, merge and deployment verification remain pending; Linear is not yet complete
 - All 59 migrations through 058 applied to a fresh owned PostgreSQL database.
   The normal migration command's checksum/idempotency readback also ran.
 - Documentation and architecture checks passed.
+- CI follow-up: registered the proof database/Eval session variable names and
+  moved all new native feedback copy into the localization catalog; manifest
+  tests passed 11/11 and localization policy passed.
+- Restored the Lab workspace manifest for the new product-run tables and their
+  existing Session/feedback dependencies. The real workspace lifecycle now
+  passes creation, late-write rejection and deletion of runs, spans, feedback
+  events and linked cases. The 29 feedback tests passed again with these guards.
+  This lifecycle evaluation now runs in backend CI.
+
 
 ## Real UI evidence
 

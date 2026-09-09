@@ -25,6 +25,34 @@ CREATE TABLE product_run_feedback_events (
   output jsonb NOT NULL, request_hash text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(run_id,revision)
 );
 
+-- The existing Lab cleanup owns roots; both child tables cascade with the run.
+INSERT INTO lab_test_workspace_table_manifest(table_name,scope) VALUES
+  ('product_runs','account'),('product_run_spans','cascade'),('product_run_feedback_events','cascade');
+CREATE TRIGGER lab_test_workspace_write_guard BEFORE INSERT OR UPDATE ON product_runs
+  FOR EACH ROW EXECUTE FUNCTION lab_test_workspace_write_guard();
+
+-- Restore cleanup coverage for the Session/feedback dependencies added since
+-- the original Lab workspace migration. Unknown future tables still fail closed.
+INSERT INTO lab_test_workspace_table_manifest(table_name,scope) VALUES
+  ('lab_feature_overrides','account'),('screenshot_contact_tasks','account'),
+  ('contact_profile_observations','account'),('contact_archive_operations','account'),
+  ('contact_task_images','account'),('agent_sessions','account'),
+  ('agent_session_operations','account'),('agent_session_retracted_tasks','account'),
+  ('agent_session_chat_sources','account'),('agent_session_chat_tasks','account'),
+  ('feedback_execution_snapshots','account'),('product_feedback','account'),
+  ('product_feedback_operations','account'),('product_feedback_observations','account'),
+  ('google_login_challenges','global'),('google_consumed_assertions','global');
+DO $$ DECLARE item record; BEGIN
+  FOR item IN SELECT m.table_name FROM lab_test_workspace_table_manifest m
+    WHERE m.scope='account' AND NOT EXISTS (
+      SELECT 1 FROM pg_trigger WHERE tgrelid=('public.' || m.table_name)::regclass
+        AND tgname='lab_test_workspace_write_guard' AND NOT tgisinternal)
+  LOOP
+    EXECUTE format('CREATE TRIGGER lab_test_workspace_write_guard BEFORE INSERT OR UPDATE ON %I
+      FOR EACH ROW EXECUTE FUNCTION lab_test_workspace_write_guard()',item.table_name);
+  END LOOP;
+END $$;
+
 ALTER TABLE lab_regressions ADD COLUMN source_run_id uuid REFERENCES product_runs(id);
 
 CREATE FUNCTION product_run_source_available(run_id uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
