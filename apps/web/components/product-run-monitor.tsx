@@ -1,4 +1,5 @@
 "use client";
+import { workspaceSessionFetch } from "./workspace-session-request";
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,7 +12,7 @@ const sentimentName = (value: string | null) => value === "helpful" ? "有帮助
 const stamp = (value: string) => new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" ? value as Record<string, unknown> : {};
 async function request<T>(path: string): Promise<T> {
-  const response = await fetch(`/api/product-runs${path}`, { cache: "no-store" });
+  const response = await workspaceSessionFetch(`/api/product-runs${path}`, { cache: "no-store" });
   const value = await response.json(); if (!response.ok) throw new Error(value.message ?? "运行记录暂时不可用。"); return value;
 }
 function DataPreview({ value }: { value: unknown }) {
@@ -45,7 +46,7 @@ function CaseCapture({ detail }: { detail: ProductRunDetail }) {
     const body = operation.current ?? { id: crypto.randomUUID(), output_hash: detail.run.output_hash!, expected_behavior: expected };
     operation.current = body;
     try {
-      const response = await fetch(`/api/product-runs/${detail.run.id}/cases`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const response = await workspaceSessionFetch(`/api/product-runs/${detail.run.id}/cases`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const value = await response.json(); if (!response.ok) throw new Error(value.message);
       setSavedCaseID(body.id); setState("saved");
     } catch (error) { setState((error as Error).message); }
