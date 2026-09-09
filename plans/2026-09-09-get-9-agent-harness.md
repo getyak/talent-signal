@@ -876,3 +876,36 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   installed Chrome proof remain outstanding. The latest native check will reuse
   the unchanged Release binary already proved by the second run; only backend
   code changed. No claim of a fresh Release build for that focused retry.
+
+### 2026-09-10 04:06 — deployed backend and isolated transport finding
+
+- Current committed head is `421c02d6`; CI backend/Web/security/phase-one/docs
+  pass, cloud iOS remains running. TestFlight deployment script completed at
+  that revision: migration 065, Docker synthetic Hao citation probe (7747/299
+  tokens), silent voice probe, Apple keys/challenge and HTTPS all pass. Serve
+  root4317, ops-health9188 and port8443:5678 are unchanged. Physical device is
+  unverified; no merge or Linear close.
+- Third serial native batch fails all three original canonical tests (76.990,
+  91.718,81.331 seconds). Existing Release binary was reused, no Swift changes.
+  No waiting database lock observed; final zero idle-in-transaction. Failures
+  remain in ios-canonical-third.json and /tmp result/logs.
+- Host IPv4 Hao TLS/request returns401 in2.58s, IPv6 TLS times out at10s. This
+  does not prove model-timeout causality. SDK native subprocess explicitly
+  replaces ambient environment, excluding the Mac's existing HTTP loopback
+  HTTPS proxy. A one-variable live proxy experiment has zero API retries in
+  all three trials (12.193,8.995,16.750s), but only one handoff: trial2 stops after search; trial3 makes two invalid
+  read calls (missing context, then extra reason) and does not recover.
+  Transport and task-quality failures are separate.
+- Stop-hook mechanism experiment is2/3 overall: first timeout, then successful
+  read hooks stop in5ms/2ms with zero subsequent model responses/tools. Not
+  production-ready; independent reviewer requires host post-tool source proof,
+  exact tool identity, failure priority, unchanged cleanup/finish, fingerprint
+  and post-stop domain guards. No stop-hook production change was made.
+- UNCOMMITTED: explicit frozen TALENT_SIGNAL_CLAUDE_HTTPS_PROXY config, HTTP(S)
+  no credentials/path/query/fragment/control; no ambient/ALL_PROXY/bypass/TLS
+  inheritance. Proxy digest enters continuation fingerprint; diagnostics only
+  mode. Tool descriptions now explain exact two-ID read and scoped handoff.
+  Agent147pass1skip; backend build passes; independent review in progress.
+- Next native run uses this explicit proxy in the owned3347 API with unchanged
+  SDK identity/continuation implementation, model, budgets and UI assertions.
+  If accepted, commit/redeploy updated source and recheck latest PR head.

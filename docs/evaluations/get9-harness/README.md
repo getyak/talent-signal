@@ -48,17 +48,18 @@ instrumentation; a second command failed syntax checking before model execution.
   rejected before a different account can receive work or preference changes.
 - [iOS initial run](ios-full-first-interrupted.json): release build and 539 unit
   tests passed; 76 UI cases passed, five failed, three explicitly skipped.
-  Interrupted for diagnosis. The integrated build passes all 543 unit tests;
-  three real-Hao canonical journeys failed the existing response waits in
-  `/tmp/get9-ios-integrated-hao.xcresult`. A second run also failed all three canonical journeys: one missing citation after skipped lookup and two response waits. The latest lookup guidance requires a new native run.
+  The integrated build passes all 543 unit tests. The latest serial
+  [three canonical journeys](ios-canonical-third.json) still fail unchanged
+  response/evidence gates. Serial execution does not establish the cause.
 - [Exa probe](exa-staging-live-probe.json): actual search and fetch succeeded.
   [TikHub probe](tikhub-staging-live-probe.json): credential/health proof only.
 - Chrome integrated extension contract checks passed; actual installed-extension
   handoff remains pending the browser installation boundary.
-- [Staging configuration](staging-harness-configuration.json) now selects the
-  verified Hao model with its dedicated credential; running TestFlight containers
-  are not yet replaced. Physical-device reachability and final deployment/PR/CI/
-  merge proof remain outstanding.
+- [Staging configuration](staging-harness-configuration.json) records provider
+  preparation; [actual deployment](testflight-deployment-first.json) now proves
+  runtime revision `421c02d6`, migration 065, real synthetic chat/voice probes,
+  Apple authentication and HTTPS. Existing Serve routes are unchanged. Physical
+  TestFlight device and final PR/CI/merge acceptance remain outstanding.
 
 ## Code and regression proof
 

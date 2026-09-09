@@ -61,6 +61,7 @@ describe("host-issued SDK continuation", () => {
   });
   it("binds continuation to prompt, model endpoint and credential rotation", () => {
     const fingerprint = harnessContinuationFingerprint(configuration, request);
+    expect(harnessContinuationFingerprint({ ...configuration, httpsProxy: "http://127.0.0.1:18080/" }, request)).not.toBe(fingerprint);
     expect(harnessContinuationFingerprint(configuration, { ...request, objective: "Next turn" })).toBe(fingerprint);
     expect(harnessContinuationFingerprint(configuration, { ...request, systemPrompt: "Changed policy" })).not.toBe(fingerprint);
     expect(harnessContinuationFingerprint(configuration, { ...request, effort: "medium" })).not.toBe(fingerprint);

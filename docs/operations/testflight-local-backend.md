@@ -42,7 +42,15 @@ exactly one of `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`. Credentials stay i
 The GET-9 Hao probe uses `https://api.hao.ai/anthropic` and
 `anthropic/claude-sonnet-5`, with `TALENT_SIGNAL_CLAUDE_TASK_BUDGET_ENABLED=false`
 for gateway compatibility. Host time, tool, token and cost limits still apply.
-There is no automatic provider fallback. The deployment validator and synthetic
+There is no automatic provider fallback. An operator can explicitly set
+`TALENT_SIGNAL_CLAUDE_HTTPS_PROXY` to an HTTP(S) proxy URL when the deployment
+network requires it. Credentials, path, query and fragment are rejected; ambient
+proxy, bypass and TLS-override variables remain excluded from the SDK process.
+The transport is frozen with configuration and fingerprinted for Session reuse;
+diagnostics record only direct/proxy mode. This adds the selected proxy to the
+transport trust boundary. Verify it with synthetic traffic before admitting
+private data; a loopback proxy can still forward traffic remotely.
+ The deployment validator and synthetic
 probe must pass for the selected runtime; configuration alone is not proof.
 See [GET-9 acceptance evidence](../evaluations/get9-harness/README.md) for actual
 model receipts and the still-open native reliability gate.

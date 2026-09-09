@@ -299,3 +299,6 @@ observability gap, without retroactively supplying missing tool/error details in
 [the first attempt](contact-lookup-first.json). The second attempt's script syntax
 failure remains a pre-model failure. Earlier failures, including Memory eighth,
 are not replaced by these results. Full GET-9 and native acceptance remain open.
+
+The subsequent explicit transport and contact-tool-description delta is reviewed
+separately in [the explicit transport review](explicit-transport-review.md).

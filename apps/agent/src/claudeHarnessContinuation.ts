@@ -18,6 +18,7 @@ export type HarnessContinuationFactory = (configurationFingerprint: string) => P
 export function harnessContinuationFingerprint(configuration: ClaudeHarnessConfiguration, request: ClaudeHarnessRequest): string {
   return createHash("sha256").update(JSON.stringify({ version: "get9-v1", sdk: "0.3.260",
     endpoint: configuration.baseUrl, model: configuration.model, effort: request.effort ?? "high",
+    transport_digest: createHash("sha256").update(configuration.httpsProxy ?? "direct").digest("hex"),
     credential_digest: createHash("sha256").update(configuration.credential.value).digest("hex"),
     system_prompt: request.systemPrompt, tools: request.tools.map(entry => ({ name: entry.name,
       description: entry.description, read_only: entry.readOnly, schema: z.toJSONSchema(entry.schema) })),

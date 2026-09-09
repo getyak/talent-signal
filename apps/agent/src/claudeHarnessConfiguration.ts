@@ -4,6 +4,8 @@ export interface ClaudeHarnessConfiguration {
   baseUrl: string;
   credential: { name: "ANTHROPIC_API_KEY" | "ANTHROPIC_AUTH_TOKEN"; value: string };
   taskBudgetEnabled: boolean;
+  /** Explicit server-owned transport; ambient proxy/auth variables stay excluded. */
+  httpsProxy?: string;
 }
 
 export function claudeHarnessConfiguration(
@@ -33,8 +35,18 @@ export function claudeHarnessConfiguration(
   if (taskBudget && taskBudget !== "true" && taskBudget !== "false") {
     throw new Error("CLAUDE_HARNESS_TASK_BUDGET_INVALID");
   }
+  const proxyValue = environment.TALENT_SIGNAL_CLAUDE_HTTPS_PROXY?.trim();
+  let httpsProxy: string | undefined;
+  if (proxyValue) {
+    try {
+      const proxy = new URL(proxyValue);
+      if (!['http:', 'https:'].includes(proxy.protocol) || proxy.username || proxy.password ||
+          proxy.search || proxy.hash || proxy.pathname !== '/' || /[\x00-\x20\x7f]/u.test(proxyValue)) throw new Error();
+      httpsProxy = proxy.href;
+    } catch { throw new Error('CLAUDE_HARNESS_PROXY_INVALID'); }
+  }
   return Object.freeze({
-    model, baseUrl: canonical,
+    model, baseUrl: canonical, ...(httpsProxy ? { httpsProxy } : {}),
     credential: Object.freeze(key ? { name: "ANTHROPIC_API_KEY" as const, value: key } : { name: "ANTHROPIC_AUTH_TOKEN" as const, value: token! }),
     taskBudgetEnabled: taskBudget ? taskBudget === "true" : endpoint.hostname === "api.anthropic.com",
   });
@@ -44,5 +56,6 @@ export function claudeHarnessConfiguration(
 export function claudeHarnessConfigurationReceipt(configuration: ClaudeHarnessConfiguration) {
   return { runtime: "claude-agent-sdk", model: configuration.model, endpoint: configuration.baseUrl,
     credentialSource: configuration.baseUrl === "https://api.hao.ai/anthropic" ? "HAO_ANTHROPIC_API_KEY" : configuration.credential.name,
-    credentialConfigured: true, automaticFallback: false, taskBudgetEnabled: configuration.taskBudgetEnabled };
+    credentialConfigured: true, automaticFallback: false, taskBudgetEnabled: configuration.taskBudgetEnabled,
+    transport: configuration.httpsProxy ? "explicit_https_proxy" : "direct" };
 }

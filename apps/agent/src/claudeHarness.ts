@@ -311,6 +311,8 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       CLAUDE_CONFIG_DIR: join(directory, "configuration"),
       CLAUDE_AGENT_SDK_CLIENT_APP: "talent-signal-agent/0.1.0",
       ANTHROPIC_BASE_URL: configuration.baseUrl,
+      // Explicit transport only: https://code.claude.com/docs/en/network-config
+      ...(configuration.httpsProxy ? { HTTPS_PROXY: configuration.httpsProxy } : {}),
       [configuration.credential.name]: configuration.credential.value,
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
       CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(Math.min(4_000, request.budget.maxTaskTokens)),

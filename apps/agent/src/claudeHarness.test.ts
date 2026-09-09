@@ -43,6 +43,25 @@ describe("Claude harness deployment configuration", () => {
       }});
     } finally {clock.mockRestore();}
   });
+  it("admits only an explicit proxy and keeps its address out of diagnostics", async () => {
+    const base = { ANTHROPIC_API_KEY: "synthetic-key", TALENT_SIGNAL_AGENT_MODEL: "synthetic-model" };
+    expect(claudeHarnessConfiguration({ ...base, HTTPS_PROXY: "http://ambient.invalid:8080" }).httpsProxy).toBeUndefined();
+    const configured = claudeHarnessConfiguration({ ...base, TALENT_SIGNAL_CLAUDE_HTTPS_PROXY: "http://127.0.0.1:18080" });
+    expect(Object.isFrozen(configured)).toBe(true);
+    const diagnostic = JSON.stringify(claudeHarnessConfigurationReceipt(configured));
+    expect(diagnostic).toContain("explicit_https_proxy");
+    expect(diagnostic).not.toContain("18080");
+    for (const proxy of ["socks5://localhost:8080", "http://user:secret@localhost:8080", "http://localhost/path", "http://localhost?token=secret", "http://localhost/#fragment", "http://local\nhost:8080"]) {
+      expect(() => claudeHarnessConfiguration({ ...base, TALENT_SIGNAL_CLAUDE_HTTPS_PROXY: proxy })).toThrow("CLAUDE_HARNESS_PROXY_INVALID");
+    }
+    const sdk = queryMock(async ({ options }) => {
+      expect(options.env.HTTPS_PROXY).toBe("http://127.0.0.1:18080/");
+      expect(options.env.ALL_PROXY).toBeUndefined();
+      expect(options.env.NO_PROXY).toBeUndefined();
+      expect(options.env.NODE_TLS_REJECT_UNAUTHORIZED).toBeUndefined();
+    });
+    await runClaudeHarness(configured, request(), new AbortController().signal, sdk.run as any);
+  });
   it("binds a single credential to an admitted endpoint without host fallback", () => {
     const configured = claudeHarnessConfiguration({ HAO_ANTHROPIC_API_KEY: "synthetic-hao", ANTHROPIC_API_KEY:"different-gateway", ANTHROPIC_BASE_URL: "https://api.hao.ai/anthropic/", TALENT_SIGNAL_AGENT_MODEL: "anthropic/claude-sonnet-5.0" });
     expect(configured.taskBudgetEnabled).toBe(false);
