@@ -6,6 +6,16 @@ GET-23 is merged into the work branch; release acceptance is still open. Each li
 artifact retains its effective prompt/skill hashes, model receipt and fixture.
 Earlier passing batches do not claim an identical final source revision.
 
+## Late PR review
+
+The exact `630961ea` CI was green, but four unresolved review threads correctly
+blocked merge. [Independent review](pr-blocking-review.md) and
+[delta verification](pr-review-verification.json) track the repairs separately.
+The [real clock/continuation probe](pr-review-clock-final.json) proves three SDK
+turns with one continuation identity and a correctly staged year-boundary draft.
+Its [first setup failure](pr-review-clock-first.json) is retained. These checks
+are not a replacement full native suite or a new rubric score for earlier cases.
+
 ## Live scenario matrix
 
 The unchanged rubric requires at least 3/4 in each applicable dimension:

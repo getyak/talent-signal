@@ -11,7 +11,8 @@ describe("review-only calendar capability", () => {
     const capability = calendarDraftCapability(context, objective);
     expect(capability.draft()).toBeUndefined();
     const tool = capability.tools[0]!;
-    expect(tool.description).toContain(context.referenceTime);
+    expect(tool.description).not.toContain(context.referenceTime);
+    expect(capability.clock).toContain(context.referenceTime);
     expect((await tool.execute(input, signal)).isError).toBe(false);
     expect(capability.draft()).toMatchObject({ title: input.title, starts_at: "2026-09-10T07:00:00.000Z", ends_at: "2026-09-10T07:30:00.000Z",
       source_excerpt: input.source_excerpt, source_request_id: context.sourceRequestID, status: "needs_review", external_effect: "none" });
@@ -38,7 +39,7 @@ describe("review-only calendar capability", () => {
       ["2026-03-08T09:30:00Z", "America/Los_Angeles", "2026-03-08", "2026-03-09"],
     ]) {
       const capability = calendarDraftCapability({ ...context, referenceTime: referenceTime!, timeZone: timeZone! }, objective);
-      expect(capability.instructions).toContain(`today ${today}; tomorrow ${tomorrow}`);
+      expect(capability.clock).toContain(`today ${today}; tomorrow ${tomorrow}`);
     }
     expect(calendarDraftCapability(undefined, objective).instructions).toBe("");
   });

@@ -3,6 +3,7 @@ import { ClaudeChatProvider } from "./claudeChatProvider.js";
 import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import { ClaudeHarnessInterruption, type ClaudeHarnessRequest } from "./claudeHarness.js";
 import { createEnvironmentChatAnswerProvider } from "./chatAnswerProvider.js";
+import { harnessContinuationFingerprint } from "./claudeHarnessContinuation.js";
 import { bundledPrompt } from "./promptRegistry.js";
 
 const configuration = claudeHarnessConfiguration({ ANTHROPIC_API_KEY: "synthetic", TALENT_SIGNAL_AGENT_MODEL: "synthetic-model" });
@@ -42,8 +43,8 @@ describe("Claude natural chat product adapter", () => {
 
   it("supplies the frozen calendar clock as trusted instructions in both chat entry points", async () => {
     const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
-      expect(request.systemPrompt).toContain("today 2026-09-09; tomorrow 2026-09-10");
-      expect(request.systemPrompt).toContain("regardless of the SDK environment date");
+      expect(JSON.parse(request.context!).calendar_clock).toContain("today 2026-09-09; tomorrow 2026-09-10");
+      expect(request.systemPrompt).toContain("host-supplied calendar_clock");
       return outcome;
     });
     const provider = new ClaudeChatProvider(configuration, execute);
@@ -56,6 +57,31 @@ describe("Claude natural chat product adapter", () => {
       async name => ({ callID: "unused", name, ok: true, data: {} }), new AbortController().signal, "baseline", vi.fn());
     expect(execute).toHaveBeenCalledTimes(2);
   });
+  it("keeps continuation identity stable across request clocks while refreshing both chat paths", async () => {
+    const captured: ClaudeHarnessRequest[] = [];
+    const provider = new ClaudeChatProvider(configuration, async (_configuration, request) => {
+      captured.push(request); return outcome;
+    });
+    for (const path of ["answer", "run"] as const) {
+      for (const [referenceTime, timeZone] of [["2026-09-09T02:00:00Z", "Asia/Shanghai"], ["2026-09-10T03:00:00Z", "America/Los_Angeles"]]) {
+        const calendarContext = { sourceRequestID: "10000000-0000-4000-8000-000000000001", referenceTime: referenceTime!, timeZone: timeZone! };
+        if (path === "answer") await provider.answer({ objective: "Tomorrow at three", context_blocks: [], allowed_citation_ids: [],
+          prompt_snapshot: bundledPrompt("assistant/relationship"), calendarContext });
+        else await provider.run({ runID: "synthetic", objective: "Tomorrow at three", systemPrompt: "Synthetic",
+          scopeSummary: { kind: "workspace_conversation", workspaceID: "account", sessionID: null, currentPersonID: null, currentRelationshipContextID: null },
+          toolManifest: [], calendarContext, budget: { maxTurns: 6, maxToolCalls: 6, maxDurationMs: 30_000, maxTaskTokens: 32_000, maxEstimatedUsd: 1 } },
+          async name => ({ callID: "unused", name, ok: true, data: {} }), new AbortController().signal);
+      }
+      const [first, second] = captured.splice(0);
+      expect(harnessContinuationFingerprint(configuration, first!)).toBe(harnessContinuationFingerprint(configuration, second!));
+      expect(JSON.parse(first!.context!).calendar_clock).toContain("2026-09-09T02:00:00Z");
+      expect(JSON.parse(second!.context!).calendar_clock).toContain("2026-09-10T03:00:00Z");
+      expect(JSON.parse(second!.context!).calendar_clock).toContain("America/Los_Angeles");
+      expect(harnessContinuationFingerprint(configuration, { ...second!, systemPrompt: "Changed policy" }))
+        .not.toBe(harnessContinuationFingerprint(configuration, first!));
+    }
+  });
+
   it("rejects out-of-scope citations and records only successful citation tool receipts", async () => {
     const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
       const cite = request.tools[0]!;

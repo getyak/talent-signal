@@ -8,7 +8,8 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "sidePanel"
+    "sidePanel",
+    "storage"
   ],
   "host_permissions": [
     "http://localhost/*",

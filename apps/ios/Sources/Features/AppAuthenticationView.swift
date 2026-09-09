@@ -359,6 +359,11 @@ final class AppSessionStore: ObservableObject {
             // The protected intent exists before old content is closed. Every
             // earlier validate/sign-in completion now belongs to an old root.
             let target = records.first { $0.id == id }
+            try DeviceCalendarReceiptStore.clearLegacyPrivateDetails()
+            if let session = target?.credential {
+                try DeviceCalendarReceiptStore(scope: RuntimeEndpoint.scope(session.baseURL,
+                    accountID: session.account.id, userID: session.user.id)).clearPrivateDetails(savedBefore: target!.startedAt)
+            }
             if case let .signedIn(current) = phase,
                target?.credentialFingerprint != AppSessionEnding.fingerprint(current) {
                 closed = false

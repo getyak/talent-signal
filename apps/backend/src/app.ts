@@ -242,7 +242,7 @@ import {
 } from "./modules/personResearchAgentClient.js";
 import { createPersonResearchTask } from "./modules/personResearchTasks.js";
 import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask, confirmScreenshotContactProfile,
-  cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, loadScreenshotContactImage,
+  cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, lookupScreenshotContactReceipt, loadScreenshotContactImage,
   environmentScreenshotContactDependencies, ScreenshotContactTaskRunner,
   type ScreenshotContactDependencies } from "./modules/screenshotContactTasks.js";
 import { type ScreenshotContactTaskRequest } from "@talent-signal/agent";
@@ -2571,7 +2571,11 @@ export async function buildApp(
     return reply.header("cache-control","private, no-store").header("x-content-type-options","nosniff")
       .type(image.media_type).send(Buffer.from(image.data_base64,"base64"));
   });
-  app.get("/v1/contact-agent/tasks",{preHandler:authenticate,schema:{security}},async request=>listScreenshotContactTasks(pool,request.auth));
+  app.get<{Querystring:{handoff_request_id?:string}}>("/v1/contact-agent/tasks",{preHandler:authenticate,
+    schema:{security,querystring:Type.Object({handoff_request_id:Type.Optional(Type.String({minLength:1,maxLength:128}))},{additionalProperties:false})}},
+    async request=>request.query.handoff_request_id
+      ? lookupScreenshotContactReceipt(pool,request.auth,request.query.handoff_request_id)
+      : listScreenshotContactTasks(pool,request.auth));
   app.get<{Params:{id:string}}>("/v1/contact-agent/tasks/:id",{preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},async request=>{
     const result=await loadScreenshotContactTask(pool,request.auth,request.params.id);
     if(result.status==="running")void screenshotRunner?.start(request.auth,result.task_id).catch(()=>{});

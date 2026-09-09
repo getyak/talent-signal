@@ -9,83 +9,137 @@ struct DeviceCalendarWriteReceipt: Codable, Equatable {
     var savedEvent: DeviceCalendarSavedEvent? = nil
 }
 
-struct DeviceCalendarReceiptStore {
-    private let defaults: UserDefaults
-    private let attemptDirectory: URL
-    private let key = "talent-signal.calendar-handoff-receipts.v1"
+private struct CalendarReceiptScopeKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
 
-    init(defaults: UserDefaults = .standard, attemptDirectory: URL? = nil) {
-        self.defaults = defaults
-        self.attemptDirectory = attemptDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+extension EnvironmentValues {
+    var calendarReceiptScope: String? {
+        get { self[CalendarReceiptScopeKey.self] }
+        set { self[CalendarReceiptScopeKey.self] = newValue }
+    }
+}
+
+struct DeviceCalendarReceiptStore {
+    private let attemptDirectory: URL?
+    private let legacyDirectory: URL?
+    private static let marker = Data("{\"state\":\"pending_or_unknown\"}".utf8)
+    private static let retention: TimeInterval = 30 * 86_400
+
+    init(defaults: UserDefaults = .standard, attemptDirectory: URL? = nil, scope: String? = nil) {
+        self.legacyDirectory = attemptDirectory == nil ? Self.legacyDirectory : nil
+        if attemptDirectory == nil {
+            do { try Self.clearLegacyPrivateDetails(defaults: defaults) }
+            catch { self.attemptDirectory = nil; return }
+        }
+        self.attemptDirectory = attemptDirectory ?? scope.map { RuntimeScopedDirectories.directory("CalendarWriteAttempts", scope: $0) }
+        try? expirePrivateDetails()
+
+    }
+
+    private static var legacyDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("CalendarWriteAttempts", isDirectory: true)
     }
 
-    private func attemptURL(_ sourceID: String) -> URL {
-        let digest = SHA256.hash(data: Data(sourceID.utf8)).map { String(format: "%02x", $0) }.joined()
-        return attemptDirectory.appendingPathComponent("\(digest).json")
+    /// Legacy ownership cannot be inferred. Retain only content-free duplicate
+    /// guards, never migrate candidate details into an arbitrary signed-in account.
+    static func clearLegacyPrivateDetails(defaults: UserDefaults = .standard) throws {
+        let key = "talent-signal.calendar-handoff-receipts.v1"
+        let legacy = DeviceCalendarReceiptStore(attemptDirectory: legacyDirectory)
+        if let data = defaults.data(forKey: key) {
+            let receipts = try JSONDecoder().decode([String: DeviceCalendarWriteReceipt].self, from: data)
+            _ = try legacy.prepareDirectory()
+            for sourceID in receipts.keys {
+                try protectedWrite(marker, to: legacy.attemptURL(sourceID)!)
+            }
+            defaults.removeObject(forKey: key)
+            guard defaults.data(forKey: key) == nil else { throw CocoaError(.fileWriteUnknown) }
+        }
+        try legacy.clearPrivateDetails()
+    }
+
+    private func attemptURL(_ sourceID: String) -> URL? {
+        attemptDirectory?.appendingPathComponent(SHA256.hex(sourceID) + ".json")
+    }
+
+    private func prepareDirectory() throws -> URL {
+        guard var directory = attemptDirectory else { throw CocoaError(.fileWriteNoPermission) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete])
+        try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: directory.path)
+        var values = URLResourceValues(); values.isExcludedFromBackup = true
+        try directory.setResourceValues(values)
+        return directory
     }
 
     func hasPendingWrite(for sourceID: String) -> Bool {
-        FileManager.default.fileExists(atPath: attemptURL(sourceID).path)
+        guard let url = attemptURL(sourceID) else { return true } // No authorized owner: fail closed.
+        return FileManager.default.fileExists(atPath: url.path) || legacyDirectory.map {
+            FileManager.default.fileExists(atPath: $0.appendingPathComponent(SHA256.hex(sourceID) + ".json").path)
+        } == true
     }
 
-    /// An exclusive durable file exists before EventKit can be called. Crashes
-    /// or uncertain saves retain it, including across view/process recreation.
+    /// Only an opaque filename and state exist before EventKit. Never expire
+    /// this deduplication marker: an unknown save may have committed.
     func claimWrite(for proposal: DeviceCalendarProposal) throws -> Bool {
-        guard receipt(for: proposal.sourceID) == nil, !hasPendingWrite(for: proposal.sourceID) else { return false }
-        try FileManager.default.createDirectory(at: attemptDirectory, withIntermediateDirectories: true)
-        let record: [String: Any] = ["sourceID": proposal.sourceID, "title": proposal.title,
-            "startsAt": proposal.startDate.timeIntervalSince1970, "endsAt": proposal.endDate.timeIntervalSince1970,
-            "timeZone": proposal.timeZoneIdentifier, "state": "pending_or_unknown"]
-        try JSONSerialization.data(withJSONObject: record).write(to: attemptURL(proposal.sourceID), options: .withoutOverwriting)
+        _ = try prepareDirectory()
+        guard let url = attemptURL(proposal.sourceID), !hasPendingWrite(for: proposal.sourceID) else { return false }
+        try Self.protectedWrite(Self.marker, to: url, exclusive: true)
         return true
     }
 
     func clearDefiniteNoWrite(for sourceID: String) {
-        try? FileManager.default.removeItem(at: attemptURL(sourceID))
+        if let url = attemptURL(sourceID) { try? FileManager.default.removeItem(at: url) }
     }
 
-    func receipt(for sourceID: String) -> DeviceCalendarWriteReceipt? {
-        if let data = try? Data(contentsOf: attemptURL(sourceID)),
-           let saved = try? JSONDecoder().decode(DeviceCalendarWriteReceipt.self, from: data),
-           saved.sourceID == sourceID { return saved }
-        guard let data = defaults.data(forKey: key),
-              let receipts = try? JSONDecoder().decode(
-                [String: DeviceCalendarWriteReceipt].self,
-                from: data
-              ) else {
+    func receipt(for sourceID: String, now: Date = Date()) -> DeviceCalendarWriteReceipt? {
+        guard let url = attemptURL(sourceID), let data = try? Data(contentsOf: url),
+              let saved = try? JSONDecoder().decode(DeviceCalendarWriteReceipt.self, from: data), saved.sourceID == sourceID else { return nil }
+        guard now.timeIntervalSince(saved.savedAt) <= Self.retention else {
+            try? Self.protectedWrite(Self.marker, to: url)
             return nil
         }
-        return receipts[sourceID]
+        return saved
     }
 
-    @discardableResult func recordSaved(
-        sourceID: String,
-        eventIdentifier: String?,
-        savedAt: Date = Date(),
-        savedEvent: DeviceCalendarSavedEvent? = nil
-    ) -> Bool {
-        var receipts: [String: DeviceCalendarWriteReceipt] = [:]
-        if let data = defaults.data(forKey: key),
-           let decoded = try? JSONDecoder().decode(
-            [String: DeviceCalendarWriteReceipt].self,
-            from: data
-           ) {
-            receipts = decoded
-        }
-        receipts[sourceID] = DeviceCalendarWriteReceipt(
-            sourceID: sourceID,
-            eventIdentifier: eventIdentifier,
-            savedAt: savedAt,
-            savedEvent: savedEvent
-        )
-        guard let encoded = try? JSONEncoder().encode(receipts), let receipt = receipts[sourceID] else { return false }
+    @discardableResult func recordSaved(sourceID: String, eventIdentifier: String?, savedAt: Date = Date(),
+                                       savedEvent: DeviceCalendarSavedEvent? = nil) -> Bool {
         do {
-            try FileManager.default.createDirectory(at: attemptDirectory, withIntermediateDirectories: true)
-            try JSONEncoder().encode(receipt).write(to: attemptURL(sourceID), options: .atomic)
+            _ = try prepareDirectory()
+            guard let url = attemptURL(sourceID) else { return false }
+            let receipt = DeviceCalendarWriteReceipt(sourceID: sourceID, eventIdentifier: eventIdentifier, savedAt: savedAt, savedEvent: savedEvent)
+            try Self.protectedWrite(JSONEncoder().encode(receipt), to: url)
+            return true
         } catch { return false }
-        defaults.set(encoded, forKey: key)
-        return true
+    }
+
+    private static func protectedWrite(_ data: Data, to url: URL, exclusive: Bool = false) throws {
+        try data.write(to: url, options: exclusive ? [.withoutOverwriting, .completeFileProtection] : [.atomic, .completeFileProtection])
+        try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+    }
+
+    private func expirePrivateDetails(now: Date = Date()) throws {
+        guard let directory = attemptDirectory, FileManager.default.fileExists(atPath: directory.path) else { return }
+        for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            where file.pathExtension == "json" {
+            if let saved = try? JSONDecoder().decode(DeviceCalendarWriteReceipt.self, from: Data(contentsOf: file)),
+               now.timeIntervalSince(saved.savedAt) > Self.retention {
+                try Self.protectedWrite(Self.marker, to: file)
+            }
+        }
+    }
+
+    /// Sign-out removes scheduling details while keeping content-free markers
+    /// so reopening the same source cannot create a second uncertain event.
+    func clearPrivateDetails(savedBefore cutoff: Date = .distantFuture) throws {
+        guard let directory = attemptDirectory, FileManager.default.fileExists(atPath: directory.path) else { return }
+        _ = try prepareDirectory()
+        for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            where file.pathExtension == "json" {
+            if let saved = try? JSONDecoder().decode(DeviceCalendarWriteReceipt.self, from: Data(contentsOf: file)), saved.savedAt > cutoff { continue }
+            try Self.protectedWrite(Self.marker, to: file)
+        }
     }
 }
 
@@ -259,7 +313,9 @@ struct DeviceCalendarHandoffView: View {
     @State private var result: DeviceCalendarHandoffResult
     @State private var canonicalSaved = false
 
-    private let receiptStore: DeviceCalendarReceiptStore
+    @Environment(\.calendarReceiptScope) private var receiptScope
+    private let suppliedReceiptStore: DeviceCalendarReceiptStore?
+    private var receiptStore: DeviceCalendarReceiptStore { suppliedReceiptStore ?? DeviceCalendarReceiptStore(scope: receiptScope) }
     private let calendarSync: any DeviceCalendarSyncing
     private let activityStore: (any RelationshipCalendarActivityPersisting)?
     private let canonicalActivity: RelationshipCalendarActivity?
@@ -267,20 +323,20 @@ struct DeviceCalendarHandoffView: View {
     init(
         proposal: DeviceCalendarProposal,
         allowsEditing: Bool = false,
-        receiptStore: DeviceCalendarReceiptStore = DeviceCalendarReceiptStore(),
+        receiptStore: DeviceCalendarReceiptStore? = nil,
         calendarSync: (any DeviceCalendarSyncing)? = nil,
         activityStore: (any RelationshipCalendarActivityPersisting)? = nil,
         canonicalActivity: RelationshipCalendarActivity? = nil
     ) {
         _proposal = State(initialValue: proposal)
         self.allowsEditing = allowsEditing
-        self.receiptStore = receiptStore
+        self.suppliedReceiptStore = receiptStore
         self.calendarSync = calendarSync ?? EventKitDeviceCalendarSyncService()
         self.activityStore = activityStore
         self.canonicalActivity = canonicalActivity
-        if let receipt = receiptStore.receipt(for: proposal.sourceID) {
+        if let receipt = receiptStore?.receipt(for: proposal.sourceID) {
             _result = State(initialValue: .saved(receipt))
-        } else if receiptStore.hasPendingWrite(for: proposal.sourceID) {
+        } else if receiptStore?.hasPendingWrite(for: proposal.sourceID) == true {
             _result = State(initialValue: .unknown("Apple Calendar returned an uncertain result. Check Apple Calendar before taking any further action."))
         } else {
             _result = State(initialValue: .notStarted)
@@ -309,6 +365,10 @@ struct DeviceCalendarHandoffView: View {
         .tsCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("device-calendar-handoff")
+        .onAppear {
+            if let receipt = receiptStore.receipt(for: proposal.sourceID) { result = .saved(receipt) }
+            else if receiptStore.hasPendingWrite(for: proposal.sourceID) { result = .unknown(uncertainResultMessage(providerMessage: "")) }
+        }
     }
 
     private var proposalContent: some View {
@@ -607,15 +667,25 @@ struct DeviceCalendarHandoffView: View {
                 return
             }
         }
+        guard isCalendarSyncEnabled else {
+            result = .failed(appLanguage.text("Calendar sync is off. This draft has not been added to Apple Calendar.", zhHans: "日历同步已关闭。此草稿尚未添加到 Apple 日历。"))
+            return
+        }
+        let operation: UUID
+        do { operation = try RuntimeWorkRegistry.shared.begin(.apiWrite) }
+        catch { result = .failed(appLanguage.text("Finish switching accounts before confirming this draft.", zhHans: "请完成账户切换后再确认此草稿。")); return }
         do {
             guard try receiptStore.claimWrite(for: proposal) else {
+                RuntimeWorkRegistry.shared.end(operation)
                 result = .unknown(uncertainResultMessage(providerMessage: "")); return
             }
         } catch {
+            RuntimeWorkRegistry.shared.end(operation)
             result = .unknown(uncertainResultMessage(providerMessage: "")); return
         }
         result = .syncing
         Task { @MainActor in
+            defer { RuntimeWorkRegistry.shared.end(operation) }
             switch await calendarSync.createEvent(from: proposal) {
             case let .success(event):
                 if let canonicalActivity, let activityStore {
@@ -767,6 +837,8 @@ struct DeviceCalendarHandoffScenarioView: View {
     private var scenarioCard: some View {
                 DeviceCalendarHandoffView(
                     proposal: proposal,
+                    receiptStore: DeviceCalendarReceiptStore(attemptDirectory: FileManager.default.temporaryDirectory
+                        .appendingPathComponent("calendar-scenario-\(ProcessInfo.processInfo.processIdentifier)")),
                     calendarSync: DeterministicDeviceCalendarSyncService()
                 )
                     .padding(20)

@@ -178,3 +178,19 @@ The implementation follows current official guidance:
   still needs one headed manual check before broader release.
 - Synthetic fixtures do not prove OCR quality, recruiter value, production
   privacy, or connector safety.
+
+## Reviewed-image recovery
+
+The extension keeps up to 20 minimal handoff records locally for 30 days: origin,
+opaque Web-session binding, request key, creation time and completion flag. It
+never persists pixels, source titles, text or login credentials. Unknown operations
+block another request in that same session until the original receipt is checked;
+capacity cleanup evicts completed records only. On reopening the panel, use the
+recovery entry to look up the original task in its original signed-in Web session.
+This is read-only and does not upload the image again. A missing receipt stays
+unknown; it is not evidence that the original operation never happened.
+
+The `storage` permission uses Chrome local storage restricted to trusted extension
+contexts, as documented in the [Chrome storage API](https://developer.chrome.com/docs/extensions/reference/api/storage).
+Successful records also survive a lost panel response. Expired or removed recovery
+records cannot prove no prior write; inspect Web tasks before manually resubmitting.

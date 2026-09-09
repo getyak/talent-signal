@@ -367,7 +367,8 @@ private struct RuntimeWorkspaceRoot<Content: View>: View {
     @State private var ready = false
     var body: some View {
         Group {
-            if ready { content() }
+            if ready { content().environment(\.calendarReceiptScope, RuntimeEndpoint.scope(
+                session.baseURL, accountID: session.account.id, userID: session.user.id)) }
             else { ProgressView().accessibilityIdentifier("runtime-restoring-captures") }
         }
         .task {

@@ -165,6 +165,13 @@
           <p id="capture-alert-copy"></p>
         </div>
 
+        <section id="handoff-recovery" aria-label="Pending image handoffs" hidden>
+          <h2>Recover a previous handoff</h2>
+          <p>Check the original Web session before sending another copy. Recovery submits no image.</p>
+          <div id="handoff-recovery-items"></div>
+          <p id="handoff-recovery-status" role="status"></p>
+        </section>
+
         <details class="boundary-note">
           <summary>
             <span>Private by deliberate scope</span>
@@ -182,7 +189,7 @@
               </div>
               <div>
                 <dt>Retention</dt>
-                <dd>In this panel until removed or handed off</dd>
+                <dd>Images stay in this panel until removed or handed off. An opaque recovery key stays locally for up to 30 days; no pixels or source text are saved by the extension.</dd>
               </div>
             </dl>
             <p>

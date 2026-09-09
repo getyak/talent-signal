@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { ContactResearchToolRequestSchema } from "@talent-signal/agent";
 import type { ContactAgentModel, ContactChatExtraction, ScreenshotContactTaskRequest } from "@talent-signal/agent";
-import { createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage, confirmScreenshotContactProfile } from "./screenshotContactTasks.js";
+import { lookupScreenshotContactReceipt, createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage, confirmScreenshotContactProfile } from "./screenshotContactTasks.js";
 import type { AuthContext } from "./auth.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { executeGrantedContactArchive, restoreContactArchive } from "./contactArchive.js";
@@ -27,6 +27,21 @@ function sdkModel(run: NonNullable<ContactAgentModel["run"]>): ContactAgentModel
 const sdkReceipt = () => ({ providerRequestID:randomUUID(),model:"synthetic-sdk",inputTokens:10,outputTokens:10 });
 
 describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
+  it("recovers a lost image receipt by original key without another task or cross-owner access", async () => {
+    const request = input();
+    const created = await createScreenshotContactTask(pool!, auth, request);
+    try {
+      const recovered = await lookupScreenshotContactReceipt(pool!, auth, request.idempotency_key);
+      expect(recovered.task_id).toBe(created.body.task_id);
+      await expect(lookupScreenshotContactReceipt(pool!, {...auth, userId: randomUUID()}, request.idempotency_key)).rejects.toMatchObject({statusCode:404});
+      await expect(lookupScreenshotContactReceipt(pool!, {...auth, accountId: randomUUID()}, request.idempotency_key)).rejects.toMatchObject({statusCode:404});
+      const rows = await pool!.query("SELECT count(*)::int AS count FROM screenshot_contact_tasks WHERE account_id=$1 AND created_by_user_id=$2 AND idempotency_key=$3", [auth.accountId, auth.userId, request.idempotency_key]);
+      expect(rows.rows[0].count).toBe(1);
+      await pool!.query("UPDATE screenshot_contact_tasks SET status='deleted',state='{}',input_manifest='{}' WHERE id=$1", [created.body.task_id]);
+      expect(await lookupScreenshotContactReceipt(pool!, auth, request.idempotency_key)).toEqual({task_id:created.body.task_id,status:"deleted"});
+    } finally { await pool!.query("DELETE FROM screenshot_contact_tasks WHERE id=$1", [created.body.task_id]); }
+  });
+
   it("clears deleted directory candidates and cached observations while keeping the original screenshot task resumable",async()=>{
     const person=randomUUID(),context=randomUUID(),marker=`Deleted candidate ${randomUUID()}`;
     await pool!.query("INSERT INTO subjects(id,account_id,external_ref,display_label) VALUES($1::uuid,$2,$1::text,$3)",[person,auth.accountId,marker]);

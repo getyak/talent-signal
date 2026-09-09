@@ -93,48 +93,39 @@ resumption after interruption and unknown external result. Checks include
 `pnpm eval:ci`, relevant agent/backend/client tests, `pnpm docs:check`, SDK
 gateway probe and real-surface evidence. Additional checks follow changed paths.
 
-## Current delivery state (2026-09-10 06:07)
+## Current delivery state (2026-09-10 07:03)
 
-- [PR172](https://github.com/getyak/talent-signal/pull/172) is ready for review,
-  branch `codex/get-9-harness`; origin/main `6dc16355` is integrated. Pushed
-  source/evidence `59162292` has all applicable checks passing except the still
-  running iOS gate. A late acceptance audit found the remaining full native
-  citation/dispute test lacked complete proof; merge is held while it is resolved.
-- Local delta: filtered Memory now retains its same-snapshot identity context;
-  full Agent tests pass 157 plus one skip. Native test navigation selects the
-  visible duplicate citation and expects source revocation to remove the old
-  response and its derived link. It then reads the same canonical Pursuit via
-  Today. Source revocation is not weakened to satisfy the obsolete assertion.
-- Late real-Hao attempts retain one no-handoff failure and one identity-denial
-  failure. With the identity/context and citation-selector changes, actual
-  citation open, dispute and stale readback pass; the old-link assertion fails
-  as required by current source retraction. A separately identified synthetic
-  provider passes the complete canonical recovery path in 42.115 seconds. It is not SDK
-  execution or a replacement for retained real-model quality failures.
-- Independent source P0/P1 and diagnostic/cleanup P2 findings are closed.
-  Latest full Agent run: 157 passed plus one skip. Full backend 491, Web 398
-  and iOS 543 unit tests passed at documented checkpoints. Reviewed adapter tests pass 2/2 and database boundary tests pass 17/17.
-- Native canonical journeys on `7507b604`: 3/3 unchanged-gate passes. Production
-  Web readback confirms reviewed identity, edited company and evidence boundary.
-- E02/E04 seventh: 6/6 checks and independent quality passes. E05 sixteenth:
-  execution/independent quality 3/3, with 4/3/3/3 then two 4/4/3/3 scores. All
-  36 tools and 9 final fields reviewed; injected fetch recovery completes in
-  the SDK within unchanged budgets. Fifteenth token failure remains. Exact
-  duplicate state projection does not establish a causal token or reliability gain.
-- E10 tenth: 3/3 exact live drafts plus native production-button confirmation,
-  independent EventKit readback and owned-calendar cleanup; independent scores
-  4/4/3, recovery not exercised. Ninth date failures remain retained. This is
-  exact-draft component continuation on Simulator, not uninterrupted live Chat.
-- [Final TestFlight deployment](../docs/evaluations/get9-harness/testflight-deployment-final.json)
-  verifies `940e81b0` and matching immutable image, migration 065, real synthetic
-  Claude/voice probes and Apple/HTTPS. Serve routes and loopback/internal
-  network boundaries remain unchanged. Earlier deployment checkpoints remain.
-- Remaining: finish reviewer readback, commit the verified small delta,
-  redeploy its backend image, then latest-head CI/merge and post-merge iOS release.
-  Installed Chrome handoff and physical TestFlight evidence remain unverified. Chrome installation is a pending manual browser
-  boundary; do not bypass it or close GET-9 before acceptance/readback.
-- Use [the evidence index](../docs/evaluations/get9-harness/README.md) for exact
-  boundaries. Earlier checkpoint sections below are historical records.
+- PR172 at `630961ea` passed all applicable CI, including iOS, but four unresolved
+  GitHub review threads prevented merge. Auto-merge was disabled while repairing
+  two confirmed P1s and two P2s; old green checks do not cover the new delta.
+- Request-specific calendar clocks now live in current context, outside stable
+  prompt/tool fingerprints. The real Hao SDK resumed one identity across three
+  turns, recalled an earlier synthetic code without resupplying it, and staged
+  the correct 2027-01-01 calendar draft from the year-end request clock.
+- All Calendar confirmation paths honor sync-off. Protected, backup-excluded
+  endpoint/account/user stores replace global candidate scheduling details.
+  Expiry and sign-out remove details while retaining content-free duplicate
+  guards; retrying an old sign-out preserves newer receipts. The native delta
+  passes 47 unit tests and two actual confirmation/sync-off UI paths.
+- Chrome preserves minimal recovery identity before submission and after success,
+  including when panel replies are lost. Restart recovery uses an authenticated,
+  read-only lookup by the original key, with no retained pixels or resubmission.
+  The bounded local journal keeps up to 20 records for 30 days; only completed
+  records may be evicted for capacity. Unknown writes remain protected.
+- Agent 158 plus one explicit skip, PostgreSQL screenshot/recovery tests 18/18,
+  and extension contracts 41/41 pass. Independent review closes all four findings;
+  final delta has no remaining confirmed P0/P1. Latest-head CI is still required. See [PR review verification](../docs/evaluations/get9-harness/pr-review-verification.json)
+  and [independent review](../docs/evaluations/get9-harness/pr-blocking-review.md).
+- Earlier E01/E02/E04/E05/E07/E10 rubric batches remain historical checkpoints,
+  not new scores for this delta. The real clock probe and native tests establish
+  their stated paths only; earlier failures are preserved.
+- TestFlight backend currently reports `630961ea` with immutable image
+  `sha256:43eeb04c97f006340ed52f62d523c33f773ac129d177214d091ae5f6cf6990da`.
+  Commit/review this delta, redeploy, re-run exact-head gates, merge and verify
+  the main-branch iOS release before delivery completion.
+- Installed Chrome handoff remains an unverified manual browser boundary; do not
+  bypass the pending installation permission. Physical TestFlight use also
+  remains unverified. Keep GET-9 In Progress until its acceptance is complete.
 
 ## Implementation checkpoint (2026-09-09)
 

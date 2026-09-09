@@ -380,6 +380,20 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Calendar proposal confirmed in app")
     }
 
+    func testAgentCalendarDraftHonorsSyncOffWithoutCallingEventKit() {
+        app.launchArguments = ["--scenario", "calendar-handoff", "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+            "-talent-signal.calendar-sync.enabled", "NO"]
+        app.launchEnvironment["TS_GET9_CALENDAR_DRAFT"] = #"{"id":"23a1e0dc-ae4b-4c50-99fb-c0e8320a41f8","title":"Synthetic meeting","starts_at":"2030-09-10T07:00:00.000Z","ends_at":"2030-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"eb8a5137-a29d-45a1-a81d-f65685d49e71","source_excerpt":"Tomorrow at three","reference_time":"2030-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#
+        app.launch()
+        let state = app.staticTexts["get9-calendar-proof-state"]
+        XCTAssertTrue(state.waitForExistence(timeout: 10)); XCTAssertEqual(state.label, "before_confirmation")
+        app.buttons["add-calendar-proposal"].tap()
+        XCTAssertTrue(app.staticTexts["Calendar sync is off. This draft has not been added to Apple Calendar."].waitForExistence(timeout: 5))
+        XCTAssertEqual(state.label, "before_confirmation", "The service changes state as soon as createEvent is called")
+        XCTAssertFalse(element("calendar-saved").exists)
+        preserveScreenshot("Agent calendar sync off makes no EventKit call")
+    }
+
     /// Exact three live SDK drafts from E10 tenth attempt; each uses an owned synthetic Calendar.
     func testGET9LiveCalendarDraftTrial1RequiresConfirmationAndRealReadback() throws {
         try verifyGET9CalendarDraft(#"{"id":"23a1e0dc-ae4b-4c50-99fb-c0e8320a41f8","title":"和陈夏聊天","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"eb8a5137-a29d-45a1-a81d-f65685d49e71","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 1)

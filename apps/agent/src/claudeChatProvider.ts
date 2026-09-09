@@ -91,7 +91,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       ...(request.observation ? { observation: request.observation } : {}),
       ...(request.continuation ? { continuation: request.continuation } : {}),
       objective: request.objective, systemPrompt: [prompt.text, calendar.instructions].filter(Boolean).join("\n\n"), tools, images,
-      context: JSON.stringify({ reference_time: request.reference_time, conversation: boundedConversationHistory(request.conversation_history),
+      context: JSON.stringify({ calendar_clock: calendar.clock, reference_time: request.reference_time, conversation: boundedConversationHistory(request.conversation_history),
         memory_inventory: request.context_blocks.map(block => ({ type: block.type, status: block.status })),
         allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference) }),
       effort: "medium", budget: { ...DEFAULT_AGENT_BUDGET, maxDurationMs: 60_000 }, assertCurrent: request.assertCurrent ?? (async () => {}),
@@ -174,7 +174,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       && supplied.authorization_scope === "workspace_conversation" ? supplied : undefined;
     const outcome = await this.execute(this.configuration, { ...(request.continuation ? { continuation: request.continuation } : {}), ...(trusted ? { observation: trusted } : {}), objective: request.objective,
       systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions].filter(Boolean).join("\n\n"), tools,
-      context: JSON.stringify({ scope: request.scopeSummary, conversation: boundedConversationHistory(request.conversationHistory),
+      context: JSON.stringify({ calendar_clock: calendar.clock, scope: request.scopeSummary, conversation: boundedConversationHistory(request.conversationHistory),
         response_preference_available: Boolean(request.responsePreference) }),
       effort: "medium", budget: request.budget, assertCurrent: async () => { signal.throwIfAborted(); await request.assertCurrent?.(); },
     }, signal);

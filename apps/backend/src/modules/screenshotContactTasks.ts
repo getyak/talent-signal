@@ -212,6 +212,16 @@ export async function loadContactIntelligence(pool:Pool,auth:AuthContext,personI
   return {scope,archive:null,person_revision:person.rows[0]?.version,tasks:tasks.rows.map(row=>ScreenshotContactTaskResponseSchema.parse({...row.state.response,revision:row.revision,updated_at:row.updated_at.toISOString()}))};
 }
 
+/** Recovery reads only the caller's operation identity; no pixels, model run or write. */
+export async function lookupScreenshotContactReceipt(pool: Pool, auth: AuthContext, requestKey: string) {
+  const result = await pool.query<{id: string; status: string; expires_at: Date}>(
+    `SELECT id,status,expires_at FROM screenshot_contact_tasks WHERE account_id=$1 AND created_by_user_id=$2 AND idempotency_key=$3`,
+    [auth.accountId, auth.userId, requestKey]);
+  const row = result.rows[0];
+  if (!row) throw new ApiError(404, "CONTACT_HANDOFF_NOT_FOUND", "No task receipt is available for this request.");
+  return { task_id: row.id, status: row.expires_at <= new Date() ? "expired" : row.status };
+}
+
 export async function listScreenshotContactTasks(pool:Pool,auth:AuthContext){
   const result=await pool.query<Row>(`SELECT * FROM screenshot_contact_tasks WHERE account_id=$1 AND created_by_user_id=$2
     AND status<>'deleted' AND expires_at>now() ORDER BY created_at DESC LIMIT 20`,[auth.accountId,auth.userId]);

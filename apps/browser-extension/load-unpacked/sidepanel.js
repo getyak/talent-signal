@@ -237,6 +237,7 @@ function resetDecision() {
   };
   elements.approvalCheck.checked = false;
   renderSubmission();
+  void renderHandoffRecovery();
 }
 
 function draftChanged() {
@@ -1435,9 +1436,35 @@ elements.checkSession.addEventListener("click", () => checkSession());
 elements.openSignIn.addEventListener("click", openSignIn);
 elements.openWebReview.addEventListener("click", openExactWebReview);
 
+async function renderHandoffRecovery() {
+  if (state.mode !== "live" || !globalThis.chrome?.runtime?.sendMessage) return;
+  const section = byId("handoff-recovery"), items = byId("handoff-recovery-items");
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "handoff.recovery-list" });
+    const records = response?.records ?? [];
+    section.hidden = records.length === 0;
+    items.replaceChildren();
+    for (const record of records) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${record.completed ? "Open previous handoff" : "Check pending handoff"} · ${record.origin}`;
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const result = await chrome.runtime.sendMessage({ type: "handoff.recover", requestKey: record.requestKey });
+          byId("handoff-recovery-status").textContent = result?.message ?? "Receipt not verified. Check again before resubmitting.";
+          if (["received", "unavailable"].includes(result?.state)) button.remove();
+        } finally { button.disabled = false; }
+      });
+      items.append(button);
+    }
+  } catch { showCaptureAlert("Recovery unavailable", "Check your Web tasks before submitting another copy."); }
+}
+
 async function initialize() {
   elements.localOrigin.value = DEFAULT_LOCAL_ORIGIN;
   renderMode();
+  await renderHandoffRecovery();
   try {
     await loadFixtureSuite();
     if (state.mode === "fixture") {

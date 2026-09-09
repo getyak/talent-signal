@@ -507,6 +507,67 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertFalse(try durable.claimWrite(for: proposal))
     }
 
+    func testCalendarReceiptsAreScopedProtectedAndRedactedWithoutLosingDuplicateGuard() throws {
+        let scopeA = "calendar-owner-a-" + UUID().uuidString, scopeB = "calendar-owner-b-" + UUID().uuidString
+        let directory = RuntimeScopedDirectories.directory("CalendarWriteAttempts", scope: scopeA)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = DeviceCalendarReceiptStore(scope: scopeA), other = DeviceCalendarReceiptStore(scope: scopeB)
+        let source = UUID().uuidString
+        let event = DeviceCalendarSavedEvent(identifier: "synthetic-event", title: "Sensitive synthetic title", startDate: .now, endDate: .now, timeZoneIdentifier: "UTC")
+        XCTAssertTrue(first.recordSaved(sourceID: source, eventIdentifier: event.identifier, savedEvent: event))
+        XCTAssertEqual(first.receipt(for: source)?.savedEvent, event)
+        XCTAssertNil(other.receipt(for: source)); XCTAssertFalse(other.hasPendingWrite(for: source))
+        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        XCTAssertEqual(files.count, 1)
+        XCTAssertEqual(try directory.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true)
+        let protection = try FileManager.default.attributesOfItem(atPath: files[0].path)[.protectionKey] as? FileProtectionType
+#if targetEnvironment(simulator)
+        XCTAssertTrue(protection == nil || protection == .complete, "Simulator may not expose device Data Protection; device validation remains separate.")
+#else
+        XCTAssertEqual(protection, .complete)
+#endif
+        try first.clearPrivateDetails()
+        let restored = DeviceCalendarReceiptStore(scope: scopeA)
+        XCTAssertNil(restored.receipt(for: source)); XCTAssertTrue(restored.hasPendingWrite(for: source))
+        XCTAssertFalse(try String(contentsOf: files[0], encoding: .utf8).contains(event.title))
+    }
+
+    func testExpiredCalendarDetailsBecomeContentFreeDuplicateGuard() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = DeviceCalendarReceiptStore(attemptDirectory: directory), source = UUID().uuidString
+        let saved = Date(timeIntervalSince1970: 1000)
+        XCTAssertTrue(store.recordSaved(sourceID: source, eventIdentifier: "synthetic", savedAt: saved))
+        XCTAssertNil(store.receipt(for: source, now: saved.addingTimeInterval(31 * 86_400)))
+        XCTAssertTrue(store.hasPendingWrite(for: source))
+        let file = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)[0]
+        XCTAssertFalse(try String(contentsOf: file, encoding: .utf8).contains("eventIdentifier"))
+    }
+
+    func testCalendarStoreStartupSweepsOldDetailsWithoutReadingTheirSource() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = DeviceCalendarReceiptStore(attemptDirectory: directory), old = UUID().uuidString, fresh = UUID().uuidString
+        XCTAssertTrue(store.recordSaved(sourceID: old, eventIdentifier: "old-private-event", savedAt: Date().addingTimeInterval(-31 * 86_400)))
+        XCTAssertTrue(store.recordSaved(sourceID: fresh, eventIdentifier: "new-event"))
+        let restored = DeviceCalendarReceiptStore(attemptDirectory: directory)
+        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        for file in files { XCTAssertFalse(try String(contentsOf: file, encoding: .utf8).contains("old-private-event")) }
+        XCTAssertTrue(restored.hasPendingWrite(for: old)); XCTAssertNotNil(restored.receipt(for: fresh))
+    }
+
+    func testOldSignOutCleanupPreservesNewerSessionCalendarDetails() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = DeviceCalendarReceiptStore(attemptDirectory: directory), old = UUID().uuidString, fresh = UUID().uuidString
+        let cutoff = Date()
+        XCTAssertTrue(store.recordSaved(sourceID: old, eventIdentifier: "old-event", savedAt: cutoff.addingTimeInterval(-1)))
+        XCTAssertTrue(store.recordSaved(sourceID: fresh, eventIdentifier: "new-event", savedAt: cutoff.addingTimeInterval(1)))
+        try store.clearPrivateDetails(savedBefore: cutoff)
+        XCTAssertNil(store.receipt(for: old)); XCTAssertTrue(store.hasPendingWrite(for: old))
+        XCTAssertEqual(store.receipt(for: fresh)?.eventIdentifier, "new-event")
+    }
+
     func testCalendarReceiptStoreKeepsOneSavedResultPerCapture() throws {
         let suiteName = "calendar-receipt-tests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
