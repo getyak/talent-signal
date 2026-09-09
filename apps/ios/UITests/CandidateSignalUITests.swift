@@ -2642,10 +2642,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertLessThan(userMessage.frame.width, 280)
         preserveScreenshot("Canonical Ask evidence-bound response")
 
-        let evidence = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Evidence from ")
-        ).firstMatch
-        scrollToVisible(evidence)
+        let evidence = visibleConversationEvidenceButton()
         evidence.tap()
         XCTAssertTrue(element("ask-citation-detail").waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-citation-excerpt").exists)
@@ -2672,19 +2669,25 @@ final class CandidateSignalUITests: XCTestCase {
                 "ask-open-pursuit-\(fixture.pursuitID)-"
             )
         ).firstMatch
-        XCTAssertTrue(openPursuit.waitForExistence(timeout: 5))
-        openPursuit.tap()
+        // Source revocation retracts the saved answer, including its derived
+        // navigation. Read the canonical Pursuit from Today instead of
+        // recovering content from an invalidated response.
+        XCTAssertTrue(app.staticTexts["Saved response needs refresh"].waitForExistence(timeout: 5))
+        XCTAssertFalse(openPursuit.exists)
+        let closeAsk = app.navigationBars.buttons["BackButton"]
+        XCTAssertTrue(closeAsk.waitForExistence(timeout: 5))
+        closeAsk.tap()
+        XCTAssertTrue(element("relationship-ask-screen").waitForNonExistence(timeout: 5))
+        let canonicalPursuit = app.buttons["today-attention-pursuit-\(fixture.pursuitID)"]
+        tapWorkspaceElementWhenVisible(canonicalPursuit, in: "canonical-pursuit-today")
         XCTAssertTrue(element("pursuit-detail").waitForExistence(timeout: 5))
-        let referencedAction = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "pursuit-target-action-")
-        ).firstMatch
-        XCTAssertTrue(referencedAction.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Ask the client for two final-conversation times"].exists)
         XCTAssertFalse(app.staticTexts["Evidence Supported · Evidence unavailable"].exists)
         XCTAssertTrue(
             app.staticTexts["Originally evidence-supported · Evidence unavailable"]
                 .waitForExistence(timeout: 5)
         )
-        preserveScreenshot("Ask opens the exact existing Pursuit action")
+        preserveScreenshot("Canonical Pursuit retains the action with unavailable evidence")
     }
 
     func testCanonicalAskRendersTheBackendAnswer() async throws {
@@ -6201,6 +6204,29 @@ final class CandidateSignalUITests: XCTestCase {
         }
         XCTAssertTrue(element.exists, "Expected \(element) to exist after scrolling")
         XCTAssertTrue(element.isHittable, "Expected \(element) to be visible after scrolling")
+    }
+
+    private func visibleConversationEvidenceButton() -> XCUIElement {
+        let conversation = app.scrollViews["ask-conversation"]
+        let matches = conversation.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Evidence from ")
+        )
+        // Identity and answer blocks can cite the same source. Prefer the
+        // visible occurrence rather than scrolling an offscreen firstMatch
+        // farther away from the conversation viewport.
+        for _ in 0..<14 {
+            if let visible = matches.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+                return visible
+            }
+            if matches.firstMatch.exists,
+               matches.firstMatch.frame.maxY <= conversation.frame.minY {
+                conversation.swipeDown()
+            } else {
+                conversation.swipeUp()
+            }
+        }
+        XCTFail("Expected an evidence button to be reachable in the conversation")
+        return matches.firstMatch
     }
 
     private func element(_ identifier: String) -> XCUIElement {

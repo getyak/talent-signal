@@ -93,15 +93,26 @@ resumption after interruption and unknown external result. Checks include
 `pnpm eval:ci`, relevant agent/backend/client tests, `pnpm docs:check`, SDK
 gateway probe and real-surface evidence. Additional checks follow changed paths.
 
-## Current delivery state (2026-09-10 05:28)
+## Current delivery state (2026-09-10 06:07)
 
-- Draft [PR172](https://github.com/getyak/talent-signal/pull/172), branch
-  `codex/get-9-harness`; origin/main `6dc16355` is integrated. Remote source
-  `7507b604` passes applicable CI. Local source `940e81b0` includes safe schema
-  repair hints, accurate evaluator classification, frozen calendar clock, cleanup
-  failure receipts, field-level provenance and exact duplicate state projection.
+- [PR172](https://github.com/getyak/talent-signal/pull/172) is ready for review,
+  branch `codex/get-9-harness`; origin/main `6dc16355` is integrated. Pushed
+  source/evidence `59162292` has all applicable checks passing except the still
+  running iOS gate. A late acceptance audit found the remaining full native
+  citation/dispute test lacked complete proof; merge is held while it is resolved.
+- Local delta: filtered Memory now retains its same-snapshot identity context;
+  full Agent tests pass 157 plus one skip. Native test navigation selects the
+  visible duplicate citation and expects source revocation to remove the old
+  response and its derived link. It then reads the same canonical Pursuit via
+  Today. Source revocation is not weakened to satisfy the obsolete assertion.
+- Late real-Hao attempts retain one no-handoff failure and one identity-denial
+  failure. With the identity/context and citation-selector changes, actual
+  citation open, dispute and stale readback pass; the old-link assertion fails
+  as required by current source retraction. A separately identified synthetic
+  provider passes the complete canonical recovery path in 42.115 seconds. It is not SDK
+  execution or a replacement for retained real-model quality failures.
 - Independent source P0/P1 and diagnostic/cleanup P2 findings are closed.
-  Latest full Agent run: 156 passed plus one skip. Full backend 491, Web 398
+  Latest full Agent run: 157 passed plus one skip. Full backend 491, Web 398
   and iOS 543 unit tests passed at documented checkpoints. Reviewed adapter tests pass 2/2 and database boundary tests pass 17/17.
 - Native canonical journeys on `7507b604`: 3/3 unchanged-gate passes. Production
   Web readback confirms reviewed identity, edited company and evidence boundary.
@@ -118,8 +129,9 @@ gateway probe and real-surface evidence. Additional checks follow changed paths.
   verifies `940e81b0` and matching immutable image, migration 065, real synthetic
   Claude/voice probes and Apple/HTTPS. Serve routes and loopback/internal
   network boundaries remain unchanged. Earlier deployment checkpoints remain.
-- Remaining: final source/evidence push, latest-head CI/merge and post-merge iOS release, installed Chrome handoff and
-  physical TestFlight proof. Chrome installation is a pending manual browser
+- Remaining: finish reviewer readback, commit the verified small delta,
+  redeploy its backend image, then latest-head CI/merge and post-merge iOS release.
+  Installed Chrome handoff and physical TestFlight evidence remain unverified. Chrome installation is a pending manual browser
   boundary; do not bypass it or close GET-9 before acceptance/readback.
 - Use [the evidence index](../docs/evaluations/get9-harness/README.md) for exact
   boundaries. Earlier checkpoint sections below are historical records.

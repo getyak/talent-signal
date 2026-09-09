@@ -77,7 +77,7 @@ question; do not infer its cause from an unrelated slow UI run.
 [Integrated checkpoint](get23-integration-checkpoint.json) retains the current
 checks and open native gates. After GET-23 integration, the latest full backend run passes all 491 tests with
 explicit database environments (`/tmp/get9-integrated-backend-full-third.log`).
-Agent: 156 passed plus one skip with reviewed diagnostics, frozen calendar clock and cleanup-receipt fixes. Web: 398 passed plus one skip; lint and types
+Agent: 157 passed plus one skip with reviewed diagnostics, frozen calendar clock and cleanup-receipt fixes. Web: 398 passed plus one skip; lint and types
 pass, and the integrated production build passes. The earlier failed Web
 assertions remain in `/tmp/get9-web-integrated-tests.log`; corrected expectations
 include the platform header and shared UI cleanup helper name.
@@ -91,3 +91,26 @@ new P1 counterexamples and their independent follow-up. Empty and GET-23 databas
 baselines reach 68 migrations and repeat successfully. These are local checks,
 not merged-release proof. Current-head CI/merge, post-merge iOS release and final Linear closure remain
 pending; installed Chrome and physical-device evidence are explicitly unverified.
+
+## Late native source-retraction audit
+
+[Independent identity/navigation review](identity-context-review.md) covers the
+same-snapshot identity context supplied with filtered Memory and the native
+citation selector. [Complete recovery proof](ios-canonical-dispute-governed-final.json)
+passes in 42.115 seconds using an explicitly synthetic executor and real host
+search/read, scoped HTTP, PostgreSQL, dispute/retraction and canonical Today
+navigation. It asserts the invalidated response and its old action link are
+removed before opening the same current Pursuit. This is not a real SDK or
+model-quality pass, nor a full native-suite rerun.
+
+Retained attempts: [live no-handoff](ios-canonical-dispute-live-first.json),
+[incorrect null-provider setup](ios-canonical-dispute-null-provider.json),
+[live identity denial and duplicate-citation selector failure](ios-canonical-dispute-live-traced.json)
+with [tool trace](ios-canonical-dispute-live-trace.jsonl),
+[identity-fixed live citation/dispute/stale proof with obsolete old-link failure](ios-canonical-dispute-live-identity-fixed.json)
+with [tool trace](ios-canonical-dispute-identity-fixed-trace.jsonl), and
+[incorrect new-session close selector](ios-canonical-dispute-governed-first.json).
+The original five full-suite failures have four same-name passing retests and
+this remaining case now has an explicit current-retraction-contract adaptation.
+Earlier complete/partial live batches remain sampling evidence, not a guarantee
+that every future named-contact routing turn will succeed.

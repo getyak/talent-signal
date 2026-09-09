@@ -70,13 +70,14 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     }] : [];
     if (request.mode !== "unscoped_conversation" && request.context_blocks.length) tools.push({
       name: "read_relationship_memory",
-      description: "Read the current authorized relationship Memory from the product database snapshot. Filter by block type, or omit the filter to read all available blocks. Returns source IDs and confirmed/unconfirmed status; does not write or use earlier Session transcripts. For simple recollection, answer what the record says and stop. Preserve imprecise dates and unspecified details as recorded; resolving them or contacting the person is needed only if the user asks to schedule or act, not merely to remember. Attribution to the record is enough to distinguish an unconfirmed report without an unsolicited verification task.",
+      description: "Read the current authorized relationship Memory from the product database snapshot. Filter by block type, or omit the filter to read all available blocks. The identity_context always accompanies filtered blocks and identifies whose relationship these records belong to; a source fragment need not repeat that person's name. Returns source IDs and confirmed/unconfirmed status; does not write or use earlier Session transcripts. For simple recollection, answer what the record says and stop. Preserve imprecise dates and unspecified details as recorded; resolving them or contacting the person is needed only if the user asks to schedule or act, not merely to remember. Attribution to the record is enough to distinguish an unconfirmed report without an unsolicited verification task.",
       schema: z.strictObject({ block_types: z.array(z.string().min(1).max(80)).max(20).optional() }),
       readOnly: true, alwaysLoad: true,
       execute: async input => {
         const types = input.block_types as string[] | undefined;
         const blocks = request.context_blocks.filter(block => !types?.length || types.includes(block.type));
         return { content: [{ type: "text", text: JSON.stringify({ authority: "governed_relationship_snapshot_not_execution_permission",
+          identity_context: request.context_blocks.filter(block => block.type === "identity_context"),
           blocks, available_block_types: [...new Set(request.context_blocks.map(block => block.type))] }) }] };
       },
     });

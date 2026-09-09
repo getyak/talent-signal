@@ -89,6 +89,27 @@ describe("Claude natural chat product adapter", () => {
     expect(response.citation_ids).toEqual(["source-commitment"]);
   });
 
+  it("keeps the authorized relationship identity attached to filtered Memory without widening the filter", async () => {
+    const identity = { block_id: "identity", block_key: "identity", type: "identity_context", status: "confirmed",
+      headline: "Leila Hartmann", summary: "Current authorized relationship", items: [], evidence_fragment_ids: [] };
+    const history = { block_id: "history", block_key: "history", type: "relationship_history", status: "proposed",
+      headline: "Reviewed source", summary: "Availability recorded without repeating a name", items: [], evidence_fragment_ids: ["source-1"] };
+    const unrelated = { ...history, block_id: "constraint", block_key: "constraint", type: "constraint", summary: "Not requested" };
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      const read = request.tools.find(tool => tool.name === "read_relationship_memory")!;
+      const filtered = JSON.parse((await read.execute({ block_types: ["relationship_history"] }, new AbortController().signal)).content[0]!.text);
+      expect(filtered.identity_context).toEqual([identity]);
+      expect(filtered.blocks).toEqual([history]);
+      expect(JSON.stringify(filtered)).not.toContain("Not requested");
+      const empty = JSON.parse((await read.execute({ block_types: ["absent"] }, new AbortController().signal)).content[0]!.text);
+      expect(empty.identity_context).toEqual([identity]);
+      expect(empty.blocks).toEqual([]);
+      return outcome;
+    });
+    await new ClaudeChatProvider(configuration, execute).answer({ objective: "What changed with Leila?",
+      prompt_snapshot: bundledPrompt("assistant/relationship"), context_blocks: [identity, history, unrelated], allowed_citation_ids: ["source-1"] });
+  });
+
   it("reads a host-supplied formatting preference without granting a Memory write", async () => {
     const preference = { responseStyle: "conclusion_first" as const,
       sourceID: "user-preference:10000000-0000-4000-8000-000000000011:2", updatedAt: "2026-09-09T00:00:00Z" };
