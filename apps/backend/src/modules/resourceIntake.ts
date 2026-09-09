@@ -100,10 +100,10 @@ export function validateResourceRequest(request: ResourceCaptureRequest): void {
     );
   }
   if (resource.retention.source_scope === "proposed_extracted_text") {
-    if (resource.kind !== "conversation_screenshot") {
+    if (resource.kind !== "conversation_screenshot" && !(["browser_extension", "web_upload"].includes(request.channel) && ["conversation_transcript", "document"].includes(resource.kind))) {
       invalidResource(
         "PROPOSED_EXTRACTION_SOURCE_INVALID",
-        "Proposed extracted text is limited to an intentional conversation screenshot.",
+        "Proposed extracted text requires an intentional screenshot or browser text capture.",
       );
     }
     if (

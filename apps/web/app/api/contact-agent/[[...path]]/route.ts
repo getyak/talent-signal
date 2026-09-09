@@ -6,7 +6,7 @@ import { isAllowedMutationOrigin } from "@/lib/request-origin";
 export const dynamic = "force-dynamic";
 type Context={params:Promise<{path?:string[]}>};
 const uuid="[0-9a-fA-F-]{36}";
-const routes=[new RegExp(`^tasks(?:/${uuid}(?:/(?:resume|cancel|images/[0-9]))?)?$`),new RegExp(`^people/${uuid}/(?:contact-intelligence|archive)$`),new RegExp(`^archives/${uuid}/restore$`)];
+const routes=[new RegExp(`^tasks(?:/${uuid}(?:/(?:resume|cancel|delete|images/[0-9]))?)?$`),new RegExp(`^people/${uuid}/(?:contact-intelligence|archive)$`),new RegExp(`^archives/${uuid}/restore$`)];
 async function proxy(request:NextRequest,context:Context){
   const path=(await context.params).path?.join("/")??"";
   if(!routes.some(r=>r.test(path)))return NextResponse.json({message:"入口不存在。"},{status:404});

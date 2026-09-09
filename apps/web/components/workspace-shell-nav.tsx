@@ -15,10 +15,10 @@ import styles from "./workspace-shell.module.css";
 
 const items = [
   {
-    href: "/contact-agent",
+    href: "/workspace/captures",
     icon: ChatCircleDots,
-    label: "截图归档",
-    matches: (pathname: string) => pathname.startsWith("/contact-agent"),
+    label: "采集",
+    matches: (pathname: string) => pathname.startsWith("/workspace/captures"),
   },
   {
     href: "/workspace/today",

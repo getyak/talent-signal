@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { ContactResearchToolRequestSchema } from "@talent-signal/agent";
 import type { ContactAgentModel, ContactChatExtraction, ScreenshotContactTaskRequest } from "@talent-signal/agent";
-import { createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage } from "./screenshotContactTasks.js";
+import { deleteContactCaptureTask, loadBrowserCaptureTask, createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage } from "./screenshotContactTasks.js";
 import type { AuthContext } from "./auth.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { executeGrantedContactArchive, restoreContactArchive } from "./contactArchive.js";
@@ -37,6 +37,34 @@ function model(name:string,options:{badQuote?:boolean;group?:boolean}={}):Contac
   }};
 }
 describe.skipIf(!pool)("screenshot contact database authority",()=>{
+  it("files reviewed web text with provenance, reconciles duplicates, survives a new runner, and deletes derivatives",async()=>{
+    const name=`Web capture proof ${randomUUID().slice(0,8)}`;
+    const requestID=randomUUID();const raw=`${name} · Example Labs. I work at Example Labs. I can talk next Tuesday.`;
+    const request={idempotency_key:`browser-capture:${requestID}`,objective:"File this source",text:raw,allow_public_research:false,captured_at:new Date().toISOString(),source:{kind:"page_text",title:"Synthetic professional profile",url:"https://example.com/people/synthetic",time_basis:"captured_at"}};
+    const base=model(name);
+    const provider:ContactAgentModel={...base,extractText:async()=>{
+      const result=await base.extract(input().image,new AbortController().signal);
+      return {...result,extraction:{...result.extraction,conversation_kind:"not_chat",identity_clues:[...result.extraction.identity_clues,{kind:"company",value:"Example Labs",source_excerpt:"Example Labs"}]}};
+    }};
+    const created=await createScreenshotContactTask(pool!,auth,request);
+    const receipt=await loadBrowserCaptureTask(pool!,auth,requestID);expect(receipt.task_id).toBe(created.body.task_id);expect(receipt.source_text).toBe(raw);
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:provider,research:null});await runner.start(auth,receipt.task_id);
+    const done=await loadScreenshotContactTask(pool!,auth,receipt.task_id);expect(done.status).toBe("completed");expect(done.contact?.disposition).toBe("created");expect(done.source?.url).toBe(request.source.url);
+    const replay=await createScreenshotContactTask(pool!,auth,request);expect(replay.replayed).toBe(true);expect(replay.body.contact).toEqual(done.contact);
+    await expect(createScreenshotContactTask(pool!,auth,{...request,text:"Changed source"})).rejects.toMatchObject({code:"CONTACT_TASK_IDEMPOTENCY_CONFLICT"});
+    await expect(loadBrowserCaptureTask(pool!,{...auth,userId:randomUUID()},requestID)).rejects.toMatchObject({code:"CONTACT_TASK_NOT_FOUND"});
+    const deleted=await deleteContactCaptureTask(pool!,auth,done.task_id,done.revision);expect(deleted.status).toBe("deleted");expect(deleted.source_text).toBeUndefined();
+    const stored=await pool!.query("SELECT state,input_manifest FROM screenshot_contact_tasks WHERE id=$1",[done.task_id]);expect(stored.rows).toEqual([{state:{},input_manifest:{}}]);
+    expect((await pool!.query("SELECT status FROM subjects WHERE id=$1",[done.contact!.person_id])).rows[0].status).toBe("deleted");
+    await expect(createScreenshotContactTask(pool!,auth,request)).rejects.toMatchObject({code:"CONTACT_TASK_SOURCE_UNAVAILABLE"});
+  });
+  it("records a no-person result without creating a person and can delete an unbound source",async()=>{
+    const base=model("Must not create");const provider:ContactAgentModel={...base,extractText:async()=>({extraction:{platform:"Web",conversation_kind:"not_chat",contact_name:null,identity_clues:[],messages:[],uncertainties:[]},model:"fixture-text",providerRequestID:randomUUID(),inputTokens:1,outputTokens:1}),next:async()=>{throw new Error("No person must not run filing tools");}};
+    const task=await createScreenshotContactTask(pool!,auth,{idempotency_key:randomUUID(),text:"A page about weather.",objective:"Read this page",source:{kind:"page_text",title:"Weather",url:"https://example.com/weather"},allow_public_research:false,captured_at:new Date().toISOString()});
+    await new ScreenshotContactTaskRunner(pool!,{model:provider,research:null}).start(auth,task.body.task_id);
+    const done=await loadScreenshotContactTask(pool!,auth,task.body.task_id);expect(done.status).toBe("completed");expect(done.contact).toBeNull();expect(done.capture_id).toBeNull();
+    expect((await deleteContactCaptureTask(pool!,auth,done.task_id,done.revision)).status).toBe("deleted");
+  });
   it("creates one contact and exact unreviewed IM, reuses it on a second import, and does not replay writes",async()=>{
     const name=`Contact proof ${randomUUID().slice(0,8)}`;const request=input();
     const runner=new ScreenshotContactTaskRunner(pool!,{model:model(name),research:null});

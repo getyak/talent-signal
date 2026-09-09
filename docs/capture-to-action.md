@@ -45,6 +45,16 @@ raw source remains transient. The review surface must say which mode applies;
 an excerpt or screenshot-metadata record must never be presented as if the
 complete original were recoverable.
 
+Browser capture shares the durable contact-task pipeline with screenshot intake.
+An intentional reviewed text or image submission authorizes reversible internal
+filing when the source identifies one person. The Web capture inbox shows
+admission separately from processing and canonical Person/source readback.
+Web text retains its exact submitted wording and paragraph provenance; extraction
+and profile observations remain proposed. No-person input finishes without a
+Person, and ambiguity stays on the same task for correction. Source deletion
+fences in-flight work and invalidates dependent analysis through the existing
+source lifecycle.
+
 ## Evidence compilation
 
 The system reconstructs inspectable evidence before drafting state.

@@ -1,33 +1,13 @@
 import { NextResponse } from "next/server";
-
-import { auth } from "@/auth";
-import {
-  isIntegrationMode,
-  localSessionStatus,
-} from "@/lib/server/localBackend";
-
-export const dynamic = "force-dynamic";
-
-export async function GET() {
-  if (!isIntegrationMode()) {
-    return NextResponse.json(
-      { code: "local_integration_disabled" },
-      { status: 404 },
-    );
-  }
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json(
-      { code: "session_stale", status: "not_ready" },
-      { status: 401 },
-    );
-  }
-  try {
-    return NextResponse.json(await localSessionStatus());
-  } catch {
-    return NextResponse.json(
-      { code: "backend_unavailable", status: "not_ready" },
-      { status: 503 },
-    );
-  }
+import { TalentSignalClient } from "@talent-signal/contracts";
+import { backendAuthBaseUrl } from "@/lib/server/backendAuth";
+import { browserClaims, browserSessionVersion } from "@/lib/server/browser-capture";
+export const dynamic="force-dynamic";
+export async function GET(){
+  const claims=await browserClaims();
+  if(!claims)return NextResponse.json({status:"not_ready",code:"session_stale"},{status:401});
+  try{
+    await new TalentSignalClient(backendAuthBaseUrl(),claims.backendAccessToken).currentSession();
+    return NextResponse.json({status:"ready",workspace_label:claims.backendAccountName,session_version:browserSessionVersion(claims)},{headers:{"cache-control":"no-store"}});
+  }catch{return NextResponse.json({status:"not_ready",code:"backend_unavailable"},{status:503});}
 }
