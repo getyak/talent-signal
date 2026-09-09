@@ -1,6 +1,31 @@
 import XCTest
 
 final class AuthenticationWelcomeUITests: XCTestCase {
+    func testSourcePullCanReverseThenCommitAndReplay() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--auth-backend-url", "http://127.0.0.1:4799",
+            "--welcome-first-meeting", "-talent-signal.interface-language", "zh-Hans"]
+        app.launch()
+        let source = app.buttons["welcome-link"]
+        XCTAssertTrue(source.waitForExistence(timeout: 15))
+        save(app, "09-source-at-rest")
+        let origin = source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.83))
+        origin.press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: 90, dy: -20)))
+        XCTAssertTrue(app.buttons["welcome-enter"].exists)
+        origin.press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: -32)))
+        XCTAssertTrue(app.buttons["welcome-enter"].exists)
+        XCTAssertFalse(app.buttons["sign-in-with-email"].exists)
+        save(app, "10-source-returned")
+        origin.press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: -180)),
+                     withVelocity: .slow, thenHoldForDuration: 0.5)
+        XCTAssertTrue(app.buttons["sign-in-with-email"].waitForExistence(timeout: 5))
+        save(app, "11-source-connected")
+        app.buttons["welcome-skip"].tap()
+        XCTAssertTrue(source.waitForExistence(timeout: 3))
+        source.tap()
+        XCTAssertTrue(app.buttons["sign-in-with-email"].waitForExistence(timeout: 5))
+    }
+
     func testFirstMeetingSwipeRevealAndEmailRecovery() {
         let app = XCUIApplication()
         app.launchArguments = ["--auth-backend-url", "http://127.0.0.1:4341", "-talent-signal.interface-language", "zh-Hans", "--welcome-first-meeting"]
@@ -71,6 +96,7 @@ final class AuthenticationWelcomeUITests: XCTestCase {
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         XCTAssertTrue(app.buttons["welcome-skip"].waitForExistence(timeout: 15))
+        save(app, "08a-accessibility-source")
         app.buttons["welcome-skip"].tap()
         let retry = app.buttons["retry-apple-challenge"]
         for _ in 0..<6 where !retry.isHittable { app.swipeUp() }

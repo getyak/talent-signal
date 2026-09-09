@@ -12,6 +12,8 @@ struct AuthenticationWelcomeView<Content: View>: View {
     @AppStorage("talent-signal.authentication.welcome-entered") private var hasEntered = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.58, dampingFraction: 0.86)))
     private var pull: CGFloat = 0
+    @State private var thresholdFeedbackArmed = true
+    @State private var feedback = UIImpactFeedbackGenerator(style: .soft)
 
     private var motion: Animation {
         reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.62, dampingFraction: 0.86)
@@ -20,7 +22,7 @@ struct AuthenticationWelcomeView<Content: View>: View {
     var body: some View {
         GeometryReader { geometry in
             let travel = max(170, min(235, geometry.size.height * 0.28))
-            let progress = hasEntered ? CGFloat(1) : min(1, pull / travel)
+            let progress = hasEntered ? CGFloat(1) : AuthenticationWelcomeGesture.progress(pull: pull, travel: travel)
             let heroHeight: CGFloat = typeSize.isAccessibilitySize ? 174 : min(geometry.size.height * 0.43, 350)
             ScrollView {
                 VStack(spacing: 0) {
@@ -64,19 +66,29 @@ struct AuthenticationWelcomeView<Content: View>: View {
                     if !typeSize.isAccessibilitySize || !hasEntered {
                         ZStack(alignment: .bottom) {
                             AuthenticationPortraits(progress: progress)
+                                .contentShape(Rectangle())
+                                .onTapGesture { enter() }
+                                .highPriorityGesture(revealGesture(travel: travel))
                             TalentSignalBrandMark()
                                 .frame(width: 76, height: 76)
-                                .opacity(reduceMotion ? 1 : Double(
-                                    1 - AuthenticationPortraitLayout.phase(progress, from: 0.08, to: 0.32)
-                                    + AuthenticationPortraitLayout.phase(progress, from: 0.88, to: 1)))
+                                .opacity(Double(1 - AuthenticationPortraitLayout.phase(progress, from: 0.04, to: 0.25)))
                                 .scaleEffect(1 - (reduceMotion ? (hasEntered ? CGFloat(1) : 0) : progress) * 0.42)
                                 .rotationEffect(.degrees(reduceMotion ? 0 : -12 * (1 - progress)))
                                 .offset(y: -heroHeight * 0.38 * (1 - (reduceMotion ? (hasEntered ? CGFloat(1) : 0) : progress)))
                                 .transaction { if reduceMotion { $0.animation = nil } }
                                 .padding(.bottom, 4)
+                                .accessibilityHidden(true)
+                                .allowsHitTesting(false)
+                                .opacity(typeSize.isAccessibilitySize ? 0 : 1)
                         }
                         .frame(height: heroHeight)
                         .padding(.top, 12)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(language.text("Example link"))
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { enter() }
+                        .accessibilityIdentifier("welcome-link")
+                        .accessibilityHidden(hasEntered)
 
                         Text(language.text("Every relationship.\nA next chapter."))
                             .font(.system(typeSize.isAccessibilitySize ? .title3 : .largeTitle, design: .serif).weight(.regular))
@@ -104,7 +116,13 @@ struct AuthenticationWelcomeView<Content: View>: View {
                                         .font(.system(size: 20, weight: .medium))
                                         .frame(width: 56, height: 56)
                                         .background(Color.tsCanvas, in: Circle())
-                                    Text(language.text("Swipe up, or tap to begin"))
+                                        .overlay {
+                                            Circle().trim(from: 0, to: min(1, progress / AuthenticationWelcomeGesture.commitProgress))
+                                                .stroke(Color.tsVermilion, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                                                .rotationEffect(.degrees(-90))
+                                        }
+                                    Text(language.text(pull >= travel * AuthenticationWelcomeGesture.commitProgress
+                                        ? "Release to connect" : "Pull a link. Reveal its connections."))
                                         .font(.subheadline)
                                 }
                                 .foregroundStyle(Color.tsInk)
@@ -113,8 +131,9 @@ struct AuthenticationWelcomeView<Content: View>: View {
                             }
                             .buttonStyle(.plain)
                             .offset(y: reduceMotion ? 0 : -min(pull, travel) * 0.12)
-                            .opacity(1 - Double(progress) * 0.55)
                             .accessibilityIdentifier("welcome-enter")
+                            .accessibilityLabel(language.text("Swipe up, or tap to begin"))
+                            .accessibilityHint(language.text("Explore an example link and its relationships."))
                             .highPriorityGesture(revealGesture(travel: travel))
                         }
                     }
@@ -129,6 +148,16 @@ struct AuthenticationWelcomeView<Content: View>: View {
             .scrollIndicators(.hidden)
             .scrollDisabled(!hasEntered && !typeSize.isAccessibilitySize && geometry.size.height > 600)
             .simultaneousGesture(revealGesture(travel: travel))
+            .coordinateSpace(name: "welcome-pull")
+            .onChange(of: pull) { distance in
+                // Hysteresis prevents a stream of impacts while hovering at the threshold.
+                if distance < travel * 0.48 { thresholdFeedbackArmed = true }
+                if distance > 0 && distance < 12 { feedback.prepare() }
+                if !hasEntered && distance >= travel * AuthenticationWelcomeGesture.commitProgress && thresholdFeedbackArmed {
+                    thresholdFeedbackArmed = false
+                    if !reduceMotion { feedback.impactOccurred(intensity: 0.65) }
+                }
+            }
         }
         .background(Color.tsSurface.ignoresSafeArea())
         .onAppear {
@@ -143,11 +172,13 @@ struct AuthenticationWelcomeView<Content: View>: View {
     }
 
     private func revealGesture(travel: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 8)
+        // A stable space prevents the moving source from changing its own translation.
+        DragGesture(minimumDistance: 8, coordinateSpace: .named("welcome-pull"))
             .updating($pull) { value, state, transaction in
+                transaction.animation = nil
+                state = 0
                 guard !hasEntered, value.translation.height < 0,
                       abs(value.translation.height) > abs(value.translation.width) else { return }
-                transaction.animation = nil
                 state = -value.translation.height
             }
             .onEnded { value in
@@ -159,16 +190,27 @@ struct AuthenticationWelcomeView<Content: View>: View {
 
     private func enter() {
         guard !hasEntered else { return }
-        if !reduceMotion { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
+        if !reduceMotion { feedback.impactOccurred(intensity: 0.9) }
         withAnimation(motion) { hasEntered = true }
     }
 }
 
 enum AuthenticationWelcomeGesture {
+    static let commitProgress: CGFloat = 0.62
+
+    static func progress(pull: CGFloat, travel: CGFloat) -> CGFloat {
+        guard travel > 0 else { return 0 }
+        // Follow directly up to commitment, then resist excess travel.
+        let raw = max(0, pull / travel)
+        if raw <= commitProgress { return raw }
+        let excess = raw - commitProgress
+        return commitProgress + (1 - commitProgress) * excess / (excess + 1 - commitProgress)
+    }
+
     static func shouldEnter(translation: CGSize, predicted: CGSize, travel: CGFloat) -> Bool {
         let distance = -translation.height
         guard distance > abs(translation.width) else { return false }
         // A small exploratory tug always returns, regardless of a noisy fling prediction.
-        return distance >= travel * 0.62 || (distance >= travel * 0.28 && -predicted.height >= travel)
+        return distance >= travel * commitProgress || (distance >= travel * 0.28 && -predicted.height >= travel)
     }
 }

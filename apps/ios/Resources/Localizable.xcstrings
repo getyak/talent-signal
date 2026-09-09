@@ -29421,6 +29421,56 @@
           }
         }
       }
+    },
+    "Release to connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松手，展开连接"
+          }
+        }
+      }
+    },
+    "Pull a link. Reveal its connections.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拉起一条线索，展开它的关系。"
+          }
+        }
+      }
+    },
+    "Explore an example link and its relationships.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上滑或轻点，探索示例链接与它的关系。"
+          }
+        }
+      }
+    },
+    "A shared introduction": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次共同的引荐"
+          }
+        }
+      }
+    },
+    "Example link": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "示例链接"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
