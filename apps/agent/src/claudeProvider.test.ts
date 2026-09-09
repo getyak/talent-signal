@@ -161,7 +161,7 @@ describe("ClaudeAgentSDKProvider", () => {
           {
             hook_event_name: "PreToolUse",
             tool_name: "mcp__talent_signal__read_evidence",
-            tool_input: {},
+            tool_input: { evidence_refs: ["10000000-0000-4000-8000-000000000001"] },
             tool_use_id: "allowed",
           },
           "allowed",

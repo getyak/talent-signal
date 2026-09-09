@@ -289,10 +289,16 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
         (input.tool_name === "Agent" && !input.agent_id && subagents.some((agent) => args.subagent_type === agent.name));
       // A subagent can only use this Run's explicitly delegated read tools.
       const delegated = !input.agent_id || subagents.some((agent) => agent.name === input.agent_type && agent.tools.some((name) => `${HARNESS_MCP_PREFIX}${name}` === input.tool_name));
-      const allow = permitted && delegated;
-      if (!allow) denials.push("TOOL_NOT_AUTHORIZED");
+      // The SDK MCP server rebuilds a shape and can strip unknown keys before
+      // our handler sees them. Validate the model's original arguments here.
+      const capability = request.tools.find(entry => `${HARNESS_MCP_PREFIX}${entry.name}` === input.tool_name);
+      const validInput = !capability || capability.schema.safeParse(args).success;
+      const allow = permitted && delegated && validInput;
+      if (!allow) denials.push(permitted && delegated && !validInput ? "TOOL_INPUT_INVALID" : "TOOL_NOT_AUTHORIZED");
       return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: allow ? "allow" : "deny",
-        permissionDecisionReason: allow ? "Current product capability grant." : "Not granted for this Run or subagent." } };
+        permissionDecisionReason: allow ? "Current product capability grant." : permitted && delegated && !validInput
+          ? "TOOL_INPUT_INVALID: Supply every required field from this tool's schema and remove extra fields."
+          : "Not granted for this Run or subagent." } };
     }] }];
     const content: SDKUserMessage["message"]["content"] = [
       { type: "text", text: request.objective },

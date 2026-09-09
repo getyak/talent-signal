@@ -71,3 +71,20 @@ failures and the separately bounded stop-hook experiment remain intact.
 At review time, the stated deployed revision was still `421c02d6`, predating this
 explicit-proxy implementation. Deployment verification and native revalidation of
 the new code remain the parent's outstanding work.
+
+
+## Follow-up: deployment passthrough
+
+The three Compose files now pass only the optional
+`TALENT_SIGNAL_CLAUDE_HTTPS_PROXY` into their existing Anthropic configuration
+blocks, including both TestFlight API and agent-host services. The interpolation
+default is empty. The Infisical shared manifest adds the variable name, and the
+example contains an empty value plus a container-reachability note. No proxy
+endpoint or credential was added to these files, and the source still routes
+through the same validated configuration and SDK environment allowlist.
+
+No new P0/P1 was found in this narrow passthrough delta. This makes the explicit
+setting deployable; it does not demonstrate a changed live staging value or a
+successful proxy connection from a container. Actual staging resolution/deployment
+remains the parent's verification responsibility. Independent manifest and
+TestFlight chat-environment Node tests were run separately from that live check.

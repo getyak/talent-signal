@@ -1,7 +1,7 @@
 # GET-9 Harness acceptance evidence
 
 Status: **acceptance in progress**, 2026-09-10. This index routes to observations;
-it does not grant release authority. The committed integration checkpoint is `fc900819`; reviewed lookup guidance and Lab display-count repairs follow it.
+it does not grant release authority. The committed integration checkpoint is `fc900819`; reviewed routing, transport and schema repairs follow it.
 GET-23 is merged into the work branch; release acceptance is still open. Each live
 artifact retains its effective prompt/skill hashes, model receipt and fixture.
 Earlier passing batches do not claim an identical final source revision.
@@ -14,11 +14,11 @@ no fault and repair occurred. Small passing batches do not establish reliability
 
 | Case | Latest reviewed evidence | Result and boundary |
 | --- | --- | --- |
-| E01 conversation | [seventh quality review](e01-seventh-quality-review.json) | 3/3; actual Hao SDK, authorized synthetic dialogue. |
+| E01 conversation | [eighth quality review](e01-eighth-quality-review.json) | 3/3; latest typed-tool runtime, actual Hao SDK and synthetic dialogue. Minor beverage generalizations scored3, not4. |
 | E02 original profile image | [fifth quality review](e02-e04-fifth-quality-review.json) | 3/3; real image/SDK/HTTP/database and scripted human field review, not UI upload. |
 | E04 existing identity | [same fifth review](e02-e04-fifth-quality-review.json) | 3/3; stable handle reuses person, seeded relationship Memory preserved. |
 | E05 research | [eleventh quality review](e05-eleventh-quality-review.json) | 3/3; actual SDK and product research with controlled Exa-shaped fictional pages, not real public-search recall. |
-| E07 fresh-Session Memory | [eighth live evidence](e07-eighth-live.json) | 2/3; one 60-second timeout with no model response or tool call. Earlier seventh quality batch remains 3/3; not a reliability claim. |
+| E07 fresh-Session Memory | [ninth quality review](e07-ninth-quality-review.json) | 3/3; latest runtime and explicit host proxy, fresh Sessions with sourced Memory/preferences. Eighth remains2/3; no reliability claim. |
 | E10 calendar | [eighth combined review](e10-eighth-combined-quality-review.json) | 3/3 eventual drafts plus exact native confirmation, EventKit readback and cleanup. Trial 2 required explicit retry; not a complete live-chat-to-device UI journey. |
 
 Every previous attempt remains in this directory, including failed quality,
@@ -28,12 +28,14 @@ that observation label, while qualified inference still requires semantic review
 E07 fifth remains 2/3 because one answer added an unnecessary clarification.
 No score, timeout, token budget or test threshold was lowered to pass a case.
 
-Named-contact routing [third live batch](contact-lookup-third.json) and
-[independent review](contact-lookup-third-review.json) remain **2/3**. One SDK
-timeout, one clean lookup/read, one successful recovery from two invalid tool
-requests. Successful host handoffs do not validate the subsequent scoped answer.
-The [first batch](contact-lookup-first.json) remains 2/3 with incomplete tool
-instrumentation; a second command failed syntax checking before model execution.
+Named-contact routing [strict-operation batch](contact-flat-first.json) passes
+3/3 with one search/read pair each, no API retries and 10.958–17.114 seconds.
+The [operation review](contact-operation-review.md) distinguishes typed tools
+from the host's unchanged identity/authorization checks. Earlier
+[third batch](contact-lookup-third.json) remains 2/3; [proxy-only experiment](contact-proxy-experiment-first.json)
+remains 1/3 despite three completed model runs without API retries. Proxy access
+alone does not repair tool use. The [stop-hook experiment](contact-stop-hook-experiment-first.json)
+is not implemented in production and grants no release authority.
 
 ## Surface and provider proof
 
@@ -48,9 +50,11 @@ instrumentation; a second command failed syntax checking before model execution.
   rejected before a different account can receive work or preference changes.
 - [iOS initial run](ios-full-first-interrupted.json): release build and 539 unit
   tests passed; 76 UI cases passed, five failed, three explicitly skipped.
-  The integrated build passes all 543 unit tests. The latest serial
-  [three canonical journeys](ios-canonical-third.json) still fail unchanged
-  response/evidence gates. Serial execution does not establish the cause.
+  The integrated build passes all 543 unit tests. The latest [three canonical journeys](ios-canonical-flat-fifth.json) pass
+  unchanged response/evidence gates in41.816/52.612/45.467 seconds using explicit
+  host proxy and typed operation tools. Earlier [serial failures](ios-canonical-third.json)
+  and [proxy-only2/3](ios-canonical-proxy-fourth.json) remain visible. The later
+  raw-argument hook patch has separate MCP/unit proof; this native batch predates it.
 - [Exa probe](exa-staging-live-probe.json): actual search and fetch succeeded.
   [TikHub probe](tikhub-staging-live-probe.json): credential/health proof only.
 - Chrome integrated extension contract checks passed; actual installed-extension

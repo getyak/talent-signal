@@ -65,7 +65,7 @@ writes retain exact-effect human authorization.
 4. **Active — evaluation and independent review:** execute synthetic adversarial
    and real-model cases, fix failures, review consequential boundaries and close
    all confirmed P0/P1 findings with reviewer readback.
-5. **Pending — delivery:** PR linked to GET-9, latest-head CI and repository
+5. **Active — delivery:** draft PR172 linked to GET-9, latest-head CI and repository
    gates, merge/readback, local TestFlight backend deployment and applicable
    post-merge proof, then Linear completion/readback.
 
@@ -93,11 +93,25 @@ resumption after interruption and unknown external result. Checks include
 `pnpm eval:ci`, relevant agent/backend/client tests, `pnpm docs:check`, SDK
 gateway probe and real-surface evidence. Additional checks follow changed paths.
 
-## Open evidence
+## Current delivery state (2026-09-10 04:22)
 
-Full SDK gateway compatibility, persistent-session
-retention/invalidation mechanism and cross-platform calendar projection must be
-verified. No quality score, CI pass or completed acceptance is claimed yet.
+- Draft [PR172](https://github.com/getyak/talent-signal/pull/172), branch
+  `codex/get-9-harness`; origin/main6dc16355 is integrated. Final source delta
+  after68528232 has149 Agent tests passing plus one explicit skip; full backend
+ 491, Web398 and iOS543 unit tests passed at their documented checkpoints.
+- All confirmed independent P0/P1 are closed; original-MCP-argument P2 also
+  closed with a real dispatcher regression and explicit safe-stripping boundary.
+- Latest real-model named lookup and native canonical journeys both3/3; E01
+  eighth and E07 ninth3/3 checks. Quality is independently judged against the
+  unchanged>=3/4 rubric. Every failed attempt remains in the evidence index.
+- [TestFlight deployment](../docs/evaluations/get9-harness/testflight-deployment-first.json)
+  verifies421c02d6, migration065, synthetic model/voice and Apple/HTTPS. Later
+  typed-operation/transport changes require redeployment from final commit.
+- Remaining: final raw-hook native run, E07 independent score, current Web
+  readback, installed Chrome handoff, latest-head CI/merge, post-merge release
+  and physical TestFlight proof. Do not close GET-9 before acceptance/readback.
+- Use [the evidence index](../docs/evaluations/get9-harness/README.md) for precise
+  proof boundaries. Earlier checkpoint sections below are historical records.
 
 ## Implementation checkpoint (2026-09-09)
 
@@ -909,3 +923,36 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
 - Next native run uses this explicit proxy in the owned3347 API with unchanged
   SDK identity/continuation implementation, model, budgets and UI assertions.
   If accepted, commit/redeploy updated source and recheck latest PR head.
+
+### 2026-09-10 04:20 — native success and final operation boundaries
+
+- Committed explicit transport as68528232. New strict operation tools reuse
+  each ContactWorkspaceInputSchema branch and the same host contact seam, with
+  required readIDs and fixed server operation. Actual flat lookup3/3 passes
+  in12.906/17.114/10.958s, each search+read with no retries or tool errors.
+- First flat compile hit a TypeScript union.omit signature error; type-only
+  common ZodObject assertion fixes it. Executed JS SHA256 is identical before
+  and after correction; second full backend build passes. Preserve first log.
+- Native fourth (proxy plus improved union description)2/3 passes; first lacks
+  citation. Native fifth (strict operation tools)3/3 passes unchanged UI waits
+  and citation/Chinese dark AX5 assertions in41.816/52.612/45.467s. Both reuse
+  unchanged, previously verified Release binary. All failures stay indexed.
+- Independent review found SDK MCP shape reconstruction strips unknown keys
+  before handler validation. Added PreToolUse original-argument schema check;
+  true MCP regression distinguishes strict model denial from safe direct-MCP
+  stripping into the same fixed read operation. Independent P2 now closed; no
+  newP0/P1. Full Agent149pass1skip, independent32/32 and typecheck pass. Old
+  read_evidence test used invalid{}; corrected to legal evidence_refs, keeping
+  invalid-input rejection separately tested.
+- E01 eighth3/3 and E07 ninth3/3 actual latest-runtime checks pass through
+  explicit host proxy. E01 independent quality meets every applicable>=3
+  dimension, with minor unsupported beverage generalizations deducted. E07
+  independent quality pending. Native sixth will include final raw-input hook.
+- Optional proxy now reaches all existing Anthropic Compose blocks and is
+  owned by Infisical shared; no actual staging proxy value is set. Deployment
+  manifest/validator10tests pass; rendered staging Compose validation passes.
+  Secret scan272files8knowncredentials0matches. origin/main remains6dc16355.
+- Current source repairs/evidence still need final commit/push, new deployment
+  and latest-head CI. First actual TestFlight deployment421c02d6 is healthy;
+  final revisions are not yet in its containers. Chrome manual installation,
+  final Web proof, PR merge and post-merge iOS release remain pending.

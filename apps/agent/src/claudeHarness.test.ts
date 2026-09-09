@@ -138,6 +138,32 @@ describe("SDK-owned harness", () => {
     expect(sdk.run).not.toHaveBeenCalled();
   });
 
+  it("checks raw model arguments before the SDK can strip unknown fields", async () => {
+    const execute = vi.fn(async () => ({ content: [{ type: "text" as const, text: "Synthetic read" }] }));
+    const input = { ...request(), tools: [{ name: "read_header", description: "Synthetic header", readOnly: true,
+      schema: z.strictObject({ person_id: z.string(), relationship_context_id: z.string() }), execute }] };
+    const sdk = queryMock(async ({ options }) => {
+      const gate = options.hooks.PreToolUse[0].hooks[0];
+      const dispatch = (args: object) => gate({ hook_event_name: "PreToolUse", tool_name: "mcp__talent_signal__read_header", tool_input: args });
+      for (const args of [{ person_id: "person" }, { person_id: "person", relationship_context_id: "context", reason: "extra" },
+        { person_id: "person", relationship_context_id: "context", operation: "propose_update" }]) {
+        expect((await dispatch(args)).hookSpecificOutput.permissionDecision).toBe("deny");
+      }
+      expect(execute).not.toHaveBeenCalled();
+      expect((await dispatch({ person_id: "person", relationship_context_id: "context" })).hookSpecificOutput.permissionDecision).toBe("allow");
+      // Pinned SDK behavior: direct MCP dispatch strips extras. It is distinct
+      // from model dispatch above, and still reaches only the fixed read tool.
+      const server = options.mcpServers.talent_signal.instance;
+      const handler = server.server._requestHandlers.get("tools/call");
+      const result = await handler({ method: "tools/call", params: { name: "read_header",
+        arguments: { person_id: "person", relationship_context_id: "context", operation: "propose_update" } } },
+        { signal: new AbortController().signal });
+      expect(result.isError).not.toBe(true);
+      expect(execute).toHaveBeenCalledExactlyOnceWith({ person_id: "person", relationship_context_id: "context" }, expect.any(AbortSignal));
+    });
+    const outcome = await runClaudeHarness(config, input, new AbortController().signal, sdk.run as any);
+    expect(outcome.permissionDenials).toEqual(["TOOL_INPUT_INVALID", "TOOL_INPUT_INVALID", "TOOL_INPUT_INVALID"]);
+  });
   it("checks current authority for allowed tools and rejects subagent escalation", async () => {
     const input = request();
     input.tools = [{ name: "read_memory", description: "Scoped memory", schema: z.object({}), readOnly: true,

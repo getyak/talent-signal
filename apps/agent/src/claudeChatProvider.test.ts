@@ -102,10 +102,33 @@ describe("Claude natural chat product adapter", () => {
     expect(failure.receipt).toMatchObject({ inputTokens: 12, outputTokens: 4, usageComplete: false });
   });
 
+  it("requires both read IDs and rejects operation smuggling before host dispatch", async () => {
+    const person = "10000000-0000-4000-8000-000000000001", context = "10000000-0000-4000-8000-000000000002";
+    const invoke = vi.fn(async () => ({ ok: true as const, callID: "read", name: "contact_workspace", data: {
+      operation: "read", person: { id: person }, relationship_context: { id: context } } }));
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      const read = request.tools.find(tool => tool.name === "contact_workspace_read")!;
+      expect(read.readOnly).toBe(true);
+      const signal = new AbortController().signal;
+      for (const args of [{ person_id: person }, { person_id: person, relationship_context_id: context, reason: "extra" },
+        { person_id: person, relationship_context_id: context, operation: "propose_update" }]) {
+        expect((await read.execute(args, signal)).isError).toBe(true);
+      }
+      expect(invoke).not.toHaveBeenCalled();
+      await read.execute({ person_id: person, relationship_context_id: context }, signal);
+      expect(invoke).toHaveBeenCalledExactlyOnceWith("contact_workspace", { operation: "read", person_id: person, relationship_context_id: context }, signal);
+      expect(request.tools.find(tool => tool.name === "contact_workspace_propose_create")!.readOnly).toBe(false);
+      return outcome;
+    });
+    const result = await new ClaudeChatProvider(configuration, execute).run({ runID: "synthetic", objective: "What changed with Leila?", systemPrompt: "Synthetic",
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "account", sessionID: null, currentPersonID: null, currentRelationshipContextID: null },
+      toolManifest: ["contact_workspace"], budget: { maxTurns: 6, maxToolCalls: 6, maxDurationMs: 30000, maxTaskTokens: 32000, maxEstimatedUsd: 1 } }, invoke, new AbortController().signal);
+    expect(result.structuredOutput).toEqual({ outcome: "use_contact", person_id: person, relationship_context_id: context });
+  });
   it("uses the product's proposal receipt rather than an invented completion in prose", async () => {
     const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
       expect(request.systemPrompt).toContain("a name is sufficient for a read-only lookup");
-      await request.tools[0]!.execute({ operation: "search", query: "陈夏" }, new AbortController().signal);
+      await request.tools[0]!.execute({ query: "陈夏" }, new AbortController().signal);
       return { ...outcome, text: "联系人已经创建。" };
     });
     const provider = new ClaudeChatProvider(configuration, execute);
