@@ -44,10 +44,6 @@ import {
   type TelemetryContext,
 } from "@talent-signal/contracts";
 
-import {
-  candidateMomentumFixtures,
-  type CandidateMomentumCase,
-} from "../candidateMomentum";
 import { screenshotIdentityChoiceIssue } from "../person-identity-choice";
 import {
   validateScreenshotAnalysisMeta,

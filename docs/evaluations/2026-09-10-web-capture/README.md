@@ -43,7 +43,7 @@ tests verify both behaviors and reject invented excerpts.
 Two rendered directions were compared: A retains a left source list next to a
 bounded reading panel; B moves the list above a wider reading area. A was chosen
 because the active source remains visible while reviewing a long result, and
-line lengths support evidence review. Mobile stacks the list above the result.
+line lengths support evidence review. Mobile stacks the source list below the result to keep the selected task first.
 Light and dark themes use the existing neutral and vermilion system.
 
 Local synthetic-only artifacts are under `output/web-capture-pipeline/`:
@@ -55,8 +55,9 @@ not reusable private source fixtures.
 
 ## Deterministic checks
 
-- Web suite: 364 passed, one intentionally skipped.
-- Backend suite: 375 passed, 73 DB/environment-dependent tests skipped in the
+- Web suite after preserving deployed account and feedback code: 368 passed,
+  one intentionally skipped.
+- Backend suite: 375 passed, 82 DB/environment-dependent tests skipped in the
   general run. The affected database suite ran separately: 11/11 passed,
   including restart, duplicate payload, changed payload, owner isolation,
   deletion, deleted-request replay and no-person completion.

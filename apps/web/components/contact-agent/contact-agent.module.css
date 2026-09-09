@@ -113,3 +113,5 @@
 .progress {background:var(--surface-muted);color:var(--ink-soft);}
 @media(max-width:1000px) {.embedded .layout{gap:28px;grid-template-columns:190px minmax(0,1fr);padding:28px 24px}.embedded .sidebar{padding-right:16px}}
 @media(max-width:800px) {.embedded .layout{display:flex;padding:24px 16px 88px}.embedded .sidebar{border-right:0;padding-right:0}.inputModes{flex-wrap:wrap}.inputModes span{margin-left:0;width:100%}.cardHeading{align-items:flex-start;flex-wrap:wrap}.intro h1{font-size:28px}}
+
+.sidebar .recentSource {width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
