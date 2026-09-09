@@ -20,7 +20,10 @@ Compared the [prior mark-only introduction](../2026-09-08-login-network/intro.pn
 with the source-led composition. The new source makes the drag target explicit
 and gives the first connections a visible origin. Native screenshot review
 caught the settled card obscuring two portraits; the final docking geometry
-keeps the card below the network. This is an interaction refinement using the
+keeps the card below the network. A later motion-frame review found that the
+new release hint inherited the invitation fade. The final follow-up removes
+that fade so instruction text keeps the full semantic ink contrast throughout
+the pull. This is an interaction refinement using the
 established portrait direction, not a claim of measured conversion improvement.
 
 - Final iPhone 17 Pro build: all 3 gesture unit tests and all 4 native UI
@@ -40,3 +43,11 @@ Local native bundles: `/tmp/talent-signal-onboarding-small.xcresult` and
 content only. Native tests and screenshot inspection do not establish physical
 haptic quality or physical-device frame rate. Release and actual installation
 remain separate outcomes tracked in the execution plan.
+
+The contrast follow-up passed all three unit cases and all four UI journeys.
+Its first email-recovery attempt lacked the required loopback fixture and
+failed; after restarting that synthetic service, the same case passed against
+the same binary. Those result bundles are
+`/tmp/talent-signal-onboarding-contrast.xcresult` (three units and three UI
+passes; fixture-dependent failure retained) and
+`/tmp/talent-signal-onboarding-contrast-email.xcresult` (email recovery passed).

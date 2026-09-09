@@ -131,7 +131,6 @@ struct AuthenticationWelcomeView<Content: View>: View {
                             }
                             .buttonStyle(.plain)
                             .offset(y: reduceMotion ? 0 : -min(pull, travel) * 0.12)
-                            .opacity(1 - Double(progress) * 0.55)
                             .accessibilityIdentifier("welcome-enter")
                             .accessibilityLabel(language.text("Swipe up, or tap to begin"))
                             .accessibilityHint(language.text("Explore an example link and its relationships."))

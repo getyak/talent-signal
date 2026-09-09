@@ -33,6 +33,9 @@ Apple references: [transient gesture state](https://developer.apple.com/document
 2. Complete: final iPhone 17 Pro 7/7 tests; iPhone SE 7/7 tests; native renders
    reviewed in light, dark and AX5, plus English iPad introduction. Self-review
    found and fixed source/portrait overlap and fixed-position thread alignment.
+   Motion-frame review also removed the inherited CTA fade to preserve release-
+   hint contrast. All seven cases passed on that binary; email recovery needed
+   its synthetic loopback service restarted before its successful rerun.
 3. Active: PR, current-commit CI, merge, TestFlight processing and receipt readback.
 
 ## Completion evidence
