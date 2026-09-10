@@ -1,55 +1,22 @@
-import { TalentSignalHttpError } from "@talent-signal/contracts";
 import { NextResponse } from "next/server";
-
-import { auth } from "@/auth";
-import {
-  isIntegrationMode,
-  submitBrowserHandoff,
-} from "@/lib/server/localBackend";
-
-export const dynamic = "force-dynamic";
-
-export async function POST(request: Request) {
-  if (!isIntegrationMode()) {
-    return NextResponse.json(
-      { code: "local_integration_disabled" },
-      { status: 404 },
-    );
-  }
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json(
-      { code: "session_stale", status: "not_ready" },
-      { status: 401 },
-    );
-  }
-  try {
-    const payload: unknown = await request.json();
-    return NextResponse.json(
-      await submitBrowserHandoff(payload, {
-        idempotencyKey: request.headers.get("idempotency-key"),
-        sessionVersion: request.headers.get(
-          "x-talent-signal-session-version",
-        ),
-      }),
-      { status: 202 },
-    );
-  } catch (error) {
-    if (error instanceof TalentSignalHttpError) {
-      return NextResponse.json(
-        { code: error.code, message: error.message },
-        { status: error.status },
-      );
-    }
-    return NextResponse.json(
-      {
-        code: "handoff_rejected",
-        message:
-          error instanceof Error
-            ? error.message
-            : "已审阅的交接内容被拒绝。",
-      },
-      { status: 400 },
-    );
-  }
+import { isAllowedMutationOrigin } from "@/lib/request-origin";
+import { browserBackend, browserCaptureInput, browserClaims, browserReceipt } from "@/lib/server/browser-capture";
+export const dynamic="force-dynamic";
+export async function POST(request:Request){
+  if(!isAllowedMutationOrigin(request.headers,true))return NextResponse.json({message:"请求来源不受支持。"},{status:403});
+  const claims=await browserClaims();
+  if(!claims)return NextResponse.json({code:"session_stale"},{status:401});
+  let input:unknown;
+  try{
+    const reader=request.body?.getReader();const chunks:Uint8Array[]=[];let size=0;
+    if(reader)while(true){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>14_000_000){await reader.cancel();return NextResponse.json({message:"截取内容过大，请裁剪后重试。"},{status:413});}chunks.push(part.value);}
+    // Origin has already been checked against Host. Next's internal request URL
+    // can use localhost behind a proxy even when the browser uses another host.
+    input=browserCaptureInput(JSON.parse(Buffer.concat(chunks).toString("utf8")),request.headers,claims,new URL(request.headers.get("origin")!).origin);
+  }catch{return NextResponse.json({message:"提交内容、保留方式或会话已变化，请重新检查来源并连接。"},{status:422});}
+  try{
+    const result=await browserBackend(claims,"tasks",input);const body=await result.json();
+    if(!result.ok)return NextResponse.json(body,{status:result.status});
+    return NextResponse.json(browserReceipt(body),{status:202,headers:{"cache-control":"no-store"}});
+  }catch{return NextResponse.json({code:"receipt_unknown",message:"尚未确认收到，请核对本次采集回执后重试。"},{status:503});}
 }

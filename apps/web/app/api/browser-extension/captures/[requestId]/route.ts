@@ -1,53 +1,12 @@
-import { TalentSignalHttpError } from "@talent-signal/contracts";
 import { NextResponse } from "next/server";
-
-import { auth } from "@/auth";
-import {
-  isIntegrationMode,
-  loadBrowserReceipt,
-} from "@/lib/server/localBackend";
-
-export const dynamic = "force-dynamic";
-
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ requestId: string }> },
-) {
-  if (!isIntegrationMode()) {
-    return NextResponse.json(
-      { code: "local_integration_disabled" },
-      { status: 404 },
-    );
-  }
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json(
-      { code: "session_stale", status: "not_ready" },
-      { status: 401 },
-    );
-  }
-  const { requestId } = await context.params;
-  if (!/^[a-zA-Z0-9-]{8,80}$/.test(requestId)) {
-    return NextResponse.json({ code: "receipt_not_found" }, { status: 404 });
-  }
-  try {
-    const retention = await loadBrowserReceipt(requestId);
-    return NextResponse.json({
-      status: "received",
-      receipt_id: retention.receipt_id,
-      capture_id: retention.capture_id,
-      retention,
-    });
-  } catch (error) {
-    if (error instanceof TalentSignalHttpError && error.status === 404) {
-      return NextResponse.json(
-        { code: "receipt_not_found" },
-        { status: 404 },
-      );
-    }
-    return NextResponse.json(
-      { code: "receipt_readback_unavailable" },
-      { status: 503 },
-    );
-  }
+import { browserBackend, browserClaims, browserReceipt } from "@/lib/server/browser-capture";
+export const dynamic="force-dynamic";
+export async function GET(_request:Request,context:{params:Promise<{requestId:string}>}){
+  const claims=await browserClaims();if(!claims)return NextResponse.json({code:"session_stale"},{status:401});
+  const {requestId}=await context.params;
+  if(!/^[a-zA-Z0-9-]{8,80}$/.test(requestId))return NextResponse.json({code:"receipt_not_found"},{status:404});
+  try{const response=await browserBackend(claims,`browser-captures/${requestId}`);const body=await response.json();
+    if(!response.ok)return NextResponse.json(body,{status:response.status});
+    const receipt=browserReceipt(body);return NextResponse.json(receipt,{status:receipt.status==="deleted"?410:200,headers:{"cache-control":"no-store"}});
+  }catch{return NextResponse.json({code:"receipt_unknown"},{status:503});}
 }

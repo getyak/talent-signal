@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Talent Signal Capture",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Review visible evidence before a user-approved local Talent Signal handoff.",
   "minimum_chrome_version": "116",
   "incognito": "not_allowed",
@@ -9,12 +9,14 @@
     "activeTab",
     "scripting",
     "sidePanel",
-    "storage"
+    "storage",
+    "desktopCapture"
   ],
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
+  "optional_host_permissions": ["https://*/*"],
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"

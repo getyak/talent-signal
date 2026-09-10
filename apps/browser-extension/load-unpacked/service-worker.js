@@ -93,6 +93,8 @@ async function captureVisibleSource() {
     format: "png",
   });
 
+  const current=await activeTab();
+  if(current.id!==tab.id||current.url!==tab.url)throw new Error("The source tab changed during capture. Capture again from the intended page.");
   return {
     ok: true,
     kind: "visible_tab",
@@ -101,11 +103,12 @@ async function captureVisibleSource() {
   };
 }
 
-async function captureSelectedText() {
+async function captureSelectedText(page = false) {
   const tab = await activeTab();
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    func: () => globalThis.getSelection?.()?.toString() ?? "",
+    args: [page],
+    func: (wholePage) => wholePage ? (document.querySelector("main, article") ?? document.body).innerText : globalThis.getSelection?.()?.toString() ?? "",
   });
   const selection = normalizeSelection(result);
 
@@ -115,7 +118,7 @@ async function captureSelectedText() {
 
   return {
     ok: true,
-    kind: "selected_text",
+    kind: page ? "page_text" : "selected_text",
     source: normalizeTabSource(tab),
     text: selection.text,
   };
@@ -134,14 +137,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }).then(sendResponse).catch(() => sendResponse({ state: "unknown", message: "Recovery is not verified. Check the original Web account before submitting another copy." }));
     return true;
   }
-  if (!["capture.visible", "capture.selection"].includes(message?.type)) {
+  if (!["capture.visible", "capture.selection", "capture.page"].includes(message?.type)) {
     return false;
   }
 
   const operation =
     message.type === "capture.visible"
       ? captureVisibleSource()
-      : captureSelectedText();
+      : captureSelectedText(message.type === "capture.page");
 
   operation
     .then(sendResponse)
