@@ -4,6 +4,35 @@ import XCTest
 @testable import TalentSignal
 
 final class SessionConversationClientTests: XCTestCase {
+    func testRunArtifactInventoryExcludesLocalProposalUnboundAndPreviewTurns() {
+        let taskID = UUID().uuidString, manifestID = UUID().uuidString
+        XCTAssertTrue(RunArtifact.canLoadInventory(taskID: taskID, manifestID: manifestID, isCanonical: true))
+        XCTAssertFalse(RunArtifact.canLoadInventory(taskID: "contact-proposal-\(taskID)",
+            manifestID: "none-unbound-conversation", isCanonical: true))
+        XCTAssertFalse(RunArtifact.canLoadInventory(taskID: taskID,
+            manifestID: "none-unbound-conversation", isCanonical: true))
+        XCTAssertFalse(RunArtifact.canLoadInventory(taskID: taskID, manifestID: manifestID, isCanonical: false))
+    }
+
+    func testRunArtifactListDecodesCanonicalMetadataWithOwnerToken() async throws {
+        let (client, network) = makeClient()
+        defer { network.invalidateAndCancel(); SessionConversationURLProtocol.handler = nil }
+        let taskID = UUID().uuidString, artifactID = UUID().uuidString
+        SessionConversationURLProtocol.handler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer synthetic-test-token")
+            XCTAssertEqual(request.url?.path, "/v1/chat/tasks/\(taskID)/artifacts")
+            return try JSONSerialization.data(withJSONObject: [["id": artifactID, "name": "weekly hours.csv",
+                "media_type": "text/csv", "byte_size": 66, "content_hash": String(repeating: "a", count: 64),
+                "expires_at": "2026-09-17T03:06:02.972Z"]])
+        }
+        let files = try await client.listRunArtifacts(taskID: taskID)
+        XCTAssertEqual(files.count, 1)
+        XCTAssertEqual(files.first?.id, artifactID)
+        XCTAssertEqual(files.first?.name, "weekly hours.csv")
+        XCTAssertEqual(files.first?.mediaType, "text/csv")
+        XCTAssertEqual(files.first?.byteSize, 66)
+    }
+
     func testRunArtifactDownloadUsesOwnerTokenAndRejectsChangedBytes() async throws {
         let (client, network) = makeClient()
         defer { network.invalidateAndCancel(); SessionConversationURLProtocol.handler = nil }

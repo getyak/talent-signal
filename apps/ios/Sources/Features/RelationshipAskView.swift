@@ -434,6 +434,7 @@ struct RelationshipAskView: View {
     @State private var relationshipRecallPhase: RelationshipRecallPhase = .idle
     @State private var askSubmissionPhase: AskSubmissionPhase = .idle
     @State private var askOperation: Task<Void, Never>?
+    @State private var scopedAskInvocation: UUID?
 #if DEBUG
     @State private var fixtureAskFailureConsumed = false
     @State private var fixtureContactLookupFailureConsumed = false
@@ -459,6 +460,7 @@ struct RelationshipAskView: View {
     @State private var contactSaveMessage: String?
     @State private var contactSaveError: String?
     @State private var selectedCitation: SelectedAskCitation?
+    @State private var reviewRecoveryOwner: AskCitationReviewOwner?
     @State private var selectedPursuit: SelectedPursuitTarget?
     @State private var reinstatementOperation: AgentEvidenceReviewOperation?
     @State private var reinstatementReason = ""
@@ -819,6 +821,10 @@ struct RelationshipAskView: View {
         .onChange(of: selectedCitationIsCurrent) { isCurrent in
             if !isCurrent { selectedCitation = nil }
         }
+        .onChange(of: currentReviewOwner) { _ in
+            reviewRecoveryOwner = nil
+            if case .reviewSource = errorRecovery { errorRecovery = .retry; selectedCitation = nil }
+        }
         .onChange(of: sessionStore.session(id: activeSessionID)?.updatedAt) { _ in
             guard !isSending else { return }
             Task { _ = await synchronizeSessions(nil) }
@@ -910,7 +916,7 @@ struct RelationshipAskView: View {
             shouldSendAfterCompositionCommits = false
             voiceGestureStartedInControl = false
             flushDraftPersistence()
-            askOperation?.cancel()
+            scopedAskInvocation = nil; askOperation?.cancel()
             askOperation = nil
             voiceOperation?.cancel()
             voiceOperation = nil
@@ -1224,6 +1230,7 @@ struct RelationshipAskView: View {
                                 )
                                 .id(item.id)
                             case let .ask(turn):
+                            VStack(alignment: .leading, spacing: 18) {
                             AskTurnView(
                                 turn: turn,
                                 language: appLanguage,
@@ -1307,12 +1314,14 @@ struct RelationshipAskView: View {
                                     composerFocused = true
                                 }
                             )
-                                .id(item.id)
-                            if !turn.response.contextManifestID.isEmpty {
+                            if RunArtifact.canLoadInventory(taskID: turn.response.taskID,
+                                manifestID: turn.response.contextManifestID, isCanonical: isCanonical) {
                                 RunArtifactsView(taskID: turn.response.taskID, language: appLanguage,
                                     list: { try await workspaceStore.listRunArtifacts(taskID: turn.response.taskID) },
                                     download: { try await workspaceStore.loadRunArtifact(taskID: turn.response.taskID, artifact: $0) })
                             }
+                            }
+                            .id(item.id)
                             }
                         }
                     }
@@ -1546,10 +1555,7 @@ struct RelationshipAskView: View {
                     .accessibilityIdentifier("ask-retry")
                 case let .reviewSource(requirement):
                     Button {
-                        selectedCitation = SelectedAskCitation(
-                            taskID: requirement.taskID,
-                            citation: requirement.citation
-                        )
+                        Task { await openRecoveryCitation(requirement) }
                     } label: {
                         Label(
                             appLanguage.text("Review exact source"),
@@ -3488,7 +3494,7 @@ struct RelationshipAskView: View {
         )
         screenshotContactRequest = request
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
-        askOperation?.cancel()
+        scopedAskInvocation = nil; askOperation?.cancel()
         askOperation = Task {
             var accepted = false
             do {
@@ -3545,7 +3551,7 @@ struct RelationshipAskView: View {
               sessionStore.session(id: ownerSessionID)?.readOnlyScreenshotTaskIDs.contains(current.taskID) == false else { return }
         let owner = AskScreenshotResponseOwner(sessionID: ownerSessionID, taskID: current.taskID)
         isSending = true
-        askOperation?.cancel()
+        scopedAskInvocation = nil; askOperation?.cancel()
         askOperation = Task {
             do {
                 var response = try await workspaceStore.resumeScreenshotContactTask(id: current.taskID, body: body)
@@ -3581,7 +3587,7 @@ struct RelationshipAskView: View {
                 let cancelled = try await workspaceStore.cancelScreenshotContactTask(id: current.taskID, revision: latest.revision)
                 guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: cancelled.taskID), !Task.isCancelled else { return }
                 recordScreenshotResult(cancelled, expectedSessionID: ownerSessionID)
-                askOperation?.cancel(); askOperation = nil; isSending = false
+                scopedAskInvocation = nil; askOperation?.cancel(); askOperation = nil; isSending = false
                 pendingObjective = nil; updateAskSubmissionPhase(.idle)
             } catch {
                 guard activeSessionID == ownerSessionID, !Task.isCancelled else { return }
@@ -3765,7 +3771,7 @@ struct RelationshipAskView: View {
             )
             return
         }
-        askOperation?.cancel()
+        scopedAskInvocation = nil; askOperation?.cancel()
         askOperation = Task {
             let activityIdentity = await startAskActivity(sessionID: sessionID)
             do {
@@ -3916,7 +3922,7 @@ struct RelationshipAskView: View {
             return
         }
 
-        askOperation?.cancel()
+        scopedAskInvocation = nil; askOperation?.cancel()
         askOperation = Task {
             var continuationScope: AskScope?
             let activityIdentity = await startAskActivity(sessionID: sessionID)
@@ -4282,7 +4288,7 @@ struct RelationshipAskView: View {
 
     private func changeRecalledRelationship() {
         guard pendingObjective != nil else { return }
-        askOperation?.cancel()
+        scopedAskInvocation = nil; askOperation?.cancel()
         askOperation = nil
         isSending = false
         updateAskSubmissionPhase(.idle)
@@ -4306,7 +4312,7 @@ struct RelationshipAskView: View {
             if ProcessInfo.processInfo.arguments.contains(
                 "--fixture-ask-delay-seconds"
             ) {
-                askOperation?.cancel()
+                scopedAskInvocation = nil; askOperation?.cancel()
                 askOperation = Task {
                     try? await waitForFixtureAskDelayIfNeeded()
                     guard !Task.isCancelled else { return }
@@ -4320,10 +4326,24 @@ struct RelationshipAskView: View {
             return
         }
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
-        askOperation?.cancel()
+        scopedAskInvocation = nil; askOperation?.cancel()
+        let invocation = UUID()
+        scopedAskInvocation = invocation
         askOperation = Task {
+            defer {
+                if scopedAskInvocation == invocation {
+                    scopedAskInvocation = nil
+                    isSending = false; askOperation = nil
+                    pendingObjective = nil; pendingScopedSend = nil
+                    relationshipRecallPhase = .idle
+                    updateAskSubmissionPhase(.idle)
+                }
+            }
             let sessionID = activeSessionID ?? UUID()
             activeSessionID = sessionID
+            let reviewOwner = AskCitationReviewOwner(workspaceID: currentSnapshot.workspaceID,
+                userID: currentSnapshot.currentUserID, sessionID: sessionID,
+                personID: scope.person.id, contextID: scope.context.id)
             do {
                 try await waitForMediaToBecomeReady()
                 try Task.checkCancellation()
@@ -4409,22 +4429,21 @@ struct RelationshipAskView: View {
                 mediaNotice = nil
                 await updateAskActivity(activityIdentity, phase: .review)
             } catch {
-                if Task.isCancelled { return }
+                guard !Task.isCancelled, currentReviewOwner == reviewOwner else { return }
                 if let identity = currentAskActivityIdentity(sessionID: sessionID) {
                     await updateAskActivity(
                         identity,
                         phase: askActivityFailurePhase(error)
                     )
                 }
+                guard currentReviewOwner == reviewOwner else { return }
                 draft = originalDraft
                 pendingObjective = nil
                 pendingScopedSend = nil
                 relationshipRecallPhase = .idle
                 updateAskSubmissionPhase(.idle)
-                presentAskFailure(error)
+                presentAskFailure(error, reviewOwner: reviewOwner)
             }
-            isSending = false
-            askOperation = nil
         }
     }
 
@@ -4490,10 +4509,18 @@ struct RelationshipAskView: View {
         )
     }
 
-    private func presentAskFailure(_ error: Error) {
+    private func presentAskFailure(_ error: Error, reviewOwner: AskCitationReviewOwner? = nil) {
         if case let PursuitWorkspaceClientError.askCitationReviewRequired(
             requirement
         ) = error {
+            guard let reviewOwner, reviewOwner == currentReviewOwner,
+                  requirement.citation.personID == reviewOwner.personID,
+                  requirement.citation.relationshipContextID == reviewOwner.contextID else {
+                errorRecovery = .retry
+                errorMessage = appLanguage.text("The source is no longer current. Ask again.", zhHans: "来源已变化，请重新提问。")
+                return
+            }
+            reviewRecoveryOwner = reviewOwner
             errorRecovery = .reviewSource(requirement)
             errorMessage = appLanguage.text(
                 "One exact source has not completed its current recruiter review. Your question is still in the composer. Review the source below; a new Ask will still require a separate tap."
@@ -5325,6 +5352,21 @@ struct RelationshipAskView: View {
         decision: String,
         reason: String
     ) async throws {
+        guard selectedCitation?.id == selection.id, selectedCitationIsCurrent else {
+            throw PursuitWorkspaceClientError.citedEvidenceUnavailable
+        }
+        if case let .reviewSource(requirement) = errorRecovery,
+           requirement.taskID == selection.taskID {
+            guard requirement.citation.id == selection.citation.id else { throw PursuitWorkspaceClientError.citedEvidenceUnavailable }
+            _ = try await refreshRecoveryCitation(requirement)
+        } else if !selectedCitationIsCurrent {
+            throw PursuitWorkspaceClientError.citedEvidenceUnavailable
+        }
+        let recoveryOwner: AskCitationReviewOwner?
+        if case let .reviewSource(requirement) = errorRecovery, requirement.taskID == selection.taskID {
+            recoveryOwner = reviewRecoveryOwner
+        } else { recoveryOwner = nil }
+        let pendingKey = recoveryOwner.flatMap { sessionStore.session(id: $0.sessionID)?.pendingScopedAskIdempotencyKey }
         let citation = selection.citation
         let reviewKey = reviewIdempotencyKey(
             fragmentID: citation.id,
@@ -5343,7 +5385,9 @@ struct RelationshipAskView: View {
                 ?? "Current relationship",
             expectedReviewStatus: citation.reviewStatus,
             decision: decision,
-            reason: reason
+            reason: reason,
+            pendingAskSessionID: pendingKey == nil ? nil : recoveryOwner?.sessionID,
+            pendingAskKey: pendingKey
         )
         reviewPreparationError = nil
         sessionStore.markCitationStale(citation.id)
@@ -5365,6 +5409,7 @@ struct RelationshipAskView: View {
                 reviewPreparationError = postReviewPersistenceMessage
                 return
             }
+            if let recoveryOwner, currentReviewOwner != recoveryOwner { return }
             selectedCitation = nil
             errorMessage = nil
             errorRecovery = .retry
@@ -5528,8 +5573,41 @@ struct RelationshipAskView: View {
         return false
     }
 
+    private var currentReviewOwner: AskCitationReviewOwner? {
+        guard let activeSessionID, let selectedScope else { return nil }
+        return AskCitationReviewOwner.current(session: sessionStore.session(id: activeSessionID),
+            workspaceID: currentSnapshot.workspaceID, userID: currentSnapshot.currentUserID,
+            personID: selectedScope.person.id, contextID: selectedScope.context.id)
+    }
+
+    private func refreshRecoveryCitation(_ requirement: AskCitationReviewRequirement) async throws -> AskCitationReviewRequirement {
+        guard let owner = reviewRecoveryOwner, owner == currentReviewOwner,
+              errorRecovery == .reviewSource(requirement) else { throw PursuitWorkspaceClientError.citedEvidenceUnavailable }
+        let current = try await workspaceStore.refreshReviewRequirement(requirement,
+            personID: owner.personID, contextID: owner.contextID)
+        try Task.checkCancellation()
+        guard reviewRecoveryOwner == owner, currentReviewOwner == owner,
+              errorRecovery == .reviewSource(requirement) else { throw PursuitWorkspaceClientError.citedEvidenceUnavailable }
+        return current
+    }
+
+    private func openRecoveryCitation(_ requirement: AskCitationReviewRequirement) async {
+        do {
+            let current = try await refreshRecoveryCitation(requirement)
+            selectedCitation = SelectedAskCitation(taskID: current.taskID, citation: current.citation)
+        } catch {
+            guard errorRecovery == .reviewSource(requirement) else { return }
+            selectedCitation = nil; reviewRecoveryOwner = nil; errorRecovery = .retry
+            errorMessage = appLanguage.text("The source is no longer current. Ask again.", zhHans: "来源已变化，请重新提问。")
+        }
+    }
+
     private var selectedCitationIsCurrent: Bool {
         guard isCanonical, let selectedCitation else { return true }
+        if case let .reviewSource(requirement) = errorRecovery,
+           reviewRecoveryOwner != nil, reviewRecoveryOwner == currentReviewOwner,
+           requirement.taskID == selectedCitation.taskID,
+           requirement.citation.id == selectedCitation.citation.id { return true }
         return sessionStore.validationTargets().contains { target in
             target.taskID == selectedCitation.taskID
                 && target.response.citations.contains {
@@ -5540,6 +5618,15 @@ struct RelationshipAskView: View {
 
     private func revalidateAndDismissUnavailableCitation() async {
         await revalidateSessions()
+        if case let .reviewSource(requirement) = errorRecovery {
+            do { _ = try await refreshRecoveryCitation(requirement) }
+            catch {
+                if errorRecovery == .reviewSource(requirement) {
+                    selectedCitation = nil; reviewRecoveryOwner = nil; errorRecovery = .retry
+                    errorMessage = appLanguage.text("The source is no longer current. Ask again.", zhHans: "来源已变化，请重新提问。")
+                }
+            }
+        }
         if !selectedCitationIsCurrent { selectedCitation = nil }
     }
 }

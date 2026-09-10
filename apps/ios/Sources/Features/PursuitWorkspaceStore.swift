@@ -428,6 +428,11 @@ final class PursuitWorkspaceStore: ObservableObject {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
         return try await service.createScreenshotContactTask(body)
     }
+    func refreshReviewRequirement(_ requirement: AskCitationReviewRequirement, personID: String, contextID: String) async throws -> AskCitationReviewRequirement {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.refreshReviewRequirement(requirement, personID: personID, relationshipContextID: contextID)
+    }
+
     func loadReplyPreference() async throws -> AgentReplyPreference {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
         return try await service.loadReplyPreference()

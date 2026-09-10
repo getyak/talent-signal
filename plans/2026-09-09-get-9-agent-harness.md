@@ -1051,3 +1051,42 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   (GET23). It excludes all current follow-up code. Browser capability, client
   acceptance and follow-up CI/merge/deployment/release remain open; GET-9 stays
   In Progress. Chrome installation still requires the previously stated approval.
+
+### 2026-09-10 10:55 — file slice committed; native recovery defect found
+
+- File/computation slice committed as829b5248. Actual Web task and click saved
+  a71-byte CSV in Downloads; rows5/12/17 and hash match canonical artifact.
+  Independent reviewer separately read the downloaded file and confirmed it.
+- Native unit-test binary had no signing entitlement and failed Keychain recovery;
+  signed Debug rebuild restored normal login. No application guard was bypassed.
+  The same synthetic account now reaches its real contacts and scoped chat.
+- Native readback correctly requires a last_review_id; the authored fixture's
+  reviewed flag alone is insufficient. Actual UI then exposed a P2: the source
+  review sheet immediately dismisses because failed replies are not saved turns.
+- Uncommitted fix retains a temporary validation response and exact citation,
+  binds the original account/user/Session/scope, and refreshes canonical readback
+  before display/submission and periodically. It does not create a successful
+  turn or bypass source/review CAS. Independent review caught a remote-login P1
+  omission and same-Session scope-change P2; both repaired, re-review pending.
+- First focused native run9/9 passes; second expands to remote-zero-request and
+  actual Session-scope/retention regression. Native source review and system file
+  save acceptance remain active. Browser/delivery/Chrome permission stay open.
+
+### 2026-09-10 11:17 — native review recovery and system save verified
+
+- Native full recovery regression107/107 passes. Independent review closes all
+  confirmed P1/P2: temporary source-review authority is refreshed and owner-bound;
+  applied review plus matching old ask-key retirement persists atomically across
+  retries/restarts. Draft remains and user explicitly Sends again.
+- Actual signed Simulator completes review→Send→Chinese17h answer. Generated
+  artifact remains available, but its UI entry was absent. Grouping answer and
+  file view in one lazy item plus visible list loading/retry restores the entry.
+  Actual system exporter saves66bytes with5/12/17 and canonical SHA256 match;
+  independent reviewer separately reads the file. Layout test8/8 passes.
+- Reviewer found local proposals would show a futile Retry. Entry admission now
+  requires canonical task and manifest UUIDs, with proposal/unbound/preview
+  exclusion tests. Re-review closes P2; latest9/9 passes, and docs:check passes.
+- Durable native receipt preserves failures and limits. Restored Session still
+  shows needs-refresh; do not count the file receipt as cross-device sync proof.
+  Browser capability, original-image client proof, Chrome permission and final
+  delivery/release remain open. GET-9 is still In Progress.

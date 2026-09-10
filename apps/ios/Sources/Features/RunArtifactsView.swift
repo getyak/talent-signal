@@ -25,9 +25,21 @@ struct RunArtifactsView: View {
     @State private var contentType: UTType = .json
     @State private var exporting = false
     @State private var loadingTask: Task<Void, Never>?
+    @State private var listing = true
+    @State private var listFailed = false
+    @State private var listAttempt = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if listing {
+                ProgressView(language.text("Checking generated files…", zhHans: "正在检查生成的文件…"))
+                    .font(.caption)
+            } else if listFailed {
+                Button(language.text("Files could not be loaded. Retry", zhHans: "文件列表加载失败，重试")) {
+                    listAttempt += 1
+                }
+                .font(.caption)
+            }
             if !files.isEmpty {
                 Text(language.text("Generated files · analysis to verify", zhHans: "生成的文件 · 分析结果，待核实"))
                     .font(.caption).foregroundStyle(.secondary)
@@ -58,9 +70,15 @@ struct RunArtifactsView: View {
             }
             if let notice { Text(notice).font(.caption).foregroundStyle(.secondary).accessibilityAddTraits(.updatesFrequently) }
         }
-        .task(id: taskID) {
-            files = []
-            do { let current = try await list(); try Task.checkCancellation(); files = current } catch { files = [] }
+        .task(id: "\(taskID):\(listAttempt)") {
+            files = []; listing = true; listFailed = false
+            do {
+                let current = try await list()
+                try Task.checkCancellation()
+                files = current; listing = false
+            } catch {
+                if !Task.isCancelled { files = []; listing = false; listFailed = true }
+            }
         }
         .fileExporter(isPresented: $exporting, document: document, contentType: contentType, defaultFilename: filename) { result in
             document = nil

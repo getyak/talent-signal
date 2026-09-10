@@ -1,7 +1,7 @@
 # GET-9 scoped file and computation follow-up
 
-Status: backend execution, Web download and independent review pass. iOS file-save
-acceptance, browser capability and final follow-up delivery remain open.
+Status: backend execution, Web download, native Simulator file saving and
+independent review pass. Browser capability and final follow-up delivery remain open.
 
 ## Real product trials
 
@@ -89,3 +89,30 @@ Local receipts include `/tmp/get9-run-files-pg-sixth.log`,
 `/tmp/get9-run-files-pg-seventh.log`, `/tmp/get9-run-files-web-second.log`,
 `/tmp/get9-run-files-ios-second.log`, and `/tmp/get9-ui-file-first-spans.jsonl`.
 These temporary paths are supporting local evidence, not durable release assets.
+
+## Native source-review recovery and system save
+
+[Native UI receipt](completeness-run-files-ios-ui.json) verifies an actual signed
+Debug Simulator task: inspect the exact authored 5/12 source, confirm its review,
+retain the draft, explicitly Send again, receive the Chinese total17 answer, then
+save the generated CSV through the iOS system exporter. The independently read
+66-byte file contains5/12/17 and matches the canonical artifact hash.
+
+The first attempts exposed three product defects: a review-required reply had no
+saved turn and its review sheet dismissed; an applied review retained the old
+ask idempotency key after revoking its cached reply; and the file view was absent
+from the lazy conversation layout. The fixes bind temporary review readback to
+its exact account/user/Session/scope, persist review plus matching-key retirement
+atomically, and group answer/files in one list item with visible load recovery.
+Approval never sends the retained draft automatically. Independent review closed
+a remote-login omission, same-Session scope race and local-proposal file-entry
+regression. Full native recovery regression passes107/107 before the layout
+increment; latest metadata/admission regression passes9/9. Documentation checks pass.
+
+The save uses an existing completed task reopened after the layout rebuild. The
+restored Session has a needs-refresh notice; cross-device Session synchronization
+is not accepted by this receipt. Earlier unsigned-build Keychain failure was
+resolved with ordinary signed Debug deployment, not an application bypass.
+Local logs: `/tmp/get9-ios-citation-recovery-fourth.log`,
+`/tmp/get9-ios-artifact-layout-first.log`,
+`/tmp/get9-ios-artifact-layout-second.log`.

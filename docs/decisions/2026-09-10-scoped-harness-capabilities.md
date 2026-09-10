@@ -2,7 +2,8 @@
 
 Status: file/computation implemented and independently reviewed in the GET-9
 follow-up; [Web download](../evaluations/get9-harness/completeness-run-files-web-ui.json)
-is verified. Browser admission, iOS saving and installed Chrome acceptance remain open.
+and [native Simulator saving](../evaluations/get9-harness/completeness-run-files-ios-ui.json)
+are verified. Browser admission and installed Chrome acceptance remain open.
 
 ## Context
 

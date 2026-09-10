@@ -2,6 +2,10 @@ import CryptoKit
 import Foundation
 
 struct RunArtifact: Decodable, Equatable, Identifiable {
+    static func canLoadInventory(taskID: String, manifestID: String, isCanonical: Bool) -> Bool {
+        isCanonical && UUID(uuidString: taskID) != nil && UUID(uuidString: manifestID) != nil
+    }
+
     let id: String
     let name: String
     let mediaType: String
@@ -408,6 +412,7 @@ protocol PursuitWorkspaceServing {
         personID: String,
         relationshipContextID: String
     ) async throws
+    func refreshReviewRequirement(_ requirement: AskCitationReviewRequirement, personID: String, relationshipContextID: String) async throws -> AskCitationReviewRequirement
     func readOperation(id: UUID) async throws -> PursuitActionOperationReadback
     func rejectEvidence(
         fragmentID: String,
@@ -548,6 +553,10 @@ extension PursuitWorkspaceServing {
         personID: String,
         relationshipContextID: String
     ) async throws {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func refreshReviewRequirement(_ requirement: AskCitationReviewRequirement, personID: String, relationshipContextID: String) async throws -> AskCitationReviewRequirement {
         throw PursuitWorkspaceClientError.askUnavailable
     }
 
@@ -1364,6 +1373,18 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing, AgentSessionSyncServin
         )
     }
 
+    func refreshReviewRequirement(_ requirement: AskCitationReviewRequirement, personID: String, relationshipContextID: String) async throws -> AskCitationReviewRequirement {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        let readback: RelationshipAskReadback = try await request(
+            path: "v1/chat/tasks/\(requirement.taskID)/readback", token: login.accessToken
+        )
+        return try readback.validatedReviewRequirement(requirement, expectedAccountID: login.account.id,
+            expectedPersonID: personID, expectedRelationshipContextID: relationshipContextID)
+    }
+
     func rejectEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
@@ -1633,7 +1654,25 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing, AgentSessionSyncServin
     }
 }
 
+struct AskCitationReviewOwner: Equatable {
+    let workspaceID: String
+    let userID: String
+    let sessionID: UUID
+    let personID: String
+    let contextID: String
+
+    static func current(session: AgentSession?, workspaceID: String, userID: String,
+        personID: String, contextID: String, now: Date = Date()) -> Self? {
+        guard let session, session.retentionDeadline > now,
+              session.scope.matches(personID: personID, relationshipContextID: contextID) else { return nil }
+        return Self(workspaceID: workspaceID, userID: userID, sessionID: session.id,
+            personID: personID, contextID: contextID)
+    }
+}
+
 struct AskCitationReviewRequirement: Equatable {
+    // Ephemeral validation input only; never recorded as a successful Session turn.
+    let response: RelationshipAskResponse
     let taskID: String
     let citation: RelationshipAskResponse.Citation
 }
@@ -2153,6 +2192,29 @@ struct RelationshipAskReadback: Decodable, Equatable {
     var media: [ChatMediaAsset]? = nil
     let createdAt: String
 
+    func validatedReviewRequirement(_ requirement: AskCitationReviewRequirement,
+        expectedAccountID: String, expectedPersonID: String,
+        expectedRelationshipContextID: String) throws -> AskCitationReviewRequirement {
+        guard requirement.response.taskID == requirement.taskID else {
+            throw PursuitWorkspaceClientError.askReadbackEnvelopeMismatch
+        }
+        do {
+            _ = try validated(requirement.response, expectedAccountID: expectedAccountID,
+                expectedPersonID: expectedPersonID, expectedRelationshipContextID: expectedRelationshipContextID)
+        } catch let PursuitWorkspaceClientError.askCitationReviewRequired(current) {
+            guard current.taskID == requirement.taskID,
+                  current.citation.id == requirement.citation.id,
+                  current.citation.contentHash == requirement.citation.contentHash,
+                  current.citation.reviewStatus == requirement.citation.reviewStatus,
+                  current.citation.lastReviewID == requirement.citation.lastReviewID else {
+                throw PursuitWorkspaceClientError.citedEvidenceUnavailable
+            }
+            return current
+        }
+        // Already reviewed is not permission to submit the former decision again.
+        throw PursuitWorkspaceClientError.citedEvidenceUnavailable
+    }
+
     func validated(
         _ response: RelationshipAskResponse,
         expectedAccountID: String,
@@ -2215,6 +2277,7 @@ struct RelationshipAskReadback: Decodable, Equatable {
         if let citationNeedingReview {
             throw PursuitWorkspaceClientError.askCitationReviewRequired(
                 AskCitationReviewRequirement(
+                    response: response,
                     taskID: response.taskID,
                     citation: citationNeedingReview
                 )
