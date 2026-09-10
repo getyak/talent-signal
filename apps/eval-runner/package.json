@@ -36,7 +36,7 @@
     "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
     "@talent-signal/evaluation": "workspace:*",
-    "opik": "2.2.45"
+    "opik": "2.2.52"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
