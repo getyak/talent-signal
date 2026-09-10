@@ -10,7 +10,9 @@ export async function POST(request:Request){
   try{
     const reader=request.body?.getReader();const chunks:Uint8Array[]=[];let size=0;
     if(reader)while(true){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>14_000_000){await reader.cancel();return NextResponse.json({message:"截取内容过大，请裁剪后重试。"},{status:413});}chunks.push(part.value);}
-    input=browserCaptureInput(JSON.parse(Buffer.concat(chunks).toString("utf8")),request.headers,claims,new URL(request.url).origin);
+    // Origin has already been checked against Host. Next's internal request URL
+    // can use localhost behind a proxy even when the browser uses another host.
+    input=browserCaptureInput(JSON.parse(Buffer.concat(chunks).toString("utf8")),request.headers,claims,new URL(request.headers.get("origin")!).origin);
   }catch{return NextResponse.json({message:"提交内容、保留方式或会话已变化，请重新检查来源并连接。"},{status:422});}
   try{
     const result=await browserBackend(claims,"tasks",input);const body=await result.json();
