@@ -3,6 +3,33 @@ import XCTest
 @testable import TalentSignal
 
 final class SessionConversationClientTests: XCTestCase {
+    func testReplyPreferencePreservesIntentAndRequiresMatchingReadback() async throws {
+        let (client, network) = makeClient()
+        defer { network.invalidateAndCancel(); SessionConversationURLProtocol.handler = nil }
+        let intent = UUID().uuidString
+        var methods: [String] = []
+        var readbackRevision = 2
+        SessionConversationURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/v1/agent/preferences")
+            methods.append(request.httpMethod ?? "")
+            if request.httpMethod == "PUT" {
+                let body = try self.body(request)
+                XCTAssertEqual(body["idempotency_key"] as? String, intent)
+                XCTAssertEqual(body["expected_revision"] as? Int, 1)
+                XCTAssertEqual(body["response_style"] as? String, "conclusion_first")
+            }
+            return try JSONSerialization.data(withJSONObject: ["preference": ["response_style": "conclusion_first",
+                "revision": request.httpMethod == "PUT" ? 2 : readbackRevision, "updated_at": "2026-09-09T00:00:00Z"]])
+        }
+        let mutation = AgentReplyPreferenceMutation(idempotencyKey: intent, expectedRevision: 1, responseStyle: .conclusionFirst)
+        let saved = try await client.saveReplyPreference(mutation)
+        XCTAssertEqual(saved.responseStyle, .conclusionFirst)
+        XCTAssertEqual(methods, ["PUT", "GET"])
+        readbackRevision = 3
+        do { _ = try await client.saveReplyPreference(mutation); XCTFail("A changed readback cannot be reported as saved") }
+        catch PursuitWorkspaceClientError.scopeReadbackMismatch { }
+    }
+
     func testUnscopedFollowupAndRetryKeepSessionMessageAndIntentIDs() async throws {
         let sessionID = UUID(), messageID = UUID()
         let (client, network) = makeClient()
@@ -11,6 +38,7 @@ final class SessionConversationClientTests: XCTestCase {
         SessionConversationURLProtocol.handler = { request in
             count += 1
             XCTAssertEqual(request.url?.path, "/v1/chat/unscoped-tasks")
+            XCTAssertEqual(request.timeoutInterval, 120)
             let body = try self.body(request)
             XCTAssertEqual((body["session_id"] as? String).flatMap(UUID.init(uuidString:)), sessionID)
             XCTAssertEqual((body["message_id"] as? String).flatMap(UUID.init(uuidString:)), messageID)
@@ -47,6 +75,7 @@ final class SessionConversationClientTests: XCTestCase {
         SessionConversationURLProtocol.handler = { request in
             requested = true
             XCTAssertEqual(request.url?.path, "/v1/chat/tasks")
+            XCTAssertEqual(request.timeoutInterval, 120)
             let body = try self.body(request)
             XCTAssertEqual((body["session_id"] as? String).flatMap(UUID.init(uuidString:)), sessionID)
             XCTAssertEqual((body["message_id"] as? String).flatMap(UUID.init(uuidString:)), messageID)
@@ -60,6 +89,50 @@ final class SessionConversationClientTests: XCTestCase {
                 sessionID: sessionID, messageID: messageID)
             XCTFail("Expected offline response")
         } catch { XCTAssertTrue(requested) }
+    }
+
+    func testLoopbackSessionSyncUsesTheSameAuthenticatedClientAsChat() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [SessionConversationURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); SessionConversationURLProtocol.handler = nil }
+        let client = URLPursuitWorkspaceClient(baseURL: URL(string: "http://127.0.0.1:3347")!, session: network)
+        let messageID = UUID()
+        var paths: [String] = []
+        SessionConversationURLProtocol.handler = { request in
+            let path = request.url!.path
+            paths.append(path)
+            if path == "/v1/auth/simulated-login" {
+                return try JSONSerialization.data(withJSONObject: [
+                    "contract_version": TalentSignalAPIContract.version,
+                    "access_token": "owned-loopback-test-token",
+                    "account": ["id": UUID().uuidString],
+                    "user": ["id": UUID().uuidString, "display_name": "Synthetic recruiter"]
+                ])
+            }
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer owned-loopback-test-token")
+            if path == "/v1/agent-sessions" {
+                return try JSONSerialization.data(withJSONObject: [
+                    "contract_version": TalentSignalAPIContract.version,
+                    "sessions": [], "complete": true, "next_cursor": NSNull()
+                ])
+            }
+            XCTAssertEqual(path, "/v1/chat/unscoped-tasks")
+            return try self.response(sourceMessageID: messageID, relationshipContext: "")
+        }
+        let page = try await client.list(after: nil)
+        XCTAssertTrue(page.complete)
+        _ = try await client.chatUnscoped(objective: "Save Mira Chen, mira@example.com", idempotencyKey: "same-intent",
+            sessionID: UUID(), messageID: messageID)
+        XCTAssertEqual(paths, ["/v1/auth/simulated-login", "/v1/agent-sessions", "/v1/chat/unscoped-tasks"])
+    }
+
+    func testSessionSyncCannotSimulateLoginOnARemoteEndpoint() async throws {
+        let client = URLPursuitWorkspaceClient(baseURL: URL(string: "https://example.invalid")!)
+        do {
+            _ = try await client.list(after: nil)
+            XCTFail("An unauthenticated remote endpoint must not receive fixture login")
+        } catch PursuitWorkspaceClientError.loopbackOnly { }
     }
 
     private func makeClient() -> (URLPursuitWorkspaceClient, URLSession) {

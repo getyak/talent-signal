@@ -17,7 +17,7 @@ backfilled or invented.
   outcome, question search, paginated history, answer previews, original input,
   context/model calls, tool calls, and versioned feedback history.
 - A changed screenshot answer has no inherited rating. Each historical feedback
-  event retains the answer version it described.
+  event retains its answer version only while that source generation is admitted.
 - Web follow-ups pass the preceding task ID. The backend retrieves that owner's
   original question and answer in the same relationship using its bounded
   conversation-history policy; the composer contains only the user's request.
@@ -54,13 +54,19 @@ hard checks; semantic assertions remain independently defined by the reviewer.
 
 ## Runtime and lifecycle
 
-Migration `058_product_run_monitor` is required by readiness. Capture covers
+Migration `065_screenshot_directory_authority` is required by readiness. Capture covers
 admitted relationship Chat, unscoped Chat, screenshot tasks and person research.
 Request-local context keeps concurrent runs separate; queued span writes avoid
 waiting for a second database connection inside a product transaction.
 Screenshot resumes restore capture from the persisted task-to-run association.
-Model and tool bodies have explicit content-size states; unrecorded details
-must not be interpreted as evidence that no operation occurred.
+Model and tool bodies have explicit content-size states. Original image bytes are
+excluded; failed or unbound runs retain metadata only. Diagnostic content stays
+request-local until a committed task and its source generation admit it, with a
+2 MB per-content and 16 MB aggregate span limit. Unrecorded details do not prove
+that no operation occurred. A screenshot checkpoint cannot restore earlier
+spans or feedback content after source changes. Directory changes clear cached
+candidates, preserve the original image/extraction, and require a fresh lookup;
+late outputs must satisfy the current canonical task revision.
 
 Original content follows the existing canonical session, screenshot, source and
 retention predicates, with a seven-day maximum here. Expired/withdrawn content

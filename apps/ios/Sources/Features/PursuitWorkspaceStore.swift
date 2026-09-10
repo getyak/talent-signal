@@ -265,6 +265,7 @@ final class PursuitWorkspaceStore: ObservableObject {
 
     let isCanonical: Bool
     private let service: PursuitWorkspaceServing?
+    var sessionSyncService: (any AgentSessionSyncServing)? { service as? any AgentSessionSyncServing }
     private let actionCompletions: PursuitActionCompletionPersisting
     private let operationIDFactory: () -> UUID
 
@@ -426,6 +427,14 @@ final class PursuitWorkspaceStore: ObservableObject {
     func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
         return try await service.createScreenshotContactTask(body)
+    }
+    func loadReplyPreference() async throws -> AgentReplyPreference {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.loadReplyPreference()
+    }
+    func saveReplyPreference(_ body: AgentReplyPreferenceMutation) async throws -> AgentReplyPreference {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.saveReplyPreference(body)
     }
     func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }

@@ -36,11 +36,11 @@ export const PersonResearchServiceRequestSchema = z.strictObject({
 });
 
 const PersonResearchUsageSchema = z.strictObject({
-  input_tokens: z.number().int().nonnegative(),
-  output_tokens: z.number().int().nonnegative(),
-  total_tokens: z.number().int().nonnegative(),
-  estimated_usd: z.number().nonnegative(),
-  turns: z.number().int().nonnegative(),
+  input_tokens: z.number().int().nonnegative().nullable(),
+  output_tokens: z.number().int().nonnegative().nullable(),
+  total_tokens: z.number().int().nonnegative().nullable(),
+  estimated_usd: z.number().nonnegative().nullable(),
+  turns: z.number().int().nonnegative().nullable(),
   tool_calls: z.number().int().nonnegative(),
   duration_ms: z.number().int().nonnegative(),
 });

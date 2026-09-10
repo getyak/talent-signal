@@ -30,7 +30,7 @@ describe("readiness rate limiting", () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
         {
-          version: "058_product_run_monitor",
+          version: "065_screenshot_directory_authority",
         },
       ],
     });
@@ -56,13 +56,13 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("058_product_run_monitor"),
+      expect.stringContaining("065_screenshot_directory_authority"),
     );
   }, 10_000);
 
-  it("stays unavailable until the feedback migration is applied", async () => {
+  it("stays unavailable until the current Harness source migration is applied", async () => {
     const query = vi.fn().mockImplementation(async (sql: string) => ({
-      rows: sql.includes("058_product_run_monitor") ? [] : [{ version: "056_agent_session_chat_lifecycle" }],
+      rows: sql.includes("065_screenshot_directory_authority") ? [] : [{ version: "056_agent_session_chat_lifecycle" }],
     }));
     const app = await buildApp({ config, pool: { query } as unknown as Pool });
     apps.push(app);

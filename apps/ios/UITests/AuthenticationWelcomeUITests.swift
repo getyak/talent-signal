@@ -28,7 +28,7 @@ final class AuthenticationWelcomeUITests: XCTestCase {
 
     func testFirstMeetingSwipeRevealAndEmailRecovery() {
         let app = XCUIApplication()
-        app.launchArguments = ["--auth-backend-url", "http://127.0.0.1:4341", "-talent-signal.interface-language", "zh-Hans", "--welcome-first-meeting"]
+        app.launchArguments = ["--auth-backend-url", fixtureBackendURL, "-talent-signal.interface-language", "zh-Hans", "--welcome-first-meeting"]
         app.launch()
         let skip = app.buttons["welcome-skip"]
         XCTAssertTrue(skip.waitForExistence(timeout: 15))
@@ -110,6 +110,16 @@ final class AuthenticationWelcomeUITests: XCTestCase {
         XCTAssertTrue(email.isHittable)
         XCTAssertFalse(app.staticTexts["让每一段关系，\n都有新的可能。"].exists)
         save(app, "08-offline-accessibility-recovery")
+    }
+
+    private var fixtureBackendURL: String {
+        // The current test bundle owns the ephemeral backend port. A reused
+        // Simulator test daemon can retain an earlier invocation's environment.
+        if let value = Bundle(for: AuthenticationWelcomeUITests.self)
+            .object(forInfoDictionaryKey: "TS_IOS_BACKEND_URL") as? String,
+           !value.isEmpty, !value.contains("$(") { return value }
+        return ProcessInfo.processInfo.environment["TS_IOS_BACKEND_URL"]
+            ?? "http://127.0.0.1:4341"
     }
 
     private func save(_ app: XCUIApplication, _ name: String) {

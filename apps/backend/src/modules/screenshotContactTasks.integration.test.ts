@@ -1,22 +1,214 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { ContactResearchToolRequestSchema } from "@talent-signal/agent";
 import type { ContactAgentModel, ContactChatExtraction, ScreenshotContactTaskRequest } from "@talent-signal/agent";
-import { createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage } from "./screenshotContactTasks.js";
+import { lookupScreenshotContactReceipt, createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage, confirmScreenshotContactProfile } from "./screenshotContactTasks.js";
 import type { AuthContext } from "./auth.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { executeGrantedContactArchive, restoreContactArchive } from "./contactArchive.js";
 
 const database=process.env.CONTACT_AGENT_TEST_DATABASE_URL;
-const pool=database?new Pool({connectionString:database}):null;
+const pool=database?new Pool({connectionString:database,connectionTimeoutMillis:30_000,max:4,idleTimeoutMillis:0}):null;
 const auth:AuthContext={accountId:"10000000-0000-4000-8000-000000000001",accountSlug:"fixture-alpha",userId:"10000000-0000-4000-8000-000000000011",userEmail:"recruiter@alpha.local",userKind:"simulated_human",sessionId:randomUUID()};
 afterAll(async()=>{await pool?.end();});
+// Establish the Docker transport before measuring product operations. On macOS
+// the initial forwarded-port handshake can exceed the per-test operation budget.
+beforeAll(async()=>{
+  if(!pool)return;
+  const clients=await Promise.all(Array.from({length:4},()=>pool.connect()));
+  try{await Promise.all(clients.map(client=>client.query("SELECT 1")));}finally{clients.forEach(client=>client.release());}
+},30_000);
+
+function sdkModel(run: NonNullable<ContactAgentModel["run"]>): ContactAgentModel {
+  return { run, extract: vi.fn(async()=>{throw new Error("UNEXPECTED_OCR_PREPASS");}),
+    next: vi.fn(async()=>{throw new Error("UNEXPECTED_OUTER_MODEL_LOOP");}) };
+}
+const sdkReceipt = () => ({ providerRequestID:randomUUID(),model:"synthetic-sdk",inputTokens:10,outputTokens:10 });
+
+describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
+  it("recovers a lost image receipt by original key without another task or cross-owner access", async () => {
+    const request = input();
+    const created = await createScreenshotContactTask(pool!, auth, request);
+    try {
+      const recovered = await lookupScreenshotContactReceipt(pool!, auth, request.idempotency_key);
+      expect(recovered.task_id).toBe(created.body.task_id);
+      await expect(lookupScreenshotContactReceipt(pool!, {...auth, userId: randomUUID()}, request.idempotency_key)).rejects.toMatchObject({statusCode:404});
+      await expect(lookupScreenshotContactReceipt(pool!, {...auth, accountId: randomUUID()}, request.idempotency_key)).rejects.toMatchObject({statusCode:404});
+      const rows = await pool!.query("SELECT count(*)::int AS count FROM screenshot_contact_tasks WHERE account_id=$1 AND created_by_user_id=$2 AND idempotency_key=$3", [auth.accountId, auth.userId, request.idempotency_key]);
+      expect(rows.rows[0].count).toBe(1);
+      await pool!.query("UPDATE screenshot_contact_tasks SET status='deleted',state='{}',input_manifest='{}' WHERE id=$1", [created.body.task_id]);
+      expect(await lookupScreenshotContactReceipt(pool!, auth, request.idempotency_key)).toEqual({task_id:created.body.task_id,status:"deleted"});
+    } finally { await pool!.query("DELETE FROM screenshot_contact_tasks WHERE id=$1", [created.body.task_id]); }
+  });
+
+  it("clears deleted directory candidates and cached observations while keeping the original screenshot task resumable",async()=>{
+    const person=randomUUID(),context=randomUUID(),marker=`Deleted candidate ${randomUUID()}`;
+    await pool!.query("INSERT INTO subjects(id,account_id,external_ref,display_label) VALUES($1::uuid,$2,$1::text,$3)",[person,auth.accountId,marker]);
+    await pool!.query("INSERT INTO assignments(id,account_id,subject_id,external_ref,display_label) VALUES($1::uuid,$2,$3,$1::text,'Synthetic context')",[context,auth.accountId,person]);
+    const created=await createScreenshotContactTask(pool!,auth,input());
+    const task=created.body.task_id;
+    try {
+      const candidate={person_id:person,relationship_context_id:context,display_name:marker,relationship_label:'Synthetic context'};
+      const stored=(await pool!.query('SELECT state FROM screenshot_contact_tasks WHERE id=$1',[task])).rows[0]!.state;
+      stored.response.status='waiting_for_user';stored.response.candidates=[candidate];
+      stored.searches=[{query:'Synthetic',candidates:[candidate]}];stored.observations=[{tool:'search_contacts',result:{candidates:[candidate]}}];
+      await pool!.query("UPDATE screenshot_contact_tasks SET state=$2::jsonb,status='waiting_for_user' WHERE id=$1",[task,JSON.stringify(stored)]);
+      const before=await loadScreenshotContactTask(pool!,auth,task);expect(JSON.stringify(before)).toContain(marker);
+      await pool!.query('DELETE FROM assignments WHERE id=$1',[context]);
+      await pool!.query('DELETE FROM subjects WHERE id=$1',[person]);
+      const after=await loadScreenshotContactTask(pool!,auth,task);
+      expect(after.status).toBe('waiting_for_user');expect(after.candidates).toEqual([]);expect(after.revision).toBeGreaterThan(before.revision);
+      expect(JSON.stringify(after)).not.toContain(marker);
+      const current=(await pool!.query('SELECT state,input_manifest FROM screenshot_contact_tasks WHERE id=$1',[task])).rows[0]!;
+      expect(current.state.searches).toEqual([]);expect(current.state.observations).toEqual([]);
+      expect(current.input_manifest.image).toBeDefined();
+      await expect(resumeScreenshotContactTask(pool!,auth,task,{expected_revision:before.revision,selected_person_id:person,selected_relationship_context_id:context}))
+        .rejects.toMatchObject({code:'CONTACT_TASK_REVISION_CHANGED'});
+      expect((await resumeScreenshotContactTask(pool!,auth,task,{expected_revision:after.revision})).status).toBe('running');
+    } finally {
+      await pool!.query('DELETE FROM screenshot_contact_tasks WHERE id=$1',[task]);
+      await pool!.query('DELETE FROM assignments WHERE id=$1',[context]);await pool!.query('DELETE FROM subjects WHERE id=$1',[person]);
+    }
+  });
+
+  it("stages an editable profile without writing a person, then reuses its confirmed account after review",async()=>{
+    const name=`Profile draft ${randomUUID().slice(0,8)}`;const handle=`sdk-${randomUUID()}`;
+    const profile:ContactChatExtraction={platform:"Synthetic social",conversation_kind:"not_chat",contact_name:name,
+      identity_clues:[{kind:"name",value:name,source_excerpt:name},{kind:"handle",value:handle,source_excerpt:handle},
+        {kind:"company",value:"Old example",source_excerpt:"Old example"}],messages:[],uncertainties:[]};
+    const sdk=sdkModel(async(request,signal)=>{await request.recordUnderstanding([profile],signal);return sdkReceipt();});
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null});
+    let personID:string|undefined;
+    for(let index=0;index<2;index++){
+      const request={...input(),browser_source:{title:"Synthetic reviewed profile",locator:"https://example.com/profile"}};
+      const created=await createScreenshotContactTask(pool!,auth,request);await runner.start(auth,created.body.task_id,request.image);
+      const draft=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+      expect(draft.status).toBe("waiting_for_user");expect(draft.contact).toBeNull();expect(draft.capture_id).toBeNull();
+      expect(draft.contact_draft?.fields[2]?.source_excerpt).toBe("Old example");
+      expect((await pool!.query("SELECT id FROM subjects WHERE account_id=$1 AND display_label=$2",[auth.accountId,name])).rowCount).toBe(index);
+      const confirmation={expected_revision:draft.revision,decision:"save_reviewed_profile",display_name:name,
+        fields:draft.contact_draft!.fields.map(f=>({clue_index:f.clue_index,value:f.kind==="company"?"Reviewed example":f.value}))};
+      await expect(confirmScreenshotContactProfile(pool!,auth,draft.task_id,{...confirmation,expected_revision:draft.revision-1})).rejects.toMatchObject({code:"CONTACT_TASK_REVISION_CHANGED"});
+      const saved=await confirmScreenshotContactProfile(pool!,auth,draft.task_id,confirmation);
+      expect(saved.status).toBe("completed");expect(saved.message_count).toBe(0);expect(saved.contact_draft).toBeUndefined();
+      if(index===0)personID=saved.contact!.person_id;
+      expect(saved.contact!.person_id).toBe(personID);expect(saved.contact!.disposition).toBe(index?"reused":"created");
+      expect(saved.extraction!.identity_clues[2]!.source_excerpt).toBe("Old example");
+      expect(saved.reviewed_profile?.fields[2]).toMatchObject({value:"Reviewed example",source_excerpt:"Old example"});
+      expect((await loadScreenshotContactTask(pool!,auth,saved.task_id)).reviewed_profile).toEqual(saved.reviewed_profile);
+      expect((await pool!.query("SELECT input_channel,source_locator FROM source_resources WHERE account_id=$1 AND id=$2",[auth.accountId,saved.source_resource_id])).rows[0])
+        .toEqual({input_channel:"browser_extension",source_locator:request.browser_source.locator});
+      const stored=await pool!.query("SELECT text_content,review_status,attributed_actor,attribution_status,fragment_kind FROM evidence_fragments WHERE capture_id=$1 ORDER BY sequence",[saved.capture_id]);
+      expect(stored.rows).toHaveLength(4);
+      expect(stored.rows[3]).toMatchObject({text_content:"Reviewed example",review_status:"reviewed",attributed_actor:"recruiter",attribution_status:"confirmed",fragment_kind:"contact_field"});
+      await expect(confirmScreenshotContactProfile(pool!,auth,draft.task_id,confirmation)).rejects.toMatchObject({code:"CONTACT_TASK_REVISION_CHANGED"});
+    }
+    expect((await pool!.query("SELECT id FROM subjects WHERE account_id=$1 AND display_label=$2",[auth.accountId,name])).rowCount).toBe(1);
+  });
+
+  it("keeps actual chat about a website as attributed chat evidence and rejects public references in findings", async () => {
+    const name = `Chat website ${randomUUID().slice(0, 8)}`;
+    const message = "The website says the launch is Friday. I will send the revised plan tomorrow.";
+    const extraction: ContactChatExtraction = { platform: "Synthetic IM", conversation_kind: "direct", contact_name: name,
+      identity_clues: [{kind:"name",value:name,source_excerpt:name}],
+      messages: [{message_id:"m1",sequence:0,text:message,speaker_side:"left",speaker_label:name,time_text:null}], uncertainties: [] };
+    const sdk = sdkModel(async (request, signal) => {
+      await request.recordUnderstanding([extraction], signal);
+      await request.invoke("search_contacts", {query:name}, signal);
+      await request.invoke("create_contact", {display_name:name}, signal);
+      const finding = {kind:"commitment",text:`${name} says the website lists Friday for launch and commits to sending the revised plan tomorrow.`,
+        message_refs:["m1"],source_excerpt:message,epistemic_status:"inference"};
+      await expect(request.invoke("finish_contact_task", {summary:"Synthetic chat filed.",findings:[{...finding,message_refs:["public1"]}],limitations:[]}, signal))
+        .resolves.toMatchObject({error:"CONTACT_CITATION_SOURCE_UNAVAILABLE"});
+      await request.invoke("finish_contact_task", {summary:"Synthetic chat filed.",findings:[finding],limitations:[]}, signal);
+      return sdkReceipt();
+    });
+    const request=input(), created=await createScreenshotContactTask(pool!,auth,request);
+    await new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null}).start(auth,created.body.task_id,request.image);
+    const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(result.status).toBe("completed");
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]).toMatchObject({kind:"commitment",message_refs:["m1"],source_excerpt:message,epistemic_status:"inference"});
+    expect(result.events.some(event=>event.tool==="finish_contact_task"&&event.status==="denied")).toBe(true);
+  });
+
+  it("files from the main Agent image understanding and reuses one existing contact",async()=>{
+    const name=`SDK reuse ${randomUUID().slice(0,8)}`;
+    const original=await model(name).extract(input().image,new AbortController().signal);
+    const sdk=sdkModel(async(request,signal)=>{
+      expect(request.images).toHaveLength(1);
+      await request.recordUnderstanding([original.extraction],signal);
+      const search=await request.invoke("search_contacts",{query:name},signal) as {candidates:Array<{person_id:string;relationship_context_id:string}>};
+      if(search.candidates.length){
+        const candidate=search.candidates[0]!;
+        const target={person_id:candidate.person_id,relationship_context_id:candidate.relationship_context_id};
+        await request.invoke("read_contact",target,signal);
+        await request.invoke("save_contact_chat",target,signal);
+      }else await request.invoke("create_contact",{display_name:name},signal);
+      await request.invoke("finish_contact_task",{summary:"Synthetic screenshot filed.",findings:[],limitations:[]},signal);
+      return sdkReceipt();
+    });
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null});
+    let person:string|undefined;
+    for(let attempt=0;attempt<2;attempt++){
+      const request={...input(),browser_source:{title:"Synthetic reviewed chat",locator:"https://example.com/chat"}};
+      const created=await createScreenshotContactTask(pool!,auth,request);
+      expect((await pool!.query("SELECT input_manifest->'browser_source' AS source FROM screenshot_contact_tasks WHERE account_id=$1 AND id=$2",[auth.accountId,created.body.task_id])).rows[0]?.source).toEqual(request.browser_source);
+      await expect(createScreenshotContactTask(pool!,auth,{...request,browser_source:{...request.browser_source,locator:"https://example.com/other"}})).rejects.toMatchObject({code:"CONTACT_TASK_IDEMPOTENCY_CONFLICT"});
+      await runner.start(auth,created.body.task_id,request.image);
+      const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+      expect(result.status,JSON.stringify(result)).toBe("completed");
+      if(attempt===0)person=result.contact!.person_id;
+      expect(result.contact!.person_id).toBe(person);
+      expect(result.contact!.disposition).toBe(attempt===0?"created":"reused");
+      expect(result.external_effects).toEqual([]);
+      expect((await pool!.query("SELECT input_channel,source_locator FROM source_resources WHERE account_id=$1 AND id=$2",[auth.accountId,result.source_resource_id])).rows[0])
+        .toEqual({input_channel:"browser_extension",source_locator:request.browser_source.locator});
+    }
+    expect(sdk.extract).not.toHaveBeenCalled();expect(sdk.next).not.toHaveBeenCalled();
+  });
+
+  it("blocks conflicting per-image identities and rejects a forced selection on resume",async()=>{
+    const storage=new TestImageStorage();const request={...input(),additional_images:[input().image]};
+    const first=await model("SDK Alice").extract(request.image,new AbortController().signal);
+    const second=await model("SDK Bob").extract(request.image,new AbortController().signal);
+    const sdk=sdkModel(async(input,signal)=>{await input.recordUnderstanding([first.extraction,second.extraction],signal);return sdkReceipt();});
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null},storage);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage);await runner.start(auth,created.body.task_id);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting.status).toBe("waiting_for_user");expect(waiting.contact).toBeNull();expect(waiting.capture_id).toBeNull();
+    await expect(resumeScreenshotContactTask(pool!,auth,waiting.task_id,{expected_revision:waiting.revision,new_contact_name:"SDK Alice"})).rejects.toMatchObject({code:"CONTACT_BATCH_IDENTITY_CONFLICT"});
+  });
+
+  it("does not execute a queued contact write after SDK cancellation",async()=>{
+    const name=`SDK cancel ${randomUUID().slice(0,8)}`;const request=input();
+    const original=await model(name).extract(request.image,new AbortController().signal);
+    const created=await createScreenshotContactTask(pool!,auth,request);
+    const sdk=sdkModel(async(input,signal)=>{
+      await input.recordUnderstanding([original.extraction],signal);
+      await input.invoke("search_contacts",{query:name},signal);
+      const lock=await pool!.connect();await lock.query("BEGIN");
+      await lock.query("SELECT id FROM screenshot_contact_tasks WHERE id=$1 FOR UPDATE",[created.body.task_id]);
+      const cancelled=new AbortController();
+      const queued=input.invoke("create_contact",{display_name:name},cancelled.signal);
+      const rejection=expect(queued).rejects.toThrow("SDK_BUDGET_CANCELLED");
+      cancelled.abort(new Error("SDK_BUDGET_CANCELLED"));
+      await lock.query("ROLLBACK");lock.release();await rejection;
+      throw new Error("SDK_BUDGET_CANCELLED");
+    });
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null});
+    await runner.start(auth,created.body.task_id,request.image);
+    const final=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(final.status).toBe("failed");expect(final.contact).toBeNull();expect(final.capture_id).toBeNull();
+    expect((await pool!.query("SELECT id FROM subjects WHERE account_id=$1 AND display_label=$2",[auth.accountId,name])).rowCount).toBe(0);
+  });
+});
 function input():ScreenshotContactTaskRequest{
   const bytes=Buffer.from([137,80,78,71,13,10,26,10,0]);
   return {idempotency_key:randomUUID(),objective:"File this synthetic chat and analyze the evidence.",image:{media_type:"image/png",byte_size:bytes.length,content_hash:createHash("sha256").update(bytes).digest("hex"),data_base64:bytes.toString("base64")},allow_public_research:false,captured_at:new Date().toISOString()};
 }
-function model(name:string,options:{badQuote?:boolean;group?:boolean}={}):ContactAgentModel{
+function model(name:string,options:{badQuote?:boolean;badStatement?:boolean;group?:boolean}={}):ContactAgentModel{
   let attemptedBad=false;
   const extraction:ContactChatExtraction={platform:"Synthetic IM",conversation_kind:options.group?"group":"direct",contact_name:name,
     identity_clues:[{kind:"name",value:name,source_excerpt:name}],messages:[{message_id:"m1",sequence:0,text:"I work at Example Labs. I can talk next Tuesday.",speaker_side:"left",speaker_label:null,time_text:null}],uncertainties:["Message date and speaker role are unknown."]};
@@ -30,6 +222,7 @@ function model(name:string,options:{badQuote?:boolean;group?:boolean}={}):Contac
     else if(!s.contact&&search.candidates.length===1)call={name:"read_contact",arguments:{person_id:search.candidates[0]!.person_id,relationship_context_id:search.candidates[0]!.relationship_context_id}};
     else if(!s.contact)call={name:"create_contact",arguments:{display_name:name}};
     else if(!s.capture_id)call={name:"save_contact_chat",arguments:{person_id:s.contact.person_id,relationship_context_id:s.contact.relationship_context_id}};
+    else if(options.badStatement&&!attemptedBad){attemptedBad=true;call={name:"update_contact",arguments:{person_id:s.contact.person_id,fields:[{field:"company",value:"Example Labs",source_refs:["m1"],source_excerpt:"I work at Example Labs.",epistemic_status:"source_statement"},{field:"professional_background",value:"Led engineering at Example Labs",source_refs:["m1"],source_excerpt:"I work at Example Labs.",epistemic_status:"source_statement"}]}};}
     else if(options.badQuote&&!attemptedBad){attemptedBad=true;call={name:"update_contact",arguments:{person_id:s.contact.person_id,fields:[{field:"company",value:"Invented Ltd",source_refs:["m1"],source_excerpt:"I work at Invented Ltd",epistemic_status:"source_statement"}]}};}
     else if(!s.profile_fields.length)call={name:"update_contact",arguments:{person_id:s.contact.person_id,fields:[{field:"company",value:"Example Labs",source_refs:["m1"],source_excerpt:"I work at Example Labs.",epistemic_status:"source_statement"}]}};
     else call={name:"finish_contact_task",arguments:{summary:"Saved the chat. A call is possible, but its date needs clarification.",findings:[{kind:"open_question",text:"Confirm which Tuesday before scheduling.",message_refs:["m1"],source_excerpt:"I can talk next Tuesday.",epistemic_status:"inference"}],limitations:[]}};
@@ -37,6 +230,42 @@ function model(name:string,options:{badQuote?:boolean;group?:boolean}={}):Contac
   }};
 }
 describe.skipIf(!pool)("screenshot contact database authority",()=>{
+  it("rejects non-literal source statements atomically and recovers with source wording",async()=>{
+    const request=input(), created=await createScreenshotContactTask(pool!,auth,request);
+    const base=model(`Literal ${randomUUID().slice(0,8)}`,{badStatement:true});let rejectedBatchChecked=false;
+    const checked:ContactAgentModel={...base,next:async(arg,signal)=>{
+      if(!rejectedBatchChecked&&JSON.stringify(arg.observations).includes("CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE")){
+        rejectedBatchChecked=true;
+        expect((await pool!.query("SELECT id FROM contact_profile_observations WHERE account_id=$1 AND task_id=$2",[auth.accountId,created.body.task_id])).rowCount).toBe(0);
+        expect((arg.state as {profile_fields:unknown[]}).profile_fields).toEqual([]);
+      }
+      return base.next(arg,signal);
+    }};
+    await new ScreenshotContactTaskRunner(pool!,{model:checked,research:null}).start(auth,created.body.task_id,request.image);
+    expect(rejectedBatchChecked).toBe(true);
+    const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(result.status).toBe("completed");
+    expect(result.profile_fields.map(field=>[field.value,field.epistemic_status])).toEqual([["Example Labs","source_statement"]]);
+    expect(result.events.some(event=>event.tool==="update_contact"&&event.status==="denied")).toBe(true);
+    const rows=await pool!.query("SELECT observation FROM contact_profile_observations WHERE account_id=$1 AND task_id=$2",[auth.accountId,created.body.task_id]);
+    expect(rows.rows.map(row=>row.observation.value)).toEqual(["Example Labs"]);
+    expect(JSON.stringify((await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id])).rows[0].state.observations)).toContain("CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE");
+  });
+
+  it("preserves an explicitly labeled supported paraphrase without calling it source wording",async()=>{
+    const request=input(),created=await createScreenshotContactTask(pool!,auth,request),base=model(`Paraphrase ${randomUUID().slice(0,8)}`);
+    const inferred:ContactAgentModel={...base,next:async(arg,signal)=>{
+      const reply=await base.next(arg,signal);
+      const call=reply.calls[0];
+      if(call?.name==="update_contact")call.arguments={person_id:(arg.state as {contact:{person_id:string}}).contact.person_id,fields:[{field:"professional_background",value:"Reports employment at Example Labs; role is unspecified.",source_refs:["m1"],source_excerpt:"I work at Example Labs.",epistemic_status:"inference"}]};
+      return reply;
+    }};
+    await new ScreenshotContactTaskRunner(pool!,{model:inferred,research:null}).start(auth,created.body.task_id,request.image);
+    const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(result.status).toBe("completed");expect(result.profile_fields[0]?.epistemic_status).toBe("inference");
+    expect(result.profile_fields[0]?.value).toBe("Reports employment at Example Labs; role is unspecified.");
+  });
+
   it("creates one contact and exact unreviewed IM, reuses it on a second import, and does not replay writes",async()=>{
     const name=`Contact proof ${randomUUID().slice(0,8)}`;const request=input();
     const runner=new ScreenshotContactTaskRunner(pool!,{model:model(name),research:null});

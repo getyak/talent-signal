@@ -1,3 +1,7 @@
+import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
+import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
+import { loadAgentResponsePreference } from "./agentPreferences.js";
+import { createHarnessContinuationFactory } from "./harnessSessions.js";
 import { captureProductStep } from "@talent-signal/agent";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
 import { randomUUID } from "node:crypto";
@@ -122,7 +126,8 @@ function remoteAnswerBlock(answer: RemoteChatAnswerResult): ChatResponseBlock {
           ? "needs_review"
           : "informational",
     citation_dependency_ids: answer.citation_ids,
-    requires_user_decision: answer.kind === "clarification",
+    requires_user_decision: answer.kind === "clarification" || Boolean(answer.calendarDraft),
+    ...(answer.calendarDraft ? { calendar_draft: answer.calendarDraft, status: "needs_review" as const } : {}),
   };
 }
 
@@ -833,6 +838,31 @@ export async function createChatTask(
     if (request.telemetry) {
       await assertTelemetryContext(client, auth, request.telemetry);
     }
+    let sourceObservation: import("@talent-signal/agent").RuntimeObservationContext | undefined;
+    let previousRunID: string | undefined;
+    let previousRunExpiresAt: Date | undefined;
+    const assertHarnessCurrent = remoteChatProvider?.providerId === "claude-agent-sdk"
+      ? await createHarnessSourceGuard(client, auth, request.session_id, () => {
+        const refs = sourceObservation?.source_refs;
+        return refs?.kind === "product" ? { expiresAt: new Date(refs.expires_at), personIDs: refs.person_ids } : undefined;
+      }, pool) : undefined;
+    const assertPreviousCurrent = async () => {
+      if (!previousRunID) return;
+      if (!previousRunExpiresAt || previousRunExpiresAt.valueOf() <= Date.now())
+        throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available in this relationship.");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        // A short independent statement uses the current clock even though the
+        // surrounding product transaction began before model execution.
+        const current = await Promise.race([
+          pool.query<{available:boolean}>("SELECT product_run_source_available(id) AS available FROM product_runs WHERE id=$1 AND account_id=$2 AND user_id=$3",[previousRunID,auth.accountId,auth.userId]),
+          new Promise<never>((_,reject) => { timer=setTimeout(() => reject(new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer could not be revalidated.")),1000); }),
+        ]);
+        if (current.rows[0]?.available !== true) throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available in this relationship.");
+      } finally { if(timer) clearTimeout(timer); }
+    };
+    const assertCurrent = assertHarnessCurrent ? async () => { await assertHarnessCurrent(); await assertPreviousCurrent(); } : undefined;
+    const responsePreference = assertCurrent ? await loadAgentResponsePreference(client, auth) : undefined;
     const sessionConversation = request.session_id
       ? await readAgentSessionConversation(client, auth, request.session_id, {
           personId: request.person_id,
@@ -841,12 +871,14 @@ export async function createChatTask(
       : { messages: [] };
     const conversationHistory = boundedConversationHistory(sessionConversation.messages, request.message_id);
     if (request.previous_task_id && !request.session_id) {
-      const prior = (await client.query<{ objective:string; output:{blocks:Array<{body:string}>} }>(
-        `SELECT objective,output FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3
+      const prior = (await client.query<{ id:string; expires_at:Date; objective:string; output:{blocks:Array<{body:string}>} }>(
+        `SELECT id,expires_at,objective,output FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3
          AND input->'value'->>'person_id'=$4 AND input->'value'->>'relationship_context_id'=$5
          AND product_run_source_available(id) ORDER BY created_at LIMIT 1 FOR SHARE`,
         [auth.accountId,auth.userId,request.previous_task_id,request.person_id,request.relationship_context_id])).rows[0];
       if (!prior?.output?.blocks) throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available in this relationship.");
+      previousRunID=prior.id; previousRunExpiresAt=prior.expires_at;
+      await assertPreviousCurrent();
       conversationHistory.push(...boundedConversationHistory([
         {message_id:`${request.previous_task_id}:question`,role:"user",text:prior.objective},
         {message_id:request.previous_task_id,role:"assistant",text:prior.output.blocks.map(block=>block.body).join("\n\n")},
@@ -913,6 +945,7 @@ export async function createChatTask(
       ),
     );
     const createdAt = new Date();
+    const calendarContext = calendarDraftContextForRequest(taskId, request.time_zone, createdAt);
     const mediaIds = request.media_ids ?? [];
 
     await client.query(
@@ -989,6 +1022,7 @@ export async function createChatTask(
     let remoteStartedAt: string | null = null;
     let remoteEndedAt: string | null = null;
     let remoteFailed = false;
+    let continuationSavepoint = false;
     if (
       remoteChatProvider &&
       (mediaIds.length === 0 ||
@@ -1012,8 +1046,11 @@ export async function createChatTask(
               };
             }));
         feedbackInput = {
+          ...(responsePreference ? { responsePreference } : {}),
+          ...(assertCurrent ? { assertCurrent } : {}),
           objective: request.objective,
           reference_time: createdAt.toISOString(),
+          ...(calendarContext ? { calendarContext } : {}),
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           ...(sessionConversation.sources?.length ? { permits_unconfirmed_session_context_answer: true } : {}),
           context_blocks: selectedBlocks.map(remoteContextBlock),
@@ -1026,6 +1063,16 @@ export async function createChatTask(
               screenshotTaskIDs: sessionConversation.sources?.map((source) => source.taskID) ?? [],
             }),
         };
+        sourceObservation = feedbackInput.observation;
+        await assertCurrent?.();
+        if (remoteChatProvider.providerId === "claude-agent-sdk" && request.session_id && !images.length
+          && feedbackInput.observation?.source_refs?.kind === "product") {
+          await client.query("SAVEPOINT harness_product_reply");
+          continuationSavepoint = true;
+          feedbackInput.continuation = createHarnessContinuationFactory(client, pool, auth, request.session_id,
+            { kind: "relationship", personID: request.person_id, contextID: request.relationship_context_id },
+            () => { const refs = feedbackInput!.observation!.source_refs!; return { expiresAt: new Date(refs.kind === "product" ? refs.expires_at : 0), personIDs: refs.kind === "product" ? refs.person_ids : [] }; });
+        }
         remoteChatResult = await measureLabServerStage("model_adapter", () => captureProductStep("relationship.answer", "context", feedbackInput!, () => remoteChatProvider!.answer(feedbackInput!)));
         remoteEndedAt = new Date().toISOString();
         const nextBlocks = insertAfterPersonBrief(
@@ -1042,7 +1089,7 @@ export async function createChatTask(
           blocks,
           remoteFailureBlock(
             "AI answer unavailable",
-            "Zhipu AI did not complete this turn. The governed relationship summary remains available below; ask again to retry. No action was taken.",
+            "The AI service did not complete this turn. The governed relationship summary remains available below; ask again to retry. No action was taken.",
           ),
         );
       }
@@ -1052,9 +1099,13 @@ export async function createChatTask(
         blocks,
         remoteFailureBlock(
           "Attachments were not sent to remote AI",
-          "This turn uses the governed relationship summary only. Talent Signal did not send the attached images to Zhipu AI, and no action was taken.",
+          "This turn uses the governed relationship summary only. Talent Signal did not send the attached images to the AI service, and no action was taken.",
         ),
       );
+    }
+    if (continuationSavepoint) {
+      if (remoteChatStatus !== "completed") await client.query("ROLLBACK TO SAVEPOINT harness_product_reply");
+      await client.query("RELEASE SAVEPOINT harness_product_reply");
     }
     const personResearch = await runPersonResearchChatIngress({
       provider: personResearchProvider,
@@ -1132,8 +1183,8 @@ export async function createChatTask(
             "gen_ai.provider.name":
               remoteChatResult?.provider_id ?? "configured-provider",
             "gen_ai.request.model": remoteChatResult?.model ?? "unknown",
-            "gen_ai.usage.input_tokens": remoteChatResult?.input_tokens ?? 0,
-            "gen_ai.usage.output_tokens": remoteChatResult?.output_tokens ?? 0,
+            "gen_ai.usage.input_tokens": remoteChatResult?.input_tokens ?? null,
+            "gen_ai.usage.output_tokens": remoteChatResult?.output_tokens ?? null,
             "ts.reasoning.capture_status": "unavailable",
             ...(remoteFailed ? { "error.type": "provider_failure" } : {}),
           },
@@ -1166,8 +1217,8 @@ export async function createChatTask(
         remote_chat_prompt_source: remoteChatResult?.prompt_snapshot?.source ?? null,
         remote_chat_provider_request_id:
           remoteChatResult?.provider_request_id ?? null,
-        remote_chat_input_tokens: remoteChatResult?.input_tokens ?? 0,
-        remote_chat_output_tokens: remoteChatResult?.output_tokens ?? 0,
+        remote_chat_input_tokens: remoteChatResult?.input_tokens ?? null,
+        remote_chat_output_tokens: remoteChatResult?.output_tokens ?? null,
       },
     );
     await recordSessionChatSources(client, auth, request.session_id, taskId, sessionConversation.sources ?? [], conversationHistory.filter((message) => message.role === "assistant").map((message) => message.message_id));
@@ -1181,6 +1232,12 @@ export async function createChatTask(
         input: feedbackInput, result: remoteChatResult, started_at: remoteStartedAt, finished_at: remoteEndedAt,
         reference_time: createdAt.toISOString(), policy_version: CHAT_POLICY_VERSION,
       });
+    }
+    if (previousRunID) {
+      // Preserve the account source generation while the final check commits.
+      await client.query("SELECT account_id FROM harness_source_generations WHERE account_id=$1 FOR SHARE NOWAIT",[auth.accountId]);
+      await assertCurrent?.();
+      await assertPreviousCurrent();
     }
     await completeIdempotency(client, idempotency, 201, response);
     return {

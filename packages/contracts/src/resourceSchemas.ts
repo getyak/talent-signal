@@ -1,3 +1,4 @@
+import { CalendarDraftSchema } from "./calendarDraftSchemas.js";
 import { Type, type Static } from "@sinclair/typebox";
 
 import {
@@ -1434,6 +1435,7 @@ export const ContextManifestSchema = Type.Object(
 
 export const ChatResponseBlockSchema = Type.Object(
   {
+    calendar_draft: Type.Optional(CalendarDraftSchema),
     id: Id,
     kind: Type.Union(
       CHAT_RESPONSE_BLOCK_KINDS.map((kind) => Type.Literal(kind)),
@@ -1676,6 +1678,7 @@ export const ChatTaskReadbackSchema = Type.Object(
 
 export const ChatTaskRequestSchema = Type.Object(
   {
+    time_zone: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
     idempotency_key: IdempotencyKey,
     previous_task_id: Type.Optional(Id),
     session_id: Type.Optional(Id),
@@ -1693,6 +1696,7 @@ export const ChatTaskRequestSchema = Type.Object(
 
 export const UnscopedChatTaskRequestSchema = Type.Object(
   {
+    time_zone: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
     idempotency_key: IdempotencyKey,
     session_id: Type.Optional(Id),
     message_id: Type.Optional(Id),

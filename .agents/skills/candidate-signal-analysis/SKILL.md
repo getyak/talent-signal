@@ -18,5 +18,6 @@ Return JSON matching `references/output-contract.md`. Mark ambiguity rather than
 ## Guardrails
 
 - Never infer protected characteristics or sensitive personal details.
+- Verify every attributed statement against the visible speaker label and original image; left/right position alone does not establish a role. A message labeled self is not evidence of the contact's acknowledgment or interest. Include a counterexample with an owner-authored acknowledgment when evaluating screenshot findings.
 - Never create or update data without a reviewable action card.
 - Never claim a candidate will accept, decline, or churn; express risk as an inference with evidence.

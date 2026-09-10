@@ -1,3 +1,9 @@
+import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
+import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
+import { loadAgentResponsePreference } from "./agentPreferences.js";
+import type { RuntimeObservationContext } from "@talent-signal/agent";
+import type { HarnessContinuationFactory } from "@talent-signal/agent";
+import { createHarnessContinuationFactory } from "./harnessSessions.js";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -62,7 +68,8 @@ function responseBlock(answer: RemoteChatAnswerResult): ChatResponseBlock {
     body: answer.body,
     status: answer.kind === "clarification" ? "needs_review" : "informational",
     citation_dependency_ids: [],
-    requires_user_decision: answer.kind === "clarification",
+    requires_user_decision: answer.kind === "clarification" || Boolean(answer.calendarDraft),
+    ...(answer.calendarDraft ? { calendar_draft: answer.calendarDraft, status: "needs_review" as const } : {}),
   };
 }
 
@@ -75,9 +82,13 @@ function localFallbackBlock(
     id: randomUUID(),
     kind: "answer",
     title: remoteFailed
-      ? usesChinese ? "本地回复" : "Local reply"
+      ? usesChinese ? "这次未完成" : "Request not completed"
       : usesChinese ? "你好" : "Hello",
-    body: usesChinese
+    body: remoteFailed
+      ? usesChinese
+        ? "这次处理未完成，没有执行外部操作。请重试；如果仍未完成，可以保留这条请求稍后继续。"
+        : "This request did not complete. No external action was taken. Please retry, or keep this request to continue later."
+      : usesChinese
       ? "你好，我在。你可以直接和我聊，或者告诉我想回顾哪段关系；涉及联系人资料或发送操作时，我会先请你确认范围和最终效果。"
       : "Hello, I’m here. You can chat directly or tell me which relationship you want to revisit. I’ll ask you to confirm the scope and exact effect before using contact data or sending anything.",
     status: "informational",
@@ -90,11 +101,29 @@ export async function executeUnscopedChatTask(input: {
   request: UnscopedChatTaskRequest;
   provider: RemoteChatAnswerProviding | null;
   database?: DatabaseClient;
+  probePool?: Pool;
   auth?: AuthContext;
   createdAt?: Date;
+  referenceTime?: Date;
+  continuation?: (sources: () => { expiresAt: Date; personIDs: readonly string[] }) => HarnessContinuationFactory;
 }): Promise<UnscopedChatExecution> {
   const taskID = randomUUID();
+  const calendarContext = calendarDraftContextForRequest(taskID, input.request.time_zone, input.referenceTime ?? input.createdAt ?? new Date());
+  let observation: RuntimeObservationContext | undefined;
+  // Ephemeral contact reads also need authority, even without an observation
+  // retention owner or a persisted product Session.
+  const sourcePeople = new Set<string>();
+  const runExpiresAt = new Date(Date.now() + 7 * 86_400_000);
+  const sources = () => {
+    const refs = observation?.source_refs;
+    return { expiresAt: refs?.kind === "product" ? new Date(refs.expires_at) : runExpiresAt,
+      personIDs: [...new Set([...sourcePeople, ...(refs?.kind === "product" ? refs.person_ids : [])])] };
+  };
+  const assertCurrent = input.provider?.providerId === "claude-agent-sdk" && input.database && input.auth
+    ? await createHarnessSourceGuard(input.database, input.auth, input.request.session_id, sources, input.probePool ?? input.database) : undefined;
   // Scope failures must escape before provider fallbacks; they are not model errors.
+  const responsePreference = assertCurrent && input.database && input.auth
+    ? await loadAgentResponsePreference(input.database, input.auth) : undefined;
   const sessionConversation = input.request.session_id && input.database && input.auth
     ? await readAgentSessionConversation(
         input.database, input.auth, input.request.session_id,
@@ -102,11 +131,13 @@ export async function executeUnscopedChatTask(input: {
       )
     : { messages: [] };
   const conversationHistory = boundedConversationHistory(sessionConversation.messages, input.request.message_id);
-  const observation = input.database && input.auth ? await productObservationContext(input.database, input.auth, taskID,
+  observation = input.database && input.auth ? await productObservationContext(input.database, input.auth, taskID,
     "unscoped_conversation", { sessionID: input.request.session_id,
       screenshotTaskIDs: sessionConversation.sources?.map((source) => source.taskID) ?? [] }) : undefined;
   if (sessionConversation.unavailableScreenshotContext && !sessionConversation.sources?.length)
     throw new ApiError(409, "AGENT_SESSION_CONTEXT_UNAVAILABLE", "The screenshot summary is not currently available. Review its current task before continuing from it.");
+  const continuation = input.provider?.providerId === "claude-agent-sdk" && observation?.source_refs?.kind === "product"
+    ? input.continuation?.(sources) : undefined;
   let providerResult: RemoteChatAnswerResult | null = null;
   let agentProviderResult: UnscopedChatExecution["agentProviderResult"] = null;
   let remoteStatus: UnscopedChatExecution["remoteStatus"] = input.provider
@@ -116,6 +147,7 @@ export async function executeUnscopedChatTask(input: {
   let agentEvent: UnscopedChatTaskResponse["agent_event"] = null;
   if (input.provider) {
     try {
+      await assertCurrent?.();
       if (
         input.database &&
         input.auth &&
@@ -130,9 +162,15 @@ export async function executeUnscopedChatTask(input: {
           ...(input.request.message_id ? { messageID: input.request.message_id } : {}),
           conversationHistory,
           runID: taskID,
+          ...(continuation ? { continuation } : {}),
+          ...(assertCurrent ? { assertCurrent } : {}),
+          ...(responsePreference ? { responsePreference } : {}),
+          ...(calendarContext ? { calendarContext } : {}),
+          recordSourcePerson: personID => { sourcePeople.add(personID); },
           ...(observation ? { observation: { ...observation, authorization_scope: "workspace_conversation" } } : {}),
         });
-        block = execution.block;
+        block = execution.providerResult.calendarDraft ? { ...execution.block, calendar_draft: execution.providerResult.calendarDraft,
+          status: "needs_review", requires_user_decision: true } : execution.block;
         agentEvent = execution.event;
         agentProviderResult = {
           providerID: input.provider.id,
@@ -146,6 +184,10 @@ export async function executeUnscopedChatTask(input: {
       } else {
         providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
           mode: "unscoped_conversation",
+          ...(continuation ? { continuation } : {}),
+          ...(assertCurrent ? { assertCurrent } : {}),
+          ...(responsePreference ? { responsePreference } : {}),
+          ...(calendarContext ? { calendarContext } : {}),
           objective: input.request.objective,
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           context_blocks: [],
@@ -162,7 +204,11 @@ export async function executeUnscopedChatTask(input: {
     } catch {
       providerResult = null;
       agentProviderResult = null;
-      try {
+      if (input.provider.providerId === "claude-agent-sdk") {
+        // The SDK owns retries within the admitted Run. A second remote call
+        // here would bypass its source/lease checks and reset the Run budget.
+        block = localFallbackBlock(input.request.objective, true);
+      } else try {
         providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
           mode: "unscoped_conversation",
           objective: input.request.objective,
@@ -211,6 +257,7 @@ export async function createUnscopedChatTask(
   request: UnscopedChatTaskRequest,
   provider: RemoteChatAnswerProviding | null,
   selectRemoteProvider?: (client: DatabaseClient) => Promise<RemoteChatAnswerProviding | null>,
+  referenceTime?: Date,
 ): Promise<UnscopedChatTaskMutationResult> {
   if (request.session_id) await purgeUnavailableSessionChatSources(pool, auth);
   return inTransaction(pool, async (client) => {
@@ -222,6 +269,7 @@ export async function createUnscopedChatTask(
       // Preserve the original request fingerprint so an in-flight retry from
       // an older iOS build can still replay safely across this server upgrade.
       context_scope: "none",
+      ...(request.time_zone ? { time_zone: request.time_zone } : {}),
       external_effects: [],
       ...(request.session_id ? { session_id: request.session_id } : {}),
       ...(request.message_id ? { message_id: request.message_id } : {}),
@@ -257,12 +305,27 @@ export async function createUnscopedChatTask(
     }
 
     if (selectRemoteProvider) provider = await selectRemoteProvider(client);
+    const protectContinuation = provider?.providerId === "claude-agent-sdk" && Boolean(request.session_id);
+    if (protectContinuation) await client.query("SAVEPOINT harness_product_reply");
     const execution = await executeUnscopedChatTask({
       request,
       provider,
       database: client,
+      probePool: pool,
       auth,
+      ...(referenceTime ? { referenceTime } : {}),
+      ...(request.session_id ? { continuation: (sources: () => { expiresAt: Date; personIDs: readonly string[] }) => createHarnessContinuationFactory(client, pool, auth, request.session_id!, { kind: "workspace_conversation" }, sources) } : {}),
     });
+    // A failed SDK run must not consume this client intent with a cached 201.
+    // The transaction rollback preserves same-key retry after the user chooses
+    // Retry; this does not start an automatic second provider run.
+    if (provider?.providerId === "claude-agent-sdk" && execution.remoteStatus === "fallback") {
+      throw new ApiError(503, "CLAUDE_CHAT_RETRYABLE_FAILURE", "这次处理未完成，没有执行外部操作。请重试本次请求。");
+    }
+    if (protectContinuation) {
+      if (execution.remoteStatus === "fallback") await client.query("ROLLBACK TO SAVEPOINT harness_product_reply");
+      await client.query("RELEASE SAVEPOINT harness_product_reply");
+    }
     await appendAudit(
       client,
       { accountId: auth.accountId, actorUserId: auth.userId },

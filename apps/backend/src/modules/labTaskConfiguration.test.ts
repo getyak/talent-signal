@@ -1,4 +1,4 @@
-import { DEFAULT_AGENT_BUDGET, type AgentProvider, type AgentProviderRequest } from "@talent-signal/agent";
+import { ClaudeChatProvider, claudeHarnessConfiguration, DEFAULT_AGENT_BUDGET, type AgentProvider, type AgentProviderRequest } from "@talent-signal/agent";
 import { WORKSPACE_CONVERSATION_SYSTEM_PROMPT } from "./workspaceConversationAgent.js";
 import { describe, expect, it, vi } from "vitest";
 import { CHAT_PROMPT_REVISION, configuredAgentPrompt, configuredChatPrompt, RELATIONSHIP_SYSTEM_PROMPT,
@@ -196,5 +196,41 @@ describe("configured workspace Agent", () => {
     await expect(wrapped.run(agentRequest, invokeTool, cancelled.signal)).rejects.toThrow("Cancelled");
     expect(records[1]?.status).toBe("failed");
     expect(fetcher).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("Claude SDK frozen trials", () => {
+  const config = claudeHarnessConfiguration({ HAO_ANTHROPIC_API_KEY: "synthetic-only",
+    ANTHROPIC_BASE_URL: "https://api.hao.ai/anthropic", TALENT_SIGNAL_AGENT_MODEL: "anthropic/claude-sonnet-5" });
+  const receipt = { text: "可以，慢慢聊。", structuredOutput: null, sessionID: "synthetic-sdk-session",
+    inputTokens: 50, outputTokens: 20, estimatedUsd: 0.01, turns: 2, toolCalls: 1,
+    terminalReason: "completed", permissionDenials: [], reportedModels: ["claude-sonnet-5"], modelResponses: 2 };
+  it("uses identical effective natural prompts and records the reported model without inventing request counts", async () => {
+    const execute = vi.fn(async (_config, request) => {
+      expect(request.systemPrompt).not.toContain("Return JSON");
+      expect(request.systemPrompt).not.toContain("Return one JSON object");
+      expect(request.systemPrompt).toContain("lead with the useful conclusion");
+      return receipt;
+    });
+    const provider = new ClaudeChatProvider(config, execute);
+    const entries = taskModelCatalog([provider]);
+    expect(entries.map(entry => entry.task)).toEqual(["relationship_text", "unscoped_chat"]);
+    for (const entry of entries) {
+      const measurements: TrialRunMeasurement[] = [];
+      const wrapped = trialProvider(entry, "concise", value => { measurements.push(value); });
+      if (entry.task === "unscoped_chat") await (wrapped as RemoteChatAnswerProviding & AgentProvider).run(agentRequest, vi.fn(), new AbortController().signal);
+      else await wrapped.answer(request);
+      expect(measurements[0]).toMatchObject({ status: "completed", requested_model: "anthropic/claude-sonnet-5",
+        actual_model: "claude-sonnet-5", remote_requests_started: null, execution: "remote", input_tokens: 50 });
+      expect(measurements[0]!.prompt_revision).toBe(measurements[0]!.actual_prompt_revision);
+    }
+  });
+  it("rejects a different returned model even when the requested alias is unchanged", async () => {
+    const provider = new ClaudeChatProvider(config, async () => ({ ...receipt, reportedModels: ["claude-opus-5"] }));
+    const entry = taskModelCatalog([provider])[0]!;
+    const measurements: TrialRunMeasurement[] = [];
+    await expect(trialProvider(entry, "baseline", value => { measurements.push(value); }).answer(request)).rejects.toThrow("configuration");
+    expect(measurements[0]).toMatchObject({ status: "failed", actual_model: "claude-opus-5" });
   });
 });

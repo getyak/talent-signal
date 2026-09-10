@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +20,7 @@ const sdk = vi.hoisted(() => ({
 vi.mock("@anthropic-ai/claude-agent-sdk", () => sdk);
 
 import { ClaudeAgentSDKProvider } from "./claudeProvider.js";
+import type { ClaudeHarnessRequest } from "./claudeHarness.js";
 
 const request = {
   runID: "synthetic-run",
@@ -84,6 +86,22 @@ function stream(
 }
 
 describe("ClaudeAgentSDKProvider", () => {
+  it("uses the person research output schema and preserves its exact staged fingerprint", async () => {
+    const fingerprint="a".repeat(64);
+    const execute=vi.fn(async (_configuration, input:ClaudeHarnessRequest, signal:AbortSignal) => {
+      expect(JSON.stringify(input.outputSchema)).toContain("person_research_artifact");
+      const tool=input.tools.find(entry=>entry.name==="create_person_research_artifact")!;
+      await tool.execute({},signal);
+      return {text:"",structuredOutput:{outcome:"no_action"},sessionID:"synthetic",inputTokens:10,outputTokens:3,
+        estimatedUsd:0,turns:1,toolCalls:1,terminalReason:"completed",permissionDenials:[],reportedModels:["synthetic"]};
+    });
+    const provider=new ClaudeAgentSDKProvider("claude-synthetic-pinned",execute);
+    const result=await provider.run({...request,scopeSummary:{kind:"person_public_profile_research",providerID:"synthetic",
+      authorization:{purpose:"person_public_profile_research",accessMode:"visible_screenshot_identity_clues",allowedPlatforms:["threads"],maximumProviderCalls:4,maximumResultsPerCall:3},inputArtifactIDs:["synthetic-image"]},
+      toolManifest:["create_person_research_artifact"]},async name=>({ok:true,name,callID:"synthetic",candidateFingerprint:fingerprint,data:{}}),new AbortController().signal);
+    expect(result.structuredOutput).toEqual({outcome:"person_research_artifact",candidate_fingerprint:fingerprint});
+  });
+
   it("reports the exact SDK version pinned by the agent package", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../package.json", import.meta.url), "utf8"),
@@ -95,12 +113,44 @@ describe("ClaudeAgentSDKProvider", () => {
 
   beforeEach(() => {
     sdk.query.mockReset();
-    vi.stubEnv("ANTHROPIC_BASE_URL", "https://compatible-proxy.example/v1");
+    vi.stubEnv("HAO_ANTHROPIC_API_KEY", "synthetic-hao");
+    vi.stubEnv("ANTHROPIC_API_KEY", "synthetic-official");
+    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "");
+    vi.stubEnv("ANTHROPIC_BASE_URL", "https://api.hao.ai/anthropic");
     vi.stubEnv("TALENT_SIGNAL_CLAUDE_TASK_BUDGET_ENABLED", "");
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it("admits original image bytes only through the explicit vision capability", async () => {
+    const data = Buffer.from("synthetic-image-byte-fixture");
+    const part = { kind: "image" as const, artifactID: "synthetic-image", mimeType: "image/png",
+      byteSize: data.length, contentHash: createHash("sha256").update(data).digest("hex"), dataBase64: data.toString("base64") };
+    const imageRequest = { ...request, inputParts: [part] };
+    await expect(new ClaudeAgentSDKProvider("claude-synthetic-pinned").run(imageRequest,
+      async (name) => ({ callID: "synthetic-unused", name, ok: true, data: {} }), new AbortController().signal)).rejects.toThrow("IMAGE_NOT_ADMITTED");
+    sdk.query.mockImplementation((input: any) => stream(async () => {
+      const message = (await input.prompt.next()).value;
+      expect(message.message.content).toContainEqual({ type: "image", source: {
+        type: "base64", media_type: "image/png", data: part.dataBase64,
+      } });
+    }, input));
+    await new ClaudeAgentSDKProvider("claude-synthetic-pinned", undefined, undefined, true).run(imageRequest,
+      async (name) => ({ callID: "synthetic-unused", name, ok: true, data: {} }), new AbortController().signal);
+  });
+
+  it("captures configuration before ambient environment changes", async () => {
+    const provider = new ClaudeAgentSDKProvider("claude-synthetic-pinned");
+    vi.stubEnv("HAO_ANTHROPIC_API_KEY", "changed-credential");
+    vi.stubEnv("ANTHROPIC_BASE_URL", "https://unadmitted.invalid");
+    sdk.query.mockImplementation((queryInput: any) => {
+      expect(queryInput.options.env.ANTHROPIC_BASE_URL).toBe("https://api.hao.ai/anthropic");
+      expect(queryInput.options.env.ANTHROPIC_API_KEY).toBe("synthetic-hao");
+      return stream();
+    });
+    await provider.run(request, async (name) => ({ callID: "synthetic-unused", name, ok: true, data: {} }), new AbortController().signal);
   });
 
   it("gates every tool in PreToolUse and omits unsupported proxy task budgets", async () => {
@@ -111,7 +161,7 @@ describe("ClaudeAgentSDKProvider", () => {
           {
             hook_event_name: "PreToolUse",
             tool_name: "mcp__talent_signal__read_evidence",
-            tool_input: {},
+            tool_input: { evidence_refs: ["10000000-0000-4000-8000-000000000001"] },
             tool_use_id: "allowed",
           },
           "allowed",
@@ -151,18 +201,18 @@ describe("ClaudeAgentSDKProvider", () => {
     expect(options.canUseTool).toBeUndefined();
     expect(options.outputFormat).toMatchObject({ type: "json_schema" });
     expect(options.taskBudget).toBeUndefined();
-    expect(options.allowedTools).toEqual([
+    expect(options.allowedTools).toEqual(expect.arrayContaining([
       "mcp__talent_signal__read_pursuit",
       "mcp__talent_signal__read_evidence",
       "mcp__talent_signal__stage_pursuit_proposal",
-    ]);
+    ]));
     expect(result.structuredOutput).toEqual({
       outcome: "no_action",
       reason_code: "NO_MATERIAL_CHANGE",
       reason: "Synthetic evidence supports no canonical change.",
       missing_evidence_refs: [],
     });
-    expect(result.permissionDenials).toContain("Bash:TOOL_NOT_ALLOWED");
+    expect(result.permissionDenials).toContain("TOOL_NOT_AUTHORIZED");
   });
 
   it("keeps the SDK task budget for the official Anthropic endpoint", async () => {

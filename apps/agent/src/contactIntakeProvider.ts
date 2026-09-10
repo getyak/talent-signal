@@ -21,6 +21,16 @@ export interface ContactAgentModelReply {
 }
 
 export interface ContactAgentModel {
+  /** SDK-owned multimodal loop; legacy deterministic models may omit this. */
+  run?: (input: {
+    objective: string;
+    images: ScreenshotContactTaskRequest["image"][];
+    systemPrompt: string;
+    state: unknown;
+    assertCurrent(): Promise<void>;
+    recordUnderstanding(extractions: ContactChatExtraction[], signal: AbortSignal): Promise<unknown>;
+    invoke(name: ContactIntakeToolName, input: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
+  }, signal: AbortSignal) => Promise<{ providerRequestID: string; model: string; inputTokens: number; outputTokens: number }>;
   extract(image: ScreenshotContactTaskRequest["image"], signal: AbortSignal, promptText?: string): Promise<{
     extraction: ContactChatExtraction;
     providerRequestID: string;

@@ -1,6 +1,26 @@
 import CryptoKit
 import Foundation
 
+enum AgentResponseStyle: String, Codable, CaseIterable {
+    case `default`
+    case conclusionFirst = "conclusion_first"
+}
+struct AgentReplyPreference: Decodable, Equatable {
+    let responseStyle: AgentResponseStyle
+    let revision: Int
+    let updatedAt: String?
+    enum CodingKeys: String, CodingKey { case responseStyle = "response_style", revision, updatedAt = "updated_at" }
+}
+struct AgentReplyPreferenceEnvelope: Decodable {
+    let preference: AgentReplyPreference
+}
+struct AgentReplyPreferenceMutation: Encodable {
+    let idempotencyKey: String
+    let expectedRevision: Int
+    let responseStyle: AgentResponseStyle
+    enum CodingKeys: String, CodingKey { case idempotencyKey = "idempotency_key", expectedRevision = "expected_revision", responseStyle = "response_style" }
+}
+
 struct PursuitWorkspaceSession: Equatable {
     let baseURL: URL
     let accountSlug: String
@@ -305,6 +325,8 @@ struct ChatMediaContent: Equatable {
 }
 
 protocol PursuitWorkspaceServing {
+    func loadReplyPreference() async throws -> AgentReplyPreference
+    func saveReplyPreference(_ body: AgentReplyPreferenceMutation) async throws -> AgentReplyPreference
     func loadWorkspace() async throws -> PursuitWorkspaceSnapshot
     func findContactMatches(
         identityClue: ConversationContactDraft.IdentityClue
@@ -398,6 +420,8 @@ protocol PursuitWorkspaceServing {
 }
 
 extension PursuitWorkspaceServing {
+    func loadReplyPreference() async throws -> AgentReplyPreference { throw PursuitWorkspaceClientError.askUnavailable }
+    func saveReplyPreference(_ body: AgentReplyPreferenceMutation) async throws -> AgentReplyPreference { throw PursuitWorkspaceClientError.askUnavailable }
     func findContactMatches(
         identityClue: ConversationContactDraft.IdentityClue
     ) async throws -> [WorkspacePerson] {
@@ -592,7 +616,7 @@ struct PursuitActionOperationReadback: Decodable, Equatable {
     }
 }
 
-actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
+actor URLPursuitWorkspaceClient: PursuitWorkspaceServing, AgentSessionSyncServing {
     private let baseURL: URL
     private let accountSlug: String
     private let userEmail: String
@@ -621,6 +645,26 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
                 user: .init(id: userID, displayName: userDisplayName)
             )
         }
+    }
+
+    private func authenticatedSessionSyncClient() async throws -> AgentSessionSyncClient {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        return AgentSessionSyncClient(baseURL: baseURL, bearerToken: login.accessToken, session: session)
+    }
+
+    func list(after: String?) async throws -> AgentSessionRemotePage {
+        try await authenticatedSessionSyncClient().list(after: after)
+    }
+
+    func put(_ payload: PersistedAgentSession, expectedRevision: Int, idempotencyKey: UUID) async throws -> AgentSessionRemoteRecord {
+        try await authenticatedSessionSyncClient().put(payload, expectedRevision: expectedRevision, idempotencyKey: idempotencyKey)
+    }
+
+    func delete(id: UUID, expectedRevision: Int, idempotencyKey: UUID) async throws -> AgentSessionRemoteRecord {
+        try await authenticatedSessionSyncClient().delete(id: id, expectedRevision: expectedRevision, idempotencyKey: idempotencyKey)
     }
 
     func loadWorkspace() async throws -> PursuitWorkspaceSnapshot {
@@ -1064,6 +1108,23 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         let login = try await contactAgentLogin()
         return try await post(path: "v1/contact-agent/tasks", token: login.accessToken, body: body)
     }
+    func loadReplyPreference() async throws -> AgentReplyPreference {
+        let login = try await contactAgentLogin()
+        let result: AgentReplyPreferenceEnvelope = try await request(path: "v1/agent/preferences", token: login.accessToken)
+        return result.preference
+    }
+    func saveReplyPreference(_ body: AgentReplyPreferenceMutation) async throws -> AgentReplyPreference {
+        let login = try await contactAgentLogin()
+        var request = URLRequest(url: baseURL.appending(path: "v1/agent/preferences"))
+        request.httpMethod = "PUT"
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONEncoder().encode(body)
+        let result: AgentReplyPreferenceEnvelope = try await decodedResponse(request, rejectionMessage: "The reply preference could not be saved.")
+        let readback = try await loadReplyPreference()
+        guard readback == result.preference else { throw PursuitWorkspaceClientError.scopeReadbackMismatch }
+        return readback
+    }
     func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask {
         guard UUID(uuidString: id) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
         let login = try await contactAgentLogin()
@@ -1103,6 +1164,9 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
     func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask {
         guard UUID(uuidString: id) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
         let login = try await contactAgentLogin()
+        if let review = body.profileConfirmation {
+            return try await post(path: "v1/contact-agent/tasks/\(id)/profile-confirmation", token: login.accessToken, body: review)
+        }
         return try await post(path: "v1/contact-agent/tasks/\(id)/resume", token: login.accessToken, body: body)
     }
     func cancelScreenshotContactTask(id: String, revision: Int) async throws -> ScreenshotContactTask {
@@ -1425,6 +1489,11 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
     ) async throws -> Response {
         var request = URLRequest(url: baseURL.appending(path: path))
         request.httpMethod = "POST"
+        // The SDK has a 60-second execution ceiling plus bounded cleanup and
+        // response persistence. Keep ordinary reads/writes at the default.
+        if path == "v1/chat/tasks" || path == "v1/chat/unscoped-tasks" {
+            request.timeoutInterval = 120
+        }
         request.setValue("ios", forHTTPHeaderField: "x-talent-signal-platform")
         request.setValue("application/json", forHTTPHeaderField: "accept")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
@@ -1611,6 +1680,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         let requiresUserDecision: Bool
         let targetRef: TargetRef?
         let publicSources: [PublicSource]?
+        let calendarDraft: AgentCalendarDraft?
 
         struct PublicSource: Codable, Equatable, Identifiable {
             let resultID: String
@@ -1665,6 +1735,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             case requiresUserDecision = "requires_user_decision"
             case targetRef = "target_ref"
             case publicSources = "public_source_refs"
+            case calendarDraft = "calendar_draft"
         }
 
         init(
@@ -1676,7 +1747,8 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             citationDependencyIDs: [String],
             requiresUserDecision: Bool,
             targetRef: TargetRef? = nil,
-            publicSources: [PublicSource]? = nil
+            publicSources: [PublicSource]? = nil,
+            calendarDraft: AgentCalendarDraft? = nil
         ) {
             self.id = id
             self.kind = kind
@@ -1687,6 +1759,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             self.requiresUserDecision = requiresUserDecision
             self.targetRef = targetRef
             self.publicSources = publicSources
+            self.calendarDraft = calendarDraft
         }
     }
 
@@ -2157,6 +2230,7 @@ struct RelationshipAskReadback: Decodable, Equatable {
 private struct RelationshipAskBody: Encodable {
     let idempotencyKey: String
     let objective: String
+    var timeZone: String = TimeZone.current.identifier
     let personID: String
     let relationshipContextID: String
     let mediaIDs: [String]
@@ -2165,6 +2239,7 @@ private struct RelationshipAskBody: Encodable {
     let messageID: UUID?
 
     enum CodingKeys: String, CodingKey {
+        case timeZone = "time_zone"
         case idempotencyKey = "idempotency_key"
         case sessionID = "session_id"
         case messageID = "message_id"
@@ -2178,11 +2253,13 @@ private struct RelationshipAskBody: Encodable {
 private struct UnscopedChatTaskBody: Encodable {
     let idempotencyKey: String
     let objective: String
+    var timeZone: String = TimeZone.current.identifier
 
     let sessionID: UUID?
     let messageID: UUID?
 
     enum CodingKeys: String, CodingKey {
+        case timeZone = "time_zone"
         case objective
         case idempotencyKey = "idempotency_key"
         case sessionID = "session_id"
@@ -2410,4 +2487,37 @@ private struct WorkspaceActionCompletionEnvelope: Decodable {
 private struct WorkspaceErrorEnvelope: Decodable {
     let error: ErrorBody?
     struct ErrorBody: Decodable { let code: String?; let message: String? }
+}
+
+
+struct AgentCalendarDraft: Codable, Equatable, Identifiable {
+    let id: String
+    let title: String
+    let startsAt: String
+    let endsAt: String
+    let timeZone: String
+    let sourceRequestID: String
+    let sourceExcerpt: String
+    let referenceTime: String
+    let status: String
+    let externalEffect: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, status
+        case startsAt = "starts_at", endsAt = "ends_at", timeZone = "time_zone"
+        case sourceRequestID = "source_request_id", sourceExcerpt = "source_excerpt"
+        case referenceTime = "reference_time", externalEffect = "external_effect"
+    }
+
+    var deviceProposal: DeviceCalendarProposal? {
+        guard status == "needs_review", externalEffect == "none",
+              UUID(uuidString: id) != nil, UUID(uuidString: sourceRequestID) != nil,
+              TimeZone(identifier: timeZone) != nil else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let start = formatter.date(from: startsAt), let end = formatter.date(from: endsAt), end > start else { return nil }
+        return DeviceCalendarProposal(sourceID: id, personDisplayName: "", title: title,
+            startDate: start, endDate: end, timeZoneIdentifier: timeZone,
+            evidenceQuote: sourceExcerpt, detectedDateText: sourceExcerpt, durationWasExplicit: true)
+    }
 }

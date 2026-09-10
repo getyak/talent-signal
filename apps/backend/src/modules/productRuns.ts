@@ -1,5 +1,5 @@
 import { saveProductRunCase } from "./productRunCases.js";
-import { saveProductRunOutput, productRunSink } from "./productRunStorage.js";
+import { saveProductRunOutput, productRunSink, metadataOnlyProductSpan } from "./productRunStorage.js";
 import { loadScreenshotContactTask } from "./screenshotContactTasks.js";
 import { randomUUID } from "node:crypto";
 import { withProductRunCapture, captureObservationContent, observationID } from "@talent-signal/agent";
@@ -90,8 +90,8 @@ export class ProductRunService {
     const row = (await this.pool.query<Row>(`${select} WHERE r.account_id=$1 AND r.user_id=$2 AND r.${byTask ? "task_id" : "id"}=$3
       ORDER BY r.created_at LIMIT 1`, [auth.accountId, auth.userId, id])).rows[0];
     if (!row) throw new ApiError(404, "PRODUCT_RUN_NOT_FOUND", "The run is not available in this account.");
-    const spans = row.content_available ? (await this.pool.query<{ span: ProductRunDetail["spans"][number] }>(
-      "SELECT span FROM product_run_spans WHERE run_id=$1 ORDER BY created_at,id", [row.id])).rows.map(r => r.span) : [];
+    const spans = (await this.pool.query<{ span: ProductRunDetail["spans"][number] }>(
+      "SELECT span FROM product_run_spans WHERE run_id=$1 ORDER BY created_at,id", [row.id])).rows.flatMap(r => row.content_available ? [r.span] : !row.task_id || row.status === "failed" ? [metadataOnlyProductSpan(r.span)] : []);
     const history = row.content_available ? (await this.pool.query<ProductRunDetail["history"][number]>(
       "SELECT id,revision,output_hash,platform,sentiment,reasons,comment,correction,selected_text,updated_at,output FROM product_run_feedback_events WHERE run_id=$1 ORDER BY revision DESC", [row.id])).rows : [];
     const execution = row.content_available && row.task_id ? (await this.pool.query<{ snapshot: unknown }>(`SELECT snapshot FROM feedback_execution_snapshots
@@ -145,7 +145,7 @@ export class ProductRunService {
  */
 export function registerProductRunMonitoring(app: FastifyInstance, pool: Pool, authenticate: preHandlerHookHandler) {
   const service = new ProductRunService(pool);
-  const active = new WeakMap<FastifyRequest, { id: string; finish: boolean; flush: () => Promise<void> }>();
+  const active = new WeakMap<FastifyRequest, { id: string; finish: boolean; flush: () => Promise<void>; input: unknown; objective: string }>();
   app.addHook("onRoute", route => {
     const kind = tasks.get(route.url);
     if (!kind || route.method !== "POST") return;
@@ -154,12 +154,16 @@ export function registerProductRunMonitoring(app: FastifyInstance, pool: Pool, a
       const body = bodyObject(request.body), auth = request.auth;
       const frozen = captureObservationContent(inputSnapshot(body), 2_000_000);
       const id = observationID(labHash([auth.accountId, auth.userId, route.url, body.idempotency_key ?? randomUUID(), labHash(body)]));
-      await pool.query(`INSERT INTO product_runs(id,account_id,user_id,session_id,platform,task_kind,objective,input)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb) ON CONFLICT(id) DO UPDATE SET attempts=product_runs.attempts+1`,
+      const admission=await pool.query<{source_generation:string|null}>(`INSERT INTO product_runs(id,account_id,user_id,session_id,platform,task_kind,objective,input,source_generation)
+        VALUES($1,$2,$3,$4,$5,$6,'',NULL,(SELECT generation FROM harness_source_generations WHERE account_id=$2))
+        ON CONFLICT(id) DO UPDATE SET attempts=product_runs.attempts+1,
+          source_generation=CASE WHEN product_runs.status='failed' AND product_runs.task_id IS NULL
+            THEN EXCLUDED.source_generation ELSE product_runs.source_generation END
+        RETURNING source_generation`,
       [id, auth.accountId, auth.userId, typeof body.session_id === "string" && uuid.test(body.session_id) ? body.session_id : null,
-        platform(request), kind, String(body.objective ?? "").slice(0, 12000), JSON.stringify(frozen)]);
-      const sink = productRunSink(pool, id, error => { app.log.error({ err: error, run_id: id }, "Product span persistence failed"); });
-      active.set(request, { id, finish: false, flush: sink.flush });
+        platform(request), kind]);
+      const sink = productRunSink(pool, id, error => { app.log.error({ err: error, run_id: id }, "Product span persistence failed"); },admission.rows[0]?.source_generation);
+      active.set(request, { id, finish: false, flush: sink.flush, input: frozen, objective: String(body.objective ?? "").slice(0,12000) });
       reply.header("x-talent-signal-run-id", id);
       return withProductRunCapture(sink, () => handler.call(this, request, reply));
     };
@@ -168,13 +172,26 @@ export function registerProductRunMonitoring(app: FastifyInstance, pool: Pool, a
     const record = active.get(request);
     if (!record || record.finish || typeof payload !== "string") return payload;
     record.finish = true;
-    await record.flush();
     const output = JSON.parse(payload) as Record<string, unknown>;
     const taskID = typeof output.task_id === "string" && uuid.test(output.task_id) ? output.task_id : null;
     const blocks = Array.isArray(output.blocks) ? output.blocks : [];
     const status = reply.statusCode >= 400 ? "failed" : output.status === "running" ? "running"
       : blocks.some(block => ["AI answer unavailable", "Local reply", "本地回复"].includes(String(bodyObject(block).title))) ? "fallback" : "completed";
-    await saveProductRunOutput(pool, { id: record.id, ...(taskID ? { taskID } : {}) }, output, status);
+    await inTransaction(pool, async client => {
+      if (taskID && tasks.get(request.routeOptions.url ?? "") === "screenshot") {
+        // Background checkpoints acquire this task before their Run row too.
+        await client.query("SELECT id FROM screenshot_contact_tasks WHERE account_id=$1 AND created_by_user_id=$2 AND id=$3 FOR SHARE",
+          [request.auth.accountId,request.auth.userId,taskID]);
+      }
+      if (taskID && status !== "failed") {
+        await client.query("UPDATE product_runs SET task_id=COALESCE(task_id,$4::uuid),input=$2::jsonb,objective=$3,status=$5 WHERE id=$1 AND (task_id IS NULL OR task_id=$4::uuid)",
+          [record.id,JSON.stringify(record.input),record.objective,taskID,status]);
+      }
+      await saveProductRunOutput(client, { id: record.id, ...(taskID ? { taskID } : {}) }, output, status);
+      await client.query(`UPDATE product_runs SET input=NULL,output=NULL,objective='',comment='',correction='',selected_text=''
+        WHERE id=$1 AND NOT product_run_source_available(id)`,[record.id]);
+    });
+    await record.flush();
     // The background runner can finish before HTTP serialization assigns its task ID.
     if (taskID && tasks.get(request.routeOptions.url ?? "") === "screenshot") {
       const current = await loadScreenshotContactTask(pool, request.auth, taskID);

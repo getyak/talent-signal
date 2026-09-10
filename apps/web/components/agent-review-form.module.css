@@ -1,0 +1,22 @@
+.page { width: min(100%, 760px); margin: 0 auto; padding: 40px 28px 80px; }
+.back { display: inline-flex; align-items: center; min-height: 44px; color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+.preference { display: grid; gap: 24px; color: var(--ink); }
+.preference h1 { margin: 0; font-size: var(--workspace-title-size); font-weight: 560; letter-spacing: -.025em; line-height: 1.25; }
+.preference p, .review p { margin: 0; line-height: 1.7; color: var(--muted); font-size: 14px; }
+.field { display: grid; gap: 10px; color: var(--ink-soft); font-size: 14px; font-weight: 500; }
+.field select, .field input { width: 100%; min-width: 0; min-height: 48px; border: 1px solid var(--line-strong); border-radius: var(--input-radius); background: var(--surface); color: var(--ink); padding: 12px 14px; font: inherit; font-weight: 400; }
+.actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.primary, .secondary { min-height: 44px; border-radius: var(--button-radius); padding: 11px 20px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.primary { border: 1px solid transparent; background: var(--accent-strong); color: var(--accent-ink); }
+.secondary { border: 1px solid var(--line); color: var(--ink-soft); background: transparent; }
+.primary:disabled, .secondary:disabled { cursor: default; opacity: .5; }
+.page :is(a,button,select,input):focus-visible, .review :is(button,input,summary):focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.preference [role="alert"], .review [role="alert"] { color: var(--error); }
+.preference [role="status"] { color: var(--success); }
+.review { display: grid; gap: 18px; padding: 22px; margin-top: 20px; border: 1px solid var(--line); border-radius: var(--card-radius); background: var(--surface); }
+.review h3 { margin: 0; color: var(--ink); font-size: 18px; font-weight: 550; }
+.review details { color: var(--muted); font-size: 14px; }
+.review summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; text-decoration: underline; text-underline-offset: 4px; }
+.review blockquote { margin: 8px 0 0; border-left: 2px solid var(--line-strong); padding-left: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.review .primary { justify-self: start; }
+@media (max-width: 600px) { .page { padding: 24px 20px 80px; } .back { margin-bottom: 20px; } .review { padding: 18px; } }

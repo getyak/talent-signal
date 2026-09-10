@@ -6,6 +6,8 @@ import {
   CONTACT_INTAKE_TOOLS, CONTACT_RESEARCH_CONTRACT, ContactProfileFieldSchema,
   ScreenshotContactTaskRequestSchema, ScreenshotContactTaskResponseSchema,
   ZhipuContactAgentModel,
+  ClaudeContactAgentModel, claudeHarnessConfiguration, ContactChatExtractionSchema,
+  ContactProfileConfirmationSchema,
   resolveProductPrompt, type PromptSnapshot,
   type ContactAgentModel, type ContactAgentToolCall, type ContactIntakeToolName,
   type ContactPublicSource, type ContactProfileField,
@@ -21,6 +23,7 @@ import { createResourceCaptureInTransaction } from "./resourceIntake.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { contactImages, validateContactImage, reserveContactImages, persistContactImages, readContactImage, purgeExpiredContactImages, type ContactImageManifest } from "./contactTaskImages.js";
 import { mergeContactExtractions } from "./mergeContactExtractions.js";
+import { profileUnderstanding, saveReviewedContactProfile } from "./contactProfileDraft.js";
 import { LocalContactResearchClient, type ContactResearchClient } from "./contactResearchClient.js";
 
 type Response = ScreenshotContactTaskResponse;
@@ -70,6 +73,8 @@ async function rowFor(client: Pool | PoolClient, auth: AuthContext, id: string, 
 
 async function assertSourceCurrent(client: Pool | PoolClient, row: Row): Promise<void> {
   if (row.expires_at.getTime() <= Date.now() || row.status === "deleted") deny("CONTACT_TASK_SOURCE_UNAVAILABLE");
+  const directory=(await client.query<{available:boolean}>("SELECT contact_task_directory_available($1,$2::jsonb) AS available",[row.account_id,JSON.stringify(row.state)])).rows[0];
+  if(!directory?.available)deny("CONTACT_DIRECTORY_CHANGED_SEARCH_AGAIN");
   if (!row.capture_id) return;
   const found = await client.query(`SELECT 1 FROM captures c JOIN subjects s ON s.account_id=c.account_id AND s.id=c.subject_id
     JOIN source_retention_receipts r ON r.account_id=c.account_id AND r.capture_id=c.id
@@ -120,6 +125,7 @@ export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:
       if(manifest.content_hash!==row.input_manifest.image.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
     }
     if(row.state.batch_conflict) throw new ApiError(409,"CONTACT_BATCH_IDENTITY_CONFLICT","这些截图包含不同联系人，请分别发送。 ");
+    if(row.state.response.contact_draft)deny("CONTACT_PROFILE_REVIEW_REQUIRED");
     if(input.new_contact_name){
       if(row.state.response.capture_id)deny("CONTACT_TASK_ALREADY_FILED");
       row.state.user_contact_label=input.new_contact_name.trim();
@@ -135,6 +141,34 @@ export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:
     await save(client,row);
     await client.query("UPDATE screenshot_contact_tasks SET lease_until=NULL,lease_epoch=lease_epoch+1 WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
     await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.resumed","screenshot_contact_task",id,{selected_person_id:input.selected_person_id??null});
+  });
+  return loadScreenshotContactTask(pool,auth,id);
+}
+
+/** Deliberately absent from the Agent tool registry: this decision comes from a human client. */
+export async function confirmScreenshotContactProfile(pool:Pool,auth:AuthContext,id:string,raw:unknown):Promise<Response>{
+  const parsed=ContactProfileConfirmationSchema.safeParse(raw);
+  if(!parsed.success)throw new ApiError(422,"CONTACT_PROFILE_REVIEW_INVALID","请核对姓名和资料字段后再保存。");
+  const review=parsed.data;
+  await inTransaction(pool,async client=>{
+    const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
+    if(row.revision!==review.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
+    if(row.status!=="waiting_for_user"||!row.state.response.contact_draft||!row.state.response.extraction||row.state.batch_conflict)deny("CONTACT_PROFILE_NOT_REVIEWABLE");
+    const response=row.state.response;
+    if(row.state.selected && (review.selected_person_id!==row.state.selected.person_id||review.selected_relationship_context_id!==row.state.selected.relationship_context_id))deny("CONTACT_PROFILE_SELECTED_SCOPE_REQUIRED");
+    const result=await saveReviewedContactProfile(client,auth,{taskID:id,draft:response.contact_draft!,extraction:response.extraction!,review,
+      capturedAt:row.input_manifest.captured_at,expiresAt:row.expires_at.toISOString(),
+      ...(row.input_manifest.browser_source?{browserSource:row.input_manifest.browser_source}:{}),
+      imageHashes:[row.input_manifest.image,...row.input_manifest.additional_images??[]].map(image=>image.content_hash)});
+    if(result.saved){
+      Object.assign(response,result.saved);response.status="completed";response.question=null;response.candidates=[];
+      response.summary="已保存你核对的联系人资料。";response.message_count=0;
+      delete response.contact_draft;
+    }else{response.candidates=result.candidates;response.question="找到已有联系人，请选择要保存到的关系。";}
+    await save(client,row);
+    await client.query("UPDATE screenshot_contact_tasks SET lease_epoch=lease_epoch+1,lease_until=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
+    await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},result.saved?"contact_profile.confirmed":"contact_profile.identity_review_required","screenshot_contact_task",id,
+      {reviewed_revision:review.expected_revision,person_id:result.saved?.contact.person_id??null,field_indices:review.fields.map(f=>f.clue_index)});
   });
   return loadScreenshotContactTask(pool,auth,id);
 }
@@ -176,6 +210,16 @@ export async function loadContactIntelligence(pool:Pool,auth:AuthContext,personI
     AND r.authorization_state='authorized' AND r.source_access_state='available'
     ORDER BY t.created_at DESC LIMIT 20`,[auth.accountId,personID,contextID,auth.userId]);
   return {scope,archive:null,person_revision:person.rows[0]?.version,tasks:tasks.rows.map(row=>ScreenshotContactTaskResponseSchema.parse({...row.state.response,revision:row.revision,updated_at:row.updated_at.toISOString()}))};
+}
+
+/** Recovery reads only the caller's operation identity; no pixels, model run or write. */
+export async function lookupScreenshotContactReceipt(pool: Pool, auth: AuthContext, requestKey: string) {
+  const result = await pool.query<{id: string; status: string; expires_at: Date}>(
+    `SELECT id,status,expires_at FROM screenshot_contact_tasks WHERE account_id=$1 AND created_by_user_id=$2 AND idempotency_key=$3`,
+    [auth.accountId, auth.userId, requestKey]);
+  const row = result.rows[0];
+  if (!row) throw new ApiError(404, "CONTACT_HANDOFF_NOT_FOUND", "No task receipt is available for this request.");
+  return { task_id: row.id, status: row.expires_at <= new Date() ? "expired" : row.status };
 }
 
 export async function listScreenshotContactTasks(pool:Pool,auth:AuthContext){
@@ -259,6 +303,15 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
   return tools;
 }
 
+function currentToolState(row: Row) {
+  const response=row.state.response, extraction=response.extraction;
+  return { allowed_tools:response.status!=="running" ? [] : !extraction ? ["record_screenshot_understanding"] : toolsFor(row), contact:response.contact, capture_id:response.capture_id,
+    message_count:response.message_count,
+    public_query_tokens:extraction ? [extraction.contact_name,...extraction.identity_clues
+      .filter(clue=>["name","handle","company","job_title"].includes(clue.kind)).map(clue=>clue.value)].filter(Boolean) : [],
+    query_rule:"Combine only these literal public identity tokens, with spaces. Do not add career keywords, translations, private messages, or contact details." };
+}
+
 function sourceExcerpt(row:Row,refs:string[],quote:string,publicAllowed:boolean) {
   const extraction=row.state.response.extraction!;
   const sources=refs.map(ref=> {
@@ -295,7 +348,7 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
   if(extraction.conversation_kind!=="direct"&&!row.state.selected&&!row.state.user_contact_label)deny("CONTACT_CHAT_IDENTITY_AMBIGUOUS");
   const clientResourceID=`screenshot-contact:${row.id}`;
   const request:ResourceCaptureRequest={contract_version:CONTRACT_VERSION,idempotency_key:clientResourceID,
-    channel:"chat",purpose:"User-authorized contact filing and relationship context from a chat screenshot",
+    channel:manifest.browser_source?"browser_extension":"chat",purpose:"User-authorized contact filing and relationship context from a chat screenshot",
     captured_at:manifest.captured_at,source_timezone:"UTC",
     person_scope:displayName?{status:"new_person",display_label:displayName,relationship_context:{status:"proposed",label:"聊天记录",purpose:"User-authorized relationship context"},
       binding_basis:"Intentional screenshot import authorizes internal filing; visible name is a source label, not verified real-world identity."}
@@ -303,6 +356,7 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
         binding_basis:row.state.selected?"User selected this existing contact for filing.":"Unique internal contact match to visible screenshot label; content remains unreviewed source evidence."},
     resource:{client_resource_id:clientResourceID,kind:"conversation_screenshot",display_name:`${extraction.platform} 聊天截图`,media_type:manifest.image.media_type,
       observed_at:manifest.captured_at,source_timezone:"UTC",byte_size:[manifest.image,...manifest.additional_images??[]].reduce((sum,image)=>sum+image.byte_size,0),content_hash:manifest.additional_images?.length?digest(JSON.stringify([manifest.image,...manifest.additional_images])):manifest.image.content_hash,
+      ...(manifest.browser_source?{source_locator:manifest.browser_source.locator}:{}),
       retention:{requested_mode:"evidence_crop",source_scope:"proposed_extracted_text",requested_retention_until:row.expires_at.toISOString()}},
     fragments:extraction.messages.map(m=>({client_resource_id:clientResourceID,kind:"message",sequence:m.sequence,text:m.text,
       locator:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side},
@@ -364,7 +418,7 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
       for(const field of args.fields){
         field.source_refs=field.source_refs.map(ref=>canonicalSourceRef(row,ref));
         sourceExcerpt(row,field.source_refs,field.source_excerpt,true);
-        if(field.epistemic_status==="source_statement"&&!field.source_excerpt.includes(field.value))field.epistemic_status="inference";
+        if(field.field!=="public_profile"&&field.epistemic_status==="source_statement"&&!field.source_excerpt.includes(field.value))deny("CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE");
         if(response.profile_fields.length>=50&&!response.profile_fields.some(f=>JSON.stringify(f)===JSON.stringify(field)))deny("CONTACT_PROFILE_FIELD_LIMIT");
         // A public name match alone does not establish that the source describes this contact.
         const publicSources=field.source_refs.map(ref=>response.public_sources.find(s=>s.source_id===ref)).filter((s):s is ContactPublicSource=>Boolean(s));
@@ -392,6 +446,7 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
     }
     case "finish_contact_task":{
       const args=CONTACT_INTAKE_TOOLS.finish_contact_task.schema.parse(call.arguments);
+      if(/\\[nr]/u.test(args.summary))deny("CONTACT_SUMMARY_ESCAPED_TEXT");
       if(!response.contact||!response.capture_id||!response.message_count)deny("CONTACT_FINISH_REQUIRES_STORAGE_READBACK");
       for(const finding of args.findings){
         sourceExcerpt(row,finding.message_refs,finding.source_excerpt,false);
@@ -424,10 +479,10 @@ export class ScreenshotContactTaskRunner {
     const operation=this.observedRun(auth,id,image,controller.signal).finally(()=>{this.active.delete(key);this.controllers.delete(key);});this.active.set(key,operation);return operation;
   }
   private async observedRun(auth:AuthContext,id:string,image:ScreenshotContactTaskRequest["image"]|undefined,signal:AbortSignal) {
-    const result=await this.pool.query<{id:string}>("SELECT id FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3 ORDER BY created_at LIMIT 1",[auth.accountId,auth.userId,id]);
+    const result=await this.pool.query<{id:string;source_generation:string|null}>("SELECT id,source_generation FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3 ORDER BY created_at LIMIT 1",[auth.accountId,auth.userId,id]);
     const runID=result.rows[0]?.id;
     if(!runID) return this.run(auth,id,image,signal); // The initial POST already supplies its request-local sink.
-    const sink=productRunSink(this.pool,runID,error=>{ console.error("Product screenshot span persistence failed",error instanceof Error?error.name:"unknown"); });
+    const sink=productRunSink(this.pool,runID,error=>{ console.error("Product screenshot span persistence failed",error instanceof Error?error.name:"unknown"); },result.rows[0]?.source_generation);
     try { await withProductRunCapture(sink,()=>this.run(auth,id,image,signal)); } finally { await sink.flush(); }
   }
   async drain(){await Promise.allSettled(this.active.values());}
@@ -451,6 +506,10 @@ export class ScreenshotContactTaskRunner {
         const [transcription,contact]=await Promise.all([resolveProductPrompt("capture/transcription"),resolveProductPrompt("capture/contact")]);
         await this.checkpoint(auth,id,epoch,async(_,r)=>{r.state.prompts??={transcription,contact};});
         row=await rowFor(this.pool,auth,id);
+      }
+      if (this.dependencies.model.run) {
+        await this.runSDK(auth, id, epoch, row, image, signal);
+        return;
       }
       if(!row.state.response.extraction){
         const manifests=[row.input_manifest.image,...row.input_manifest.additional_images??[]];
@@ -526,6 +585,125 @@ export class ScreenshotContactTaskRunner {
     row.state.observations.push({tool,result});row.state.observations=row.state.observations.slice(-15);
     row.state.response.events.push({sequence:row.state.response.events.length+1,tool,status,occurred_at:new Date().toISOString()});
   }
+  private async runSDK(auth:AuthContext,id:string,epoch:number,row:Row,image:ScreenshotContactTaskRequest["image"]|undefined,parentSignal:AbortSignal){
+    const controller=new AbortController();
+    const signal=AbortSignal.any([parentSignal,controller.signal]);
+    // Product state remains durable and serialized; the SDK owns only planning.
+    let pending:Promise<unknown>=Promise.resolve();
+    const serial=<T>(operation:()=>Promise<T>):Promise<T>=>{
+      const next=pending.then(()=>{signal.throwIfAborted();return operation();});
+      pending=next.catch(()=>{});return next;
+    };
+    const current=async()=>{
+      signal.throwIfAborted();
+      const latest=await rowFor(this.pool,auth,id);
+      if(latest.lease_epoch!==epoch||!["running","completed","waiting_for_user"].includes(latest.status))deny("CONTACT_TASK_LEASE_LOST");
+      await assertSourceCurrent(this.pool,latest);signal.throwIfAborted();
+    };
+    let renewal:Promise<void>|null=null;
+    const heartbeat=setInterval(()=>{
+      if(renewal)return;
+      // Renewal must not queue behind a slow external read on the tool lane.
+      renewal=(async()=>{
+        await current();
+        await this.pool.query(`UPDATE screenshot_contact_tasks SET lease_until=now()+interval '90 seconds'
+          WHERE account_id=$1 AND id=$2 AND created_by_user_id=$3 AND lease_epoch=$4
+            AND status='running' AND expires_at>now()`,[auth.accountId,id,auth.userId,epoch]);
+      })().catch(()=>controller.abort(new Error("CONTACT_TASK_LEASE_LOST"))).finally(()=>{renewal=null;});
+    },20_000);
+    try{
+      const manifests=[row.input_manifest.image,...row.input_manifest.additional_images??[]];
+      const images:ScreenshotContactTaskRequest["image"][]=[];
+      for(let index=0;index<manifests.length;index++){
+        await current();
+        const source=this.storage?await readContactImage(this.pool,auth,id,index,this.storage):null;
+        const original=source??(index===0?image:undefined);
+        if(!original)throw new Error("CONTACT_ORIGINAL_IMAGE_REQUIRED");
+        validateContactImage(original);
+        if(original.content_hash!==manifests[index]!.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
+        images.push(original);
+      }
+      await this.checkpoint(auth,id,epoch,async(_,r)=>{
+        if(r.state.pending_research){r.state.observations.push({tool:r.state.pending_research,result:{error:"CONTACT_RESEARCH_RESPONSE_UNKNOWN"}});r.state.pending_research=null;}
+      });
+      const result=await this.dependencies.model.run!({
+        objective:row.input_manifest.objective,images,systemPrompt:row.state.prompts!.contact.text,
+        state:{response:row.state.response,selected:row.state.selected,current_state:currentToolState(row),observations:row.state.observations.slice(-12)},
+        assertCurrent:current,
+        recordUnderstanding:(raw,executionSignal)=>serial(()=>this.checkpoint(auth,id,epoch,async(client,r)=>{
+          executionSignal.throwIfAborted();
+          if(r.state.response.capture_id||r.state.searches.length)deny("CONTACT_UNDERSTANDING_ALREADY_USED");
+          if(raw.length!==images.length)deny("CONTACT_IMAGE_REFERENCE_INVALID");
+          const parts=raw.map(part=>ContactChatExtractionSchema.parse(part));
+          const profile=profileUnderstanding(parts);
+          if(profile){
+            r.state.extraction_parts=parts;r.state.response.extraction=profile.extraction;r.state.response.contact_draft=profile.draft;
+            r.state.response.status="waiting_for_user";r.state.response.question="请核对联系人资料，修改后保存。";
+            if(r.state.selected){
+              const scope=await getRelationshipScope(client,auth,r.state.selected.person_id,r.state.selected.relationship_context_id);
+              r.state.response.candidates=[{...r.state.selected,display_name:scope.person.display_label,relationship_label:scope.relationship_context.display_label}];
+            }
+            this.observe(r,"record_screenshot_understanding",{status:"draft_requires_human_review",image_count:images.length},"completed");
+            return {status:r.state.response.status,contact_draft:profile.draft,question:r.state.response.question};
+          }
+          const merged=mergeContactExtractions(parts);
+          if(parts.every(part=>part.conversation_kind==="not_chat"))merged.question="无法把这些资料截图核对为同一平台的同一联系人，请按联系人和平台分别发送。";
+          r.state.extraction_parts=parts;r.state.response.extraction=merged.extraction;
+          if(merged.question){r.state.response.status="waiting_for_user";r.state.response.question=merged.question;r.state.batch_conflict=merged.identityConflict;}
+          this.observe(r,"record_screenshot_understanding",{status:"unconfirmed",image_count:images.length},"completed");
+          return {status:r.state.response.status,extraction:merged.extraction,question:merged.question,current_state:currentToolState(r)};
+        })),
+        invoke:(name,args,executionSignal)=>serial(async()=>{
+          executionSignal.throwIfAborted();
+          const call:ContactAgentToolCall={id:randomUUID(),name,arguments:args};
+          try{
+            await this.checkpoint(auth,id,epoch,async(_,r)=>{
+              executionSignal.throwIfAborted();
+              if(!r.state.response.extraction&&name!=="ask_contact_clarification")deny("CONTACT_UNDERSTANDING_REQUIRED");
+              if(!toolsFor(r).includes(name))deny("CONTACT_TOOL_NOT_AUTHORIZED");
+              if(r.state.turns>=24)deny("CONTACT_TASK_BUDGET_EXHAUSTED");
+              r.state.turns++;
+            });
+            if(name==="search_contact_public"||name==="fetch_contact_source"){
+              await this.research(auth,id,epoch,call,AbortSignal.any([signal,executionSignal]));
+              return (await rowFor(this.pool,auth,id)).state.observations.at(-1)?.result;
+            }
+            return await this.checkpoint(auth,id,epoch,async(client,r)=>{
+              signal.throwIfAborted();
+              executionSignal.throwIfAborted();
+              if(!toolsFor(r).includes(name))deny("CONTACT_TOOL_NOT_AUTHORIZED");
+              const value=await executeLocalTool(client,auth,r,call);
+              this.observe(r,name,value,"completed");return {...value as Record<string,unknown>,current_state:currentToolState(r)};
+            });
+          }catch(error){
+            if(signal.aborted||executionSignal.aborted||codeOf(error)==="CONTACT_TASK_LEASE_LOST")throw error;
+            const state=await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,name,{error:codeOf(error)},"denied");return currentToolState(r);});
+            return {error:codeOf(error),current_state:state,instruction:codeOf(error)==="CONTACT_SUMMARY_ESCAPED_TEXT"
+              ? "Write ordinary prose with actual line breaks, not literal backslash-n/backslash-r escape text. Retry only the rejected finish call."
+              : codeOf(error)==="CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE"
+              ? "A source_statement field value must copy a contiguous part of its exact cited excerpt. Keep only the supported source wording, or explicitly label a justified, qualified interpretation as inference. Discussing a topic does not prove work experience; separated dated roles do not establish a direct job transfer. Correct this update only; prior filing remains complete."
+              : codeOf(error)==="CONTACT_CITATION_EXCERPT_MISMATCH"
+              ? "Copy one contiguous exact excerpt from ONE cited source; never concatenate, translate, or insert ellipses. finish_contact_task findings can cite only original chat messages. Public claims belong in update_contact fields with their fetched page references. Correct the rejected call; completed filing must not be repeated."
+              : "Choose from current allowed tools and use exact source tokens. Completed filing must not be repeated; no success is implied for this failed call."};
+          }
+        }),
+      },signal);
+      await current();
+      await inTransaction(this.pool,async client=>{
+        const latest=await rowFor(client,auth,id,true);
+        if(latest.lease_epoch!==epoch)deny("CONTACT_TASK_LEASE_LOST");
+        await assertSourceCurrent(client,latest);signal.throwIfAborted();
+        latest.state.tokens+=result.inputTokens+result.outputTokens;
+        latest.state.model_receipts.push({model:result.model,request_id:result.providerRequestID,input_tokens:result.inputTokens,output_tokens:result.outputTokens});
+        if(latest.status==="running"){
+          latest.state.response.status=latest.state.response.capture_id?"partial":"failed";
+          latest.state.response.limitations.push("CONTACT_SDK_TERMINAL_RECEIPT_MISSING");
+        }
+        await save(client,latest);
+      });
+    }catch(error){controller.abort(error);throw error;}
+    finally{clearInterval(heartbeat);await renewal;await pending;}
+  }
   private async research(auth:AuthContext,id:string,epoch:number,call:ContactAgentToolCall,signal:AbortSignal){
     if(!this.dependencies.research)deny("CONTACT_RESEARCH_NOT_CONFIGURED");
     const input=await this.checkpoint(auth,id,epoch,async(_,row)=>{
@@ -561,6 +739,9 @@ export class ScreenshotContactTaskRunner {
 export function environmentScreenshotContactDependencies(environment:NodeJS.ProcessEnv=process.env):ScreenshotContactDependencies|null {
   if(environment.TALENT_SIGNAL_SCREENSHOT_CONTACT_AGENT_ENABLED!=="true")return null;
   if(environment.TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING!=="true")throw new Error("CONTACT_AGENT_SENSITIVE_AI_NOT_ENABLED");
+  if(environment.TALENT_SIGNAL_AGENT_PROVIDER==="claude")return {
+    model:new ClaudeContactAgentModel(claudeHarnessConfiguration(environment)),
+    research:environment.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET?new LocalContactResearchClient(environment.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET):null};
   return {model:new ZhipuContactAgentModel({apiKey:environment.ZHIPU_API_KEY??"",model:environment.TALENT_SIGNAL_CHAT_MODEL??"glm-5.3",
     visionModel:environment.TALENT_SIGNAL_AGENT_VISION_MODEL??"glm-4.6v-flash",...(environment.ZHIPU_BASE_URL?{baseUrl:environment.ZHIPU_BASE_URL}:{})}),
     research:environment.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET?new LocalContactResearchClient(environment.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET):null};

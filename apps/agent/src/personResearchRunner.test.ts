@@ -207,6 +207,14 @@ function artifactStep(platform: "douyin" | "tiktok") {
 }
 
 describe("screenshot-driven person research Agent", () => {
+  it("keeps unreported provider usage unknown after a transport failure", async () => {
+    const host = new MemoryPersonResearchHost();
+    const provider = visionProvider([], {});
+    provider.run = async () => { throw new Error("Synthetic transport interruption"); };
+    const receipt = await runPersonResearchAgent({scope,budget:{...DEFAULT_AGENT_BUDGET},provider,gateway:host,journal:host,providerInputParts:inputParts});
+    expect(receipt.usage).toMatchObject({inputTokens:null,outputTokens:null,totalTokens:null,estimatedUsd:null,turns:null});
+    expect(host.artifacts).toEqual([]);
+  });
   it.each(["douyin", "tiktok"] as const)(
     "lets the vision Agent select the %s tool and creates a cited draft",
     async (platform) => {

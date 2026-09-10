@@ -23,10 +23,12 @@ const pool = database ? new Pool({ connectionString: database, max: 6 }) : null;
 const auth: AuthContext = { accountId: randomUUID(), accountSlug: `feedback-proof-${randomUUID()}`, userId: randomUUID(),
   userEmail: "feedback-proof@example.test", userKind: "simulated_human", sessionId: randomUUID() };
 const requests: RemoteChatAnswerRequest[] = [];
+let beforeAnswer: (() => Promise<void>) | undefined;
 const provider: RemoteChatAnswerProviding = {
   providerId: "zhipu-chat-completions", model: "feedback-proof-model", supportsImageInput: false, supportsPromptPresets: true,
   async answer(input) {
     requests.push(structuredClone(input));
+    await beforeAnswer?.();
     const prompt = input.prompt_snapshot ?? bundledPrompt("assistant/relationship");
     return { kind: "answer", title: "Evidence-backed next step", body: "Clarify the current date before suggesting a meeting.",
       citation_ids: input.allowed_citation_ids.slice(0, 1), provider_id: "zhipu-chat-completions", model: this.model,
@@ -195,6 +197,29 @@ async function revokeWhilePaused(capture: string, gate: ReturnType<typeof paused
 }
 
 describe.skipIf(!pool)("Authenticated product feedback learning PostgreSQL loop", () => {
+  it("rejects a prior answer that expires while its correction is being generated", async () => {
+    const f=await fixture();
+    const ask=(payload:Record<string,unknown>)=>app.inject({method:"POST",url:"/v1/chat/tasks",headers,payload});
+    const first=await ask({idempotency_key:randomUUID(),person_id:f.person,relationship_context_id:f.context,objective:"Explain the tentative meeting."});
+    expect(first.statusCode,first.body).toBe(201);
+    const previous=first.json().task_id;
+    await pool!.query("UPDATE product_runs SET expires_at=clock_timestamp()+interval '1 second' WHERE account_id=$1 AND task_id=$2",[auth.accountId,previous]);
+    let previousWasRead=false;
+    beforeAnswer=async()=>{
+      previousWasRead=requests.at(-1)!.conversation_history?.some(message=>message.role==='assistant'&&message.text.includes('Clarify the current date'))??false;
+      await pool!.query("SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM expires_at-clock_timestamp()))+0.05) FROM product_runs WHERE account_id=$1 AND task_id=$2",[auth.accountId,previous]);
+    };
+    const intent=randomUUID();
+    try {
+      const response=await ask({idempotency_key:intent,person_id:f.person,relationship_context_id:f.context,previous_task_id:previous,objective:"Revise the previous answer."});
+      expect(previousWasRead).toBe(true);
+      expect(response.statusCode,response.body).toBe(409);
+      expect(response.json().error.code).toBe('PREVIOUS_ANSWER_UNAVAILABLE');
+      const run=await new ProductRunService(pool!).detail(auth,response.headers['x-talent-signal-run-id'] as string);
+      expect(run.run.status).toBe('failed');expect(run.input).toBeNull();expect(run.output).toBeNull();
+      expect(run.run.content_available).toBe(false);
+    } finally { beforeAnswer=undefined; }
+  },30_000);
   it("resolves a Web correction from its owned prior task and invalidates its descendants", async () => {
     const f=await fixture();
     const ask=async (payload:Record<string,unknown>, authHeaders=headers)=>app.inject({method:"POST",url:"/v1/chat/tasks",headers:authHeaders,payload});

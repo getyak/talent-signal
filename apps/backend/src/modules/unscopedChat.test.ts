@@ -17,6 +17,16 @@ const request: UnscopedChatTaskRequest = {
 describe("unscoped Agent conversation", () => {
   const auth = { accountId: "account", userId: "user" } as AuthContext;
 
+  it("does not start a second remote SDK call after the admitted run fails", async () => {
+    const answer = vi.fn(async () => { throw new Error("CLAUDE_HARNESS_SESSION_INVALIDATED"); });
+    const execution = await executeUnscopedChatTask({ request,
+      provider: { providerId: "claude-agent-sdk", model: "synthetic", supportsImageInput: false, answer },
+    });
+    expect(answer).toHaveBeenCalledOnce();
+    expect(execution.remoteStatus).toBe("fallback");
+    expect(execution.body.external_effects).toEqual([]);
+  });
+
   it("loads canonical same-scope dialogue before answering a follow-up", async () => {
     const messages = [{ message_id: "previous", role: "assistant" as const, text: "1. Call. 2. Draft an email." }];
     vi.mocked(readAgentSessionConversation).mockResolvedValueOnce({ messages });
@@ -107,7 +117,8 @@ describe("unscoped Agent conversation", () => {
     expect(execution.body.external_effects).toEqual([]);
     expect(execution.body.blocks[0]).toMatchObject({
       kind: "answer",
-      title: "本地回复",
+      title: "这次未完成",
+      body: expect.stringContaining("这次处理未完成"),
       citation_dependency_ids: [],
       requires_user_decision: false,
     });

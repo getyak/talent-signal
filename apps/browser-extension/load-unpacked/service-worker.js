@@ -3,6 +3,60 @@ import {
   normalizeSelection,
   normalizeTabSource,
 } from "./lib/capture-contract.js";
+import { contactTaskFromReviewedImage, contactTaskReviewURL, submitContactTaskInWeb, recoverContactTaskInWeb } from "./lib/contact-handoff.js";
+import { normalizeLocalOrigin } from "./lib/handoff-contract.js";
+
+import { contactRecoveryJournal } from "./lib/contact-recovery.js";
+
+const journal = contactRecoveryJournal(chrome.storage.local);
+const storageReady = chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
+let handoffQueue = Promise.resolve();
+function serialized(operation) {
+  const result = handoffQueue.then(operation);
+  handoffQueue = result.catch(() => {});
+  return result;
+}
+
+async function recoverHandoff(requestKey) {
+  await storageReady;
+  const record = (await journal.list()).find(item => item.requestKey === requestKey);
+  if (!record) return { state: "unknown", message: "The local recovery record has expired or was removed. Check your Web tasks before sending another copy." };
+  const origin = normalizeLocalOrigin(record.origin);
+  const tab = await readyWebTab(origin);
+  const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN",
+    func: recoverContactTaskInWeb, args: [origin, record.sessionVersion, record.requestKey] });
+  if (result.result?.contact_task_id) await chrome.tabs.update(tab.id, { url: contactTaskReviewURL(origin, result.result.contact_task_id) });
+  if (["received", "unavailable"].includes(result.result?.state)) await journal.complete(requestKey);
+  return result.result;
+}
+
+async function readyWebTab(origin) {
+  const tab = await chrome.tabs.create({ url: `${origin}/contact-agent?source=browser-extension` });
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const current = await chrome.tabs.get(tab.id);
+    if (current.status === "complete") break;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  const current = await chrome.tabs.get(tab.id);
+  if (new URL(current.url).origin !== origin || new URL(current.url).pathname !== "/contact-agent") throw new Error("CONTACT_RECOVERY_SESSION_STALE");
+  return tab;
+}
+
+async function handoffReviewedImage(envelope) {
+  const origin = normalizeLocalOrigin(envelope.handoff_target), payload = await contactTaskFromReviewedImage(envelope);
+  await storageReady;
+  const tab = await readyWebTab(origin);
+  await journal.claim(origin, envelope.session.version, envelope.idempotency_key);
+  // Chrome executes the supplied function in the exact tab and awaits its
+  // Promise. No bearer token, broad host permission or new backend bypass.
+  const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN",
+    func: submitContactTaskInWeb, args: [origin, envelope.session.version, payload] });
+  if (result.result?.contact_task_id) await chrome.tabs.update(tab.id, { url: contactTaskReviewURL(origin, result.result.contact_task_id) });
+  if (result.result?.state === "received") await journal.complete(envelope.idempotency_key);
+  else if (result.result?.no_submit === true) await journal.remove(envelope.idempotency_key);
+  return result.result;
+}
 
 async function enableActionPanel() {
   await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -67,7 +121,19 @@ async function captureSelectedText() {
   };
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "handoff.reviewed-image" && sender.id === chrome.runtime.id) {
+    serialized(() => handoffReviewedImage(message.envelope)).then(sendResponse).catch(() => sendResponse({ state: "unknown",
+      code: "contact_handoff_unverified", message: "Receipt not verified. Retry the same reviewed image to recover the existing task without duplicating it." }));
+    return true;
+  }
+  if (["handoff.recovery-list", "handoff.recover"].includes(message?.type) && sender.id === chrome.runtime.id) {
+    serialized(async () => {
+      await storageReady;
+      return message.type === "handoff.recovery-list" ? { records: await journal.list() } : recoverHandoff(message.requestKey);
+    }).then(sendResponse).catch(() => sendResponse({ state: "unknown", message: "Recovery is not verified. Check the original Web account before submitting another copy." }));
+    return true;
+  }
   if (!["capture.visible", "capture.selection"].includes(message?.type)) {
     return false;
   }

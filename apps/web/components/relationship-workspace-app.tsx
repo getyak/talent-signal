@@ -59,6 +59,7 @@ const CapturePanel = dynamic(() =>
 
 type Props = {
   initialAccountId: string | null;
+  initialSessionVersion?: string | null;
   initialAgentHistory: RelationshipAgentHistory | null;
   initialIdentityResolutionCase: IdentityResolutionCase | null;
   initialKnowledgeSnapshot: KnowledgeSnapshot | null;
@@ -90,6 +91,7 @@ const createContactDraftScope = {
 
 export function RelationshipWorkspaceApp({
   initialAccountId,
+  initialSessionVersion = null,
   initialAgentHistory,
   initialIdentityResolutionCase,
   initialKnowledgeSnapshot,
@@ -222,6 +224,7 @@ export function RelationshipWorkspaceApp({
 
   const relationshipAgent = useRelationshipAgentController({
     accountId,
+    browserSessionVersion: initialSessionVersion,
     initialCreateOpen,
     onAnnouncement: setAnnouncement,
     onBusyChange: setBusy,
@@ -356,7 +359,7 @@ export function RelationshipWorkspaceApp({
     );
   }
 
-  function handleRelationshipRemoved(announcement: string) {
+  function clearOpenRelationship(announcement: string) {
     setWorkspace(null);
     setRelationshipScope(null);
     setIdentityResolutionCase(null);
@@ -840,6 +843,8 @@ export function RelationshipWorkspaceApp({
         </p>
         {!activeScope ? (
           <RelationshipAgentStartPanel
+            busy={relationshipAgent.workspaceChat.busy}
+            turns={relationshipAgent.workspaceChat.turns}
             contactDraft={relationshipAgent.contactDraft}
             createOpen={relationshipAgent.createOpen}
             identityResolutionCase={identityResolutionCase}
@@ -872,7 +877,17 @@ export function RelationshipWorkspaceApp({
               ) : null}
             </div>
             <div>
+              {activeScope && relationshipAgent.workspaceChat.turns.length > 0 ? (
+                <button
+                  className="context-secondary-button"
+                  onClick={() => clearOpenRelationship("已返回刚才的对话。")}
+                  type="button"
+                >
+                  返回刚才的对话
+                </button>
+              ) : null}
               <Link href="/workspace/boundaries">边界案例</Link>
+              <Link href="/workspace/preferences">回复偏好</Link>
               <button
                 className="context-primary-button context-primary-button--compact"
                 onClick={() => setCaptureOpen(true)}
@@ -986,7 +1001,7 @@ export function RelationshipWorkspaceApp({
                 onCommitted={handleResourcesCommitted}
                 onEvidenceChanged={(announcement, relationshipRemoved) => {
                   if (relationshipRemoved) {
-                    handleRelationshipRemoved(
+                    clearOpenRelationship(
                       announcement ??
                         "来源链路已删除，没有活跃关系保留。",
                     );
@@ -1115,7 +1130,7 @@ export function RelationshipWorkspaceApp({
                   relationshipRemoved,
                 ) => {
                   if (relationshipRemoved) {
-                    handleRelationshipRemoved(
+                    clearOpenRelationship(
                       announcement ??
                         "来源链路已删除，没有活跃关系保留。",
                     );

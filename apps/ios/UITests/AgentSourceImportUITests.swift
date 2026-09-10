@@ -23,7 +23,8 @@ final class AgentSourceImportUITests: XCTestCase {
         app.buttons["relationship-agent-studio"].tap()
         XCTAssertTrue(element("agent-studio").waitForExistence(timeout: 5))
         app.buttons["agent-open-sources"].tap()
-
+        XCTAssertTrue(app.buttons["agent-import-linkedin"].waitForExistence(timeout: 5))
+        app.buttons["agent-import-linkedin"].tap()
         XCTAssertTrue(element("agent-import-review").waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Connections.csv"].exists)
         XCTAssertTrue(app.staticTexts["On-device review"].exists)

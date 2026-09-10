@@ -29472,6 +29472,202 @@
         }
       }
     },
+    "Adapt to the question": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按当前问题安排"
+          }
+        }
+      }
+    },
+    "Conclusion first, then details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先给结论，再展开说明"
+          }
+        }
+      }
+    },
+    "Confirm details and save": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认资料并保存"
+          }
+        }
+      }
+    },
+    "Details saved in this review": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details saved in this review"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本次核对保存的资料"
+          }
+        }
+      }
+    },
+    "End time": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束时间"
+          }
+        }
+      }
+    },
+    "Job title": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "职位"
+          }
+        }
+      }
+    },
+    "No contact has been created. Clear a field to omit it; retained accounts will be checked for duplicates.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未创建联系人。清空字段即可不保存；保留的账号线索会用于查重。"
+          }
+        }
+      }
+    },
+    "Platform account": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平台账号"
+          }
+        }
+      }
+    },
+    "Profile URL": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资料链接"
+          }
+        }
+      }
+    },
+    "Reply order": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回复顺序"
+          }
+        }
+      }
+    },
+    "Reply preference": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回复偏好"
+          }
+        }
+      }
+    },
+    "Review contact details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核对联系人资料"
+          }
+        }
+      }
+    },
+    "Save preference": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存偏好"
+          }
+        }
+      }
+    },
+    "Save to": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存到"
+          }
+        }
+      }
+    },
+    "Saved. New conversations will use this preference.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存，新对话会使用这个偏好。"
+          }
+        }
+      }
+    },
+    "Screenshot name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图姓名"
+          }
+        }
+      }
+    },
+    "View screenshot evidence": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看截图依据"
+          }
+        }
+      }
+    },
+    "Your edits are saved as your review. Original screenshot text remains separate.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改内容会记为你的核对结果，截图原文保留为来源。"
+          }
+        }
+      }
+    },
+    "Your saved reply preference syncs across Web and iOS. Your current request takes precedence. Reset it by choosing Adapt to the question.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你保存的回复偏好会同步到 Web 和 iOS。当前消息中的要求优先；选择“按当前问题安排”可以重置。"
+          }
+        }
+      }
+    },
     "Add a note · optional": {
       "localizations": {
         "zh-Hans": {

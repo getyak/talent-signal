@@ -18,6 +18,7 @@ test("uses Manifest V3 and the exact minimum permission set", () => {
     "activeTab",
     "scripting",
     "sidePanel",
+    "storage",
   ]);
   assert.deepEqual(manifest.host_permissions, [
     "http://localhost/*",

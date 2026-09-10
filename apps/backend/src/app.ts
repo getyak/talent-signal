@@ -1,5 +1,6 @@
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
+import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
@@ -240,8 +241,8 @@ import {
   type PersonResearchAgentProviding,
 } from "./modules/personResearchAgentClient.js";
 import { createPersonResearchTask } from "./modules/personResearchTasks.js";
-import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask,
-  cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, loadScreenshotContactImage,
+import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask, confirmScreenshotContactProfile,
+  cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, lookupScreenshotContactReceipt, loadScreenshotContactImage,
   environmentScreenshotContactDependencies, ScreenshotContactTaskRunner,
   type ScreenshotContactDependencies } from "./modules/screenshotContactTasks.js";
 import { type ScreenshotContactTaskRequest } from "@talent-signal/agent";
@@ -468,6 +469,8 @@ export interface AppDependencies {
   labCIVerifier?: LabCIVerifying | null;
   personResearchProvider?: PersonResearchAgentProviding | null;
   screenshotContact?: ScreenshotContactDependencies | null;
+  /** Host-only reference clock for reproducible relative-date evaluations. */
+  chatReferenceClock?: () => Date;
 }
 
 export async function buildApp(
@@ -653,7 +656,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '058_product_run_monitor'`,
+           WHERE version = '065_screenshot_directory_authority'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -790,6 +793,7 @@ export async function buildApp(
   registerAgentSessionRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
+  registerAgentPreferenceRoutes(app, pool, authenticate, remoteChatProvider?.providerId === "claude-agent-sdk");
   registerRuntimeManifest(app, config);
   registerLoadedRuntimeConfiguration(app, config, authenticate, remoteChatProvider?.loadedTaskConfiguration, deploymentExposure);
   registerLabWorkspaceRoutes(app,new LabWorkspaceService(pool,chatMediaStorage,config.sessionTtlSeconds),authenticate,config.internalLabEnabled===true);
@@ -2489,7 +2493,7 @@ export async function buildApp(
       const trial = config.internalLabEnabled ? labTrials.taskContext(request.auth, "unscoped_chat", request.body.idempotency_key) : null;
       let productOutcome: "accepted" | "fallback" | "product_failed" | "unverified" = "product_failed";
       const result = await createUnscopedChatTask(
-        pool, request.auth, request.body, remoteChatProvider, trial?.select,
+        pool, request.auth, request.body, remoteChatProvider, trial?.select, dependencies.chatReferenceClock?.(),
       ).then((result) => { productOutcome = result.labProductOutcome ?? "unverified"; return result; }).finally(async () => {
         const persisted = await trial?.finish(productOutcome);
         if (persisted != null) reply.header("lab-observation-persisted", String(persisted));
@@ -2567,7 +2571,11 @@ export async function buildApp(
     return reply.header("cache-control","private, no-store").header("x-content-type-options","nosniff")
       .type(image.media_type).send(Buffer.from(image.data_base64,"base64"));
   });
-  app.get("/v1/contact-agent/tasks",{preHandler:authenticate,schema:{security}},async request=>listScreenshotContactTasks(pool,request.auth));
+  app.get<{Querystring:{handoff_request_id?:string}}>("/v1/contact-agent/tasks",{preHandler:authenticate,
+    schema:{security,querystring:Type.Object({handoff_request_id:Type.Optional(Type.String({minLength:1,maxLength:128}))},{additionalProperties:false})}},
+    async request=>request.query.handoff_request_id
+      ? lookupScreenshotContactReceipt(pool,request.auth,request.query.handoff_request_id)
+      : listScreenshotContactTasks(pool,request.auth));
   app.get<{Params:{id:string}}>("/v1/contact-agent/tasks/:id",{preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},async request=>{
     const result=await loadScreenshotContactTask(pool,request.auth,request.params.id);
     if(result.status==="running")void screenshotRunner?.start(request.auth,result.task_id).catch(()=>{});
@@ -2583,6 +2591,9 @@ export async function buildApp(
       const result=await resumeScreenshotContactTask(pool,request.auth,request.params.id,request.body);
       void screenshotRunner.start(request.auth,result.task_id,request.body.image).catch(()=>{});return result;
     });
+  app.post<{Params:{id:string};Body:unknown}>("/v1/contact-agent/tasks/:id/profile-confirmation",{preHandler:authenticate,bodyLimit:16_000,
+    schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},
+    async request=>confirmScreenshotContactProfile(pool,request.auth,request.params.id,request.body));
   app.post<{Params:{id:string};Body:{expected_revision:number}}>("/v1/contact-agent/tasks/:id/cancel",{preHandler:authenticate,
     schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1})},{additionalProperties:false})}},
     async request=>cancelScreenshotContactTask(pool,request.auth,request.params.id,request.body.expected_revision));

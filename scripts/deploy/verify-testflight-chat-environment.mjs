@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import { verifySecretEnvironment } from "../verify-secret-environment.mjs";
+// Node >=22.19 (the repository engine) strips these configuration-only types.
+// Read the same authority before a build; never maintain a second endpoint list.
+import { claudeHarnessConfiguration, claudeHarnessConfigurationReceipt } from "../../apps/agent/src/claudeHarnessConfiguration.ts";
 
 export const TESTFLIGHT_CHAT_ADMISSION_NAME =
   "TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING";
@@ -49,12 +52,27 @@ export function verifyTestflightChatEnvironment(environment) {
     };
   }
 
+  if (environment.TALENT_SIGNAL_CHAT_PROVIDER?.trim() === "claude") {
+    const enabledPresence = verifySecretEnvironment(environment, [
+      TESTFLIGHT_CHAT_ADMISSION_NAME, "TALENT_SIGNAL_CHAT_PROVIDER", "TALENT_SIGNAL_AGENT_MODEL",
+    ]);
+    let configuration;
+    try {
+      configuration = claudeHarnessConfigurationReceipt(claudeHarnessConfiguration(environment));
+    } catch (error) {
+      // The shared validator emits fixed codes, never credential or URL values.
+      issues.push(error.message);
+    }
+    return { enabled: true, ok: enabledPresence.ok && issues.length === 0,
+      presence: enabledPresence, issues, ...(configuration ? { configuration } : {}) };
+  }
+
   const enabledPresence = verifySecretEnvironment(
     environment,
     TESTFLIGHT_CHAT_ENABLED_ENVIRONMENT_NAMES,
   );
   if (environment.TALENT_SIGNAL_CHAT_PROVIDER?.trim() !== "zhipu") {
-    issues.push("The TestFlight Relationship Ask provider must be zhipu.");
+    issues.push("The TestFlight Relationship Ask provider must be zhipu or claude.");
   }
   if (environment.TALENT_SIGNAL_CHAT_MODEL?.trim() !== "glm-5.3") {
     issues.push("The TestFlight Relationship Ask model must be pinned to glm-5.3.");

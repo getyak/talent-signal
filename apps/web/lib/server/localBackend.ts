@@ -461,7 +461,12 @@ export async function loadRelationshipWorkspaceInitialRead(input: {
   const [workspace, relationshipScope, identityResolutionCase] =
     await Promise.all([
       shouldReadWorkspace
-        ? readWorkspace(client, input.captureId)
+        ? readWorkspace(client, input.captureId).catch((error: unknown) => {
+            // An account with no seeded/default capture still owns a workspace
+            // conversation. An explicitly requested missing capture is an error.
+            if (!input.captureId && error instanceof TalentSignalHttpError && error.status === 404) return null;
+            throw error;
+          })
         : Promise.resolve(null),
       hasRelationshipScope
         ? client.getRelationshipScope(
@@ -1032,6 +1037,7 @@ export async function getLatestRelationshipResearch(
 }
 
 export type AskRelationshipChatInput = {
+  time_zone?: string;
   previous_task_id?: string;
   request_id: string;
   person_id: string;
@@ -1106,6 +1112,7 @@ export async function askRelationshipChat(
     idempotency_key: `web-chat:${input.request_id}`,
     ...(input.previous_task_id ? { previous_task_id: input.previous_task_id } : {}),
     objective,
+    ...(input.time_zone ? { time_zone: input.time_zone } : {}),
     person_id: input.person_id,
     relationship_context_id: input.relationship_context_id,
     ...(input.telemetry ? { telemetry: input.telemetry } : {}),

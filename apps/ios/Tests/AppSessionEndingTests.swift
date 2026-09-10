@@ -26,6 +26,20 @@ final class AppSessionEndingTests: XCTestCase {
         XCTAssertEqual(store.endingReceipts.count, 1, "History remains available in recovery tools")
     }
 
+    func testSignOutClearsCalendarDetailsButPreservesUncertainWriteGuard() async throws {
+        let saved = session(), local = EndingSessionMemory(), journal = MemoryAppSessionEndings(), client = EndingAuthentication()
+        local.value = saved; client.response = saved
+        let scope = RuntimeEndpoint.scope(saved.baseURL, accountID: saved.account.id, userID: saved.user.id)
+        let directory = RuntimeScopedDirectories.directory("CalendarWriteAttempts", scope: scope)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let receipts = DeviceCalendarReceiptStore(scope: scope), source = UUID().uuidString
+        XCTAssertTrue(receipts.recordSaved(sourceID: source, eventIdentifier: "synthetic-event"))
+        let store = AppSessionStore(baseURL: endpoint, persistence: local, client: client, endings: journal)
+        await store.restore(); let result = await store.signOut()
+        XCTAssertTrue(result?.settled == true)
+        XCTAssertNil(receipts.receipt(for: source)); XCTAssertTrue(receipts.hasPendingWrite(for: source))
+    }
+
     func testUnreadableRecoveryJournalRetainsRecoveryEntry() async {
         let journal = MemoryAppSessionEndings()
         journal.failsLoad = true

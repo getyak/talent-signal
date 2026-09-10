@@ -35,10 +35,10 @@ export const ContactProfileFieldSchema = z.strictObject({
 
 export const ContactFindingSchema = z.strictObject({
   kind: z.enum(["change", "commitment", "constraint", "open_question", "next_step", "no_action"]),
-  text: Text.max(1_000),
-  message_refs: z.array(Text.max(80)).min(1).max(10),
-  source_excerpt: Text.max(2_000),
-  epistemic_status: z.enum(["source_statement", "inference"]),
+  text: Text.max(1_000).describe("One material observation relevant to the task, supported entirely by the cited original chat messages. Attribute every statement to its recorded speaker; self/我 is the account owner. Do not add research-derived verification, agreement with public pages, or employment conclusions. If a speaker discusses a website, report what that speaker said without presenting it as independently verified."),
+  message_refs: z.array(Text.max(80)).min(1).max(10).describe("All actual message_id values supporting every factual clause and quotation in text. Only original chat messages; public source and identity clue references are not valid here."),
+  source_excerpt: Text.max(2_000).describe("One contiguous exact substring from one cited original chat message. Never concatenate messages or substitute public page text."),
+  epistemic_status: z.enum(["source_statement", "inference"]).describe("source_statement copies the source wording. A paraphrase is inference, which still requires complete chat support and correct speaker attribution."),
 });
 
 export const CONTACT_INTAKE_TOOLS = {
@@ -67,7 +67,7 @@ export const CONTACT_INTAKE_TOOLS = {
     schema: z.strictObject({ source_id: z.union([Hash,z.string().regex(/^public[1-9][0-9]*$/u)]) }),
   },
   update_contact: {
-    description: "Save sourced professional observations using exact excerpts and references: public1/public2 or source_id for fetched sources, m1/m2 for messages, clue1/clue2 for header clues. source_statement copies source wording; paraphrases and role attribution are inference. public_profile is the exact cited HTTPS URL. Preserve conflicts and confirmed fields; omit popularity metrics. No identity merge, candidate rating, or external write.",
+    description: "Save sourced professional observations using exact excerpts and references: public1/public2 or source_id for fetched sources, the actual message_id for each cited message, and clue1/clue2 for header clues. source_statement values must copy a contiguous part of their cited excerpt (enforced by the tool); paraphrases and role attribution are explicitly qualified inference. Talking about a topic does not establish work experience, and two dated role statements do not establish a direct transfer between employers. Prefer short literal observations over a stitched biography. public_profile.value is the exact cited HTTPS URL; its source_excerpt must still quote the fetched page body or the original profile clue, not the URL or title unless those literally occur in that source text. Omit an unsupported profile link rather than retrying unrelated valid fields. Batch the independently supported fields in one call, each with its own exact excerpt and references. Each field must describe only the selected contact. Keep rejected namesakes and injection diagnostics in task limitations, never in this contact's profile fields, even as a negated comparison. Every claim in a field value must be supported by its own source_refs; when combining current and historical claims include all supporting fetched sources. Prefer a short field with one supported observation over a mixed biography. Preserve conflicts and confirmed fields; omit popularity metrics. No identity merge, candidate rating, or external write.",
     schema: z.strictObject({ person_id: ID, fields: z.array(ContactProfileFieldSchema).min(1).max(10) }),
   },
   delete_contact: {
@@ -75,8 +75,8 @@ export const CONTACT_INTAKE_TOOLS = {
     schema: z.strictObject({ person_id: ID, expected_revision: z.number().int().min(1) }),
   },
   finish_contact_task: {
-    description: "Finish after contact and IM readback. Return a useful summary, findings with exact quotes and m1/m2 message references, and next steps only when useful. source_statement copies source wording; paraphrases and role attribution are inference. Explain optional research limitations while preserving completed work. No external message has been sent.",
-    schema: z.strictObject({ summary: Text.max(2_000), findings: z.array(ContactFindingSchema).max(10), limitations: z.array(Text.max(500)).max(10) }),
+    description: "Finish after contact and IM readback. Summarize completed work, source-linked public observations already saved through update_contact, and research limitations. Keep public research separate from chat findings. No external message has been sent.",
+    schema: z.strictObject({ summary: Text.max(2_000), findings: z.array(ContactFindingSchema).max(10).describe("Material chat changes, commitments, constraints, or questions relevant to the objective. Return [] for ordinary background, introductions, or acknowledgments without a material development. Acknowledgment alone does not show contact interest. Public research belongs in sourced profile fields and the task summary, not chat findings."), limitations: z.array(Text.max(500)).max(10) }),
   },
   ask_contact_clarification: {
     description: "Pause this same durable task for one necessary identity or source clarification. Preserve completed work and ask about the ambiguity without guessing. The user can choose one returned contact or explain the screenshot.",
@@ -105,12 +105,40 @@ export const ScreenshotContactTaskRequestSchema = z.strictObject({
   selected_relationship_context_id: ID.optional(),
   allow_public_research: z.boolean().default(true),
   captured_at: z.iso.datetime(),
+  browser_source: z.strictObject({
+    title: Text.max(500),
+    locator: Text.max(1000).refine(value => {
+      if (value === "local-file://reviewed-screenshot") return true;
+      try { const url=new URL(value); return ["https:","http:"].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash; }
+      catch { return false; }
+    }, "Browser provenance must omit credentials, query parameters and fragments."),
+  }).optional(),
 }).refine(request => [request.image, ...(request.additional_images ?? [])].reduce((total, image) => total + image.byte_size, 0) <= 30_000_000, "Screenshots must total at most 30 MB.");
 
 export const ContactTaskCandidateSchema = z.strictObject({
   person_id: ID, display_name: Text.max(200),
   relationship_context_id: ID, relationship_label: Text.max(200),
 });
+
+export const ContactProfileDraftSchema = z.strictObject({
+  platform: Text.max(80),
+  display_name: z.string().trim().max(200),
+  fields: z.array(z.strictObject({
+    clue_index: z.number().int().min(0).max(11),
+    kind: z.enum(["name", "handle", "profile_url", "company", "job_title"]),
+    value: Text.max(300), source_excerpt: Text.max(600),
+    source_image_index: z.number().int().min(0).max(9),
+  })).max(12),
+});
+
+export const ContactProfileConfirmationSchema = z.strictObject({
+  expected_revision: z.number().int().min(1),
+  decision: z.literal("save_reviewed_profile"),
+  display_name: Text.max(200),
+  fields: z.array(z.strictObject({clue_index: z.number().int().min(0).max(11), value: Text.max(300)})).max(12),
+  selected_person_id: ID.optional(), selected_relationship_context_id: ID.optional(),
+});
+export type ContactProfileConfirmation = z.infer<typeof ContactProfileConfirmationSchema>;
 
 export const ScreenshotContactTaskResponseSchema = z.strictObject({
   task_id: ID,
@@ -125,6 +153,8 @@ export const ScreenshotContactTaskResponseSchema = z.strictObject({
   source_resource_id: ID.nullable(),
   message_count: z.number().int().nonnegative(),
   extraction: ContactChatExtractionSchema.nullable(),
+  contact_draft: ContactProfileDraftSchema.optional(),
+  reviewed_profile: ContactProfileDraftSchema.optional(),
   summary: z.string().max(2_000),
   findings: z.array(ContactFindingSchema).max(10),
   profile_fields: z.array(ContactProfileFieldSchema).max(50),

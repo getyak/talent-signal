@@ -22,6 +22,7 @@ import {
   retentionCompatibility,
   sessionCopy,
 } from "./lib/handoff-contract.js";
+import { contactTaskReviewURL } from "./lib/contact-handoff.js";
 import {
   fixtureCheck,
   fixtureSubmit,
@@ -223,6 +224,8 @@ function setCaptureBusy(busy, label = "Capturing…") {
 }
 
 function resetDecision() {
+  state.reviewGeneration = (state.reviewGeneration ?? 0) + 1;
+  state.contactHandoffEnvelope = null;
   state.requestIdentity = null;
   state.submitAttempt = 0;
   state.submission = {
@@ -234,6 +237,7 @@ function resetDecision() {
   };
   elements.approvalCheck.checked = false;
   renderSubmission();
+  void renderHandoffRecovery();
 }
 
 function draftChanged() {
@@ -437,6 +441,7 @@ async function loadImage(dataUrl) {
 
 async function openReview(draft) {
   clearCaptureAlert();
+  state.contactHandoffEnvelope = null;
   state.draft = draft;
   state.image = null;
   state.fixtureRecovered = false;
@@ -464,6 +469,7 @@ function clearDraft() {
     state.draft.fixture_case = null;
   }
   state.draft = null;
+  state.contactHandoffEnvelope = null;
   state.image = null;
   state.drawRedaction = null;
   state.requestIdentity = null;
@@ -851,6 +857,7 @@ function renderSession() {
 
 function renderRetention() {
   const captureKind = state.draft?.kind ?? "selected_text";
+  if (captureKind === "visible_tab" && !retentionCompatibility(captureKind, elements.retentionMode.value).supported) elements.retentionMode.value = "evidence_crop";
   for (const option of elements.retentionMode.options) {
     option.disabled = !retentionCompatibility(
       captureKind,
@@ -892,6 +899,7 @@ function renderSubmission() {
     String(presentation.busy),
   );
   elements.checkReceipt.hidden = !presentation.check_receipt;
+  elements.checkReceipt.textContent = state.draft?.kind === "visible_tab" ? "Recover same task" : "Check receipt";
   const imageHandoffBlocked =
     state.draft?.kind === "visible_tab" &&
     !retentionCompatibility("visible_tab", elements.retentionMode.value).supported;
@@ -994,6 +1002,10 @@ async function responseBody(response) {
 }
 
 async function postRealHandoff(origin, envelope) {
+  if (envelope.source.capture_kind === "visible_tab") {
+    state.contactHandoffEnvelope = envelope;
+    return chrome.runtime.sendMessage({ type: "handoff.reviewed-image", envelope });
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
@@ -1040,6 +1052,7 @@ function clearPrivatePayloadAfterReceipt() {
   }
 
   state.draft.original_data_url = null;
+  state.contactHandoffEnvelope = null;
   state.draft.original_text = null;
   state.draft.reviewed_text = null;
   state.draft.local_cleared = true;
@@ -1098,6 +1111,7 @@ async function submitHandoff() {
   }
 
   state.submitAttempt += 1;
+  const reviewGeneration = state.reviewGeneration;
   state.submission = {
     state: "pending",
     code: null,
@@ -1122,6 +1136,7 @@ async function submitHandoff() {
             attempt: state.submitAttempt,
           })
         : await postRealHandoff(origin, envelope);
+    if (reviewGeneration !== state.reviewGeneration) return;
     state.submission = result;
     if (result.code === "session_stale") {
       state.session = {
@@ -1135,6 +1150,7 @@ async function submitHandoff() {
       clearPrivatePayloadAfterReceipt();
     }
   } catch (error) {
+    if (reviewGeneration !== state.reviewGeneration) return;
     state.submission = classifyTransportError(error);
   }
 
@@ -1146,6 +1162,7 @@ async function checkReceipt() {
     return;
   }
 
+  const reviewGeneration = state.reviewGeneration;
   state.submission = {
     state: "pending",
     code: null,
@@ -1166,12 +1183,16 @@ async function checkReceipt() {
             requestId: state.requestIdentity.request_id,
             scenario: elements.fixtureScenario.value,
           })
-        : await getRealReceipt(origin, state.requestIdentity.request_id);
+        : state.draft.kind === "visible_tab" && state.contactHandoffEnvelope
+          ? await postRealHandoff(origin, state.contactHandoffEnvelope)
+          : await getRealReceipt(origin, state.requestIdentity.request_id);
+    if (reviewGeneration !== state.reviewGeneration) return;
     state.submission = result;
     if (result.state === "received") {
       clearPrivatePayloadAfterReceipt();
     }
   } catch (error) {
+    if (reviewGeneration !== state.reviewGeneration) return;
     state.submission = classifyTransportError(error);
   }
 
@@ -1259,7 +1280,7 @@ async function openExactWebReview() {
     return;
   }
   try {
-    const target = buildExactWebReviewUrl(
+    const target = (state.submission.contact_task_id ? contactTaskReviewURL : buildExactWebReviewUrl)(
       elements.localOrigin.value,
       state.submission.capture_id,
     );
@@ -1415,9 +1436,35 @@ elements.checkSession.addEventListener("click", () => checkSession());
 elements.openSignIn.addEventListener("click", openSignIn);
 elements.openWebReview.addEventListener("click", openExactWebReview);
 
+async function renderHandoffRecovery() {
+  if (state.mode !== "live" || !globalThis.chrome?.runtime?.sendMessage) return;
+  const section = byId("handoff-recovery"), items = byId("handoff-recovery-items");
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "handoff.recovery-list" });
+    const records = response?.records ?? [];
+    section.hidden = records.length === 0;
+    items.replaceChildren();
+    for (const record of records) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${record.completed ? "Open previous handoff" : "Check pending handoff"} · ${record.origin}`;
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const result = await chrome.runtime.sendMessage({ type: "handoff.recover", requestKey: record.requestKey });
+          byId("handoff-recovery-status").textContent = result?.message ?? "Receipt not verified. Check again before resubmitting.";
+          if (["received", "unavailable"].includes(result?.state)) button.remove();
+        } finally { button.disabled = false; }
+      });
+      items.append(button);
+    }
+  } catch { showCaptureAlert("Recovery unavailable", "Check your Web tasks before submitting another copy."); }
+}
+
 async function initialize() {
   elements.localOrigin.value = DEFAULT_LOCAL_ORIGIN;
   renderMode();
+  await renderHandoffRecovery();
   try {
     await loadFixtureSuite();
     if (state.mode === "fixture") {

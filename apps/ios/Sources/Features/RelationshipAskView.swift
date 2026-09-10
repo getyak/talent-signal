@@ -7384,6 +7384,12 @@ private struct AskTurnView: View {
                     } else {
                         AgentMarkdownView(markdown: block.body)
                     }
+                    if let draft = block.calendarDraft,
+                       draft.sourceRequestID == turn.response.taskID,
+                       let proposal = draft.deviceProposal {
+                        DeviceCalendarHandoffView(proposal: proposal, allowsEditing: true)
+                            .disabled(turn.requiresRefresh)
+                    }
                     if let publicSources = block.publicSources,
                        !publicSources.isEmpty {
                         VStack(alignment: .leading, spacing: 7) {

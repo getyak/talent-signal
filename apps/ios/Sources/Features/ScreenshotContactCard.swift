@@ -37,7 +37,26 @@ struct ScreenshotContactCard: View {
                     .font(.caption).foregroundStyle(Color.tsMutedInk)
             }
             if !task.summary.isEmpty { AgentMarkdownView(markdown: task.summary) }
-            if let question = task.question {
+            if let draft = task.contactDraft {
+                ScreenshotProfileReview(task: task, draft: draft, language: language, onResume: onResume).id(task.taskID)
+            }
+            if let profile = task.reviewedProfile {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(language.text("Details saved in this review")).font(.headline)
+                    Text(verbatim: "\(profile.displayName) · \(profile.platform)").font(.caption)
+                    ForEach(profile.fields) { field in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(language.text(ScreenshotProfileReview.fieldLabel(field.kind))).font(.caption).foregroundStyle(Color.tsMutedInk)
+                            Text(field.value).font(.subheadline)
+                            DisclosureGroup(language.text("View screenshot evidence")) {
+                                Text(field.sourceExcerpt).font(.caption).textSelection(.enabled)
+                                Text(verbatim: "\(language.text("Image")) \(field.sourceImageIndex + 1)").font(.caption2)
+                            }.font(.caption)
+                        }
+                    }
+                }
+            }
+            if let question = task.question, task.contactDraft == nil {
                 Text(question).font(.subheadline.weight(.medium))
                 ForEach(task.candidates) { candidate in
                     Button {
@@ -115,7 +134,7 @@ struct ScreenshotContactCard: View {
                     }
                 }
             }
-            if let extraction = task.extraction {
+            if let extraction = task.extraction, !extraction.messages.isEmpty {
                 DisclosureGroup(language.text("Chat evidence")) {
                     ForEach(extraction.messages) { message in
                         VStack(alignment: .leading, spacing: 6) {

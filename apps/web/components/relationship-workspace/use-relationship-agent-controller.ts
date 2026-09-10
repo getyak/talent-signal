@@ -27,6 +27,8 @@ import {
   type WebTraceHandle,
 } from "@/lib/telemetry";
 
+import { useWorkspaceChat } from "./use-workspace-chat";
+
 const DEFAULT_OBJECTIVE = "";
 const DRAFT_PREFIX = "talent-signal:relationship-agent-draft:v1";
 const DRAFT_EVENT = "talent-signal:relationship-agent-draft";
@@ -62,6 +64,7 @@ function emptyConversation(
 
 type ControllerOptions = {
   accountId: string | null;
+  browserSessionVersion?: string | null;
   initialCreateOpen?: boolean;
   onAnnouncement: (message: string) => void;
   onBusyChange: (label: string) => void;
@@ -129,6 +132,7 @@ function scrollToWorkspaceSection(id: string) {
 
 export function useRelationshipAgentController({
   accountId,
+  browserSessionVersion = null,
   initialCreateOpen = false,
   onAnnouncement,
   onBusyChange,
@@ -140,6 +144,7 @@ export function useRelationshipAgentController({
   pendingCount,
   scope,
 }: ControllerOptions) {
+  const workspaceChat = useWorkspaceChat(accountId, browserSessionVersion, !scope, onError);
   const requestRef = useRef<{
     key: string;
     objective: string;
@@ -428,6 +433,11 @@ export function useRelationshipAgentController({
   async function ask() {
     if (!objective.trim()) return;
     const submitted = objective.trim();
+    if (!scope) {
+      updateConversation({ createOpen: false });
+      if (await workspaceChat.ask(submitted)) clearStoredDraft();
+      return;
+    }
     const contactDraft = proposeAgentContactDraft(submitted);
     if (contactDraft) {
       updateConversation({
@@ -448,12 +458,6 @@ export function useRelationshipAgentController({
       clearStoredDraft();
       onAnnouncement(
         "智能助理已准备联系人草稿，尚未创建任何内容。",
-      );
-      return;
-    }
-    if (!scope) {
-      onError(
-        "请先提供一条人物更新，例如“添加 Maya Chen 到首席产品官寻访……”，或先打开现有关系，再提出范围明确的问题。",
       );
       return;
     }
@@ -507,6 +511,7 @@ export function useRelationshipAgentController({
             person_id: requestScope.person.id,
             relationship_context_id: requestScope.relationship_context.id,
             objective: submitted,
+            time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             ...(currentConversation.response ? {previous_task_id:currentConversation.response.task_id} : {}),
             telemetry: {
               trace_id: trace.trace_id,
@@ -732,6 +737,7 @@ export function useRelationshipAgentController({
   }
 
   return {
+    workspaceChat,
     ask,
     compileWiki,
     clearGeneratedArtifacts,

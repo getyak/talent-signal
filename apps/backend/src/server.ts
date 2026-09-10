@@ -4,12 +4,16 @@ import { createPool } from "./database/pool.js";
 import { runSourceLifecycleSweep } from "./modules/sourceLifecycle.js";
 import { recoverInterruptedAgentRuns } from "./modules/agentRuns.js";
 import { recoverGovernedAgentTasks } from "./modules/agentTasks.js";
+import { sweepClaudeHarnessWorkspaces } from "@talent-signal/agent";
 
 const config = loadConfig();
 const pool = createPool(config);
 const app = await buildApp({ config, pool });
+let workspaceSweep: ReturnType<typeof setInterval> | undefined;
+let sweeping = false;
 
 async function shutdown(signal: string): Promise<void> {
+  clearInterval(workspaceSweep);
   app.log.info({ signal }, "Stopping local control plane");
   await app.close();
   await pool.end();
@@ -23,6 +27,15 @@ process.once("SIGTERM", () => {
 });
 
 try {
+  await sweepClaudeHarnessWorkspaces();
+  workspaceSweep = setInterval(() => {
+    if (sweeping) return;
+    sweeping = true;
+    void sweepClaudeHarnessWorkspaces().catch(() => {
+      app.log.error({ code: "HARNESS_WORKSPACE_CLEANUP_FAILED" }, "SDK workspace cleanup requires retry");
+    }).finally(() => { sweeping = false; });
+  }, 30_000);
+  workspaceSweep.unref();
   await recoverInterruptedAgentRuns(pool);
   await app.listen({ host: config.host, port: config.port });
   void recoverGovernedAgentTasks(pool).catch((error: unknown) => {

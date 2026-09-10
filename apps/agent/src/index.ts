@@ -1,4 +1,9 @@
 export * from "./claudeProvider.js";
+export * from "./claudeHarness.js";
+export * from "./claudeHarnessConfiguration.js";
+export * from "./claudeChatProvider.js";
+export * from "./responsePreference.js";
+export * from "./claudeContactProvider.js";
 export * from "./contactResearchSchemas.js";
 export * from "./contactIntakeSchemas.js";
 export * from "./contactIntakeProvider.js";
@@ -23,4 +28,8 @@ export * from "./runtimeObservation.js";
 export * from "./runtimeObservationOutbox.js";
 export * from "./relationshipTaskConfiguration.js";
 
+export * from "./claudeHarnessContinuation.js";
+export * from "./claudeHarnessWorkspace.js";
+
+export * from "./calendarDraft.js";
 export * from "./productRunCapture.js";
