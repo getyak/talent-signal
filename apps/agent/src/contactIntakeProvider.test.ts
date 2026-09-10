@@ -10,7 +10,7 @@ describe("contact Agent provider",()=>{
     const raw=`  First paragraph  \n\n${"a".repeat(3999)}😀 tail\r\n\r\n Last paragraph `;
     const blocks=contactDocumentBlocks(raw);
     expect(blocks.map(block=>block.paragraph)).toEqual([1,2,2,3]);
-    for(const block of blocks){expect(raw.slice(block.start,block.end)).toBe(block.text);expect(block.text.length).toBeLessThanOrEqual(4000);expect(block.text.isWellFormed()).toBe(true);}
+    for(const block of blocks){expect(raw.slice(block.start,block.end)).toBe(block.text);expect(block.text.length).toBeLessThanOrEqual(4000);expect(Buffer.from(block.text,"utf8").toString("utf8")).toBe(block.text);}
     expect(blocks[0]).toMatchObject({text:"First paragraph",start:2});
     const many=contactDocumentBlocks(Array.from({length:200},(_,i)=>`Paragraph ${i}`).join("\n\n"));
     expect(many.length).toBeLessThanOrEqual(100);
