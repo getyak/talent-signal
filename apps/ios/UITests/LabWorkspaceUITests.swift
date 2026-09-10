@@ -52,6 +52,34 @@ final class LabWorkspaceUITests: XCTestCase {
         XCTAssertEqual(created["data_rows"] as? Int, 0)
         XCTAssertNotNil(created["empty_verified_at"] as? String)
 
+        // Switching must finish in the running process and leave navigation usable.
+        let today = app.buttons["archive-tab-today"]
+        let people = app.buttons["archive-tab-people"]
+        XCTAssertTrue(today.waitForExistence(timeout: 8))
+        let marker = app.descendants(matching: .any)["lab-workspace-banner"].firstMatch
+        XCTAssertLessThanOrEqual(marker.frame.maxY, today.frame.minY + 1,
+                                 "The workspace marker must not cover the navigation hit targets.")
+        XCTAssertTrue(people.isHittable)
+        people.tap()
+        XCTAssertTrue(people.isSelected)
+        XCTAssertTrue(today.isHittable)
+        today.tap()
+        app.buttons["lab-workspace-banner-return"].tap()
+        XCTAssertTrue(banner.waitForNonExistence(timeout: 20), app.debugDescription)
+        XCTAssertTrue(app.buttons["archive-tab-today"].isHittable)
+        let returnedRows = try await data(baseURL, "/v1/people", token: token)
+        XCTAssertEqual(returnedRows, beforeRows)
+        let retained = try await json(baseURL, "/v1/lab/workspaces/\(workspaceID)", token: token)
+        XCTAssertEqual((retained["workspace"] as? [String: Any])?["state"] as? String, "active")
+        capture("lab-workspace-return-without-relaunch-zh")
+        try openWorkspaceLab(app)
+        let reenter = app.buttons["lab-workspace-enter-\(workspaceID)"]
+        scrollTo(reenter, app)
+        XCTAssertTrue(reenter.isHittable)
+        reenter.tap()
+        XCTAssertTrue(banner.waitForExistence(timeout: 15), app.debugDescription)
+        capture("lab-workspace-reenter-without-relaunch-zh")
+
         app.terminate()
         app.launchEnvironment.removeValue(forKey: "TS_IOS_UI_TEST_AUTHENTICATED_SESSION")
         app.launch()
@@ -135,7 +163,7 @@ final class LabWorkspaceUITests: XCTestCase {
             }) { return value }
             try await Task.sleep(nanoseconds: 250_000_000)
         }
-        throw XCTSkip("The native app did not create a visible server workspace.")
+        throw NSError(domain: "LabWorkspaceUITests", code: 1, userInfo: [NSLocalizedDescriptionKey: "The native app did not create a visible server workspace."])
     }
 
     private func waitForDeleted(_ baseURL: String, token: String, id: String) async throws -> [String: Any] {
@@ -145,7 +173,7 @@ final class LabWorkspaceUITests: XCTestCase {
                workspace["state"] as? String == "deleted" { return workspace }
             try await Task.sleep(nanoseconds: 250_000_000)
         }
-        throw XCTSkip("The server did not report verified deletion in time.")
+        throw NSError(domain: "LabWorkspaceUITests", code: 2, userInfo: [NSLocalizedDescriptionKey: "The server did not report verified deletion in time."])
     }
 
     private func json(_ baseURL: String, _ path: String, token: String? = nil,

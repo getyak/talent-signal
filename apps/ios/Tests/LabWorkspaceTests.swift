@@ -141,6 +141,63 @@ final class LabWorkspaceTests: XCTestCase {
         XCTAssertEqual(Set(api.entryTokens), Set([firstToken]))
     }
 
+    func testInterruptedReturnRetriesOriginalIntentInsteadOfReenteringChild() async throws {
+        for recovery in ["retry", "reconcile", "relaunch"] {
+            let credentials = WorkspaceSessionMemory(owner())
+            let auth = WorkspaceAuthentication()
+            let app = AppSessionStore(baseURL: endpoint, persistence: credentials, client: auth,
+                endings: MemoryAppSessionEndings())
+            await app.restore(allowOfflineWorkspace: false)
+            let journal = WorkspaceJourneyMemory()
+            let api = WorkspaceServiceFixture(owner: owner())
+            let store = makeStore(app: app, journal: journal, api: api)
+            await store.createAndEnter()
+            let child = try XCTUnwrap(app.currentSession)
+            let generation = app.contextGeneration
+            auth.validationFailure = URLError(.notConnectedToInternet)
+
+            await store.returnToOwner()
+
+            XCTAssertEqual(app.currentSession, child)
+            XCTAssertEqual(store.journey?.phase, .returning)
+            XCTAssertNotNil(store.notice)
+            XCTAssertNotNil(journal.value?.originalSession)
+            auth.validationFailure = nil
+            let resumed = recovery == "relaunch" ? makeStore(app: app, journal: journal, api: api) : store
+            if recovery == "retry" { await resumed.retry() }
+            else { await resumed.reconcile() }
+
+            XCTAssertEqual(app.currentSession, owner(), recovery)
+            XCTAssertNotEqual(app.contextGeneration, generation, "The workspace root must rebuild without a process restart.")
+            XCTAssertNil(resumed.journey, recovery)
+            XCTAssertNil(journal.value, recovery)
+            XCTAssertEqual(api.events.last, "leave", recovery)
+            XCTAssertFalse(api.events.contains("stop"), "Returning keeps the test workspace available.")
+        }
+    }
+
+    func testBlockedEndResumesDeletionAfterRecordingFinishes() async throws {
+        let credentials = WorkspaceSessionMemory(owner())
+        let app = AppSessionStore(baseURL: endpoint, persistence: credentials,
+            client: WorkspaceAuthentication(), endings: MemoryAppSessionEndings())
+        await app.restore(allowOfflineWorkspace: false)
+        let journal = WorkspaceJourneyMemory()
+        let api = WorkspaceServiceFixture(owner: owner())
+        let store = makeStore(app: app, journal: journal, api: api)
+        await store.createAndEnter()
+        let recording = try RuntimeWorkRegistry.shared.begin(.recording)
+        await store.endCurrentWorkspace()
+        RuntimeWorkRegistry.shared.end(recording)
+        let stopID = try XCTUnwrap(store.journey?.stopID)
+        XCTAssertEqual(store.journey?.phase, .returning)
+        XCTAssertEqual(app.currentSession?.user.kind, "lab_human")
+        await store.retry()
+        XCTAssertEqual(app.currentSession, owner())
+        XCTAssertEqual(store.journey?.stopID, stopID)
+        XCTAssertEqual(store.receipt?.state, .deleted)
+        XCTAssertEqual(api.events.suffix(2), ["leave", "stop"])
+    }
+
     func testSignedOutPreparingJourneyRecoversOwnerBeforeResumingSameIntent() async throws {
         let firstCredentials = WorkspaceSessionMemory(owner())
         let auth = WorkspaceAuthentication()
@@ -314,6 +371,7 @@ private final class WorkspaceSessionMemory: TalentSignalSessionPersisting {
 
 private final class WorkspaceAuthentication: AppAuthenticationServing {
     var signInResponse: TalentSignalSession?
+    var validationFailure: Error?
     func challenge() async throws -> AppleLoginChallenge {
         .init(contractVersion: TalentSignalAPIContract.version, id: "challenge", nonce: "nonce",
               expiresAt: .now.addingTimeInterval(300))
@@ -324,6 +382,7 @@ private final class WorkspaceAuthentication: AppAuthenticationServing {
         return signInResponse
     }
     func validate(_ stored: TalentSignalSession) async throws -> TalentSignalSession {
+        if let validationFailure { throw validationFailure }
         guard stored.expiresAt > .now else {
             throw AppSessionError.backend(status: 401, code: "SESSION_INVALID", message: "Expired")
         }
