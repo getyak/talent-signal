@@ -82,6 +82,72 @@ final class AppSessionTests: XCTestCase {
         XCTAssertEqual(store.endingReceipts.first?.remote, .revoked)
         XCTAssertEqual(store.endingReceipts.first?.local, .failed)
     }
+
+    func testValidateFailurePreservesLocalKeychainSessionForRetry() async {
+        // Reproduces the "every cold start re-prompts sign-in" regression.
+        // The Keychain still has a valid stored credential; the backend
+        // has lost its session row (DB reset / ephemeral volume / migration).
+        // The local credential must survive so the next successful validate
+        // round-trip can re-confirm without re-entering Apple ID.
+        let persistence = MemorySessionStore(session: .fixture)
+        let authentication = StubAuthentication(
+            validateFailure: AppSessionError.backend(
+                status: 401,
+                code: "SESSION_INVALID",
+                message: "The session is invalid, expired, or revoked."
+            )
+        )
+        let store = AppSessionStore(
+            baseURL: .fixtureBackend,
+            persistence: persistence,
+            client: authentication,
+            endings: MemoryAppSessionEndings()
+        )
+
+        await store.restore()
+
+        // Stored credential is preserved on the persistence layer …
+        XCTAssertNotNil(persistence.session,
+            "A 401 from /v1/auth/session must not erase the Keychain credential")
+        // … the user is still treated as signed in for the last verified identity …
+        if case let .signedIn(surface) = store.phase {
+            XCTAssertEqual(surface.account.id, TalentSignalSession.fixture.account.id)
+            XCTAssertEqual(surface.user.id, TalentSignalSession.fixture.user.id)
+        } else {
+            XCTFail("Expected .signedIn after a recoverable validate failure, got \(store.phase)")
+        }
+        // … and the user sees a clear notice instead of being kicked to sign-in.
+        XCTAssertTrue(store.notice?.contains("Saved sign-in") == true,
+            "Notice should explain the saved sign-in is being kept")
+        XCTAssertEqual(authentication.challengeCallCount, 0,
+            "No challenge should be prepared when the saved sign-in is kept")
+    }
+
+    func testValidateFailureWithOfflineDisabledStillClearsKeychain() async {
+        // The Debug-only strict path still requires a successful validate or
+        // an explicit re-authentication; this guards against a regression in
+        // the override hook.
+        let persistence = MemorySessionStore(session: .fixture)
+        let authentication = StubAuthentication(
+            validateFailure: AppSessionError.backend(
+                status: 401,
+                code: "SESSION_INVALID",
+                message: "The session is invalid, expired, or revoked."
+            )
+        )
+        let store = AppSessionStore(
+            baseURL: .fixtureBackend,
+            persistence: persistence,
+            client: authentication,
+            endings: MemoryAppSessionEndings()
+        )
+
+        await store.restore(allowOfflineWorkspace: false)
+
+        XCTAssertNil(persistence.session,
+            "Strict mode must still clear the Keychain credential on 401")
+        XCTAssertEqual(store.phase, .signedOut)
+    }
 }
 
 private final class MemorySessionStore: TalentSignalSessionPersisting {
@@ -103,14 +169,17 @@ private final class MemorySessionStore: TalentSignalSessionPersisting {
 private final class StubAuthentication: AppAuthenticationServing {
     let logoutFailure: Error?
     let signInFailure: Error?
+    let validateFailure: AppSessionError?
     private(set) var challengeCallCount = 0
 
     init(
         logoutFailure: Error? = nil,
-        signInFailure: Error? = nil
+        signInFailure: Error? = nil,
+        validateFailure: AppSessionError? = nil
     ) {
         self.logoutFailure = logoutFailure
         self.signInFailure = signInFailure
+        self.validateFailure = validateFailure
     }
 
     func challenge() async throws -> AppleLoginChallenge {
@@ -134,7 +203,8 @@ private final class StubAuthentication: AppAuthenticationServing {
     }
 
     func validate(_ stored: TalentSignalSession) async throws -> TalentSignalSession {
-        stored
+        if let validateFailure { throw validateFailure }
+        return stored
     }
 
     func logout(_ stored: TalentSignalSession) async throws {
