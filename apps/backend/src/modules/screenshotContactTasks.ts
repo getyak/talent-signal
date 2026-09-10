@@ -107,7 +107,13 @@ async function save(client: PoolClient, row: Row) {
 
 export async function loadScreenshotContactTask(pool: Pool, auth: AuthContext, id: string): Promise<Response> {
   const row=await rowFor(pool,auth,id);
-  try { await assertSourceCurrent(pool,row); } catch { return terminalResponse(row,"deleted"); }
+  try { await assertSourceCurrent(pool,row); } catch (error) {
+    if (error instanceof ApiError && ["CONTACT_TASK_SOURCE_UNAVAILABLE", "CONTACT_DIRECTORY_CHANGED_SEARCH_AGAIN"].includes(error.code)) {
+      return terminalResponse(row,"deleted");
+    }
+    // A failed availability lookup is not evidence that the source was deleted.
+    throw error;
+  }
   return ScreenshotContactTaskResponseSchema.parse({...row.state.response,revision:row.revision,updated_at:row.updated_at.toISOString()});
 }
 
