@@ -52,29 +52,22 @@ grant. The separately gated contact-filing task below adds that explicit grant.
 
 ### Runtime placement
 
-Runtime follows capability ownership. The backend owns contact-filing scope,
-durable product state and domain tools. The shared SDK runtime can inspect the
-authorized original images directly and request typed understanding, research
-or reviewable drafts. Recognition is a capability, not a compulsory planning
-stage. Only public identity anchors and typed research calls cross to the Agent
-Host, which owns open-web credentials and network policy, never database access
-or authority to change a contact. The legacy read-only definition forwards
-process-only image input to that host without granting filing authority.
+The backend owns authenticated scope, canonical evidence, filing, review, confirmed
+state, effects and audit. The SDK provides image understanding and reviewable drafts;
+recognition is optional. The Agent Host owns web credentials and network policy,
+without database or filing authority. Only public anchors, typed research calls
+and legacy process-only images cross to it. The Agent core owns schemas, policy
+and orchestration, not secrets or canonical state.
 
-Scoped relationship chat can trace an admitted Memory fragment to its original
-screenshot and inspect clear pixel tiles. Tool-returned images follow the same
-processing and ephemeral-session boundary as image inputs. Source guards remain
-active through the entire Run and final product commit, with the shortest image
-expiration bounding derived records. Runtime diagnostics retain source metadata,
-not image payloads; a tool receipt never creates a new source or confirmation.
-
-The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision. The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
+Scoped chat can trace an admitted Memory fragment to original screenshot tiles.
+Tool-returned images share the processing and ephemeral-session policy of inputs.
+Source guards cover the entire Run and final commit; the shortest image expiry
+bounds derived records. Diagnostics retain metadata, not pixels. Neither a tool
+receipt nor an artifact creates confirmation, a new source or publication authority.
 
 ## Governed loop
 
 ![Talent Signal agent runtime flow](talent-signal-agent-runtime-flow.png)
-
-Every run follows the same conceptual discipline:
 
 1. authorize one immutable objective, Pursuit or subject scope, and budget;
 2. compile the smallest relevant context;
