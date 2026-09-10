@@ -27,7 +27,7 @@ describe("request-local product execution capture",()=>{
     await expect(withProductRunCapture({async append(span){spans.push(span);}},()=>captureProductStep("image","llm",{
       images:[{data:Buffer.from(marker)},{data:new TextEncoder().encode(marker)}],
       serializedBuffer:{type:"Buffer",data:[...Buffer.from(marker)]},
-      image:{data_base64:marker},content:[{source:{type:"base64",data:marker}}],url:"data:image/png;base64,"+marker
+      image:{data_base64:marker},content:[{source:{type:"base64",data:marker}},{type:"image",mimeType:"image/png",data:marker}],url:"data:image/png;base64,"+marker
     },async()=>{throw failure;}))).rejects.toBe(failure);
     expect(spans).toHaveLength(1);
     expect(JSON.stringify(spans)).not.toContain(marker);

@@ -1,5 +1,6 @@
 import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
 import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
+import { createHarnessEvidenceImageReader, loadHarnessEvidenceImageScope } from "./harnessEvidenceImages.js";
 import { loadAgentResponsePreference } from "./agentPreferences.js";
 import { createHarnessContinuationFactory } from "./harnessSessions.js";
 import { captureProductStep } from "@talent-signal/agent";
@@ -861,7 +862,9 @@ export async function createChatTask(
         if (current.rows[0]?.available !== true) throw new ApiError(409,"PREVIOUS_ANSWER_UNAVAILABLE","The previous answer is no longer available in this relationship.");
       } finally { if(timer) clearTimeout(timer); }
     };
-    const assertCurrent = assertHarnessCurrent ? async () => { await assertHarnessCurrent(); await assertPreviousCurrent(); } : undefined;
+    const assertBaseCurrent = assertHarnessCurrent ? async () => { await assertHarnessCurrent(); await assertPreviousCurrent(); } : undefined;
+    const imageGuards = new Map<string, () => Promise<void>>();
+    const assertCurrent = assertBaseCurrent ? async () => { await assertBaseCurrent(); for (const guard of imageGuards.values()) await guard(); } : undefined;
     const responsePreference = assertCurrent ? await loadAgentResponsePreference(client, auth) : undefined;
     const sessionConversation = request.session_id
       ? await readAgentSessionConversation(client, auth, request.session_id, {
@@ -1045,6 +1048,8 @@ export async function createChatTask(
                 data: stored.body,
               };
             }));
+        const sourceImages = assertCurrent && chatMediaStorage && remoteChatProvider.supportsImageInput
+          ? await loadHarnessEvidenceImageScope(pool,auth,request.person_id,request.relationship_context_id,evidenceFragmentIds) : null;
         feedbackInput = {
           ...(responsePreference ? { responsePreference } : {}),
           ...(assertCurrent ? { assertCurrent } : {}),
@@ -1060,12 +1065,19 @@ export async function createChatTask(
             mediaIds.length ? "relationship_image" : "relationship_text", {
               sessionID: request.session_id, personID: request.person_id, contextID: request.relationship_context_id,
               fragmentIDs: evidenceFragmentIds, mediaIDs: mediaIds,
-              screenshotTaskIDs: sessionConversation.sources?.map((source) => source.taskID) ?? [],
+              screenshotTaskIDs: [...new Set([...(sessionConversation.sources?.map((source) => source.taskID) ?? []), ...(sourceImages?.taskIDs ?? [])])],
             }),
         };
         sourceObservation = feedbackInput.observation;
+        if (sourceImages?.expiresAt && sourceObservation?.source_refs?.kind === "product") {
+          sourceObservation.source_refs.expires_at = new Date(Math.min(sourceImages.expiresAt.valueOf(),Date.parse(sourceObservation.source_refs.expires_at))).toISOString();
+        }
+        if (assertBaseCurrent && chatMediaStorage && sourceImages?.taskIDs.length) {
+          feedbackInput.readEvidenceImage = createHarnessEvidenceImageReader(pool, auth, request.person_id,
+            request.relationship_context_id, evidenceFragmentIds, chatMediaStorage, assertBaseCurrent, (id,guard)=>imageGuards.set(id,guard));
+        }
         await assertCurrent?.();
-        if (remoteChatProvider.providerId === "claude-agent-sdk" && request.session_id && !images.length
+        if (remoteChatProvider.providerId === "claude-agent-sdk" && request.session_id && !images.length && !feedbackInput.readEvidenceImage
           && feedbackInput.observation?.source_refs?.kind === "product") {
           await client.query("SAVEPOINT harness_product_reply");
           continuationSavepoint = true;
@@ -1233,12 +1245,12 @@ export async function createChatTask(
         reference_time: createdAt.toISOString(), policy_version: CHAT_POLICY_VERSION,
       });
     }
-    if (previousRunID) {
+    if (assertCurrent) {
       // Preserve the account source generation while the final check commits.
       await client.query("SELECT account_id FROM harness_source_generations WHERE account_id=$1 FOR SHARE NOWAIT",[auth.accountId]);
-      await assertCurrent?.();
-      await assertPreviousCurrent();
+      await assertCurrent();
     }
+    if (previousRunID) await assertPreviousCurrent();
     await completeIdempotency(client, idempotency, 201, response);
     return {
       body: response,

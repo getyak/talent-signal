@@ -19,7 +19,7 @@ function diagnosticContent(value: unknown): unknown {
     if (original instanceof ArrayBuffer || ArrayBuffer.isView(original)
       || item && typeof item === "object" && item.type === "Buffer" && Array.isArray(item.data)
       || ["data_base64", "image_base64", "base64"].includes(key)
-      || key === "data" && this?.type === "base64"
+      || key === "data" && ["base64", "image"].includes(this?.type)
       || typeof item === "string" && /^data:[^,]*;base64,/iu.test(item)) {
       return "[original media retained only by its product source]";
     }

@@ -244,6 +244,14 @@ export async function loadScreenshotContactImage(pool:Pool,auth:AuthContext,id:s
   return image;
 }
 
+/** Revalidate a derived view without retaining or fetching its pixels again. */
+export async function assertScreenshotContactImageCurrent(pool:Pool,auth:AuthContext,id:string,index:number,hash:string){
+  await assertSourceCurrent(pool,await rowFor(pool,auth,id));
+  if (!(await pool.query(`SELECT 1 FROM contact_task_images WHERE account_id=$1 AND task_id=$2
+    AND image_index=$3 AND content_hash=$4 AND status='stored' AND expires_at>clock_timestamp()`,
+  [auth.accountId,id,index,hash])).rowCount) deny("CONTACT_IMAGE_UNAVAILABLE");
+}
+
 export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,raw: unknown, storage?:ChatMediaStorage): Promise<{body:Response;replayed:boolean}> {
   const parsed=ScreenshotContactTaskRequestSchema.safeParse(raw);
   if (!parsed.success) throw new ApiError(422,"CONTACT_TASK_INPUT_INVALID","请选择最多 10 张截图，每张不超过 10 MB，总计不超过 30 MB。");

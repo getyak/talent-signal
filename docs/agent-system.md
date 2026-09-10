@@ -61,6 +61,13 @@ Host, which owns open-web credentials and network policy, never database access
 or authority to change a contact. The legacy read-only definition forwards
 process-only image input to that host without granting filing authority.
 
+Scoped relationship chat can trace an admitted Memory fragment to its original
+screenshot and inspect clear pixel tiles. Tool-returned images follow the same
+processing and ephemeral-session boundary as image inputs. Source guards remain
+active through the entire Run and final product commit, with the shortest image
+expiration bounding derived records. Runtime diagnostics retain source metadata,
+not image payloads; a tool receipt never creates a new source or confirmation.
+
 The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision. The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
 
 ## Governed loop

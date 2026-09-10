@@ -22,11 +22,15 @@ function starts(length: number): number[] {
 }
 
 /** Derived pixels live only in the current SDK run; originals remain canonical. */
-export async function screenshotImageViews(images: readonly Image[], read: ImageReadAuthority, signal: AbortSignal) {
+export async function screenshotImageViews(images: readonly Image[], read: ImageReadAuthority, signal: AbortSignal,
+  imageIndices: readonly number[] = images.map((_, index) => index)) {
+  if (imageIndices.length !== images.length || new Set(imageIndices).size !== images.length ||
+    imageIndices.some(index => !Number.isInteger(index) || index < 0 || index > 9)) throw new Error("CONTACT_IMAGE_VIEW_SELECTION_INVALID");
   if(images.length>10 || images.reduce((total,image)=>total+image.byte_size,0)>30_000_000)throw new Error("CONTACT_IMAGE_VIEW_LIMIT");
   const sources = await read(async () => {
     const result = [];
-    for (const [index, image] of images.entries()) {
+    for (const [slot, image] of images.entries()) {
+      const index = imageIndices[slot]!;
       signal.throwIfAborted();
       if(image.data_base64.length>13_400_000)throw new Error("CONTACT_IMAGE_INTEGRITY_MISMATCH");
       const bytes = Buffer.from(image.data_base64, "base64");
@@ -79,7 +83,7 @@ export async function screenshotImageViews(images: readonly Image[], read: Image
     execute: async (input, executionSignal) => read(async () => {
       executionSignal.throwIfAborted();
       const args = schema.parse(input);
-      const source = sources[args.source_image_index];
+      const source = sources.find(item => item.index === args.source_image_index);
       const fail = (error: string) => ({ content: [{ type: "text" as const, text: JSON.stringify({ error,
         instruction:"No pixels were returned. Retry with source_image_index and exactly ONE tile_index OR region. If tile_index is supplied, remove region entirely. Use the tile map and original pixel dimensions from screenshot_image_views; do not guess coordinates or infer image contents from a failed read.",
         ...(source?{width:source.width,height:source.height,tile_indices:source.tiles.map((_,index)=>index)}:{available_image_indices:sources.map(source=>source.index)}),

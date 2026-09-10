@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { responsePreferenceTool } from "./responsePreference.js";
+import { evidenceImageTools } from "./evidenceImageTool.js";
 import { calendarDraftCapability } from "./calendarDraft.js";
 import { ClaudeHarnessFailure, ClaudeHarnessInterruption, runClaudeHarness, type ClaudeHarnessResult, type HarnessTool } from "./claudeHarness.js";
 import { claudeHarnessConfiguration, type ClaudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
@@ -81,7 +82,10 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
           blocks, available_block_types: [...new Set(request.context_blocks.map(block => block.type))] }) }] };
       },
     });
-    tools.push(...responsePreferenceTool(request.responsePreference));
+    const imageGuards = new Map<string, () => Promise<void>>();
+    const assertCurrent = async () => { await request.assertCurrent?.(); for (const guard of imageGuards.values()) await guard(); };
+    const sourceImageTools = evidenceImageTools(request, this.supportsImageInput, (id, guard) => imageGuards.set(id, guard));
+    tools.push(...responsePreferenceTool(request.responsePreference), ...sourceImageTools);
     const calendar = calendarDraftCapability(request.calendarContext, request.objective);
     tools.push(...calendar.tools);
     const images = (request.images ?? []).map((image, index) => ({ kind: "image" as const,
@@ -89,13 +93,15 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       contentHash: createHash("sha256").update(image.data).digest("hex"), dataBase64: Buffer.from(image.data).toString("base64") }));
     const result = await this.execute(this.configuration, {
       ...(request.observation ? { observation: request.observation } : {}),
-      ...(request.continuation ? { continuation: request.continuation } : {}),
+      ...(request.continuation && !sourceImageTools.length ? { continuation: request.continuation } : {}),
+      imageToolResults: Boolean(sourceImageTools.length),
       objective: request.objective, systemPrompt: [prompt.text, calendar.instructions].filter(Boolean).join("\n\n"), tools, images,
       context: JSON.stringify({ calendar_clock: calendar.clock, reference_time: request.reference_time, conversation: boundedConversationHistory(request.conversation_history),
         memory_inventory: request.context_blocks.map(block => ({ type: block.type, status: block.status })),
         allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference) }),
-      effort: "medium", budget: { ...DEFAULT_AGENT_BUDGET, maxDurationMs: 60_000 }, assertCurrent: request.assertCurrent ?? (async () => {}),
+      effort: "medium", budget: { ...DEFAULT_AGENT_BUDGET, maxDurationMs: 60_000 }, assertCurrent,
     }, new AbortController().signal);
+    await assertCurrent();
     const body = result.text.trim();
     if (!body || body.length > 16_000) throw new Error("CLAUDE_CHAT_ANSWER_INVALID");
     // No citation receipt means the host cannot label prose as a grounded answer.

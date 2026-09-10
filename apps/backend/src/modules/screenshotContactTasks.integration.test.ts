@@ -7,6 +7,10 @@ import { lookupScreenshotContactReceipt, createScreenshotContactTask, Screenshot
 import type { AuthContext } from "./auth.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { executeGrantedContactArchive, restoreContactArchive } from "./contactArchive.js";
+import { createHarnessEvidenceImageReader } from "./harnessEvidenceImages.js";
+import { createChatTask } from "./chat.js";
+import { compileRelationshipWiki } from "./wiki.js";
+import { reviewEvidenceFragment } from "./resources.js";
 
 const database=process.env.CONTACT_AGENT_TEST_DATABASE_URL;
 const pool=database?new Pool({connectionString:database,connectionTimeoutMillis:30_000,max:4,idleTimeoutMillis:0}):null;
@@ -431,6 +435,52 @@ class TestImageStorage implements ChatMediaStorage {
 }
 
 describe.skipIf(!pool)("durable multi-image contact sources",()=>{
+  it("rejects ordinary chat completion when an image naturally expires after the provider returns",async()=>{
+    const storage=new TestImageStorage();const request=input();
+    const uniqueBytes=Buffer.concat([Buffer.from(request.image.data_base64,"base64"),Buffer.from(randomUUID())]);
+    request.image={...request.image,byte_size:uniqueBytes.length,data_base64:uniqueBytes.toString("base64"),content_hash:createHash("sha256").update(uniqueBytes).digest("hex")};
+    const created=await createScreenshotContactTask(pool!,auth,request,storage);
+    await new ScreenshotContactTaskRunner(pool!,{model:model(`Memory expiry ${randomUUID().slice(0,8)}`),research:null},storage).start(auth,created.body.task_id);
+    const task=await loadScreenshotContactTask(pool!,auth,created.body.task_id);expect(task.status).toBe("completed");
+    const fragment=(await pool!.query<{id:string}>("SELECT id FROM evidence_fragments WHERE capture_id=$1",[task.capture_id])).rows[0]!.id;
+    await reviewEvidenceFragment(pool!,auth,fragment,{idempotency_key:randomUUID(),expected_review_status:"proposed",expected_last_review_id:null,
+      decision:"reviewed",confirmed_speaker:"candidate",reason:"Synthetic fixture author verifies its exact text and speaker."});
+    await compileRelationshipWiki(pool!,auth,task.contact!.person_id,task.contact!.relationship_context_id,
+      {idempotency_key:randomUUID(),objective:"Read the synthetic screenshot evidence."});
+    await pool!.query("UPDATE contact_task_images SET expires_at=clock_timestamp()+interval '2 seconds' WHERE task_id=$1",[task.task_id]);
+    let providerReturned=false,delayed=false;let providerFailure:unknown;
+    const delayedPool=new Proxy(pool!,{get(target,key){
+      if(key!=="connect"){const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;}
+      return async()=>{
+        const client=await target.connect();
+        return new Proxy(client,{get(connection,property){
+          if(property!=="query"){const value=Reflect.get(connection,property);return typeof value==="function"?value.bind(connection):value;}
+          return async(...args:any[])=>{
+            if(typeof args[0]==="string"&&args[0].includes("INSERT INTO audit_events")&&args[1]?.[3]==="chat_task.assembled"){
+              delayed=true;await new Promise(resolve=>setTimeout(resolve,2100));
+            }
+            return (connection.query as (...input:any[])=>unknown)(...args);
+          };
+        }});
+      };
+    }});
+    const key=randomUUID();
+    const completed=await createChatTask(delayedPool,auth,{idempotency_key:key,objective:"Verify the original",person_id:task.contact!.person_id,
+      relationship_context_id:task.contact!.relationship_context_id},{providerId:"claude-agent-sdk",model:"synthetic",supportsImageInput:true,
+      answer:async admission=>{
+        try {
+        expect(admission.readEvidenceImage).toBeTypeOf("function");
+        const source=await admission.readEvidenceImage!(fragment,new AbortController().signal);
+        expect(source.image.content_hash).toBe(request.image.content_hash);providerReturned=true;
+        return {kind:"answer",title:"Source",body:"The original reports employment.",citation_ids:[fragment],provider_id:"claude-agent-sdk",model:"synthetic",
+          provider_request_id:randomUUID(),input_tokens:1,output_tokens:1};
+        } catch(error) {providerFailure=error;throw error;}
+      }},storage).catch(error=>error);
+    expect(providerFailure).toBeUndefined();
+    expect(completed).toMatchObject({code:"HARNESS_SOURCE_CHANGED"});
+    expect(providerReturned).toBe(true);expect(delayed).toBe(true);
+    expect((await pool!.query("SELECT id FROM context_manifests WHERE account_id=$1 AND subject_id=$2 AND objective='Verify the original'",[auth.accountId,task.contact!.person_id])).rowCount).toBe(0);
+  });
   it("reconciles a partial upload, survives extraction interruption, and reads each scoped original",async()=>{
     const storage=new TestImageStorage();storage.failPutAt=2;
     const request={...input(),additional_images:[input().image]};
@@ -454,9 +504,21 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     const persisted=await pool!.query("SELECT input_manifest,state FROM screenshot_contact_tasks WHERE id=$1",[result.task_id]);
     expect(JSON.stringify(persisted.rows)).not.toContain("data_base64");
     expect(await loadScreenshotContactImage(pool!,auth,result.task_id,1,storage)).toEqual(request.additional_images[0]);
+    const fragments=(await pool!.query<{id:string;locator:{source_message_id:string}}>(
+      "SELECT id,locator FROM evidence_fragments WHERE capture_id=$1 ORDER BY sequence",[result.capture_id])).rows;
+    const read=createHarnessEvidenceImageReader(pool!,auth,result.contact!.person_id,result.contact!.relationship_context_id,
+      fragments.map(fragment=>fragment.id),storage,async()=>{});
+    const original=await read(fragments[1]!.id,new AbortController().signal);
+    expect(original).toMatchObject({evidence_id:fragments[1]!.id,task_id:result.task_id,source_image_index:1,image:request.additional_images[0]});
+    await original.assertCurrent();
+    await expect(read(randomUUID(),new AbortController().signal)).rejects.toMatchObject({code:"EVIDENCE_IMAGE_UNAVAILABLE"});
+    const otherScope=createHarnessEvidenceImageReader(pool!,auth,result.contact!.person_id,randomUUID(),
+      [fragments[1]!.id],storage,async()=>{});
+    await expect(otherScope(fragments[1]!.id,new AbortController().signal)).rejects.toMatchObject({code:"EVIDENCE_IMAGE_UNAVAILABLE"});
     await expect(loadScreenshotContactImage(pool!,{...auth,userId:randomUUID()},result.task_id,1,storage)).rejects.toMatchObject({code:"CONTACT_TASK_NOT_FOUND"});
     await expect(loadScreenshotContactImage(pool!,auth,result.task_id,1,new TestImageStorage())).rejects.toThrow("CONTACT_IMAGE_STORAGE_MISMATCH");
     await pool!.query("UPDATE source_retention_receipts SET authorization_state='revoked' WHERE capture_id=$1",[result.capture_id]);
+    await expect(original.assertCurrent()).rejects.toMatchObject({code:"EVIDENCE_IMAGE_UNAVAILABLE"});
     await expect(loadScreenshotContactImage(pool!,auth,result.task_id,0,storage)).rejects.toMatchObject({code:"CONTACT_TASK_SOURCE_UNAVAILABLE"});
     storage.failPurge=true;
     await expect(expireScreenshotContactTasks(pool!,storage)).rejects.toThrow("CONTACT_IMAGE_PURGE_INCOMPLETE");

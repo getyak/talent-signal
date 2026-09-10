@@ -25,6 +25,49 @@ function queryMock(before?: (input: any) => Promise<void>, terminal = result()) 
 }
 
 describe("Claude harness deployment configuration", () => {
+  it("finalizes as failed when source authority expires after SDK cleanup",async()=>{
+    let expired=false;const finish=vi.fn(),complete=vi.fn();
+    const sessionID="10000000-0000-4000-8000-000000000001";
+    const sdk=()=>({close:()=>{expired=true;},async *[Symbol.asyncIterator](){yield result({session_id:sessionID});}});
+    await expect(runClaudeHarness(config,{...request(),assertCurrent:async()=>{if(expired)throw new Error("SOURCE_EXPIRED");},
+      continuation:async()=>({sessionID,resume:false,store:{append:vi.fn(),load:vi.fn(),delete:vi.fn(),listSubkeys:vi.fn()},assertCurrent:async()=>{},finish})},
+      new AbortController().signal,sdk as any,{addCredential:vi.fn(),complete} as any)).rejects.toMatchObject({
+        message:"HARNESS_SOURCE_CHANGED",receipt:{inputTokens:10,outputTokens:20,terminalReason:"source_changed"}});
+    expect(finish).toHaveBeenCalledExactlyOnceWith(false);
+    expect(complete).toHaveBeenCalledWith(null,expect.objectContaining({code:"HARNESS_SOURCE_CHANGED"}),"error");
+  });
+  it("rejects image-result capabilities before opening a durable continuation",async()=>{
+    const continuation=vi.fn();const sdk=queryMock();
+    await expect(runClaudeHarness(config,{...request(),imageToolResults:true,continuation},
+      new AbortController().signal,sdk.run as any,null)).rejects.toThrow("IMAGE_CONTINUATION_NOT_ADMITTED");
+    expect(continuation).not.toHaveBeenCalled();expect(sdk.run).not.toHaveBeenCalled();
+  });
+  it("returns MCP pixels to the SDK while observations retain only their provenance",async()=>{
+    const observations:unknown[]=[];
+    const pixels=Buffer.from("PRIVATE_PIXEL_BYTES").toString("base64");
+    let received:unknown;let persisted:unknown;let dispatchFailure:unknown;
+    const observer={addCredential:vi.fn(),complete:vi.fn(),start:vi.fn(()=>({
+      step:async(_name:string,_kind:string,_input:unknown,execute:()=>Promise<unknown>)=>{const value=await execute();observations.push(value);return value;},
+    }))};
+    const input:ClaudeHarnessRequest={...request(),imageToolResults:true,
+      observation:{run_id:"synthetic",workspace_id:"synthetic",authorization_scope:"synthetic"},
+      tools:[{name:"read_pixels",description:"Synthetic",schema:z.strictObject({}),readOnly:true,execute:async()=>({content:[
+        {type:"text",text:'{"source_hash":"original-hash"}'},{type:"image",mimeType:"image/png",data:pixels},
+      ]})}]};
+    const sdk=queryMock(async({options})=>{
+      persisted=options.persistSession;
+      const handler=options.mcpServers.talent_signal.instance.server._requestHandlers.get("tools/call");
+      try { received=await handler({method:"tools/call",params:{name:"read_pixels",arguments:{}}},{signal:new AbortController().signal}); }
+      catch(error) { dispatchFailure=error; }
+    });
+    await runClaudeHarness(config,input,new AbortController().signal,sdk.run as any,observer as any);
+    expect(persisted).toBe(false);
+    expect(dispatchFailure).toBeUndefined();
+    expect(received).toMatchObject({content:expect.arrayContaining([{type:"image",mimeType:"image/png",data:pixels}])});
+    expect(JSON.stringify(observations)).toContain("original-hash");
+    expect(JSON.stringify(observations)).not.toContain("PRIVATE_PIXEL_BYTES");
+    expect(JSON.stringify(observations)).not.toContain(pixels);
+  });
   it("keeps first SDK event timings and numeric retry evidence on interruption", async () => {
     const base=Date.now();let now=base;
     const clock=vi.spyOn(Date,"now").mockImplementation(()=>now);

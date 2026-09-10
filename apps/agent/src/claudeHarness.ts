@@ -78,6 +78,8 @@ export interface ClaudeHarnessRequest {
   systemPrompt: string;
   context?: string;
   images?: readonly AgentProviderInputPart[];
+  /** Capabilities that may return pixels require the same ephemeral policy as image input. */
+  imageToolResults?: boolean;
   tools: readonly HarnessTool[];
   skills?: readonly HarnessSkill[];
   subagents?: readonly HarnessSubagent[];
@@ -215,18 +217,26 @@ export async function runClaudeHarness(
     await request.assertCurrent();
     observation = request.observation ? observer?.start(request.observation, {
       objective: request.objective, system_prompt: request.systemPrompt, context: request.context,
-      images: request.images, tool_manifest: request.tools.map(entry => ({ name: entry.name, read_only: entry.readOnly })),
+      images: request.images?.map(part => { if (part.kind !== "image") return part; const {dataBase64: _, ...manifest} = part; return manifest; }),
+      tool_manifest: request.tools.map(entry => ({ name: entry.name, read_only: entry.readOnly })),
       model: configuration.model, endpoint: configuration.baseUrl,
     }) ?? null : null;
     // Raw-image persistence needs its own source/media deletion proof first.
-    if (request.continuation && request.images?.length) throw new Error("CLAUDE_HARNESS_IMAGE_CONTINUATION_NOT_ADMITTED");
+    if (request.continuation && (request.images?.length || request.imageToolResults)) throw new Error("CLAUDE_HARNESS_IMAGE_CONTINUATION_NOT_ADMITTED");
     continuation = await request.continuation?.(harnessContinuationFingerprint(configuration, request));
     if (continuation && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(continuation.sessionID)) {
       throw new Error("CLAUDE_HARNESS_SESSION_ID_INVALID");
     }
     output = await executeClaudeHarness(configuration, request, signal, sdkQuery, observation, continuation);
+    await request.assertCurrent();
   }
-  catch (error) { primaryError = error ?? new Error("SDK_RUN_FAILED"); }
+  catch (error) {
+    if (output) {
+      const {text: _, structuredOutput: __, ...receipt} = output;
+      primaryError = new ClaudeHarnessFailure({...receipt,terminalReason:"source_changed"},"HARNESS_SOURCE_CHANGED");
+      output = undefined;
+    } else primaryError = error ?? new Error("SDK_RUN_FAILED");
+  }
   try { await continuation?.finish(Boolean(output)); }
   catch (error) { primaryError = preserveCleanupFailure(primaryError, output, "SDK_SESSION_FINALIZE_FAILED", error); output = undefined; }
   const failure = primaryError instanceof ClaudeHarnessFailure || primaryError instanceof ClaudeHarnessInterruption
@@ -321,11 +331,22 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
         if (!parsed.success) return errorContent("TOOL_INPUT_INVALID");
         const execute = async () => {
           const result = await entry.execute(parsed.data, controller.signal);
+          if (continuation && result.content.some(block => block.type === "image")) {
+            throw new Error("CLAUDE_HARNESS_IMAGE_CONTINUATION_NOT_ADMITTED");
+          }
           await assertCurrent();
           controller.signal.throwIfAborted();
           return result;
         };
-        return observation ? observation.step(entry.name, "tool", parsed.data, execute) : execute();
+        if (!observation) return execute();
+        let actual: Awaited<ReturnType<typeof execute>> | undefined;
+        await observation.step(entry.name, "tool", parsed.data, async () => {
+          actual = await execute();
+          return { ...actual, content: actual.content.map(block => block.type === "image"
+            ? { type: "image", mimeType: block.mimeType, pixels: "retained only by the original product source" }
+            : block) };
+        });
+        return actual!;
       }, { annotations: { readOnlyHint: entry.readOnly, destructiveHint: !entry.readOnly }, alwaysLoad: entry.alwaysLoad ?? false }));
     const gate: NonNullable<Options["hooks"]>["PreToolUse"] = [{ hooks: [async (input) => {
       if (input.hook_event_name !== "PreToolUse") return { continue: true };

@@ -5,6 +5,8 @@ import { ClaudeHarnessInterruption, type ClaudeHarnessRequest } from "./claudeHa
 import { createEnvironmentChatAnswerProvider } from "./chatAnswerProvider.js";
 import { harnessContinuationFingerprint } from "./claudeHarnessContinuation.js";
 import { bundledPrompt } from "./promptRegistry.js";
+import sharp from "sharp";
+import { createHash, randomUUID } from "node:crypto";
 
 const configuration = claudeHarnessConfiguration({ ANTHROPIC_API_KEY: "synthetic", TALENT_SIGNAL_AGENT_MODEL: "synthetic-model" });
 const outcome = { text: "听起来今天很累。想说说发生了什么，还是聊点轻松的？", structuredOutput: null,
@@ -12,6 +14,26 @@ const outcome = { text: "听起来今天很累。想说说发生了什么，还�
   turns: 1, toolCalls: 0, terminalReason: "completed", permissionDenials: [], reportedModels: ["synthetic-model"] };
 
 describe("Claude natural chat product adapter", () => {
+  it("uses an ephemeral Memory-image Run and rejects expiry after the tool returns",async()=>{
+    const bytes=await sharp({create:{width:10,height:10,channels:3,background:"white"}}).png().toBuffer();
+    const id=randomUUID();let expired=false;const continuation=vi.fn();
+    const provider=new ClaudeChatProvider(configuration,async(_configuration,request)=>{
+      expect(request.continuation).toBeUndefined();expect(request.imageToolResults).toBe(true);
+      const tool=request.tools.find(tool=>tool.name==="read_evidence_source_image")!;
+      const receipt=await tool.execute({evidence_id:id,tile_index:0},new AbortController().signal);
+      expect(receipt.content.some(block=>block.type==="image")).toBe(true);
+      expired=true;
+      await expect(request.assertCurrent()).rejects.toThrow("IMAGE_EXPIRED");
+      return outcome;
+    },true);
+    await expect(provider.answer({objective:"Verify Memory against original",context_blocks:[],allowed_citation_ids:[id],continuation,
+      prompt_snapshot:bundledPrompt("assistant/relationship"),assertCurrent:async()=>{},readEvidenceImage:async()=>({
+        evidence_id:id,task_id:randomUUID(),source_resource_id:randomUUID(),source_image_index:0,
+        image:{media_type:"image/png",byte_size:bytes.length,content_hash:createHash("sha256").update(bytes).digest("hex"),data_base64:bytes.toString("base64")},
+        assertCurrent:async()=>{if(expired)throw new Error("IMAGE_EXPIRED");},
+      })})).rejects.toThrow("IMAGE_EXPIRED");
+    expect(continuation).not.toHaveBeenCalled();
+  });
   it("admits the SDK via server configuration and preserves explicit processing gates", () => {
     const env = { TALENT_SIGNAL_CHAT_PROVIDER: "claude", TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING: "true",
       TALENT_SIGNAL_AGENT_MODEL: "synthetic-model", ANTHROPIC_API_KEY: "synthetic" };

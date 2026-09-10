@@ -32,8 +32,10 @@ from that merged main. GET-9 remains In Progress.
    through the real product SDK path; other capability admission remains open. Verify
    invoked capabilities, delegation isolation, budgets and recovery rather
    than counting configurable interfaces as delivery.
-3. **Pending:** demonstrate durable Memory-to-original-image traceability,
-   including revoked/deleted-source denial; rerun affected live evaluations.
+3. **Implemented; surface acceptance pending:** durable Memory-to-original-image
+   traversal passes a real fresh-session HTTP/SDK/PG scenario and revoked-source
+   denial. Independent quality 4/4/4; recovery not exercised. See the
+   [Memory-image review](../docs/evaluations/get9-harness/completeness-memory-image-review.md).
 4. **Pending:** independent review, new-head CI, merge, deployment and exact
    VALID TestFlight release/readback. Preserve the pending installed-Chrome
    permission boundary and previously reviewed README correction.
@@ -1016,3 +1018,17 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   build validity. It does not contain this follow-up; do not count it as final.
 - Open: scoped general capabilities, Memory-original trace, client proof, final
   delivery and release. GET-9 remains In Progress.
+
+### 2026-09-10 09:38 — Memory-original traversal reviewed
+
+- Image slice committed as 01239571. Current uncommitted Memory slice passes
+  independent code review (all confirmed P1/P2 closed), focused independent36/36,
+  Agent177pass1skip, PG21/21, typecheck and backend build. Second actual
+  HTTP/SDK/PG/storage trial passes13checks in17.263s and independent4/4/4;
+  recovery not exercised. Preserve first failed fixture and its distinct causes.
+- Baseline TestFlight34423962903 succeeded. Exact receipt verifies version0.1.71,
+  build20260910010517, commit65afe690ea4c6588289b84fc289177a5d1f70562,
+  processed2026-09-10T01:25:36Z. GitHub prereleasev0.1.71 exists. It excludes
+  both follow-up slices and does not satisfy final follow-up delivery.
+- Open: usable scoped file/code/browser tools, installed-client proof, current
+  branch CI/review/delivery/deployment/release. GET-9 remains In Progress.
