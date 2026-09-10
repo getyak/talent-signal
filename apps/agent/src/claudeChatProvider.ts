@@ -1,3 +1,4 @@
+import {runFileTools} from "./runFileTools.js";
 import { z } from "zod";
 import { responsePreferenceTool } from "./responsePreference.js";
 import { evidenceImageTools } from "./evidenceImageTool.js";
@@ -86,6 +87,8 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     const assertCurrent = async () => { await request.assertCurrent?.(); for (const guard of imageGuards.values()) await guard(); };
     const sourceImageTools = evidenceImageTools(request, this.supportsImageInput, (id, guard) => imageGuards.set(id, guard));
     tools.push(...responsePreferenceTool(request.responsePreference), ...sourceImageTools);
+    const files = runFileTools(request.mode !== "unscoped_conversation" && request.assertCurrent ? request.runFiles : undefined);
+    tools.push(...files.tools);
     const calendar = calendarDraftCapability(request.calendarContext, request.objective);
     tools.push(...calendar.tools);
     const images = (request.images ?? []).map((image, index) => ({ kind: "image" as const,
@@ -95,8 +98,9 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       ...(request.observation ? { observation: request.observation } : {}),
       ...(request.continuation && !sourceImageTools.length ? { continuation: request.continuation } : {}),
       imageToolResults: Boolean(sourceImageTools.length),
-      objective: request.objective, systemPrompt: [prompt.text, calendar.instructions].filter(Boolean).join("\n\n"), tools, images,
+      objective: request.objective, systemPrompt: [prompt.text, calendar.instructions, files.tools.length ? "For a requested calculation or file export, lead with the result and artifact name, and attribute the inputs to the record once. Read source review status from evidence_review; a proposed relationship block does not make the reviewed source excerpt unreviewed. Do not expose internal status words such as proposed or repeat an uncertainty caveat after already attributing the result to recorded data. Preserve any actual ambiguity that affects the calculation." : ""].filter(Boolean).join("\n\n"), tools, images,
       context: JSON.stringify({ calendar_clock: calendar.clock, reference_time: request.reference_time, conversation: boundedConversationHistory(request.conversation_history),
+        run_files: files.inventory,
         memory_inventory: request.context_blocks.map(block => ({ type: block.type, status: block.status })),
         allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference) }),
       effort: "medium", budget: { ...DEFAULT_AGENT_BUDGET, maxDurationMs: 60_000 }, assertCurrent,

@@ -1,3 +1,4 @@
+import {createHarnessRunFiles,listHarnessRunArtifacts} from "./harnessRunFiles.js";
 import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
 import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
 import { createHarnessEvidenceImageReader, loadHarnessEvidenceImageScope } from "./harnessEvidenceImages.js";
@@ -826,6 +827,12 @@ export async function createChatTask(
           "The prior Chat task could not be resolved.",
         );
       }
+      if(replay.artifacts?.length){
+        const current=await listHarnessRunArtifacts(client,auth,replay.task_id);
+        if(replay.artifacts.some(file=>!current.some(receipt=>receipt.id===file.id)))
+          throw new ApiError(410,"RUN_ARTIFACT_UNAVAILABLE","This reply's file source is no longer available. Start a new request using current evidence.");
+        replay.artifacts=current;
+      }
       return {
         body: replay,
         replayed: true,
@@ -1026,6 +1033,7 @@ export async function createChatTask(
     let remoteEndedAt: string | null = null;
     let remoteFailed = false;
     let continuationSavepoint = false;
+    let runFiles:Awaited<ReturnType<typeof createHarnessRunFiles>>;
     if (
       remoteChatProvider &&
       (mediaIds.length === 0 ||
@@ -1076,6 +1084,10 @@ export async function createChatTask(
           feedbackInput.readEvidenceImage = createHarnessEvidenceImageReader(pool, auth, request.person_id,
             request.relationship_context_id, evidenceFragmentIds, chatMediaStorage, assertBaseCurrent, (id,guard)=>imageGuards.set(id,guard));
         }
+        runFiles=await createHarnessRunFiles(client,auth,feedbackInput,manifestId,request.session_id,
+          [...new Set([...(sourceImages?.taskIDs??[]),...(sessionConversation.sources?.map(source=>source.taskID)??[])])],
+          previousRunID&&previousRunExpiresAt?{id:previousRunID,expiresAt:previousRunExpiresAt}:undefined);
+        if(runFiles)feedbackInput.runFiles=runFiles.admission;
         await assertCurrent?.();
         if (remoteChatProvider.providerId === "claude-agent-sdk" && request.session_id && !images.length && !feedbackInput.readEvidenceImage
           && feedbackInput.observation?.source_refs?.kind === "product") {
@@ -1156,6 +1168,7 @@ export async function createChatTask(
           ? "no_action"
           : "answer",
       blocks,
+      ...(remoteChatStatus==="completed" && runFiles?.receipts().length ? {artifacts:runFiles.receipts()} : {}),
       media,
       ...(request.telemetry ? { telemetry: request.telemetry } : {}),
       created_at: createdAt.toISOString(),
@@ -1250,6 +1263,7 @@ export async function createChatTask(
       await client.query("SELECT account_id FROM harness_source_generations WHERE account_id=$1 FOR SHARE NOWAIT",[auth.accountId]);
       await assertCurrent();
     }
+    if(remoteChatStatus==="completed")await runFiles?.persist();
     if (previousRunID) await assertPreviousCurrent();
     await completeIdempotency(client, idempotency, 201, response);
     return {

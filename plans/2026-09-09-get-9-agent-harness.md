@@ -27,9 +27,10 @@ from that merged main. GET-9 remains In Progress.
 1. **Implemented; surface acceptance pending:** provide bounded original-image region reads and clear long-image
    tiles with coordinates/hash provenance, running-task authority and no new
    image retention; verify profile, direct/group/forward and comments classes.
-2. **Pending:** admit usable scoped file/computation/browser capabilities.
+2. **File/computation implemented and reviewed; browser pending:** admit scoped capabilities.
    Screenshot source-review delegation is implemented and independently verified
-   through the real product SDK path; other capability admission remains open. Verify
+   through the real product SDK path; file/computation has live product and Web
+   download proof. Browser admission remains open. Verify
    invoked capabilities, delegation isolation, budgets and recovery rather
    than counting configurable interfaces as delivery.
 3. **Implemented; surface acceptance pending:** durable Memory-to-original-image
@@ -1032,3 +1033,21 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   both follow-up slices and does not satisfy final follow-up delivery.
 - Open: usable scoped file/code/browser tools, installed-client proof, current
   branch CI/review/delivery/deployment/release. GET-9 remains In Progress.
+
+### 2026-09-10 10:36 — scoped computation and file artifacts reviewed
+
+- Memory-original slice committed as 8b10c396; canonical budget fix d5809eb0.
+  File/computation slice is implemented but uncommitted. Independent review has
+  closed QuickJS P2s, artifact parent/replay P1s and Web late-download P1.
+- Fourth real HTTP/SDK/QuickJS/PG/CSV trial passes15checks in16.858s; independent
+  task4/grounding4/naturalness3/recovery3. It proves actual VM addition and repair
+  of a denied filename. Earlier failures and weaker third-trial arithmetic proof
+  remain in the evaluation review. No quality threshold or gate was lowered.
+- Agent195pass1skip; PG24/24 (latest file/session23/23); Web7/7 plus lint/types;
+  iOS focused7/7; backend build passes. Web real save acceptance is in progress;
+  first older-contact attempt shows failure recovery, with no file. Independent
+  reviewed synthetic work-log fixture is now open for focused UI acceptance.
+- Latest coordinated baseline release is v0.1.72/build20260910015226 at ba16cf5f
+  (GET23). It excludes all current follow-up code. Browser capability, client
+  acceptance and follow-up CI/merge/deployment/release remain open; GET-9 stays
+  In Progress. Chrome installation still requires the previously stated approval.

@@ -1308,6 +1308,11 @@ struct RelationshipAskView: View {
                                 }
                             )
                                 .id(item.id)
+                            if !turn.response.contextManifestID.isEmpty {
+                                RunArtifactsView(taskID: turn.response.taskID, language: appLanguage,
+                                    list: { try await workspaceStore.listRunArtifacts(taskID: turn.response.taskID) },
+                                    download: { try await workspaceStore.loadRunArtifact(taskID: turn.response.taskID, artifact: $0) })
+                            }
                             }
                         }
                     }

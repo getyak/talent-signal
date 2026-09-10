@@ -1564,6 +1564,13 @@ export const ChatMediaDeleteResponseSchema = Type.Object(
   { $id: "ChatMediaDeleteResponse", additionalProperties: false },
 );
 
+export const RunArtifactSchema = Type.Object({
+  id: Id, name: Type.String({minLength:1,maxLength:84}),
+  media_type: Type.Union([Type.Literal("application/json"),Type.Literal("text/plain"),Type.Literal("text/csv")]),
+  byte_size: Type.Integer({minimum:0,maximum:64000}),
+  content_hash: Type.String({pattern:"^[a-f0-9]{64}$"}), expires_at: Timestamp,
+},{additionalProperties:false});
+
 export const ChatTaskResponseSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
@@ -1581,6 +1588,7 @@ export const ChatTaskResponseSchema = Type.Object(
       minItems: 1,
       maxItems: 20,
     }),
+    artifacts: Type.Optional(Type.Array(RunArtifactSchema,{maxItems:3})),
     media: Type.Optional(Type.Array(ChatMediaAssetSchema, { maxItems: 10 })),
     telemetry: Type.Optional(TelemetryContextSchema),
     created_at: Timestamp,

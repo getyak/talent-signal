@@ -1,8 +1,30 @@
+import CryptoKit
 import Foundation
 import XCTest
 @testable import TalentSignal
 
 final class SessionConversationClientTests: XCTestCase {
+    func testRunArtifactDownloadUsesOwnerTokenAndRejectsChangedBytes() async throws {
+        let (client, network) = makeClient()
+        defer { network.invalidateAndCancel(); SessionConversationURLProtocol.handler = nil }
+        let taskID = UUID().uuidString, artifactID = UUID().uuidString
+        let bytes = Data("{\"hours\":7}".utf8)
+        let file = RunArtifact(id: artifactID, name: "hours.json", mediaType: "application/json", byteSize: bytes.count,
+            contentHash: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined(), expiresAt: "2026-09-11T00:00:00Z")
+        var changed = false
+        SessionConversationURLProtocol.handler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer synthetic-test-token")
+            XCTAssertEqual(request.url?.path, "/v1/chat/tasks/\(taskID)/artifacts/\(artifactID)")
+            XCTAssertEqual(request.cachePolicy, .reloadIgnoringLocalCacheData)
+            return changed ? Data("{\"hours\":9}".utf8) : bytes
+        }
+        let downloaded = try await client.loadRunArtifact(taskID: taskID, artifact: file)
+        XCTAssertEqual(downloaded, bytes)
+        changed = true
+        do { _ = try await client.loadRunArtifact(taskID: taskID, artifact: file); XCTFail("Changed bytes must not reach the export dialog") }
+        catch PursuitWorkspaceClientError.invalidResponse { }
+    }
+
     func testReplyPreferencePreservesIntentAndRequiresMatchingReadback() async throws {
         let (client, network) = makeClient()
         defer { network.invalidateAndCancel(); SessionConversationURLProtocol.handler = nil }

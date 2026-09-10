@@ -26,6 +26,7 @@ export interface RemoteChatContextBlock {
 export type ChatPromptPreset = "baseline" | "concise" | "evidence_first";
 
 export interface RemoteChatAnswerRequest {
+  runFiles?: import("./runFileTools.js").RunFileAdmission;
   /** Host-only traversal from an admitted Memory fragment to its original pixels. */
   readEvidenceImage?: (evidenceID: string, signal: AbortSignal) => Promise<{
     evidence_id: string; task_id: string; source_resource_id: string; source_image_index: number;

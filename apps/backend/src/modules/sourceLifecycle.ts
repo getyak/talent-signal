@@ -1,3 +1,4 @@
+import {purgeUnavailableRunArtifacts} from "./harnessRunFiles.js";
 import type { Pool } from "pg";
 
 import {
@@ -40,6 +41,7 @@ async function executeSourceLifecycleSweep(
   const researchJobs = await runPendingPublicResearchJobs(pool, {
     now,
   });
+  await purgeUnavailableRunArtifacts(pool);
   return {
     raw_sources_purged: rawSourcesPurged,
     authorizations_expired: expirations.length,

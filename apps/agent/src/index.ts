@@ -33,3 +33,5 @@ export * from "./claudeHarnessWorkspace.js";
 
 export * from "./calendarDraft.js";
 export * from "./productRunCapture.js";
+
+export type {RunFile,RunArtifact,RunFileAdmission} from "./runFileTools.js";
