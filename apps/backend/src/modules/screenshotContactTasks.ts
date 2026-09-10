@@ -386,6 +386,7 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
   if(response.capture_id)return {capture_id:response.capture_id,source_resource_id:response.source_resource_id,message_count:response.message_count,contact:response.contact,replayed:true};
   const extraction=response.extraction!;const manifest=row.input_manifest;
   if(extraction.messages.length===0)deny("CONTACT_CHAT_HAS_NO_MESSAGES");
+  if(manifest.text&&!displayName&&!row.state.selected)deny("CONTACT_TEXT_REUSE_REQUIRES_SELECTION");
   if(extraction.conversation_kind!=="direct"&&!(Boolean(row.input_manifest.text)&&extraction.conversation_kind==="not_chat"&&extraction.contact_name&&extraction.identity_clues.some(clue=>["profile_url","handle","company","job_title"].includes(clue.kind)))&&!row.state.selected&&!row.state.user_contact_label)deny("CONTACT_CHAT_IDENTITY_AMBIGUOUS");
   const clientResourceID=`screenshot-contact:${row.id}`;
   const request:ResourceCaptureRequest={contract_version:CONTRACT_VERSION,idempotency_key:clientResourceID,
@@ -430,6 +431,11 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
       const selected=row.state.selected;
       const match=selected??(row.state.searches.at(-1)?.candidates.length===1?row.state.searches.at(-1)!.candidates[0]:null);
       if(!match||match.person_id!==args.person_id||match.relationship_context_id!==args.relationship_context_id)deny("CONTACT_READ_REQUIRES_UNIQUE_SCOPE");
+      if(row.input_manifest.text&&!selected){
+        response.status="waiting_for_user";
+        response.question="找到可能同名的联系人，请确认是否把这次来源归入该人物。";
+        return {status:response.status,question:response.question,candidates:response.candidates};
+      }
       const scope=await getRelationshipScope(client,auth,args.person_id,args.relationship_context_id);
       const person=await client.query<{display_label:string}>(`SELECT display_label FROM subjects WHERE account_id=$1 AND id=$2 AND status='active'`,[auth.accountId,args.person_id]);
       if(!person.rows[0])deny("CONTACT_TARGET_UNAVAILABLE");

@@ -7,6 +7,7 @@ import { deleteContactCaptureTask, loadBrowserCaptureTask, lookupScreenshotConta
 import type { AuthContext } from "./auth.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { executeGrantedContactArchive, restoreContactArchive } from "./contactArchive.js";
+import { deleteCapture } from "./captures.js";
 
 const database=process.env.CONTACT_AGENT_TEST_DATABASE_URL;
 const pool=database?new Pool({connectionString:database,connectionTimeoutMillis:30_000,max:4,idleTimeoutMillis:0}):null;
@@ -44,7 +45,43 @@ describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
     expect(done.status).toBe("completed");expect(done.extraction?.messages.map(m=>m.text)).toEqual([text]);
     expect(done.source_images??[]).toEqual([]);expect(done.reviewed_profile).toBeUndefined();
     expect(done.extraction?.messages[0]?.source_image_index).toBeUndefined();
+    // Simulate a process stopping after governed deletion commits, before the
+    // final task transaction. Migration 048 scrubs derivatives in that commit.
+    await deleteCapture(pool!,auth,done.capture_id!,{idempotency_key:`delete-contact-source:${done.task_id}`,reason:"User deleted this captured source and its derived analysis."});
+    const scrubbed=(await pool!.query("SELECT status,state,input_manifest FROM screenshot_contact_tasks WHERE id=$1",[done.task_id])).rows[0];
+    expect(scrubbed).toEqual({status:"deleted",state:{},input_manifest:{}});
+    expect((await pool!.query("SELECT count(*)::int AS count FROM contact_profile_observations WHERE task_id=$1",[done.task_id])).rows[0].count).toBe(0);
     const deleted=await deleteContactCaptureTask(pool!,auth,done.task_id,done.revision);expect(deleted.status).toBe("deleted");
+  });
+
+  it("requires human selection before filing text against a single substring namesake",async()=>{
+    const name=`Text namesake ${randomUUID().slice(0,8)}`,person=randomUUID(),context=randomUUID();
+    await pool!.query("INSERT INTO subjects(id,account_id,external_ref,display_label) VALUES($1::uuid,$2,$1::text,$3)",[person,auth.accountId,`${name} unrelated`]);
+    await pool!.query("INSERT INTO assignments(id,account_id,subject_id,external_ref,display_label) VALUES($1::uuid,$2,$3,$1::text,'Synthetic context')",[context,auth.accountId,person]);
+    const text=`${name} works at Example Labs.`;
+    const created=await createScreenshotContactTask(pool!,auth,{idempotency_key:randomUUID(),objective:"File source",text,captured_at:new Date().toISOString(),allow_public_research:false,source:{kind:"page_text",title:"Synthetic profile",url:"https://example.com/profile"}});
+    const scope={person_id:person,relationship_context_id:context};
+    const model=sdkModel(async(input,signal)=>{
+      await input.recordUnderstanding([{platform:"Web",conversation_kind:"not_chat",contact_name:name,identity_clues:[{kind:"company",value:"Example Labs",source_excerpt:"Example Labs"}],messages:[],uncertainties:[]}],signal);
+      const search=await input.invoke("search_contacts",{query:name},signal) as {candidates:unknown[]};expect(search.candidates).toHaveLength(1);
+      expect(await input.invoke("read_contact",scope,signal)).toMatchObject({status:"waiting_for_user"});
+      return sdkReceipt();
+    });
+    await new ScreenshotContactTaskRunner(pool!,{model,research:null}).start(auth,created.body.task_id);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting.status).toBe("waiting_for_user");expect(waiting.contact).toBeNull();expect(waiting.capture_id).toBeNull();
+    expect(waiting.candidates[0]).toMatchObject(scope);
+    await resumeScreenshotContactTask(pool!,auth,waiting.task_id,{expected_revision:waiting.revision,selected_person_id:person,selected_relationship_context_id:context});
+    const selectedModel=sdkModel(async(input,signal)=>{
+      await input.invoke("read_contact",scope,signal);
+      await input.invoke("save_contact_chat",scope,signal);
+      await input.invoke("finish_contact_task",{summary:"Saved to the explicitly selected person.",findings:[],limitations:[]},signal);
+      return sdkReceipt();
+    });
+    await new ScreenshotContactTaskRunner(pool!,{model:selectedModel,research:null}).start(auth,waiting.task_id);
+    const done=await loadScreenshotContactTask(pool!,auth,waiting.task_id);
+    expect(done.status).toBe("completed");expect(done.contact).toMatchObject({...scope,disposition:"reused"});
+    await deleteContactCaptureTask(pool!,auth,done.task_id,done.revision);
   });
 
   it("fails closed on invented SDK text and finishes no-person text without filing",async()=>{

@@ -111,7 +111,17 @@ remain rejected, and proven unavailable sources remain hidden.
 
 Integration checks passed: Web 401 tests plus three route regressions; backend
 384 tests plus three lookup regressions (113 environment-specific skips in the
-general run); the affected PostgreSQL suite 22/22; agent provider suites 10/10;
+general run); the affected PostgreSQL suite 23/23; agent provider suites 10/10;
 extension contracts 41/41. Web production build, lint, backend typechecking,
 packaging validation and documentation checks passed. Latest PR CI and deployment
 readback are the final delivery gates, independently of these local results.
+
+
+The namesake regression requires an explicit user selection before reviewed
+text can reuse an existing Person, even when substring search has exactly one
+result. New-person filing still requires an empty current search. The database
+suite also simulates stopping after governed deletion commits: migration 048
+has already cleared task state, raw manifest and profile observations in that
+same transaction, and replay with the original deletion key succeeds. These
+executable counterexamples are the authority for the two PR review findings;
+no additional always-on policy is needed.

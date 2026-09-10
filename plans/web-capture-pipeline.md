@@ -84,13 +84,12 @@ Person, including recovery of the same task after a backend restart and provider
 `output/web-capture-pipeline/` (synthetic sources only). See the
 [evaluation record](../docs/evaluations/2026-09-10-web-capture/README.md).
 
-## Delivery verification update
+## Delivery status
 
-PR #175 contains the capture slice on current main. Shared-SDK real model proof
-completed with synthetic task `e6dc2352-52d0-422b-b9c4-8b1d16a7e9f0`; extension
-retry and receipt readback kept the same task, and Web/DB readback confirmed the
-created Person and retained source. See the updated evaluation record. Final
-review fixed proxy-origin admission and transient lookup errors incorrectly
-appearing as deletion, with six regression tests. Remote merge is pending the
-latest CI and local TestFlight deployment. The first deployment build was
-cancelled before service replacement so the final build includes these fixes.
+Implementation and review verification are complete. The final PostgreSQL suite
+passes 23/23, including explicit namesake selection and deletion interruption /
+replay. The [evaluation record](../docs/evaluations/2026-09-10-web-capture/README.md)
+owns the synthetic live SDK and regression evidence. The final delivery commit
+must pass CI and be deployed through the local TestFlight script before merge.
+[PR #175](https://github.com/getyak/talent-signal/pull/175) is the authoritative
+remote merge and check readback; local runtime logs remain ignored artifacts.
