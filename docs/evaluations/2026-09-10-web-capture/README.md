@@ -111,7 +111,7 @@ remain rejected, and proven unavailable sources remain hidden.
 
 Integration checks passed: Web 401 tests plus three route regressions; backend
 384 tests plus three lookup regressions (113 environment-specific skips in the
-general run); the affected PostgreSQL suite 23/23; agent provider suites 10/10;
+general run); the affected PostgreSQL suite 24/24; agent provider suites 10/10;
 extension contracts 41/41. Web production build, lint, backend typechecking,
 packaging validation and documentation checks passed. Latest PR CI and deployment
 readback are the final delivery gates, independently of these local results.
@@ -125,3 +125,12 @@ has already cleared task state, raw manifest and profile observations in that
 same transaction, and replay with the original deletion key succeeds. These
 executable counterexamples are the authority for the two PR review findings;
 no additional always-on policy is needed.
+
+
+Follow-up review checks cover pasted direct conversations with an empty source
+URL (the Web upload channel), real paragraph boundaries and exact UTF-16 source
+ranges, including long Unicode paragraphs. Source-position behavior is enforced
+by provider tests and stored-fragment database assertions. The extension now
+consistently discloses pixel upload, AI processing and retention before review.
+The final agent suite passed 162 tests with one intentional skip; extension
+contracts remained 41/41.

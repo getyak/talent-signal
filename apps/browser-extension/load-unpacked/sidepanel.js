@@ -878,13 +878,13 @@ function renderRetention() {
     : "available";
   elements.approvalCheck.closest("label").hidden = imageHandoffBlocked;
   elements.submitHeading.textContent = imageHandoffBlocked
-    ? "Screenshot reviewed. Web image intake is not connected yet."
+    ? "Choose the supported reviewed-source retention mode."
     : "Submit this reviewed capture?";
   elements.handoffEffect.textContent = imageHandoffBlocked
     ? "No transfer · reviewed pixels remain local"
     : "Save this source, process it with AI, and file a reversible internal person record when identity is clear";
   elements.submitNote.textContent = imageHandoffBlocked
-    ? "The reviewed pixels remain local to this panel. Talent Signal will not pretend they were uploaded before Web owns raw-image retention and derivative deletion."
+    ? "This retention mode is unavailable. Select reviewed-source retention before submitting pixels to Web for AI processing."
     : "Submission is a capture handoff only. It does not confirm facts, contact anyone, create a meeting, or update an ATS.";
   elements.handoffTarget.textContent =
     isSyntheticTransport(state.draft)
@@ -923,7 +923,7 @@ function renderSubmission() {
   }
 
   elements.submitButton.textContent = imageHandoffBlocked
-    ? "Image handoff not connected"
+    ? "Choose supported retention"
     : presentation.action_label;
   updateSubmitAvailability();
   renderProgress();

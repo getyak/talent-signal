@@ -1,11 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { ZhipuContactAgentModel } from "./contactIntakeProvider.js";
+import { ZhipuContactAgentModel, contactDocumentBlocks } from "./contactIntakeProvider.js";
 
 const extraction={platform:"Synthetic",conversation_kind:"direct",contact_name:"Example Person",identity_clues:[],messages:[{message_id:"model-invented",sequence:9,text:"Exact visible message",speaker_side:"left",speaker_label:null,time_text:null}],uncertainties:[]};
 const signal=()=>new AbortController().signal;
 function provider(fetcher:typeof fetch){return new ZhipuContactAgentModel({apiKey:"private-fixture-key",model:"fixture-tools",visionModel:"fixture-vision",fetcher});}
 const nextInput={objective:"File this screenshot",extraction:{...extraction,conversation_kind:"direct" as const,messages:extraction.messages.map(m=>({...m,speaker_side:"left" as const}))},state:{},observations:[],tools:["search_contacts" as const],remainingTokens:3000};
 describe("contact Agent provider",()=>{
+  it("preserves real paragraph numbers and exact offsets across long Unicode paragraphs",()=>{
+    const raw=`  First paragraph  \n\n${"a".repeat(3999)}😀 tail\r\n\r\n Last paragraph `;
+    const blocks=contactDocumentBlocks(raw);
+    expect(blocks.map(block=>block.paragraph)).toEqual([1,2,2,3]);
+    for(const block of blocks){expect(raw.slice(block.start,block.end)).toBe(block.text);expect(block.text.length).toBeLessThanOrEqual(4000);expect(block.text.isWellFormed()).toBe(true);}
+    expect(blocks[0]).toMatchObject({text:"First paragraph",start:2});
+    const many=contactDocumentBlocks(Array.from({length:200},(_,i)=>`Paragraph ${i}`).join("\n\n"));
+    expect(many.length).toBeLessThanOrEqual(100);
+  });
   it("grounds web text extraction in exact source substrings and uses supported reasoning",async()=>{
     const raw="Example Person\nExact visible message";
     const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({id:"text-receipt",model:"fixture-tools",choices:[{message:{content:JSON.stringify(extraction)}}]})));

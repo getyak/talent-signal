@@ -5,7 +5,7 @@ import type { Pool, PoolClient } from "pg";
 import {
   CONTACT_INTAKE_TOOLS, CONTACT_RESEARCH_CONTRACT, ContactProfileFieldSchema,
   ScreenshotContactTaskRequestSchema, ScreenshotContactTaskResponseSchema, TextContactTaskRequestSchema,
-  ZhipuContactAgentModel, groundContactTextExtraction,
+  ZhipuContactAgentModel, groundContactTextExtraction, contactDocumentBlocks,
   ClaudeContactAgentModel, claudeHarnessConfiguration, ContactChatExtractionSchema,
   ContactProfileConfirmationSchema,
   resolveProductPrompt, type PromptSnapshot,
@@ -389,8 +389,9 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
   if(manifest.text&&!displayName&&!row.state.selected)deny("CONTACT_TEXT_REUSE_REQUIRES_SELECTION");
   if(extraction.conversation_kind!=="direct"&&!(Boolean(row.input_manifest.text)&&extraction.conversation_kind==="not_chat"&&extraction.contact_name&&extraction.identity_clues.some(clue=>["profile_url","handle","company","job_title"].includes(clue.kind)))&&!row.state.selected&&!row.state.user_contact_label)deny("CONTACT_CHAT_IDENTITY_AMBIGUOUS");
   const clientResourceID=`screenshot-contact:${row.id}`;
+  const documentBlocks=manifest.text&&extraction.conversation_kind==="not_chat"?contactDocumentBlocks(manifest.text):null;
   const request:ResourceCaptureRequest={contract_version:CONTRACT_VERSION,idempotency_key:clientResourceID,
-    channel:(manifest.source?.url||manifest.browser_source)?"browser_extension":extraction.conversation_kind==="not_chat"?"web_upload":"chat",purpose:"User-authorized internal person filing from an intentional capture; extracted content remains proposed",
+    channel:(manifest.source?.url||manifest.browser_source)?"browser_extension":manifest.text||extraction.conversation_kind==="not_chat"?"web_upload":"chat",purpose:"User-authorized internal person filing from an intentional capture; extracted content remains proposed",
     captured_at:manifest.captured_at,source_timezone:"UTC",
     person_scope:displayName?{status:"new_person",display_label:displayName,relationship_context:{status:"proposed",label:extraction.conversation_kind==="not_chat"?"采集资料":"聊天记录",purpose:"User-authorized relationship context"},
       binding_basis:"Intentional screenshot import authorizes internal filing; visible name is a source label, not verified real-world identity."}
@@ -401,7 +402,8 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
       ...(manifest.browser_source?{source_locator:manifest.browser_source.locator}:{}),
       retention:{requested_mode:"evidence_crop",source_scope:"proposed_extracted_text",requested_retention_until:row.expires_at.toISOString()}},
     fragments:extraction.messages.map(m=>({client_resource_id:clientResourceID,kind:extraction.conversation_kind==="not_chat"?"document_text":"message",sequence:m.sequence,text:m.text,
-      locator:extraction.conversation_kind==="not_chat"?{kind:"document_text",paragraph:m.sequence+1}:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side},
+      locator:extraction.conversation_kind==="not_chat"?{kind:"document_text",paragraph:documentBlocks?.[m.sequence]?.paragraph??m.sequence+1,
+        ...(documentBlocks?.[m.sequence]?{section_label:`UTF-16 [${documentBlocks[m.sequence]!.start},${documentBlocks[m.sequence]!.end})`}:{})}:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side},
       attribution:{actor_kind:"unknown",status:"unknown"},review_status:"proposed",parser:{name:"screenshot-contact-agent",version:"1"}})),
   };
   const result=await createResourceCaptureInTransaction(client,auth,request);

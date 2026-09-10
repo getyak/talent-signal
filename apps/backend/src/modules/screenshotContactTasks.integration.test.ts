@@ -29,7 +29,7 @@ const sdkReceipt = () => ({ providerRequestID:randomUUID(),model:"synthetic-sdk"
 
 describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
   it("files exact reviewed profile text through the SDK without inventing image or confirmed-profile authority",async()=>{
-    const name=`SDK text ${randomUUID().slice(0,8)}`,text=`${name} works at Example Labs.`;
+    const name=`SDK text ${randomUUID().slice(0,8)}`,text=`${name}\n\nworks at Example Labs.`;
     const request={idempotency_key:randomUUID(),objective:"File the reviewed source",text,captured_at:new Date().toISOString(),allow_public_research:false,source:{kind:"page_text",title:"Synthetic profile",url:"https://example.com/profile"}};
     const created=await createScreenshotContactTask(pool!,auth,request);
     const model=sdkModel(async(input,signal)=>{
@@ -42,7 +42,12 @@ describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
     });
     await new ScreenshotContactTaskRunner(pool!,{model,research:null}).start(auth,created.body.task_id);
     const done=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
-    expect(done.status).toBe("completed");expect(done.extraction?.messages.map(m=>m.text)).toEqual([text]);
+    expect(done.status).toBe("completed");expect(done.extraction?.messages.map(m=>m.text)).toEqual([name,"works at Example Labs."]);
+    const fragments=(await pool!.query("SELECT text_content,locator FROM evidence_fragments WHERE capture_id=$1 ORDER BY sequence",[done.capture_id])).rows;
+    expect(fragments.map(fragment=>fragment.locator)).toEqual([
+      {kind:"document_text",paragraph:1,section_label:`UTF-16 [0,${name.length})`},
+      {kind:"document_text",paragraph:2,section_label:`UTF-16 [${name.length+2},${text.length})`},
+    ]);
     expect(done.source_images??[]).toEqual([]);expect(done.reviewed_profile).toBeUndefined();
     expect(done.extraction?.messages[0]?.source_image_index).toBeUndefined();
     // Simulate a process stopping after governed deletion commits, before the
@@ -338,10 +343,10 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
     expect(result.profile_fields[0]?.value).toBe("Reports employment at Example Labs; role is unspecified.");
   });
 
-  it("files reviewed web text with provenance, reconciles duplicates, survives a new runner, and deletes derivatives",async()=>{
+  it.each(["https://example.com/people/synthetic", ""])("files reviewed web text from %s, reconciles duplicates, survives a new runner, and deletes derivatives",async(sourceURL)=>{
     const name=`Web capture proof ${randomUUID().slice(0,8)}`;
     const requestID=randomUUID();const raw=`${name} · Example Labs. I work at Example Labs. I can talk next Tuesday.`;
-    const request={idempotency_key:`browser-capture:${requestID}`,objective:"File this source",text:raw,allow_public_research:false,captured_at:new Date().toISOString(),source:{kind:"page_text",title:"Synthetic professional profile",url:"https://example.com/people/synthetic",time_basis:"captured_at"}};
+    const request={idempotency_key:`browser-capture:${requestID}`,objective:"File this source",text:raw,allow_public_research:false,captured_at:new Date().toISOString(),source:{kind:"page_text",title:"Synthetic professional profile",url:sourceURL,time_basis:"captured_at"}};
     const base=model(name);
     const provider:ContactAgentModel={...base,extractText:async()=>{
       const result=await base.extract(input().image,new AbortController().signal);

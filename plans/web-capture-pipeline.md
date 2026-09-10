@@ -87,7 +87,7 @@ Person, including recovery of the same task after a backend restart and provider
 ## Delivery status
 
 Implementation and review verification are complete. The final PostgreSQL suite
-passes 23/23, including explicit namesake selection and deletion interruption /
+passes 24/24, including explicit namesake selection and deletion interruption /
 replay. The [evaluation record](../docs/evaluations/2026-09-10-web-capture/README.md)
 owns the synthetic live SDK and regression evidence. The final delivery commit
 must pass CI and be deployed through the local TestFlight script before merge.

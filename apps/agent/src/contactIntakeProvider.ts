@@ -189,6 +189,34 @@ export class ZhipuContactAgentModel implements ContactAgentModel {
 }
 
 /** Validate exact reviewed text before it can reach shared filing tools. */
+export function contactDocumentBlocks(text: string) {
+  const blocks: Array<{text:string; paragraph:number; start:number; end:number}> = [];
+  function append(start:number,end:number,paragraph:number) {
+    for(let offset=start;offset<end;){
+      let limit=Math.min(offset+4000,end);
+      if(limit<end&&/[\uD800-\uDBFF]/u.test(text[limit-1]!))limit--;
+      const raw=text.slice(offset,limit),block=raw.trim();
+      if(block){const begin=offset+raw.length-raw.trimStart().length;blocks.push({text:block,paragraph,start:begin,end:begin+block.length});}
+      offset=limit;
+    }
+  }
+  let start=0,paragraph=1;
+  for(const separator of text.matchAll(/\r?\n[\t ]*(?:\r?\n)+/gu)){
+    append(start,separator.index,paragraph++);start=separator.index+separator[0].length;
+  }
+  append(start,text.length,paragraph);
+  if(blocks.length>100){
+    const compact:typeof blocks=[];
+    for(const block of blocks){
+      const previous=compact.at(-1);
+      if(previous&&block.end-previous.start<=4000){previous.end=block.end;previous.text=text.slice(previous.start,block.end);}
+      else compact.push({...block});
+    }
+    return compact;
+  }
+  return blocks;
+}
+
 export function groundContactTextExtraction(text: string, extraction: ContactChatExtraction, preserveDocumentBlocks = true) {
     if (extraction.messages.some(message => !text.includes(message.text) ||
         (message.speaker_label !== null && !text.includes(message.speaker_label)) ||
@@ -201,13 +229,7 @@ export function groundContactTextExtraction(text: string, extraction: ContactCha
     // A profile is not a chat. Preserve deterministic source blocks for the
     // shared evidence pipeline instead of requiring the model to invent messages.
     if (preserveDocumentBlocks && extraction.conversation_kind === "not_chat" && (extraction.contact_name || extraction.identity_clues.length)) {
-      extraction.messages = [];
-      for (let offset = 0; offset < text.length;) {
-        let end = Math.min(offset + 4000, text.length);
-        if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end -= 1;
-        const block = text.slice(offset, end).trim(); offset = end;
-        if (block) extraction.messages.push({message_id:`m${extraction.messages.length + 1}`,sequence:extraction.messages.length,text:block,speaker_side:"unknown",speaker_label:null,time_text:null});
-      }
+      extraction.messages = contactDocumentBlocks(text).map((block,index)=>({message_id:`m${index+1}`,sequence:index,text:block.text,speaker_side:"unknown",speaker_label:null,time_text:null}));
     }
     extraction.messages = extraction.messages.map((message, index) => ({ message_id: `m${index + 1}`, sequence: index, text:message.text, speaker_side: "unknown", speaker_label:message.speaker_label, time_text:message.time_text }));
   return extraction;
