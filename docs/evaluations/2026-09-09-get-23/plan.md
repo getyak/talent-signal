@@ -25,11 +25,17 @@ not add privacy approval steps or treat missing feedback as positive feedback.
 - Preserve authentication, source/version integrity and external-action semantics.
 - No model-generated claim of successful learning; report measurable results.
 
-## Delivery state
+## Original GET-23 delivery state
 
-Implementation and independent review are complete locally.
-[PR #170](https://github.com/getyak/talent-signal/pull/170) is open. Current-head
-CI, merge and deployment verification remain pending; Linear is not yet complete.
+Implementation, independent review and all current-head CI passed.
+[PR #170](https://github.com/getyak/talent-signal/pull/170) merged as
+`6dc163555d07447fe46b3cea4d213e6948532ebb`. The shared backend is deployed,
+real Web/native iOS acceptance and live two-configuration replay passed, and
+TestFlight 0.1.70 (20260909180520) is processed. The main-branch CI rerun
+passed all gates, including 539 iOS unit tests and nine isolated UI journeys.
+GET-23 is **Done**, read back after the final acceptance comment. See
+[deployment acceptance](deployment.md) for exact evidence, the preserved first-attempt
+hosted-test failure and unchanged-code recovery, and known scope limitations.
 
 ## Implemented
 
@@ -100,8 +106,9 @@ creating duplicate runs. No historical production data is synthesized/backfilled
 See [review.md](review.md). All confirmed P1/P2 findings were fixed. The final
 request-ID and Lab navigation changes also passed focused independent review.
 
-## Remaining delivery
+## Completed delivery
 
-1. Verify all latest-head CI and merge gates on PR #170.
-2. Merge, verify applicable deployed surfaces and release state, then close
-   GET-23 only when its acceptance evidence is satisfied.
+All applicable checks, merge, backend deployment, real cross-platform acceptance,
+live frozen-case replay and exact-version TestFlight processing are complete.
+The [main CI readback](main-ci-readback.json) and [release receipt](testflight-release-receipt.json)
+retain the final gates; GET-23 completion was independently read back in Linear.
