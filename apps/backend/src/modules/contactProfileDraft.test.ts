@@ -5,6 +5,11 @@ import { profileUnderstanding } from "./contactProfileDraft.js";
 const profile=(platform:string,handle:string):ContactChatExtraction=>({platform,conversation_kind:"not_chat",contact_name:"Chen Xia",
   identity_clues:[{kind:"handle",value:handle,source_excerpt:handle}],messages:[],uncertainties:[]});
 describe("profile image account provenance",()=>{
+  it("preserves explicit profile classification and never invents messages",()=>{
+    const result=profileUnderstanding([{...profile("LinkedIn","chen-1"),conversation_kind:"profile"}]);
+    expect(result?.extraction.conversation_kind).toBe("profile");expect(result?.extraction.messages).toEqual([]);
+    expect(result?.draft.fields[0]?.source_image_index).toBe(0);
+  });
   it("does not relabel a second platform account with the first image platform",()=>{
     expect(profileUnderstanding([profile("LinkedIn","chen-ln"),profile("Twitter","chen-x")])).toBeNull();
   });

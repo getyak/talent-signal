@@ -33,6 +33,11 @@ the intended user loop while preserving truth, control, and recoverability.
 
 ## Evidence of completion
 
+Compare implementation and evidence with the original user or issue requirements,
+including each supported surface and capability. A narrowed plan, available
+interface, or passing test suite cannot substitute for a missing requested
+behavior. Record unmet and optional requirements explicitly before delivery.
+
 Prefer direct evidence:
 
 - behavior observed on the relevant user surface;

@@ -235,10 +235,18 @@ describe("SDK-owned harness", () => {
       execute: async () => ({ content: [{ type: "text", text: "synthetic" }] }) }];
     input.subagents = [{ name: "researcher", description: "Research", instructions: "Read only", tools: ["read_memory"] }];
     const sdk = queryMock(async ({ options }) => {
+      expect(options.allowedTools).toContain("Agent");
+      expect(options.tools).toContain("Agent");
+      expect(options.disallowedTools).not.toContain("Task");
+      expect(options.disallowedTools).not.toContain("Agent");
       const gate = options.hooks.PreToolUse[0].hooks[0];
       const call = (name: string, extras = {}) => gate({ hook_event_name: "PreToolUse", tool_name: name, tool_input: {}, ...extras });
       expect((await call("mcp__talent_signal__read_memory")).hookSpecificOutput.permissionDecision).toBe("allow");
       expect((await call("Bash")).hookSpecificOutput.permissionDecision).toBe("deny");
+      expect((await call("Agent", { tool_input: { subagent_type: "researcher" } })).hookSpecificOutput.permissionDecision).toBe("allow");
+      expect((await call("Agent", { tool_input: { subagent_type: "researcher", prompt:"Check scoped evidence",run_in_background:true } })).hookSpecificOutput.updatedInput)
+        .toEqual({subagent_type:"researcher",prompt:"Check scoped evidence",run_in_background:false});
+      expect(options.agents.researcher.background).toBe(false);
       expect((await call("Agent", { tool_input: { subagent_type: "unknown" } })).hookSpecificOutput.permissionDecision).toBe("deny");
       expect((await call("Agent", { agent_id: "child", agent_type: "researcher", tool_input: { subagent_type: "researcher" } })).hookSpecificOutput.permissionDecision).toBe("deny");
       expect((await call("mcp__talent_signal__read_memory", { agent_id: "child", agent_type: "unknown" })).hookSpecificOutput.permissionDecision).toBe("deny");

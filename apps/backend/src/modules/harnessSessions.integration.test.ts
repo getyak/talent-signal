@@ -69,7 +69,7 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
       async (_configuration, request, signal) => {
         await request.assertCurrent();
         const result = await request.tools[0]!.execute({ operation: "search", query: label, maximum_results: 5 }, signal);
-        const payload = JSON.parse(result.content[0]!.text as string);
+        const payload = JSON.parse(result.content.filter(block => block.type === "text")[0]!.text as string);
         readPerson = payload.data.results.some((row: { person_id: string }) => row.person_id === person);
         // The real shared harness does this before releasing every tool result.
         await request.assertCurrent();

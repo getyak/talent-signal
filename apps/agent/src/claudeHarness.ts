@@ -50,7 +50,7 @@ export interface HarnessTool {
   /** Small essential tools can stay loaded; larger capability groups are deferred. */
   alwaysLoad?: boolean;
   execute(input: Record<string, unknown>, signal: AbortSignal): Promise<{
-    content: Array<{ type: "text"; text: string }>;
+    content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: "image/png" | "image/jpeg" | "image/webp" }>;
     isError?: boolean;
   }>;
 }
@@ -165,7 +165,7 @@ export function claudeHarnessInterruptionCode(error: unknown): string {
   const candidate = "code" in error && typeof error.code === "string" ? error.code : error instanceof Error ? error.message : null;
   return candidate && INTERRUPTION_CODES.has(candidate) ? candidate : "CLAUDE_HARNESS_RUN_INTERRUPTED";
 }
-const FORBIDDEN_BUILT_INS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "NotebookEdit", "WebFetch", "WebSearch", "Task"];
+const FORBIDDEN_BUILT_INS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "NotebookEdit", "WebFetch", "WebSearch"];
 
 function validBudget(budget: AgentBudget) {
   for (const [name, value] of Object.entries(budget)) {
@@ -346,6 +346,9 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       const allow = permitted && delegated && validInput;
       if (!allow) denials.push(permitted && delegated && !validInput ? "TOOL_INPUT_INVALID" : "TOOL_NOT_AUTHORIZED");
       return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: allow ? "allow" : "deny",
+        // Product completion depends on child receipts. Keep child execution
+        // inside this foreground Run, with its existing cancellation and budget.
+        ...(allow && input.tool_name === "Agent" ? {updatedInput:{...args,run_in_background:false}} : {}),
         permissionDecisionReason: allow ? "Current product capability grant." : permitted && delegated && !validInput
           ? schemaRepairHint(capability!.schema, validation!.error!)
           : "Not granted for this Run or subagent." } };
@@ -384,8 +387,11 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       maxTurns: request.budget.maxTurns, maxBudgetUsd: request.budget.maxEstimatedUsd,
       ...(configuration.taskBudgetEnabled ? { taskBudget: { total: request.budget.maxTaskTokens } } : {}),
       ...(request.outputSchema ? { outputFormat: { type: "json_schema", schema: request.outputSchema } } : {}),
-      allowedTools, tools: [...(skills.length ? ["Skill"] : []), ...(subagents.length ? ["Agent"] : [])],
-      disallowedTools: FORBIDDEN_BUILT_INS,
+      allowedTools: [...allowedTools, ...(skills.length ? ["Skill"] : []), ...(subagents.length ? ["Agent"] : [])],
+      tools: [...(skills.length ? ["Skill"] : []), ...(subagents.length ? ["Agent"] : [])],
+      // The SDK still aliases Agent as Task in its init tool registry. Denying
+      // Task also removes admitted Agent delegation before our permission hook.
+      disallowedTools: [...FORBIDDEN_BUILT_INS, ...(subagents.length ? [] : ["Agent", "Task"])],
       mcpServers: { talent_signal: createSdkMcpServer({ name: "talent_signal", version: "1.0.0", tools: sdkTools }) },
       hooks: { PreToolUse: gate, ...(continuation?.resume ? { SessionStart: [{ hooks: [async input => {
         // SDK 0.3.260 materializes resumed copies in the parent OS temp directory,
@@ -398,7 +404,7 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       settingSources: [], plugins, skills: skills.map((skill) => `talent-signal:${skill.name}`),
       agents: Object.fromEntries(subagents.map((agent) => [agent.name, { description: agent.description,
         prompt: agent.instructions, tools: agent.tools.map((name) => `${HARNESS_MCP_PREFIX}${name}`),
-        model: "inherit", maxTurns: Math.min(6, request.budget.maxTurns) }])),
+        model: "inherit", background:false, maxTurns: Math.min(6, request.budget.maxTurns) }])),
       // Durable product continuation is wired separately; raw image runs are ephemeral.
       persistSession: Boolean(continuation),
       ...(continuation ? { sessionStore: workspace.wrapStore(continuation.store), sessionStoreFlush: "eager" as const, loadTimeoutMs: 10_000,

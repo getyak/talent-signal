@@ -17,6 +17,39 @@ compatibility with synthetic inputs before admitting private evidence.
 
 ## Baseline and findings
 
+### Requirement completeness correction — 2026-09-10
+
+PR #172 merged as `65afe690`; its tree matches the deployed `cc1220`.
+An independent review against the original issue found missing scope despite
+passing PR gates. Follow-up branch `codex/get-9-harness-completeness` starts
+from that merged main. GET-9 remains In Progress.
+
+1. **Implemented; surface acceptance pending:** provide bounded original-image region reads and clear long-image
+   tiles with coordinates/hash provenance, running-task authority and no new
+   image retention; verify profile, direct/group/forward and comments classes.
+2. **Pending:** admit usable scoped file/computation/browser capabilities.
+   Screenshot source-review delegation is implemented and independently verified
+   through the real product SDK path; other capability admission remains open. Verify
+   invoked capabilities, delegation isolation, budgets and recovery rather
+   than counting configurable interfaces as delivery.
+3. **Pending:** demonstrate durable Memory-to-original-image traceability,
+   including revoked/deleted-source denial; rerun affected live evaluations.
+4. **Pending:** independent review, new-head CI, merge, deployment and exact
+   VALID TestFlight release/readback. Preserve the pending installed-Chrome
+   permission boundary and previously reviewed README correction.
+
+Apply the original-requirement completeness check in [REVIEW.md](../REVIEW.md).
+The dated [image capability evidence](../docs/evaluations/get9-harness/completeness-image-review.md)
+retains failed attempts and the distinction between unit, real SDK and full
+product acceptance. Prior failures remain evidence; no threshold relaxation or
+guessed completion is permitted.
+
+Image implementation references: [sharp constructor limits](https://sharp.pixelplumbing.com/api-constructor/),
+[extract coordinates](https://sharp.pixelplumbing.com/api-resize/#extract),
+[MCP image content](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
+Use pinned sharp `0.35.4`, already present transitively, as a declared dependency.
+SDK subagent reference: [scoped SDK agents](https://code.claude.com/docs/en/agent-sdk/subagents).
+
 - Isolated worktree: `/Users/cubxxw/data/talent-signal-get9`.
 - Branch: `codex/get-9-harness`; initial upstream baseline: `56292d3c`.
 - `apps/agent` pins Claude Agent SDK `0.3.260`. `claudeProvider.ts` disables
@@ -970,3 +1003,16 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   and latest-head CI. First actual TestFlight deployment421c02d6 is healthy;
   final revisions are not yet in its containers. Chrome manual installation,
   final Web proof, PR merge and post-merge iOS release remain pending.
+
+### 2026-09-10 09:15 — original-image follow-up verified
+
+- Current image slice: agent 169 pass / one explicit skip, PostgreSQL 29 pass,
+  agent typecheck and full backend build pass. Seventh real SDK/HTTP/PG/storage
+  trial passes all 16 execution checks; independent quality is task 4, grounding
+  3, naturalness 3, recovery not exercised. Preserve six earlier attempts and
+  their documented failures; no general or installed-client acceptance implied.
+- Main CI 34420817264 and Security 34420817212 succeeded for baseline 65afe690.
+  TestFlight release 34423962903 has archived/uploaded and is waiting for exact
+  build validity. It does not contain this follow-up; do not count it as final.
+- Open: scoped general capabilities, Memory-original trace, client proof, final
+  delivery and release. GET-9 remains In Progress.

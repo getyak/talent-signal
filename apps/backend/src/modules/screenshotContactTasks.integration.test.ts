@@ -27,6 +27,48 @@ function sdkModel(run: NonNullable<ContactAgentModel["run"]>): ContactAgentModel
 const sdkReceipt = () => ({ providerRequestID:randomUUID(),model:"synthetic-sdk",inputTokens:10,outputTokens:10 });
 
 describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
+  it("denies queued original-image reads after a clarification while permitting final SDK usage bookkeeping", async () => {
+    const request=input();const created=await createScreenshotContactTask(pool!,auth,request);
+    const operation=vi.fn(async()=>"private-derived-pixels");
+    let rejected:unknown;let afterRejected:Awaited<ReturnType<typeof loadScreenshotContactTask>>|undefined;
+    const sdk=sdkModel(async(admission,signal)=>{
+      expect(await admission.readImage(operation,signal)).toBe("private-derived-pixels");
+      rejected=await admission.invoke("ask_contact_clarification",{question:"Which author?\\nPlease select."},signal);
+      afterRejected=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+      const transition=admission.invoke("ask_contact_clarification",{question:"Which visible author is the selected contact?"},signal);
+      const queued=admission.readImage(operation,signal);
+      const rejection=expect(queued).rejects.toMatchObject({code:"CONTACT_TASK_LEASE_LOST"});
+      await transition;await rejection;await admission.assertCurrent();return sdkReceipt();
+    });
+    try {
+      await new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null}).start(auth,created.body.task_id,request.image);
+      expect(rejected).toMatchObject({error:"CONTACT_QUESTION_ESCAPED_TEXT"});
+      expect(afterRejected).toMatchObject({status:"running",question:null});
+      expect(operation).toHaveBeenCalledOnce();
+      const final=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+      expect(final.status).toBe("waiting_for_user");expect(final.capture_id).toBeNull();
+      const state=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id])).rows[0]!.state;
+      expect(state.model_receipts).toHaveLength(1);expect(JSON.stringify(state)).not.toContain("private-derived-pixels");
+    } finally {await pool!.query("DELETE FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id]);}
+  });
+
+  it("withholds an in-flight original-image result if the user cancels before processing finishes",async()=>{
+    const request=input();const created=await createScreenshotContactTask(pool!,auth,request);let processed=false;
+    const sdk=sdkModel(async(admission,signal)=>{
+      await expect(admission.readImage(async()=>{
+        const current=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+        await cancelScreenshotContactTask(pool!,auth,created.body.task_id,current.revision);processed=true;return "private-derived-pixels";
+      },signal)).rejects.toMatchObject({code:"CONTACT_TASK_LEASE_LOST"});
+      throw new Error("CONTACT_TASK_LEASE_LOST");
+    });
+    try {
+      await new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null}).start(auth,created.body.task_id,request.image);
+      expect(processed).toBe(true);
+      const final=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+      expect(final.status).toBe("cancelled");expect(JSON.stringify(final)).not.toContain("private-derived-pixels");
+    } finally {await pool!.query("DELETE FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id]);}
+  });
+
   it("recovers a lost image receipt by original key without another task or cross-owner access", async () => {
     const request = input();
     const created = await createScreenshotContactTask(pool!, auth, request);

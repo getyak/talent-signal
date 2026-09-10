@@ -104,9 +104,9 @@ describe("Claude natural chat product adapter", () => {
       const read = request.tools.find(tool => tool.name === "read_relationship_memory")!;
       expect(read.readOnly).toBe(true);
       const found = await read.execute({ block_types: ["commitment"] }, new AbortController().signal);
-      expect(JSON.parse(found.content[0]!.text as string).blocks).toEqual([memory]);
+      expect(JSON.parse(found.content.filter(block => block.type === "text")[0]!.text as string).blocks).toEqual([memory]);
       const empty = await read.execute({ block_types: ["not-in-scope"] }, new AbortController().signal);
-      expect(JSON.parse(empty.content[0]!.text as string).blocks).toEqual([]);
+      expect(JSON.parse(empty.content.filter(block => block.type === "text")[0]!.text as string).blocks).toEqual([]);
       await request.tools.find(tool => tool.name === "cite_evidence")!.execute({ source_ids: ["source-commitment"] }, new AbortController().signal);
       return { ...outcome, text: "你答应周五给陈夏发原型。" };
     });
@@ -123,11 +123,11 @@ describe("Claude natural chat product adapter", () => {
     const unrelated = { ...history, block_id: "constraint", block_key: "constraint", type: "constraint", summary: "Not requested" };
     const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
       const read = request.tools.find(tool => tool.name === "read_relationship_memory")!;
-      const filtered = JSON.parse((await read.execute({ block_types: ["relationship_history"] }, new AbortController().signal)).content[0]!.text);
+      const filtered = JSON.parse((await read.execute({ block_types: ["relationship_history"] }, new AbortController().signal)).content.filter(block => block.type === "text")[0]!.text);
       expect(filtered.identity_context).toEqual([identity]);
       expect(filtered.blocks).toEqual([history]);
       expect(JSON.stringify(filtered)).not.toContain("Not requested");
-      const empty = JSON.parse((await read.execute({ block_types: ["absent"] }, new AbortController().signal)).content[0]!.text);
+      const empty = JSON.parse((await read.execute({ block_types: ["absent"] }, new AbortController().signal)).content.filter(block => block.type === "text")[0]!.text);
       expect(empty.identity_context).toEqual([identity]);
       expect(empty.blocks).toEqual([]);
       return outcome;
@@ -143,7 +143,7 @@ describe("Claude natural chat product adapter", () => {
       expect(request.tools.map(tool => tool.name)).toEqual(["read_response_preference"]);
       const tool = request.tools[0]!; expect(tool.readOnly).toBe(true);
       const result = await tool.execute({}, new AbortController().signal);
-      expect(JSON.parse(result.content[0]!.text as string)).toMatchObject({ kind: "user_setting", response_style: "conclusion_first", source_id: preference.sourceID });
+      expect(JSON.parse(result.content.filter(block => block.type === "text")[0]!.text as string)).toMatchObject({ kind: "user_setting", response_style: "conclusion_first", source_id: preference.sourceID });
       return outcome;
     });
     await new ClaudeChatProvider(configuration, execute).answer({ mode: "unscoped_conversation", objective: "Explain this simply",

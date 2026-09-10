@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import sharp from "sharp";
 import { ClaudeContactAgentModel } from "./claudeContactProvider.js";
 import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import type { ClaudeHarnessRequest } from "./claudeHarness.js";
 
 describe("multimodal contact SDK adapter", () => {
   it("starts with the original image and lets the Agent request understanding when useful", async () => {
-    const bytes = Buffer.from("synthetic-image");
+    const bytes = await sharp({create:{width:20,height:40,channels:3,background:"white"}}).png().toBuffer();
     const config = claudeHarnessConfiguration({ ANTHROPIC_API_KEY: "synthetic", TALENT_SIGNAL_AGENT_MODEL: "synthetic" });
     const record = vi.fn(async () => ({ status: "unconfirmed" }));
     const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
@@ -15,6 +16,8 @@ describe("multimodal contact SDK adapter", () => {
       expect(request.images?.[0]?.kind === "image" && request.images[0].dataBase64).toBe(bytes.toString("base64"));
       expect(record).not.toHaveBeenCalled();
       expect(request.tools.map((tool) => tool.name)).toContain("record_screenshot_understanding");
+      expect(request.tools.map((tool) => tool.name)).toContain("inspect_screenshot_region");
+      expect(request.subagents?.[0]?.tools).toEqual(["inspect_screenshot_region"]);
       expect(request.skills?.map((skill) => skill.name)).toEqual(["relationship-evidence"]);
       expect(request.outputSchema).toBeUndefined();
       const finish = request.tools.find((tool) => tool.name === "finish_contact_task")!;
@@ -27,7 +30,7 @@ describe("multimodal contact SDK adapter", () => {
         estimatedUsd: 0, turns: 1, toolCalls: 0, terminalReason: "completed", permissionDenials: [], reportedModels: ["synthetic"] };
     });
     const model = new ClaudeContactAgentModel(config, execute);
-    await model.run({ objective: "Read the profile", systemPrompt: "Synthetic", state: {}, assertCurrent: async () => {},
+    await model.run({ objective: "Read the profile", systemPrompt: "Synthetic", state: {}, assertCurrent: async () => {}, readImage: async operation => operation(),
       images: [{ media_type: "image/png", byte_size: bytes.length, content_hash: createHash("sha256").update(bytes).digest("hex"), data_base64: bytes.toString("base64") }],
       recordUnderstanding: record, invoke: vi.fn(async () => ({})) }, new AbortController().signal);
     expect(execute).toHaveBeenCalledOnce();
@@ -61,7 +64,7 @@ describe("multimodal contact SDK adapter", () => {
     });
     const model = new ClaudeContactAgentModel(claudeHarnessConfiguration({ANTHROPIC_API_KEY:"synthetic",TALENT_SIGNAL_AGENT_MODEL:"synthetic"}),execute);
     for (let run=0;run<2;run++) await model.run({objective:"Synthetic",systemPrompt:"Synthetic",state:{},images:[],
-      assertCurrent:async()=>{},recordUnderstanding:vi.fn(),invoke},new AbortController().signal);
+      assertCurrent:async()=>{},readImage:async operation=>operation(),recordUnderstanding:vi.fn(),invoke},new AbortController().signal);
     expect(execute).toHaveBeenCalledTimes(2);
     expect(invoke).toHaveBeenCalledTimes(10);
   });

@@ -7,7 +7,8 @@ const Hash = z.string().regex(/^[a-f0-9]{64}$/u);
 
 export const ContactChatExtractionSchema = z.strictObject({
   platform: Text.max(80),
-  conversation_kind: z.enum(["direct", "group", "forwarded", "unknown", "not_chat"]),
+  conversation_kind: z.enum(["profile", "direct", "group", "forwarded", "comments", "unknown", "not_chat"])
+    .describe("Recognize the original image before structuring it. profile contains profile fields, never invented messages. comments preserves each visible author/reply and is not a direct private conversation. not_chat is other non-conversation material."),
   contact_name: Text.max(200).nullable(),
   identity_clues: z.array(z.strictObject({
     kind: z.enum(["name", "handle", "profile_url", "company", "job_title"]),
@@ -80,7 +81,7 @@ export const CONTACT_INTAKE_TOOLS = {
   },
   ask_contact_clarification: {
     description: "Pause this same durable task for one necessary identity or source clarification. Preserve completed work and ask about the ambiguity without guessing. The user can choose one returned contact or explain the screenshot.",
-    schema: z.strictObject({ question: Text.max(800) }),
+    schema: z.strictObject({ question: Text.max(800).describe("One concise question that resolves the necessary identity/source ambiguity. Use ordinary prose with actual line breaks, never literal backslash-n/backslash-r escape text. Do not repeat every source quote, speculate about safety or request unrelated relationship details.") }),
   },
 } as const;
 

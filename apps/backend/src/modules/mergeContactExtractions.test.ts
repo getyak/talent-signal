@@ -7,6 +7,16 @@ import { createHash } from "node:crypto";
 const part = (name = "Lin"): ContactChatExtraction => ({platform:"IM",conversation_kind:"direct",contact_name:name,
   identity_clues:[],messages:[{message_id:"model-id",sequence:99,text:"Same overlapping message",speaker_side:"unknown",speaker_label:null,time_text:null}],uncertainties:[]});
 describe("ordered screenshot batches", () => {
+  it("preserves group, forwarded and comment kinds and author labels instead of turning them into direct chat", () => {
+    for (const kind of ["group", "forwarded", "comments"] as const) {
+      const comment={...part(),conversation_kind:kind,messages:[{...part().messages[0]!,speaker_label:"Visible author"}]};
+      const result=mergeContactExtractions([comment,comment]);
+      expect(result.extraction?.conversation_kind).toBe(kind);
+      expect(result.extraction?.messages.map(message=>message.speaker_label)).toEqual(["Visible author","Visible author"]);
+      expect(result.extraction?.messages.map(message=>message.source_image_index)).toEqual([0,1]);
+    }
+    expect(mergeContactExtractions([part(),{...part(),conversation_kind:"comments"}]).extraction?.conversation_kind).toBe("unknown");
+  });
   it("preserves overlapping pixels as separate source observations with stable message/image provenance", () => {
     const result=mergeContactExtractions([part(),part()]);
     expect(result.question).toBeNull();

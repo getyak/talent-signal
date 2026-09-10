@@ -6,7 +6,9 @@ user-approved handoff to a local Talent Signal session.
 The extension is deliberately distinct from the repository's Codex plugin. It
 does not extract candidate truth, confirm facts, contact anyone, schedule a
 meeting, update an ATS, or observe a downstream effect. It submits one exact,
-reviewed capture packet to a localhost backend boundary.
+reviewed capture to a localhost Web session. Reviewed images enter the shared
+Agent for source filing or an editable profile draft; profile screenshot drafts
+require human confirmation before saving.
 
 ## Load locally
 
@@ -26,17 +28,16 @@ a denial and asks for a new toolbar gesture.
 
 ```text
 toolbar gesture
-→ choose an executable text selection or a local-only image review
+→ choose a text selection or image review
 → inspect URL, title, and the supported source time
 → inspect exact reviewed pixels or text
 → crop, redact, edit, or remove
-→ image path: keep the reviewed pixels local, then remove them
-→ selected-text path: continue to the localhost handoff
+→ choose the supported retention mode for the reviewed asset
 → check one localhost session
 → preview target, effect, purpose, and retention request
 → explicit Submit
 → pending / received / failed / unknown receipt truth
-→ open the exact Web review when a real receipt returns its capture ID
+→ open the exact Web capture or screenshot task after receipt readback
 ```
 
 For a screenshot, the canvas shown under **Reviewed pixels in this panel** is
@@ -45,10 +46,13 @@ its filesystem modification time is not evidence of when the conversation was
 captured. For selected text, only the current textarea value is sent. The
 original selection is omitted when the user edits it.
 
-Visible-tab and chosen screenshots can be reviewed, cropped, and redacted in
-the extension, but remain local drafts today. Their dispatch shelf fails closed
-because the localhost backend does not yet own a governed raw-image and
-derivative lifecycle. The selected-text path is the executable Web handoff.
+Visible-tab and chosen screenshots can be reviewed, cropped, and redacted before
+submission. Images support **Keep reviewed evidence** (`evidence_crop`); unsupported
+retention modes remain unavailable. After explicit submission, the extension opens
+the exact local Web origin and requires the same authenticated session with the
+contact Agent enabled. The shared Agent receives only the final reviewed pixels.
+Public research is disabled for this browser image request. Selected text uses
+the separate governed capture endpoint described below.
 
 One idempotency key is created for the reviewed draft and reused across retry
 or receipt reconciliation. A changed source, edit, retention choice, or local
@@ -63,8 +67,9 @@ panel. Fixture payloads remain visible because they are synthetic.
 | Manifest declaration | Purpose |
 | --- | --- |
 | `activeTab` | Temporary access after the toolbar action or shortcut |
-| `scripting` | Read only the user's explicit current selection |
+| `scripting` | Read the explicit selection and execute the handoff in the exact local Web page |
 | `sidePanel` | Host the inspectable review surface |
+| `storage` | Keep bounded, content-free image receipt recovery records |
 | `http://localhost/*` | Development session and capture handoff |
 | `http://127.0.0.1/*` | Equivalent loopback development handoff |
 
@@ -78,7 +83,7 @@ The extension never reads a cookie or token. It opens the local sign-in page,
 then uses browser-managed credentials with `fetch(..., { credentials:
 "include" })`.
 
-Expected endpoints:
+Selected-text capture endpoints:
 
 ```text
 GET  /api/browser-extension/session
@@ -116,6 +121,23 @@ The packet separates source metadata, exact reviewed asset, handoff target,
 browser-managed session version, purpose, retention request, and the user's
 specific approval timestamp. It contains no candidate-state confirmation or
 downstream-action approval.
+
+## Shared Agent image handoff
+
+The service worker opens `/contact-agent` on the reviewed loopback origin, checks
+`/api/browser-extension/session` again, and requires both the original opaque
+session version and `contact_agent: true`. Cookies stay in Web; the extension
+never reads them. It submits the final pixels to `POST /api/contact-agent/tasks`
+with `x-contact-handoff-session`, then reads `GET /api/contact-agent/tasks/:task_id`
+before reporting receipt. The returned task ID opens the exact Web review.
+
+A received handoff means the screenshot task was read back. It does not mean
+analysis is complete or profile changes are confirmed. Chat and profile paths
+retain the shared Agent's evidence, identity and human-review boundaries.
+
+A reopened panel uses `GET /api/contact-agent/tasks?handoff_request_id=<key>` in
+the original authenticated Web session to recover the original receipt. This
+lookup never resubmits pixels. See the recovery limits below.
 
 ## Deterministic fixture mode
 
@@ -168,23 +190,23 @@ The implementation follows current official guidance:
 
 ## Honest development limits
 
-- This worktree does not own a Web/backend endpoint, so the real localhost
-  session and receipt protocol is implemented but not integration-proven here.
-- Backend source retention, derivative deletion, and receipt reconciliation
-  need destination evidence from the owning backend.
-- Automated Playwright Chromium loaded and exercised the extension package,
-  fixture surfaces, and denial path. Headless automation cannot click browser
-  toolbar chrome, so the positive `activeTab` toolbar-to-visible-page grant
-  still needs one headed manual check before broader release.
+- [GET-9 verification](../../docs/evaluations/get9-harness/pr-review-verification.json)
+  records focused backend screenshot/recovery tests and extension contract checks.
+  These establish their stated boundaries, not an installed-browser end-to-end pass.
+- The installed extension's positive toolbar grant, reviewed-image submission and
+  exact Web receipt still require the pending headed-browser acceptance check.
 - Synthetic fixtures do not prove OCR quality, recruiter value, production
   privacy, or connector safety.
 
 ## Reviewed-image recovery
 
-The extension keeps up to 20 minimal handoff records locally for 30 days: origin,
-opaque Web-session binding, request key, creation time and completion flag. It
+The extension keeps up to 20 minimal handoff records locally: origin, opaque
+Web-session binding, request key, creation time and completion flag. Records have
+a 30-day recovery lifetime; expired entries are removed when the journal is read,
+not by a background deletion timer. It
 never persists pixels, source titles, text or login credentials. Unknown operations
-block another request in that same session until the original receipt is checked;
+block another request in that same session until receipt recovery resolves the
+pending operation;
 capacity cleanup evicts completed records only. On reopening the panel, use the
 recovery entry to look up the original task in its original signed-in Web session.
 This is read-only and does not upload the image again. A missing receipt stays

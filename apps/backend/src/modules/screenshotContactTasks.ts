@@ -463,6 +463,7 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
     }
     case "ask_contact_clarification":{
       const args=CONTACT_INTAKE_TOOLS.ask_contact_clarification.schema.parse(call.arguments);
+      if(/\\[nr]/u.test(args.question))deny("CONTACT_QUESTION_ESCAPED_TEXT");
       response.question=args.question;response.status="waiting_for_user";return {status:response.status,question:args.question,candidates:response.candidates};
     }
     default:deny("CONTACT_TOOL_NOT_AUTHORIZED");
@@ -630,6 +631,12 @@ export class ScreenshotContactTaskRunner {
         objective:row.input_manifest.objective,images,systemPrompt:row.state.prompts!.contact.text,
         state:{response:row.state.response,selected:row.state.selected,current_state:currentToolState(row),observations:row.state.observations.slice(-12)},
         assertCurrent:current,
+        readImage:(operation,executionSignal)=>serial(async()=>{
+          await this.checkpoint(auth,id,epoch,async()=>{executionSignal.throwIfAborted();});
+          const result=await operation();
+          await this.checkpoint(auth,id,epoch,async()=>{executionSignal.throwIfAborted();});
+          return result;
+        }),
         recordUnderstanding:(raw,executionSignal)=>serial(()=>this.checkpoint(auth,id,epoch,async(client,r)=>{
           executionSignal.throwIfAborted();
           if(r.state.response.capture_id||r.state.searches.length)deny("CONTACT_UNDERSTANDING_ALREADY_USED");
@@ -647,7 +654,7 @@ export class ScreenshotContactTaskRunner {
             return {status:r.state.response.status,contact_draft:profile.draft,question:r.state.response.question};
           }
           const merged=mergeContactExtractions(parts);
-          if(parts.every(part=>part.conversation_kind==="not_chat"))merged.question="无法把这些资料截图核对为同一平台的同一联系人，请按联系人和平台分别发送。";
+          if(parts.every(part=>["profile","not_chat"].includes(part.conversation_kind)))merged.question="无法把这些资料截图核对为同一平台的同一联系人，请按联系人和平台分别发送。";
           r.state.extraction_parts=parts;r.state.response.extraction=merged.extraction;
           if(merged.question){r.state.response.status="waiting_for_user";r.state.response.question=merged.question;r.state.batch_conflict=merged.identityConflict;}
           this.observe(r,"record_screenshot_understanding",{status:"unconfirmed",image_count:images.length},"completed");
@@ -678,7 +685,9 @@ export class ScreenshotContactTaskRunner {
           }catch(error){
             if(signal.aborted||executionSignal.aborted||codeOf(error)==="CONTACT_TASK_LEASE_LOST")throw error;
             const state=await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,name,{error:codeOf(error)},"denied");return currentToolState(r);});
-            return {error:codeOf(error),current_state:state,instruction:codeOf(error)==="CONTACT_SUMMARY_ESCAPED_TEXT"
+            return {error:codeOf(error),current_state:state,instruction:codeOf(error)==="CONTACT_QUESTION_ESCAPED_TEXT"
+              ? "Write one concise identity/source question using ordinary prose and actual line breaks, never literal backslash-n/backslash-r text. Previously completed work is unchanged; retry only ask_contact_clarification."
+              : codeOf(error)==="CONTACT_SUMMARY_ESCAPED_TEXT"
               ? "Write ordinary prose with actual line breaks, not literal backslash-n/backslash-r escape text. Retry only the rejected finish call."
               : codeOf(error)==="CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE"
               ? "A source_statement field value must copy a contiguous part of its exact cited excerpt. Keep only the supported source wording, or explicitly label a justified, qualified interpretation as inference. Discussing a topic does not prove work experience; separated dated roles do not establish a direct job transfer. Correct this update only; prior filing remains complete."
