@@ -4,7 +4,8 @@
 
 Enter and leave an isolated test workspace in-app, with verified identity,
 visible feedback, preserved original data and reachable navigation. No process
-termination, production backend mutation, or TestFlight release is in scope.
+termination or production backend mutation is in scope. The user subsequently
+authorized publishing this repair to TestFlight through the main-only release gates.
 
 ## Evidence
 
@@ -84,3 +85,14 @@ supported inference until the native run completes.
 The environment banner is a bounded usability repair, not a new visual design
 system. Real-device Dynamic Type, VoiceOver and the user's installed TestFlight
 build remain separate from local Simulator proof.
+
+## Authorized TestFlight delivery
+
+Status: active. User requested direct TestFlight publication after reviewing the
+local repair. Base remains origin/main 674ce92b; local product commit fd7ee592.
+Local review checked return intent, owner credential verification, maintenance
+barriers, leave-before-delete ordering and the verified UI navigation evidence;
+no confirmed P0/P1 remains in the changed paths. Follow normal PR CI/Security,
+merge with current-head verification, await main CI and the automatic iOS
+release, then read back exact version/build and internal group availability.
+No additional tester invitation is needed for this request.
