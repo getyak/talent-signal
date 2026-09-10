@@ -81,3 +81,37 @@ confirmation discloses.
 
 Local TestFlight deployment and final runtime revision are recorded in the
 [implementation plan](../../../plans/web-capture-pipeline.md).
+
+## Main integration and shared SDK verification
+
+Remote delivery uses `codex/web-capture-delivery` and PR #175, rebased by
+cherry-picking the capture slice onto main's shared Claude harness. The original
+image journal, image-profile confirmation and directory-authority checks remain
+intact; separate account-management branch changes are excluded.
+
+The actual unpacked extension submitted a new synthetic profile (林珂远) through
+production Next.js on 3050 to isolated backend 4348. Initial submission and an
+identical retry both returned HTTP 202 with task
+`e6dc2352-52d0-422b-b9c4-8b1d16a7e9f0`; receipt reconciliation returned HTTP 200
+with the same task. The configured real SDK model created Person
+`d65167f9-e29c-47de-a704-ad63e54e6d89` and capture
+`be6693a9-b90f-4e89-9356-db95a359c48f`. Authenticated task readback returned
+`completed`, the exact source text, attributed company/title observations and no
+external effects. PostgreSQL independently confirmed active Person/source,
+authorized retention and available source access. Runtime artifacts are
+`sdk-text-proof.json` and `extension-to-web-result.png` in the ignored output
+folder above.
+
+Live verification exposed two errors now covered by regression tests: Next.js
+may expose an internal localhost request URL behind a different browser origin,
+so admission binds the packet to the Origin already validated against Host;
+a transient database lookup error must propagate as an error, rather than be
+misreported as source deletion. Cross-origin and different-workspace packets
+remain rejected, and proven unavailable sources remain hidden.
+
+Integration checks passed: Web 401 tests plus three route regressions; backend
+384 tests plus three lookup regressions (113 environment-specific skips in the
+general run); the affected PostgreSQL suite 22/22; agent provider suites 10/10;
+extension contracts 41/41. Web production build, lint, backend typechecking,
+packaging validation and documentation checks passed. Latest PR CI and deployment
+readback are the final delivery gates, independently of these local results.
