@@ -112,18 +112,26 @@ is bad".
 - `pnpm ios:check` exits 0 (via `IOS_ONLY_TESTING=TalentSignalTests`
   on a sandbox runner against the existing
   `talent-signal-testflight-local-api-1` backend on `127.0.0.1:4317`).
-- **TestFlight build candidate `0.1.74` ready** — the next version
-  will be derived by `scripts/ci/next-ios-version.sh` from the
-  current head tag `v0.1.73`; `MARKETING_VERSION` and
-  `CURRENT_PROJECT_VERSION` are rewritten in-place by
-  `fastlane ios archive_beta` via `increment_version_number` /
-  `increment_build_number`, so no manual edits are required.
+- **Released to TestFlight as `v0.1.74 (build 20260911040427)`** —
+  `release-ios.yml` run `34560737733` (head SHA `87ee93fa`, merge of
+  PR #177) completed with all four jobs (`Decide whether to release`,
+  `Archive TestFlight IPA`, `Upload exact TestFlight IPA`,
+  `Finalize TestFlight release`) succeeding. Tag `v0.1.74` and the
+  GitHub prerelease
+  (https://github.com/getyak/talent-signal/releases/tag/v0.1.74) were
+  created by the workflow.
 - 518 / 518 `TalentSignalTests` passed (0 failed, 0 unexpected),
   including the two new regression tests
   `testValidateFailurePreservesLocalKeychainSessionForRetry` and
   `testValidateFailureWithOfflineDisabledStillClearsKeychain`.
 - Existing assertions about Keychain removal, remote revocation, and
   protected sign-out recovery continue to pass.
+- PR-177 PR-check rollup: 17 SUCCESS / 1 NEUTRAL / 1 SKIPPED; merge
+  state CLEAN; merge commit `87ee93fad044fcfa2f0650ef63810fa3c74744b9`
+  on `main`.
+- CI on main (`push` event `34558561982`) concluded success before the
+  release-ios workflow dispatched; that was the workflow_run trigger
+  for the TestFlight pipeline.
 
 ## Open uncertainty
 
