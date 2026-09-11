@@ -120,10 +120,24 @@ final class AppSessionStore: ObservableObject {
                 phase = .signedIn(validated)
             } catch let error as AppSessionError where error.invalidatesSession {
                 guard generation == contextGeneration else { return }
-                try? persistence.delete()
-                phase = .signedOut
-                notice = error.localizedDescription
-                await prepareChallenge()
+                // The backend rejected this access token. Two cases share the
+                // 401 status: (1) the access token is genuinely invalid, or
+                // (2) the backend's session row was lost (database reset,
+                // migration, ephemeral volume). The local credential may
+                // still be inside its server-issued `expiresAt`, so we keep
+                // it on disk and let the workspace render from the last
+                // verified identity. The user is told the saved sign-in is
+                // in use; the next successful network round-trip can refresh
+                // the local copy without forcing a fresh sign-in.
+                if allowOfflineWorkspace {
+                    phase = .signedIn(stored)
+                    notice = "Saved sign-in kept on this device. The workspace will re-verify when the service is reachable."
+                } else {
+                    try? persistence.delete()
+                    phase = .signedOut
+                    notice = error.localizedDescription
+                    await prepareChallenge()
+                }
             } catch {
                 guard generation == contextGeneration else { return }
                 if allowOfflineWorkspace, !(error is AppSessionError) {
