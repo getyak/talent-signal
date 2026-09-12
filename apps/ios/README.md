@@ -548,6 +548,9 @@ label, value, display configuration and dimensions. Confirmation clears that
 coverage and reaudits the source/proposal context. Current visible anchors,
 unknown identities, oversized visible text and previously failed anchors never
 receive this coverage exception. Retain original audit failures as evidence.
+Proposal, confirmed-context and each confirmed-decision anchor run as separate
+UI test methods, so the check script gives each state boundary a fresh runner
+while preserving the same four unfiltered audit types and the full anchor set.
 
 A XCTest accessibilityAudit-56 timeout fails the test without an in-process
 retry. Observed timed-out contrast work continued consuming CPU inside

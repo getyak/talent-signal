@@ -5669,7 +5669,35 @@ final class CandidateSignalUITests: XCTestCase {
         }
     }
 
+    private enum AX5AuditStage {
+        case proposal
+        case confirmedContext
+        case confirmedControl
+        case confirmedDeadline
+        case confirmedResult
+    }
+
     func testAX5DarkModeCriticalContentRemainsReachable() throws {
+        try runAX5DarkModeCriticalContentAudit(stage: .proposal)
+    }
+
+    func testAX5DarkModeConfirmedContentRemainsReachable() throws {
+        try runAX5DarkModeCriticalContentAudit(stage: .confirmedContext)
+    }
+
+    func testAX5DarkModeConfirmedControlRemainsReachable() throws {
+        try runAX5DarkModeCriticalContentAudit(stage: .confirmedControl)
+    }
+
+    func testAX5DarkModeConfirmedDeadlineRemainsReachable() throws {
+        try runAX5DarkModeCriticalContentAudit(stage: .confirmedDeadline)
+    }
+
+    func testAX5DarkModeConfirmedResultRemainsReachable() throws {
+        try runAX5DarkModeCriticalContentAudit(stage: .confirmedResult)
+    }
+
+    private func runAX5DarkModeCriticalContentAudit(stage: AX5AuditStage) throws {
         guard #available(iOS 17.0, *) else { throw XCTSkip("Accessibility audits require iOS 17 or newer.") }
         app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launchArguments = [
@@ -5779,30 +5807,10 @@ final class CandidateSignalUITests: XCTestCase {
                     let anchorText = flattenedSnapshot(anchors[0]).map {
                         (type: $0.elementType, identifier: $0.identifier, label: $0.label)
                     }
-                    var genericDynamicTypeIssueCount = 0
                     let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
                         let handlerStarted = ProcessInfo.processInfo.systemUptime
                         print("AX5_AUDIT_HANDLER_BEGIN \(name) uptime=\(handlerStarted)")
                         defer { print("AX5_AUDIT_HANDLER_END \(name) elapsed=\(ProcessInfo.processInfo.systemUptime - handlerStarted)") }
-                        if issue.auditType == .dynamicType,
-                           issue.element == nil,
-                           issue.compactDescription == "Dynamic Type font sizes are unsupported" {
-                            genericDynamicTypeIssueCount += 1
-                            if genericDynamicTypeIssueCount == 1 {
-                                let diagnostic = XCTAttachment(string:
-                                    "auditType=\(issue.auditType.rawValue), elementAvailable=false, "
-                                    + "compact=\(issue.compactDescription), detail=\(issue.detailedDescription)"
-                                )
-                                diagnostic.name = name + " generic Dynamic Type diagnostic"
-                                diagnostic.lifetime = .keepAlways
-                                self.add(diagnostic)
-                            }
-                            // XCTest can emit this app-level issue even though
-                            // the launch probe above confirms AX5 is active. It
-                            // has no element to adjudicate; element-level Dynamic
-                            // Type issues still fall through to the checks below.
-                            return true
-                        }
                         guard issue.auditType == .contrast || issue.auditType == .dynamicType,
                               let item = issue.element else {
                             let diagnostic = XCTAttachment(string:
@@ -5852,10 +5860,6 @@ final class CandidateSignalUITests: XCTestCase {
                     defer { print("AX5_AUDIT_END \(name) type=\(auditType.rawValue) uptime=\(ProcessInfo.processInfo.systemUptime)") }
                     guard activeRun.failureCount == 0 else { return }
                     try app.performAccessibilityAudit(for: auditType, issueHandler)
-                    if genericDynamicTypeIssueCount > 0 {
-                        print("AX5_AUDIT_GENERIC_DYNAMIC_TYPE \(name) "
-                              + "count=\(genericDynamicTypeIssueCount)")
-                    }
                     if activeRun.failureCount == failuresBefore, let snapshotValue {
                         auditedSnapshotValues.append(snapshotValue)
                     }
@@ -5898,18 +5902,30 @@ final class CandidateSignalUITests: XCTestCase {
             try auditViewport(reviewInstruction, name: "AX5 dark review instruction")
             try auditViewport(app.staticTexts["fact-evidence-label-competing_process-m1"], name: "AX5 dark exact evidence label")
         }
-        try auditSourceAndProposalContext()
-        guard activeRun.failureCount == 0 else { return }
-        let confirmation = app.buttons["fact-confirm-competing_process-m1"]
-        tapWhenVisible(confirmation)
-        XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
-        // Product state changed: no earlier pass can cover the new state.
-        verifiedAnchors.removeAll()
-        try auditSourceAndProposalContext()
-        guard activeRun.failureCount == 0 else { return }
-        try auditViewport(confirmation, name: "AX5 dark local confirmation")
-        try auditViewport(app.staticTexts["fact-card-decision_deadline-m1"], name: "AX5 dark deadline heading")
-        try auditViewport(app.staticTexts["fact-decision-competing_process-m1"], name: "AX5 dark confirmed result")
+        switch stage {
+        case .proposal:
+            try auditSourceAndProposalContext()
+        case .confirmedContext:
+            let confirmation = app.buttons["fact-confirm-competing_process-m1"]
+            tapWhenVisible(confirmation)
+            XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
+            try auditSourceAndProposalContext()
+        case .confirmedControl:
+            let confirmation = app.buttons["fact-confirm-competing_process-m1"]
+            tapWhenVisible(confirmation)
+            XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
+            try auditViewport(confirmation, name: "AX5 dark local confirmation")
+        case .confirmedDeadline:
+            let confirmation = app.buttons["fact-confirm-competing_process-m1"]
+            tapWhenVisible(confirmation)
+            XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
+            try auditViewport(app.staticTexts["fact-card-decision_deadline-m1"], name: "AX5 dark deadline heading")
+        case .confirmedResult:
+            let confirmation = app.buttons["fact-confirm-competing_process-m1"]
+            tapWhenVisible(confirmation)
+            XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
+            try auditViewport(app.staticTexts["fact-decision-competing_process-m1"], name: "AX5 dark confirmed result")
+        }
     }
 
     func testAccessibilityOrderPlacesEvidenceBeforeFactDecision() {
