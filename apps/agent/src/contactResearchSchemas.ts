@@ -9,11 +9,21 @@ export const ContactPublicSourceSchema = z.strictObject({
   title: z.string().min(1).max(500),
   text: z.string().max(16_000),
   channel: ContactResearchChannelSchema,
-  provider_id: z.enum(["exa", "tikhub"]),
+  provider_id: z.enum(["exa", "tikhub", "browser"]),
   provider_request_id: z.string().max(500).nullable(),
   content_hash: z.string().regex(/^[a-f0-9]{64}$/u),
   retrieved_at: z.iso.datetime(),
   stage: z.enum(["discovered", "fetched", "profile_observation"]),
+  browser_observation: z.strictObject({
+    engine: z.literal("chromium"), engine_version: z.string().min(1).max(100),
+    initial_url: z.url({ protocol: /^https$/u }).max(2_000),
+    final_url: z.url({ protocol: /^https$/u }).max(2_000),
+    requests: z.number().int().min(1).max(40),
+    blocked_requests: z.number().int().min(0).max(40),
+    http_requests: z.number().int().min(1).max(80),
+    response_bytes: z.number().int().min(1).max(8_000_000),
+    discovered_source_id: z.string().regex(/^[a-f0-9]{64}$/u),
+  }).optional(),
 });
 
 export const ContactResearchToolRequestSchema = z.strictObject({
@@ -26,6 +36,7 @@ export const ContactResearchToolRequestSchema = z.strictObject({
     z.strictObject({ operation: z.literal("search"), channel: ContactResearchChannelSchema,
       query: z.string().trim().min(2).max(400), maximum_results: z.number().int().min(1).max(5) }),
     z.strictObject({ operation: z.literal("fetch"), source: ContactPublicSourceSchema }),
+    z.strictObject({ operation: z.literal("browse"), source: ContactPublicSourceSchema }),
   ]),
 });
 

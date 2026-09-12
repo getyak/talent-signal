@@ -3,7 +3,9 @@
 Status: file/computation implemented and independently reviewed in the GET-9
 follow-up; [Web download](../evaluations/get9-harness/completeness-run-files-web-ui.json)
 and [native Simulator saving](../evaluations/get9-harness/completeness-run-files-ios-ui.json)
-are verified. Browser admission and installed Chrome acceptance remain open.
+are verified. Browser implementation and synthetic product verification are
+recorded in the [browser review](../evaluations/get9-harness/completeness-browser-review.md).
+Production deployment and installed Chrome acceptance remain open.
 
 ## Context
 
@@ -45,10 +47,15 @@ Authenticated clients revalidate scope before download; Web also binds the
 download to the current login and cancels it when its view disappears.
 Arbitrary uploaded files are not admitted by this slice.
 
-Browser capability requires a real isolated browser and a private profile with
-no user cookies. Only current Run public-source IDs may be navigated; every
-request, redirect, frame and other network channel must remain within the
-existing public-network policy. Text fetch is not browser execution evidence.
+Browser execution uses a fresh container and private Chromium profile with no
+user cookies, host mounts or direct network. A host broker mediates anonymous
+public GETs for sources discovered by the current task, preserving consent,
+source identity and browser provenance. Only same-origin resources and bounded
+top-level redirects are admitted. This is a rendered public-page read; arbitrary
+navigation, login, forms and cross-origin assets are outside its grant.
+Container absence must be verified before capacity is reused; failed cleanup
+closes further admission. Configuration and operational limits belong to the
+[worker README](../../apps/agent-host/browser/README.md).
 
 ## Acceptance and reconsideration
 
@@ -61,8 +68,8 @@ count schemas, interfaces or mock execution as product delivery.
 Reconsider a dedicated OS-isolated service if native libraries, additional
 languages, outbound network or arbitrary package installation are required.
 Reconsider browser admission if complete request-level public-network mediation
-cannot be demonstrated. Keep browser capability unadmitted until its own verification and independent
-review pass. File/computation evidence and remaining acceptance limits are in
+cannot be demonstrated. Keep production browser capability unadmitted until its
+verification, independent review and deployment checks pass. File/computation evidence and remaining acceptance limits are in
 the [evaluation review](../evaluations/get9-harness/completeness-run-files-review.md).
 
 References: [QuickJS/WASM isolation and exposed APIs](https://github.com/justjake/quickjs-emscripten#exposing-apis),

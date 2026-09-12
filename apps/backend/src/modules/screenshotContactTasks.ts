@@ -307,7 +307,7 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
   if (!response.capture_id) return ["save_contact_chat","ask_contact_clarification"];
   const tools:ContactIntakeToolName[]=["update_contact","finish_contact_task","ask_contact_clarification"];
   if(row.input_manifest.allow_public_research && row.state.turns<14 && response.public_sources.length<25) tools.push("search_contact_public");
-  if(response.public_sources.length>0 && row.state.turns<15)tools.push("fetch_contact_source");
+  if(response.public_sources.length>0 && row.state.turns<15)tools.push("fetch_contact_source","browse_contact_source");
   return tools;
 }
 
@@ -559,7 +559,7 @@ export class ScreenshotContactTaskRunner {
             screenshot_identity_clues:row.state.response.extraction!.identity_clues.map((clue,index)=>({source_ref:`clue${index+1}`,...clue})),
             public_sources:row.state.response.public_sources.map((source,index)=>({...source,source_ref:`public${index+1}`,text:source.text.slice(0,8_000)})).slice(-5),
             profile_fields:row.state.response.profile_fields,remaining_turns:18-row.state.turns},observations:row.state.observations.slice(-12).map(observation=>{
-              if(observation.tool!=="search_contact_public"&&observation.tool!=="fetch_contact_source")return observation;
+              if(observation.tool!=="search_contact_public"&&observation.tool!=="fetch_contact_source"&&observation.tool!=="browse_contact_source")return observation;
               const result=observation.result as {sources?:ContactPublicSource[]};
               return result.sources?{tool:observation.tool,result:{sources:result.sources.map(source=>({source_id:source.source_id,title:source.title,url:source.url,stage:source.stage}))}}:observation;
             }),tools,
@@ -569,7 +569,7 @@ export class ScreenshotContactTaskRunner {
         const call=reply.calls[0];if(reply.calls.length!==1||!call)deny("CONTACT_AGENT_EXPECTED_ONE_TOOL_CALL");
         try{
           if(!tools.includes(call.name as ContactIntakeToolName))deny("CONTACT_TOOL_NOT_AUTHORIZED");
-          if(call.name==="search_contact_public"||call.name==="fetch_contact_source")await captureProductStep(call.name,"tool",call.arguments,()=>this.research(auth,id,epoch,call,signal));
+          if(call.name==="search_contact_public"||call.name==="fetch_contact_source"||call.name==="browse_contact_source")await captureProductStep(call.name,"tool",call.arguments,()=>this.research(auth,id,epoch,call,signal));
           else await this.checkpoint(auth,id,epoch,async(client,r)=>{
             const result=await captureProductStep(call.name,"tool",call.arguments,()=>executeLocalTool(client,auth,r,call));this.observe(r,call.name,result,"completed");
             await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.tool_completed","screenshot_contact_task",id,
@@ -679,7 +679,7 @@ export class ScreenshotContactTaskRunner {
               if(r.state.turns>=24)deny("CONTACT_TASK_BUDGET_EXHAUSTED");
               r.state.turns++;
             });
-            if(name==="search_contact_public"||name==="fetch_contact_source"){
+            if(name==="search_contact_public"||name==="fetch_contact_source"||name==="browse_contact_source"){
               await this.research(auth,id,epoch,call,AbortSignal.any([signal,executionSignal]));
               return (await rowFor(this.pool,auth,id)).state.observations.at(-1)?.result;
             }
@@ -739,7 +739,7 @@ export class ScreenshotContactTaskRunner {
       }else{
         const args=CONTACT_INTAKE_TOOLS.fetch_contact_source.schema.parse(call.arguments);
         const source=row.state.response.public_sources.find(s=>s.source_id===canonicalSourceRef(row,args.source_id));if(!source)deny("CONTACT_SOURCE_NOT_DISCOVERED");
-        operation={operation:"fetch" as const,source};
+        operation={operation:call.name==="browse_contact_source" ? "browse" as const : "fetch" as const,source};
       }
       row.state.pending_research=call.name;
       return {contract_version:CONTACT_RESEARCH_CONTRACT,task_id:id,call_id:randomUUID(),anchors,input:operation};

@@ -27,10 +27,11 @@ from that merged main. GET-9 remains In Progress.
 1. **Implemented; surface acceptance pending:** provide bounded original-image region reads and clear long-image
    tiles with coordinates/hash provenance, running-task authority and no new
    image retention; verify profile, direct/group/forward and comments classes.
-2. **File/computation implemented and reviewed; browser pending:** admit scoped capabilities.
+2. **File/computation and browser implemented; browser verification active:** admit scoped capabilities.
    Screenshot source-review delegation is implemented and independently verified
    through the real product SDK path; file/computation has live product and Web
-   download proof. Browser admission remains open. Verify
+   and native saving proof. Browser has actual SDK/HTTP/socket/Chromium/PG proof;
+   late-resource timeout investigation and production admission remain open. Verify
    invoked capabilities, delegation isolation, budgets and recovery rather
    than counting configurable interfaces as delivery.
 3. **Implemented; surface acceptance pending:** durable Memory-to-original-image
@@ -1090,3 +1091,50 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   shows needs-refresh; do not count the file receipt as cross-device sync proof.
   Browser capability, original-image client proof, Chrome permission and final
   delivery/release remain open. GET-9 is still In Progress.
+
+### 2026-09-10 11:54 — isolated browser implementation under acceptance
+
+- Native recovery and actual system-save slice committed463c6b59. Browser is
+  now implemented, uncommitted and not admitted to production: shared SDK tool
+  accepts a source discovered by this task after capture/public-research consent.
+  The Unix-socket agent host creates a fresh immutable-image Chromium container
+  with no network/host mounts/credentials. Host-brokered public GETs recheck
+  same-origin and pinned public DNS; returned sources preserve browser provenance.
+- Independent review found and closed robots alternate-port and stalled-DNS P1s.
+  Added owner/process-instance labels, automatic removal, verified cleanup and
+  startup orphan sweep; inspect-disappearance P2 is fixed with a regression,
+  re-review pending. Host46/46, Agent195pass1skip, scoped PG2/2 pass; backend builds.
+- Preserve all four actual Docker suite reports. First run failed cleanup and
+  blocked later admission. Second exposed a trailing-space fixture assertion
+  plus real redirect and cleanup failures. Third kept redirect failure. Fourth
+  passes JS/resource rendering, no prior storage, cross-origin/private/POST/WS
+  refusal, cancellation and actual public HTTPS example.com; redirect fails
+  because Chromium's error-page commit interrupts the next navigation.
+- The corrected worker closes the old page before navigating each host-admitted
+  redirect target. Fifth actual suite is active. Product-level SDK/HTTP/Unix-
+  socket/browser/PG evaluation is prepared; it uses controlled search discovery
+  and real example.com browser fetch. No Exa network or installed-client claim.
+- Runtime limits and configuration live in agent-host/browser/README.md. HTTP
+  count/byte budget includes robots; startup and cleanup are outside execution
+  timers. Browser admission, client image proof, Chrome permission and final
+  delivery/release remain open. GET-9 stays In Progress.
+
+### 2026-09-12 16:35 — browser product proof and current-state revalidation
+
+- Previous turn made progress: worker request exhaustion now closes Chromium
+  before reporting failure. The actual second recovery suite passes4/4 with
+  fresh runs after both runaway JavaScript and request flooding. Independent
+  review closes the change with no new P0/P1/P2.
+- First actual product run passes12checks and independent quality4/4/3/3.
+  The evaluator now requires no profile fields at all, closing a source-alias
+  blind spot; historical receipt remains unchanged and satisfies the stronger
+  offline check. Empty-account state is not existing-state preservation proof.
+- Today’s seventh boundary and second product runs fail during browser lifecycle.
+  Eighth single suite is6/7 with a late-resource timeout. Third product run
+  passes12/12 in64.673s. All attempts are retained; shared Colima reports44
+  running containers on4CPU/6GB with delayed inventory and high VM CPU. No
+  unrelated containers were changed. Shutdown-order review remains active.
+- Host46/46 and docs:check pass. Browser remains uncommitted while final review
+  closes. Origin/main is now87ee93fa, including Chrome pipeline PR175 and native
+  Keychain PR177. Commit this isolated slice, merge current main, then complete
+  client image acceptance and exact-head delivery checks. GET-9 remains open.

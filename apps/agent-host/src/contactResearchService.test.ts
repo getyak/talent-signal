@@ -7,6 +7,21 @@ const source={url:"https://www.linkedin.com/in/example/",title:"Example Person",
   retrievedAt:"2026-09-06T00:00:00.000Z",contentHash:"a".repeat(64),providerID:"exa" as const,providerRequestID:"public-request"};
 const request=(channel="linkedin",query="Example Person")=>({contract_version:CONTACT_RESEARCH_CONTRACT,task_id:randomUUID(),call_id:randomUUID(),anchors:["Example Person"],input:{operation:"search",channel,query,maximum_results:2}});
 describe("public contact research boundary",()=>{
+  it("records browser provenance separately from discovery and forwards cancellation",async()=>{
+    const exa={searchProfiles:vi.fn().mockResolvedValue([source]),searchWeb:vi.fn(),fetchContent:vi.fn()};
+    const first=request();const discovered=await runContactResearchTool(first,{},{exa});
+    const browser=vi.fn().mockResolvedValue({url:source.url,title:"Rendered public page",text:"Rendered engineer biography",
+      engine:"chromium",engineVersion:"123.0",requests:2,blockedRequests:1,httpRequests:3,responseBytes:300});
+    const call={...first,call_id:randomUUID(),input:{operation:"browse",source:discovered.sources[0]}};
+    const result=await runContactResearchTool(call,{},{browse:browser,exa});
+    expect(exa.fetchContent).not.toHaveBeenCalled();
+    expect(result.sources[0]).toMatchObject({provider_id:"browser",stage:"fetched",text:"Rendered engineer biography",
+      provider_request_id:call.call_id,browser_observation:{discovered_source_id:discovered.sources[0]?.source_id,engine:"chromium",blocked_requests:1}});
+    expect(result.sources[0]?.content_hash).toBe(createHash("sha256").update("Rendered engineer biography").digest("hex"));
+    const abort=new AbortController();abort.abort();
+    await expect(runContactResearchTool(call,{},{browse:browser},abort.signal)).rejects.toThrow();
+    expect(browser).toHaveBeenCalledOnce();
+  });
   it("dispatches LinkedIn and web separately, preserving discovery and fetched provenance",async()=>{
     const exa={searchProfiles:vi.fn().mockResolvedValue([source]),searchWeb:vi.fn().mockResolvedValue([source]),fetchContent:vi.fn().mockResolvedValue(source)};
     const first=request();const result=await runContactResearchTool(first,{}, {exa});

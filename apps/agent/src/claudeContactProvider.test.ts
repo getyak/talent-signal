@@ -17,6 +17,7 @@ describe("multimodal contact SDK adapter", () => {
       expect(record).not.toHaveBeenCalled();
       expect(request.tools.map((tool) => tool.name)).toContain("record_screenshot_understanding");
       expect(request.tools.map((tool) => tool.name)).toContain("inspect_screenshot_region");
+      expect(request.tools.find(tool => tool.name === "browse_contact_source")?.readOnly).toBe(true);
       expect(request.subagents?.[0]?.tools).toEqual(["inspect_screenshot_region"]);
       expect(request.skills?.map((skill) => skill.name)).toEqual(["relationship-evidence"]);
       expect(request.outputSchema).toBeUndefined();

@@ -44,7 +44,7 @@ export class ClaudeContactAgentModel implements ContactAgentModel {
         execute: async (args, executionSignal) => content(await input.recordUnderstanding(z.array(ContactChatExtractionSchema).parse(args.images), executionSignal)) },
       ...Object.entries(CONTACT_INTAKE_TOOLS).map(([name, definition]): HarnessTool => ({
         name, description: definition.description, schema: definition.schema,
-        readOnly: ["search_contacts", "search_contact_public", "fetch_contact_source"].includes(name),
+        readOnly: ["search_contacts", "search_contact_public", "fetch_contact_source", "browse_contact_source"].includes(name),
         // This small, fixed task catalog is already scoped. Loading it together
         // avoids extra SDK discovery turns before each dependent filing step.
         alwaysLoad: true,

@@ -5,6 +5,7 @@ import { isIP } from "node:net";
 import { Readable } from "node:stream";
 
 import { Parser } from "htmlparser2";
+import { withAbort } from "./abortable.js";
 
 import {
   publicResearchDomainAllowed,
@@ -28,6 +29,8 @@ export class AgentSafeWebFetchError extends Error {
   }
 }
 
+export interface BrowserNetworkBudget { requests: number; bytes: number }
+
 function isBlockedIpv4(address: string): boolean {
   const parts = address.split(".").map(Number);
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
@@ -43,6 +46,7 @@ function isBlockedIpv4(address: string): boolean {
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 0) ||
     (a === 192 && b === 168) ||
+    (a === 192 && b === 88 && c === 99) ||
     (a === 198 && (b === 18 || b === 19)) ||
     (a === 198 && b === 51 && c === 100) ||
     (a === 203 && b === 0 && c === 113) ||
@@ -52,6 +56,11 @@ function isBlockedIpv4(address: string): boolean {
 
 function isBlockedIpv6(address: string): boolean {
   const normalized = address.toLowerCase();
+  // Admit global unicast only: this also rejects mapped IPv4 and NAT64 forms
+  // which must not bypass the IPv4 checks through a second spelling.
+  const parts = normalized.split(":");
+  const first = parseInt(parts[0] || "0", 16), second = parseInt(parts[1] || "0", 16);
+  if (first < 0x2000 || first > 0x3fff) return true;
   return (
     normalized === "::" ||
     normalized === "::1" ||
@@ -59,8 +68,69 @@ function isBlockedIpv6(address: string): boolean {
     normalized.startsWith("fd") ||
     /^fe[89ab]/u.test(normalized) ||
     normalized.startsWith("ff") ||
-    normalized.startsWith("2001:db8:")
+    (first === 0x2001 && (second === 0xdb8 || second < 0x200)) ||
+    first === 0x2002 || first === 0x3fff
   );
+}
+
+/** Broker resource for a network-none browser. No browser cookies, request
+ * headers, credentials, bodies or ambient proxy are forwarded to the web. */
+export async function fetchBrowserResource(
+  rawURL: string, admittedOrigin: string, executionSignal: AbortSignal,
+  options: { fetcher?: typeof fetch; lookup?: HostLookup; budget?: BrowserNetworkBudget } = {},
+): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
+  const url = new URL(rawURL), origin = new URL(admittedOrigin);
+  const signal = AbortSignal.any([executionSignal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]);
+  if (rawURL.length > 2_000 || url.protocol !== "https:" || url.username || url.password
+    || url.port || url.origin !== origin.origin || origin.protocol !== "https:" || origin.port) {
+    throw new AgentSafeWebFetchError("BROWSER_RESOURCE_OUT_OF_SCOPE", "Only this discovered HTTPS origin is admitted.");
+  }
+  signal.throwIfAborted();
+  const lookup = options.lookup ?? dns.lookup, transport = options.fetcher ?? pinnedHttpsFetcher(lookup);
+  const budget = options.budget ?? { requests: 0, bytes: 0 };
+  // Count every HTTP request and consumed body byte, including robots and its
+  // redirects. The same budget object is shared across the entire browser Run.
+  const fetcher: typeof fetch = async (input, init) => {
+    signal.throwIfAborted();
+    if (budget.requests >= 80) throw new Error("BROWSER_HTTP_LIMIT");
+    if (budget.bytes > 8_000_000) throw new Error("BROWSER_RESPONSE_BYTE_LIMIT");
+    budget.requests++;
+    const response = await transport(input, init);
+    const body = response.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        signal.throwIfAborted();
+        budget.bytes += chunk.byteLength;
+        if (budget.bytes > 8_000_000) throw new Error("BROWSER_RESPONSE_BYTE_LIMIT");
+        controller.enqueue(chunk);
+      },
+    }));
+    return new Response(body ?? null, { status: response.status, statusText: response.statusText, headers: response.headers });
+  };
+  await assertPublicHostname(url.hostname, lookup, signal);
+  await assertRobotsAllowed(url, url.hostname, signal, fetcher, lookup, origin.origin);
+  signal.throwIfAborted();
+  const response = await withAbort(signal, () => fetcher(url, { method: "GET", redirect: "manual",
+    headers: { "user-agent": "TalentSignalLocalAgent/0.1", accept: "*/*" },
+    signal }));
+  if ([301, 302, 303, 307, 308].includes(response.status)) {
+    await response.body?.cancel();
+    const location = response.headers.get("location");
+    if (!location) throw new Error("BROWSER_REDIRECT_INVALID");
+    const target = new URL(location, url);
+    if (target.href.length > 2_000 || target.origin !== origin.origin || target.username || target.password || target.port) throw new Error("BROWSER_REDIRECT_OUT_OF_SCOPE");
+    return { status: response.status, headers: { location: target.href }, body: Buffer.alloc(0) };
+  }
+  const mediaType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!response.ok || !/^(?:text\/(?:html|plain|css|javascript)|application\/(?:xhtml\+xml|javascript|json)|image\/(?:png|jpeg|webp|gif|svg\+xml)|font\/(?:woff2?|ttf|otf))(?:;|$)/u.test(mediaType)) {
+    await response.body?.cancel();
+    throw new Error("BROWSER_RESOURCE_UNAVAILABLE");
+  }
+  const body = Buffer.from(await withAbort(signal, () => responseBytes(response, PAGE_BYTE_LIMIT)));
+  signal.throwIfAborted();
+  const headers: Record<string, string> = { "content-type": mediaType, "cache-control": "no-store" };
+  const csp = response.headers.get("content-security-policy");
+  if (csp && csp.length <= 8_000) headers["content-security-policy"] = csp;
+  return { status: response.status, headers, body };
 }
 
 export function isBlockedWebAddress(address: string): boolean {
@@ -81,7 +151,7 @@ function pinnedHttpsFetcher(lookup: HostLookup): typeof fetch {
         options,
         callback,
       ) => {
-        void lookup(hostname, { all: true, verbatim: true }).then(
+        void withAbort(init?.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS), () => lookup(hostname, { all: true, verbatim: true })).then(
           (addresses) => {
             if (
               addresses.length === 0 ||
@@ -164,6 +234,7 @@ function pinnedHttpsFetcher(lookup: HostLookup): typeof fetch {
 async function assertPublicHostname(
   hostname: string,
   lookup: HostLookup,
+  signal: AbortSignal = AbortSignal.timeout(FETCH_TIMEOUT_MS),
 ): Promise<void> {
   if (
     hostname === "localhost" ||
@@ -180,7 +251,7 @@ async function assertPublicHostname(
   try {
     addresses =
       directIp === 0
-        ? await lookup(hostname, { all: true, verbatim: true })
+        ? await withAbort(signal, () => lookup(hostname, { all: true, verbatim: true }))
         : [{ address: hostname, family: directIp }];
   } catch {
     throw new AgentSafeWebFetchError(
@@ -240,6 +311,7 @@ async function fetchBounded(
   signal: AbortSignal,
   fetcher: typeof fetch,
   lookup: HostLookup,
+  exactOrigin?: string,
 ) {
   let current = new URL(input);
   for (let redirect = 0; redirect <= 3; redirect += 1) {
@@ -247,14 +319,16 @@ async function fetchBounded(
       current.protocol !== "https:" ||
       current.username ||
       current.password ||
-      current.hostname.toLowerCase() !== allowedHostname
+      current.hostname.toLowerCase() !== allowedHostname ||
+      (exactOrigin !== undefined && current.origin !== exactOrigin)
     ) {
       throw new AgentSafeWebFetchError(
         "WEB_FETCH_REDIRECT_OUT_OF_SCOPE",
         "A public-page redirect left the discovered HTTPS host.",
       );
     }
-    await assertPublicHostname(current.hostname, lookup);
+    await assertPublicHostname(current.hostname, lookup, signal);
+    signal.throwIfAborted();
     let response: Response;
     try {
       response = await fetcher(current, {
@@ -279,6 +353,7 @@ async function fetchBounded(
     }
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
+      await response.body?.cancel();
       if (!location) {
         throw new AgentSafeWebFetchError(
           "WEB_FETCH_REDIRECT_INVALID",
@@ -342,6 +417,7 @@ async function assertRobotsAllowed(
   signal: AbortSignal,
   fetcher: typeof fetch,
   lookup: HostLookup,
+  exactOrigin?: string,
 ) {
   try {
     const result = await fetchBounded(
@@ -351,6 +427,7 @@ async function assertRobotsAllowed(
       signal,
       fetcher,
       lookup,
+      exactOrigin,
     );
     if (
       !robotsAllows(
@@ -364,6 +441,7 @@ async function assertRobotsAllowed(
       );
     }
   } catch (error) {
+    if (error instanceof Error && /^BROWSER_(?:HTTP_LIMIT|RESPONSE_BYTE_LIMIT)$/u.test(error.message)) throw error;
     if (
       error instanceof AgentSafeWebFetchError &&
       error.code === "WEB_FETCH_ROBOTS_DISALLOWED"
