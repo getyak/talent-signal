@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { browseDiscoveredPublicPage } from "../../apps/agent-host/dist/isolatedPublicBrowser.js";
+import { browseDiscoveredPublicPage as runBrowser } from "../../apps/agent-host/dist/isolatedPublicBrowser.js";
 import { fetchBrowserResource } from "../../apps/agent-host/dist/safeWebFetch.js";
 const [image, output] = process.argv.slice(2);
 assert(/^sha256:[a-f0-9]{64}$/.test(image ?? "") && output);
@@ -9,10 +9,14 @@ const report = { evaluation: "get9-isolated-browser-boundaries.v1", createdAt: n
   image, scope: "Actual Chromium containers and synthetic broker pages; separate live public HTTPS page. No SDK/product or installed-client acceptance.",
   cases: [], status: "running", releaseReady: false };
 const resource = (body, type = "text/html") => ({ status: 200, headers: { "content-type": type }, body: Buffer.from(body) });
+let lifecycle = [];
+const browseDiscoveredPublicPage = (...args) => runBrowser(...args, event => lifecycle.push(event));
 async function check(name, operation) {
+  lifecycle = [];
   const start = Date.now();
   try { const detail = await operation(); report.cases.push({ name, status: "passed", durationMs: Date.now() - start, detail }); }
   catch (error) { report.cases.push({ name, status: "failed", durationMs: Date.now() - start, error: error.message, diagnostic: error.cause, detail: error.detail }); }
+  report.cases.at(-1).lifecycle = lifecycle;
   await writeFile(output, JSON.stringify(report, null, 2) + "\n");
 }
 await check("javascript-and-brokered-resource", async () => {
@@ -68,6 +72,12 @@ await check("late-resource-cancellation-is-in-final-receipt", async () => {
     });
   assert(canceled); assert.equal(result.requests, 2); assert.equal(result.blockedRequests, 1);
   return { result, canceled };
+});
+await check("async-diagnostic-failure-does-not-change-run", async () => {
+  const result = await runBrowser("https://example.com/fixture", AbortSignal.timeout(35_000), environment,
+    async () => resource("<h1>Diagnostics remain observational</h1>"),
+    async event => { lifecycle.push(event); await Promise.resolve(); throw new Error("SYNTHETIC_DIAGNOSTIC_FAILURE"); });
+  assert.equal(result.text, "Diagnostics remain observational"); return result;
 });
 await check("live-public-https-page", async () => {
   const requests = [];

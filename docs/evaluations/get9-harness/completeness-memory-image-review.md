@@ -1,8 +1,8 @@
 # GET-9 Memory-to-original-image follow-up
 
 Status: this slice passed independent code review and its synthetic product
-scenario. Installed-client acceptance and general file/code/browser capability
-delivery remain open. It is not overall GET-9 completion.
+scenario. Native and installed-extension acceptance and final deployment
+remain open. It is not overall GET-9 completion.
 
 ## Product evidence
 
@@ -58,3 +58,18 @@ malformed synthetic MCP base64; a missing Wiki compilation; reused constant imag
 bytes treated as a duplicate source; and a missing explicit evidence/speaker
 review. The final fixture has unique source identity and uses the real review
 operation. These corrections did not change production acceptance requirements.
+
+## Actual Web acceptance — September 12
+
+[Web receipt](completeness-memory-web-ui.json) passes 11 checks. The user-facing
+chat reads Memory, retrieves the original overview and bottom tile, and cites
+the same fragment. The random reference is absent from both the objective and
+Memory. Original-byte hash and authenticated saved-answer citation agree.
+[Visible result](completeness-memory-web-ui.png) shows the complete reference
+and one governed citation. Source setup is explicitly scripted synthetic ingestion
+and actual evidence review; this is not UI-upload proof.
+
+[Independent quality](completeness-memory-web-ui-quality.json) is 4/4/3; recovery
+was not exercised. Literal Markdown emphasis remains visible and the wording
+is more technical than necessary. Citation-detail click, native, revocation and
+cross-device acceptance are not demonstrated by this Web receipt.

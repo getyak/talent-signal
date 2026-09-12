@@ -12,6 +12,7 @@ export interface PublicBrowserObservation {
   httpRequests: number; responseBytes: number;
 }
 type ResourceFetcher = typeof fetchBrowserResource;
+export interface BrowserLifecycleEvent { phase: string; elapsedMs: number; workerElapsedMs?: number; }
 const navigationKey = (raw: string): string | null => {
   try { const url = new URL(raw); url.hash = ""; return url.href; } catch { return null; }
 };
@@ -21,7 +22,13 @@ const navigationKey = (raw: string): string | null => {
 export async function browseDiscoveredPublicPage(url: string, signal: AbortSignal,
   environment: NodeJS.ProcessEnv = process.env,
   fetchResource: ResourceFetcher = fetchBrowserResource,
+  onLifecycle?: (event: BrowserLifecycleEvent) => void | Promise<void>,
 ): Promise<PublicBrowserObservation> {
+  const started = performance.now();
+  const trace = (phase: string, workerElapsedMs?: number) => {
+    try { void Promise.resolve(onLifecycle?.({ phase, elapsedMs: Math.round(performance.now() - started),
+      ...(workerElapsedMs === undefined ? {} : { workerElapsedMs }) })).catch(() => {}); } catch { /* Diagnostics cannot change execution. */ }
+  };
   const image = environment.TALENT_SIGNAL_BROWSER_IMAGE;
   if (!image || !/^sha256:[a-f0-9]{64}$/u.test(image)) throw new Error("BROWSER_IMAGE_NOT_CONFIGURED");
   if (!healthy || active >= 2) throw new Error("BROWSER_CAPACITY_UNAVAILABLE");
@@ -33,7 +40,9 @@ export async function browseDiscoveredPublicPage(url: string, signal: AbortSigna
   // through `docker run --env`, and the container has no host mounts.
   const env = Object.fromEntries(["PATH", "HOME", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG"]
     .flatMap(key => environment[key] ? [[key, environment[key]!]] : []));
+  trace("startup_started");
   await sweepAbandonedBrowserContainers(env);
+  trace("startup_completed");
   signal.throwIfAborted();
   if (!healthy || active >= 2) throw new Error("BROWSER_CAPACITY_UNAVAILABLE");
   active++;
@@ -44,10 +53,12 @@ export async function browseDiscoveredPublicPage(url: string, signal: AbortSigna
     "--pids-limit=256", "--memory=768m", "--memory-swap=768m", "--cpus=2",
     "--shm-size=128m", "--tmpfs=/tmp:rw,nosuid,nodev,size=256m", image],
   { env, stdio: ["pipe", "pipe", "pipe"] });
+  trace("container_spawned");
   let totalBytes = 0, resourceBytes = 0, stderrBytes = 0, requests = 0, blockedRequests = 0;
   let buffer = "", result: PublicBrowserObservation | undefined, failure: Error | undefined;
   const decoder = new StringDecoder("utf8");
   const ids = new Set<number>();
+  const phases = new Set<string>();
   const documents = new Set<string>([navigationKey(initial.href)!]);
   const jobs = new Set<Promise<void>>();
   const networkBudget = { requests: 0, bytes: 0 };
@@ -74,7 +85,13 @@ export async function browseDiscoveredPublicPage(url: string, signal: AbortSigna
         let message: Record<string, unknown>;
         try { message = JSON.parse(line); } catch { fail(new Error("BROWSER_PROTOCOL_INVALID")); return; }
         if (!message || typeof message !== "object" || Array.isArray(message)) { fail(new Error("BROWSER_PROTOCOL_INVALID")); return; }
-        if (message.kind === "request") {
+        if (message.kind === "phase") {
+          if (typeof message.phase !== "string" || !["launch_started", "launch_completed", "navigation_started", "snapshot_completed", "close_started", "close_completed", "close_failed"].includes(message.phase)
+            || phases.has(message.phase) || !Number.isInteger(message.elapsedMs) || Number(message.elapsedMs) < 0 || Number(message.elapsedMs) > 60_000) {
+            fail(new Error("BROWSER_PROTOCOL_INVALID")); return;
+          }
+          phases.add(message.phase); trace(`worker_${message.phase}`, Number(message.elapsedMs));
+        } else if (message.kind === "request") {
           if (!Number.isInteger(message.id) || Number(message.id) < 1 || Number(message.id) > 40
             || typeof message.navigation !== "boolean" || typeof message.mainFrame !== "boolean"
             || ids.has(message.id as number) || ++requests > 40) { fail(new Error("BROWSER_REQUEST_LIMIT")); return; }
@@ -125,6 +142,7 @@ export async function browseDiscoveredPublicPage(url: string, signal: AbortSigna
     });
     send({ kind: "navigate", url: initial.href });
     const code = await closed;
+    trace("cli_closed");
     if (failure) throw failure;
     execution.throwIfAborted();
     if (code !== 0 || !result || buffer.trim()) throw new Error("BROWSER_EXECUTION_FAILED");
@@ -133,7 +151,9 @@ export async function browseDiscoveredPublicPage(url: string, signal: AbortSigna
     // Verify normal --rm completion and remove an orphan if the CLI died.
     // A daemon outage fails future admission closed until the service restarts.
     try {
+      trace("cleanup_started");
       await removeBrowserContainer(name, env);
+      trace("cleanup_completed");
     } catch {
       healthy = false;
       active--;

@@ -1,6 +1,6 @@
 # GET-9 original-image completeness follow-up
 
-Status: implementation and independent review in progress. This is not overall
+Status: implementation and independent review passed; client acceptance continues. This is not overall
 GET-9 acceptance. Baseline PR #172 merged as `65afe690`; the follow-up branch is
 `codex/get-9-harness-completeness`.
 
@@ -108,3 +108,14 @@ References: [sharp extraction](https://sharp.pixelplumbing.com/api-resize/#extra
 [constructor limits](https://sharp.pixelplumbing.com/api-constructor/),
 [MCP image results](https://modelcontextprotocol.io/specification/2025-06-18/server/tools),
 [SDK Agent/Task alias and delegation](https://code.claude.com/docs/en/agent-sdk/subagents).
+
+## Actual Web original-image acceptance — September 12
+
+[Web receipt](completeness-image-web-ui.json) passes 10 checks after an actual
+file-chooser upload and submission. Main and source-review child independently
+receive original bottom-region pixels and agree on the exact marker and authors.
+The [visible question](completeness-image-web-ui.png) waits for owner selection;
+no contact or external effect is created. Original HTTP bytes match the fixture.
+[Independent quality](completeness-image-web-ui-quality.json) is 4/3/3, with no
+recovery exercised. Child position estimates and extra identity speculation are
+recorded limitations. Native and installed-extension proof remain separate.

@@ -2,7 +2,7 @@
 
 This is a trusted Playwright driver for the shared Harness's
 `browse_contact_source` tool. Production admission remains pending GET-9 review,
-real product verification and deployment. A successful image build is not admission.
+deployment and client verification. A successful image build is not admission.
 
 Build this directory with Docker, inspect the resulting immutable local image ID,
 and set `TALENT_SIGNAL_BROWSER_IMAGE=sha256:<image-id>` in the **agent-host**
@@ -10,6 +10,13 @@ service environment. The backend uses its existing private research Unix socket.
 Mutable tags are refused at execution; runtime cannot pull an image. The image
 pins Playwright1.63.0 and the multi-platform upstream image digest. It contains no
 SDK, API secrets or product data.
+
+Select the intended Docker daemon with the agent-host service’s `DOCKER_CONTEXT`
+environment variable; do not change the machine-wide active context. The daemon
+and immutable image must already exist before service startup. A dedicated
+Colima profile with no host mounts provides local test capacity without stopping
+unrelated containers. This is an operator-owned prerequisite, not an automatic
+VM provisioning or public exposure capability.
 
 Each call creates a new non-persistent Chromium context in a fresh `pwuser`
 container: no host mounts, network none, read-only root, all capabilities dropped,
@@ -47,7 +54,10 @@ Containers carry purpose, host/user owner, PID and process-instance labels.
 Startup removes only containers belonging to an abandoned local owner process;
 it preserves foreign owners and live instances. An unverified cleanup fails
 further admission closed in that service process. Docker daemon errors are not
-treated as verified absence.
+treated as verified absence. Pending broker replies settle before Chromium closes.
+Optional lifecycle diagnostics report fixed phases and elapsed milliseconds only;
+they contain no page text. `close_failed` never implies successful disposal, and
+both synchronous and asynchronous diagnostic callback failures are isolated.
 
 Run `scripts/evals/evaluate-isolated-browser.mjs IMAGE_ID OUTPUT.json` after
 building agent-host. It distinguishes synthetic broker tests from a live public

@@ -3,6 +3,8 @@
 import { chromium } from "playwright";
 import { createInterface } from "node:readline";
 const send = value => process.stdout.write(JSON.stringify(value) + "\n");
+const startedAt = performance.now();
+const trace = phase => send({ kind: "phase", phase, elapsedMs: Math.round(performance.now() - startedAt) });
 const replies = new Map();
 let started = false, finishing = false, phase = "launch", sequence = 0, browser;
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -24,7 +26,11 @@ input.on("line", line => {
 async function finish(result) {
   if (finishing) return;
   finishing = true;
-  await browser?.close().catch(() => {});
+  for (const complete of replies.values()) complete({ ok: false });
+  replies.clear();
+  trace("close_started");
+  try { await browser?.close(); trace("close_completed"); }
+  catch { trace("close_failed"); }
   clearTimeout(deadline);
   await new Promise(resolve => process.stdout.write(JSON.stringify(result) + "\n", resolve));
   process.exit(0);
@@ -32,7 +38,9 @@ async function finish(result) {
 async function run(url) {
   // Container isolation is mandatory. Do not run this driver on the host or
   // describe this configuration as Chromium's separate renderer sandbox.
+  trace("launch_started");
   browser = await chromium.launch({ headless: true, chromiumSandbox: false });
+  trace("launch_completed");
   const context = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false,
     permissions: [], viewport: { width: 1280, height: 900 } });
   await context.routeWebSocket("**/*", socket => { send({ kind: "blocked", channel: "websocket" }); socket.close(); });
@@ -41,6 +49,7 @@ async function run(url) {
   page.on("dialog", dialog => void dialog.dismiss());
   context.on("page", popup => { if (!creatingPage && popup !== page) void popup.close(); });
   await context.route("**/*", async route => {
+    try {
     if (finishing) { await route.abort().catch(() => {}); return; }
     const request = route.request();
     const id = ++sequence;
@@ -69,8 +78,14 @@ async function run(url) {
     }
     await route.fulfill({ status: response.status, headers: response.headers,
       body: Buffer.from(response.body, "base64") });
+    } catch (error) {
+      // Closing a page can invalidate a route after its reply was released.
+      // Active-run route errors still propagate through Playwright.
+      if (!finishing) throw error;
+    }
   });
   phase = "navigation";
+  trace("navigation_started");
   let current = url;
   for (let hop = 0; hop <= 3; hop++) {
     redirectTarget = null;
@@ -94,6 +109,7 @@ async function run(url) {
     title: document.title.slice(0, 500),
     text: (document.body?.innerText ?? "").slice(0, 16_000),
   }));
+  trace("snapshot_completed");
   await finish({ kind: "result", ...observation, url: page.url(), engine: "chromium",
     engineVersion: browser.version(), requests: sequence });
 }

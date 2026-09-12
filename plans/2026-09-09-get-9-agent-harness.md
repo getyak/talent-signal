@@ -24,17 +24,17 @@ An independent review against the original issue found missing scope despite
 passing PR gates. Follow-up branch `codex/get-9-harness-completeness` starts
 from that merged main. GET-9 remains In Progress.
 
-1. **Implemented; surface acceptance pending:** provide bounded original-image region reads and clear long-image
+1. **Implemented; Web acceptance passed, native/extension pending:** provide bounded original-image region reads and clear long-image
    tiles with coordinates/hash provenance, running-task authority and no new
    image retention; verify profile, direct/group/forward and comments classes.
 2. **File/computation and browser implemented; browser verification active:** admit scoped capabilities.
    Screenshot source-review delegation is implemented and independently verified
    through the real product SDK path; file/computation has live product and Web
    and native saving proof. Browser has actual SDK/HTTP/socket/Chromium/PG proof;
-   late-resource timeout investigation and production admission remain open. Verify
+   dedicated-daemon boundary/recovery passes; production admission remains open. Verify
    invoked capabilities, delegation isolation, budgets and recovery rather
    than counting configurable interfaces as delivery.
-3. **Implemented; surface acceptance pending:** durable Memory-to-original-image
+3. **Implemented; Web acceptance passed, native/extension pending:** durable Memory-to-original-image
    traversal passes a real fresh-session HTTP/SDK/PG scenario and revoked-source
    denial. Independent quality 4/4/4; recovery not exercised. See the
    [Memory-image review](../docs/evaluations/get9-harness/completeness-memory-image-review.md).
@@ -1138,3 +1138,24 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   closes. Origin/main is now87ee93fa, including Chrome pipeline PR175 and native
   Keychain PR177. Commit this isolated slice, merge current main, then complete
   client image acceptance and exact-head delivery checks. GET-9 remains open.
+
+### 2026-09-12 17:08 — merged baseline and actual Web image proof
+
+- Browser slice committed254fc2f1; main87ee93fa merged asbe7b2075, preserving
+  Chrome PR175 and Keychain PR177. Independent conflict review has no P0/P1/P2.
+  Agent199pass1skip, PG screenshot28/28, Web411pass1skip, extension41/41,
+  backend build, agent types and docs:check pass on the merged tree.
+- Current uncommitted browser diagnostics and shutdown corrections reviewed
+  with no new P0/P1/P2. Dedicated Colima context preserves the default daemon;
+  latest immutable image83b1d943 passes boundaries8/8 and recovery4/4.
+  Product fourth passes12/12 in42.776s; quality4/3/3, recovery not exercised.
+  Old failures retained; daemon contention is not a proven sole root cause.
+- Actual Web file upload→main/child original regions→identity question passes
+  10checks, quality4/3/3. Actual Web Memory→overview→tile6→citation passes
+  11checks, quality4/4/3. Source setup for the latter is scripted synthetic
+  ingestion plus actual review, while chat uses real SDK. Both have screenshots
+  and authenticated readback; neither claims native/installed-extension proof.
+- Simulator control recovered. Signed merged-head native build is active,
+  scoped to the owned device and using the machine build lock. Native image
+  acceptance, current-head PR/CI/merge/deployment/TestFlight and Linear closure
+  remain open. The prior Chrome installation rejection has not been bypassed.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { browseDiscoveredPublicPage } from "../../apps/agent-host/dist/isolatedPublicBrowser.js";
+import { browseDiscoveredPublicPage as runBrowser } from "../../apps/agent-host/dist/isolatedPublicBrowser.js";
 const [image, output] = process.argv.slice(2);
 assert(/^sha256:[a-f0-9]{64}$/.test(image ?? "") && output);
 const environment = { ...process.env, TALENT_SIGNAL_BROWSER_IMAGE: image };
@@ -8,10 +8,14 @@ const resource = body => ({ status: 200, headers: { "content-type": "text/html" 
 const report = { evaluation: "get9-browser-recovery.v1", createdAt: new Date().toISOString(), image,
   scope: "Actual Chromium containers with synthetic broker pages. Runaway page JavaScript, resource flood and subsequent admission after verified cleanup; no SDK or installed-client claim.",
   cases: [], status: "running", releaseReady: false };
+let lifecycle = [];
+const browseDiscoveredPublicPage = (...args) => runBrowser(...args, event => lifecycle.push(event));
 async function check(name, operation) {
+  lifecycle = [];
   const start = Date.now();
   try { report.cases.push({ name, status: "passed", detail: await operation(), durationMs: Date.now() - start }); }
   catch (error) { report.cases.push({ name, status: "failed", error: error.message, durationMs: Date.now() - start }); }
+  report.cases.at(-1).lifecycle = lifecycle;
   await writeFile(output, JSON.stringify(report, null, 2) + "\n");
 }
 for (const [name, html, allowedFailure] of [
