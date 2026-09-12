@@ -1008,6 +1008,7 @@ struct RelationshipAskView: View {
                             Image(systemName: "chevron.down")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Color.tsMutedInk)
+                                .accessibilityHidden(true)
                         }
                     }
                 }
@@ -1024,17 +1025,6 @@ struct RelationshipAskView: View {
                 maxWidth: .infinity,
                 minHeight: scopeSelectorMinimumHeight,
                 alignment: .leading
-            )
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                selectedScope == nil
-                    ? appLanguage.text("Choose a relationship for this message")
-                    : appLanguage.text("Selected relationship", zhHans: "已选择的关系")
-            )
-            .accessibilityValue(
-                selectedScope.map {
-                    "\($0.person.displayLabel), \($0.context.displayLabel)"
-                } ?? appLanguage.text("None", zhHans: "未选择")
             )
             .accessibilityHint(
                 appLanguage.text(
@@ -1161,18 +1151,28 @@ struct RelationshipAskView: View {
                             .foregroundStyle(Color.tsVermilion)
                             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     }
+                    .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(scope.person.displayLabel)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.tsInk)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(scope.context.displayLabel)
-                    .font(.system(size: scopeContextFontSize))
-                    .foregroundStyle(Color.tsMutedInk)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .fixedSize(horizontal: false, vertical: true)
+            Group {
+                if usesAccessibilityLayout {
+                    Text(scope.person.displayLabel + "\n" + scope.context.displayLabel)
+                        .font(.caption)
+                        .foregroundStyle(Color.tsInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(scope.person.displayLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(scope.context.displayLabel)
+                            .font(.system(size: scopeContextFontSize))
+                            .foregroundStyle(Color.tsMutedInk)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             .layoutPriority(1)
             Spacer(minLength: 8)
@@ -1180,6 +1180,7 @@ struct RelationshipAskView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.tsMutedInk)
                 .frame(width: 32, height: 32)
+                .accessibilityHidden(true)
         }
         .frame(
             maxWidth: .infinity,
@@ -1748,17 +1749,38 @@ struct RelationshipAskView: View {
     }
 
     private func voiceRibbonComposer(controlSize: CGFloat) -> some View {
-        HStack(alignment: .bottom, spacing: 4) {
-            composerAttachmentControl(size: controlSize)
-            composerTextInput(
-                lineLimit: 1...5,
-                minimumHeight: 52,
-                horizontalPadding: 8,
-                verticalPadding: 12
-            )
-            voiceQuickControl
-            if hasComposerInput {
-                composerPrimaryControl
+        Group {
+            if usesAccessibilityLayout {
+                VStack(spacing: 4) {
+                    composerTextInput(
+                        lineLimit: 1...3,
+                        minimumHeight: 52,
+                        horizontalPadding: 8,
+                        verticalPadding: 12
+                    )
+                    HStack(spacing: 4) {
+                        composerAttachmentControl(size: controlSize)
+                        Spacer(minLength: 8)
+                        voiceQuickControl
+                        if hasComposerInput {
+                            composerPrimaryControl
+                        }
+                    }
+                }
+            } else {
+                HStack(alignment: .bottom, spacing: 4) {
+                    composerAttachmentControl(size: controlSize)
+                    composerTextInput(
+                        lineLimit: 1...5,
+                        minimumHeight: 52,
+                        horizontalPadding: 8,
+                        verticalPadding: 12
+                    )
+                    voiceQuickControl
+                    if hasComposerInput {
+                        composerPrimaryControl
+                    }
+                }
             }
         }
         .padding(5)

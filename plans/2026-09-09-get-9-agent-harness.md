@@ -1309,8 +1309,8 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   heading/deadline audits; the heading passes, remaining stages are running.
 - AX5 trial13: original contact Session recovery79.375s and canonical workspace
  88.976s pass. Relationship capture134.184s failed the obsolete Close-button
-  assertion; current navigation uses Session BackButton. Trial14 verifies that
-  actual BackButton and return to workspace but fails old flattened query order.
+  assertion; current navigation uses Session BackButton. Trial14 reaches the BackButton query but fails old flattened query order;
+  its post-failure return is unverified (see the correction below).
   Two exported fixed AX trees retain scope-before-composer-before-send. The
   helper also matches a zero-size Other with the composer's ID. Independent
   review recommends one immutable hierarchy with exact control types; this
@@ -1337,7 +1337,8 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   not scored on this successful path. The new Infisical URL/token were absent,
   then migrated only to staging:/agent-host and exact readback passed2/2; the
   existing sidecar remains unchanged. Manifest validation passes.
-- AX5 trial17: fixed hierarchy-order check and real Back return passed, but the
+- AX5 trial17: fixed hierarchy-order check passed; Back return after failure
+  is unverified, and the
   relationship journey145.292s fails Dynamic Type on the person's label child.
   The existing button had full label/value/hint but did not explicitly ignore
   redundant children. Trial20 adds that single-button semantic boundary and
@@ -1384,7 +1385,7 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   original-message child at the deadline audit. Trial24 directly audits an
   independently identified original Text instead of inheriting parent coverage.
 - Relationship trial23 verifies unique button/order, full name/context, unsent
-  value and Back behavior, but141.156s still fails unfiltered Dynamic Type on the
+  value before audit, but141.156s still fails unfiltered Dynamic Type on the
   visible person's name. Screenshot shows no visible truncation. Trial24 uses
   explicit caption-relative scaling, matching the existing context-label
   mechanism; verification is pending. No audit error is ignored to pass it.
@@ -1396,3 +1397,121 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
 - Keep GET-9 In Progress. Native lifecycle recovery, installed Chrome, current
   final-head review/CI, main deployment/Opik readback and exact processed
   TestFlight/internal-group receipt remain required. No overall completion.
+
+### 2026-09-12 — audit evidence correction and focused continuation
+
+- Retract partial keyboard/Back success claims made from failed relationship
+  trials. XCTest continues logging queries after an accessibility failure while
+  suppressing UI events; trial25's keyboard screenshot is blank and its later
+  taps have no event synthesis. These logs prove no keyboard or navigation
+  action. Complete PASS contact/workspace cases retain their separate scope.
+- Trial24's explicit name scaling and trial25's single attributed scope Text
+  both retain the unfiltered Dynamic Type failure. The latter screenshot shows
+  the full-width composer improvement, but real editing remains unverified.
+  The isolated nine-case calibration reproduces the two-label pattern outside
+  the product; it establishes recurrence only and grants no audit exemption.
+- Core trial25 fails223.948s at an offscreen source-label value mismatch.
+  Trial26 fails33.305s with audit timeout -56; a continuing contrast thread was
+  sampled after completion, then only the owned simulator was restarted.
+  Trial27 fails226.765s on offscreen original-message value mismatch after its
+  own four-type audits passed. String bridging normalization alone did not
+  resolve every mismatch. The failure is retained and no coverage is broadened.
+- Trial27 confirms first-audit-failure short circuit: immediate teardown, no
+  later UI action. Independent review found remaining ordinary-assertion
+  short-circuit gaps; these will also become terminating guards. Trial28 tests
+  natural Button labels and performs keyboard/long-draft checks before audit.
+- PR178 exact4ffcee34 Web/backend/security are green; iOS CI is still running.
+  GET-9 remains In Progress with the previously listed delivery gates open.
+
+- Follow-up independent review closes the ordinary-assertion guard gaps and
+  confirms snapshot-to-snapshot value comparison preserves the strict coverage
+  boundary; live values are checked separately. Trial29 fails34.108s at an
+  earlier contrast timeout, so it cannot verify the later mismatch repair.
+- Trial28 relationship fails138.193s at the same unfiltered Dynamic Type finding
+  with natural Button semantics. Real pre-audit editing/Send/restore events and
+  screenshots now establish those limited actions. The full application image
+  after chooser dismissal has no visible status bar, Session title or Back;
+  keyboard-open context is partly clipped behind the composer. These remain
+  incomplete viewport evidence, not accepted navigation or a known root cause.
+- Trial30 runs the reviewed snapshot comparison and a single semantic-caption
+  AX scope label, preserving full name/context and natural Button semantics.
+  Navigation must be visible/hittable/in-window after keyboard dismissal before
+  audit. If this label still fails, stop swapping text representations and
+  inspect actual scale/input evidence. The owned simulator was recovered only
+  after trial29 ended and its continuing contrast thread was sampled.
+
+### 2026-09-12 — separate interaction evidence from unresolved tool audits
+
+- Trial30 core244.220s reaches the final confirmed result: snapshot values now
+  match and deadline passes all four audit types. Final Dynamic Type reports
+  unsupported text with no element; the audit-generated image is blank while
+  the pre-audit result is visible. Relationship139.751s still fails partial
+  Dynamic Type with ordinary caption text. No more blind font replacements.
+- Trial30's awaited Back geometry and pre-audit image show the complete status
+  bar, Session navigation, name/context and composer after keyboard dismissal.
+  Trial28's missing-navigation application image remains a transient observation
+  without a confirmed root cause. Full-screen/control geometry witnesses were
+  added for the next independent interaction run.
+- The original AX5 test still executes every unfiltered scoped audit. A separate
+  AX5 interaction test shares its complete journey but does not run that audit;
+  its outcome cannot close the raw audit failure. Independent review approved
+  the split and closed all first-failure/Back guard gaps.
+- Review found two remaining old value-only scope assertions. Their migration
+  retains the exact same selector, full person/context requirements and reads
+  both native label and explicit value. Focused entry/restore checks follow.
+- Trial31 was a compile failure in the new diagnostic closure, corrected with
+  explicit self. Trial32 People26.338s and Calendar13.638s pass; AX interaction
+ 132.422s fails exact draft replacement after a synthesized Cmd-A. It does not
+  prove Back or restoration. Trial33 uses the visible system Select All action
+  and repeats identity/restore checks; exact draft expectations are unchanged.
+
+
+### 2026-09-12 — actual SDK input boundary and CI failure
+
+- Trial33 preferred-context entry passes23.737s. Contact fails54.197s before
+  proposal, with real SDK trace `dc886b9e-c29d-4a04-954d-0d94814f3653` under
+  `/tmp/get9-ui-harness-traces`: MCP rejects omitted `maximum_results`; a later
+  source quote becomes `DesignUntrusted`, then the existing token budget stops
+  the run. This is a new Harness defect, not a scope-label assertion failure.
+- Pinned SDK0.3.260 reconstructs its tool input object and rejects omitted
+  Zod4.5.4 default fields. A direct SDK tools/call probe reproduces this;
+  removing the transport default and exposing an optional input succeeds.
+  Canonical host schema and raw model-argument authorization remain intact,
+  applying the same default and rejecting invalid bounds/extra authority fields.
+  Contact JSON Schema now describes input requiredness explicitly. Adjacent
+  objective/context text blocks get a two-newline separator so the context
+  heading cannot adjoin the final exact source word. Budget is unchanged.
+- Trial33 AX interaction fails135.176s at the system Select All menu. The
+  full-screen attachment and AX tree show a visible Forward overflow button.
+  Trial34 follows that observed action with at most three menu pages, retaining
+  exact draft replacement/restoration checks and first-failure termination.
+- Visible AX5 fact headings previously broke short words beside their status.
+  Accessibility sizes now place the full heading above its full status; normal
+  sizes retain the existing horizontal row. This fixes visible compression,
+  and is not claimed as a repair for the unresolved nil-element audit finding.
+- Exact4ffcee34 CI completed: Web/backend/security pass, iOS smoke8/9 with core
+  audit failure. Run34694013507 records both -56 timeout and contrast failure
+  across its isolated attempts; artifact10299140764 is retained. GET-9 remains
+  In Progress, PR178 remains draft, no merge/deployment/TestFlight completion.
+
+
+### 2026-09-12 — user-requested handoff; stop further execution
+
+- User requested a quick wrap-up and concise unfinished-work summary in GET-9.
+  No further implementation or test reruns are scheduled by this handoff.
+- Latest local checks: Agent219 passed/1 pre-existing skip; typecheck and backend
+  build passed; docs check passed. Independent reviewer ran41 focused tests and
+  found no confirmed P0/P1/P2 in the latest SDK/default/context and AX layout
+  increment. Real-device/client acceptance is not implied by those checks.
+- Trial34 failed its initial reviewed-OCR visibility assertion before reaching
+  the modified edit menu. The owned xcodebuild was interrupted on user wrap-up;
+  preserve the interrupted xcresult and do not count later logged UI actions.
+- Remaining: (1) iOS raw AX5 audits, exact draft/Back interaction and native
+  Memory stall/lifecycle recovery; (2) same-budget real SDK contact flow on the
+  rebuilt API (the still-running3345 process has the older loaded source);
+  (3) installed Chrome extension and required file access; (4) final-head review,
+  full applicable CI and merge; (5) production caller/executor and Opik readback,
+  processed VALID TestFlight build and internal-group receipt.
+- Keep GET-9 In Progress and PR178 draft. No release or completed-evaluation
+  claim. Local synthetic services and managed executor remain available for
+  later continuation; only this owned test run was stopped.

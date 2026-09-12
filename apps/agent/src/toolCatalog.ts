@@ -203,7 +203,7 @@ export function contactWorkspaceOperationTools() {
   };
   return ContactWorkspaceInputSchema.options.map((schema) => {
     const operation = schema.shape.operation.value;
-    const converted = z.toJSONSchema(schema) as {
+    const converted = z.toJSONSchema(schema, { io: "input" }) as {
       $schema?: string; properties: Record<string, unknown>; required?: string[];
       [key: string]: unknown;
     };
