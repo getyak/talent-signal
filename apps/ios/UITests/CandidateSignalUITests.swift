@@ -5910,11 +5910,14 @@ final class CandidateSignalUITests: XCTestCase {
             // Product state changed: no earlier pass can cover the new state.
             // This stage is launched fresh, so no anchor was verified yet.
             verifiedAnchors.removeAll()
+            // Inspect the changed result immediately after the human action,
+            // before traversing the full evidence context. Every post-action
+            // target still receives all four audits in this fresh app session.
+            try auditViewport(app.staticTexts["fact-decision-competing_process-m1"], name: "AX5 dark confirmed result")
             try auditSourceAndProposalContext()
             guard activeRun.failureCount == 0 else { return }
             try auditViewport(confirmation, name: "AX5 dark local confirmation")
             try auditViewport(app.staticTexts["fact-card-decision_deadline-m1"], name: "AX5 dark deadline heading")
-            try auditViewport(app.staticTexts["fact-decision-competing_process-m1"], name: "AX5 dark confirmed result")
         }
     }
 

@@ -20,7 +20,7 @@ original commits, unrelated worktrees and `.workbuddy/`. Do not bypass checks.
   Node types 26.5, S3 and jose. Hold Opik at the tested SDK/server version 2.2.45;
   its proposed upgrade lacks matching runtime proof. Historical proof is unchanged.
 - #180: one integration PR with original #176/#164/#162/#169/#184 histories.
-  Use a merge commit, then read back all PR states and close #181 as superseded.
+  Use a merge commit, then read back all PR states. #181 is closed as superseded.
 
 ## Verification and current state
 
@@ -30,22 +30,30 @@ an Apple audit timeout. These were not waived or interpreted as product proof.
 The test now isolates pre/post-confirmation stages into separate required runner
 processes, preserving all 21 anchor viewports, all four audit types, long-content
 segments and strict issue handling. Independent review passed; native
-build-for-testing passed. Runtime success still requires current-head CI.
+build-for-testing passed. A local post-confirmation run at `9baddbbf` reproduced
+the nil-element Dynamic Type failure, so splitting alone did not resolve it and
+auto-merge is disabled. The full post-confirmation test passed locally after moving the result audit
+immediately after the real confirmation, before traversing all evidence context
+(12 targets, four audit types, 176.4 seconds, no failures or skips). The preceding
+successful deadline audit in the original failure also showed the complete result
+label. Ordering and geometry both changed; the underlying Apple finding is not
+conclusively attributed. No issue filter or coverage was relaxed. Both stages and
+current-head CI still require verification.
 
 Local backend verification: Agent 236 passed/1 existing skipped; Backend 407
 passed/130 existing skipped. Web complete suite initially passed 490 tests/1
 existing skipped before the final revoked-session admission regression; that affected route suite
 and typecheck subsequently passed. Account lifecycle evaluation passed all ten
 checks in disposable PostgreSQL and is now included in CI. Opik proof remains
-version-bound. No new TestFlight release or unrelated Linear acceptance claimed.
+version-bound. The local backend was deployed from `9baddbbf`, read back that
+exact revision and passed readiness. No new TestFlight release or unrelated Linear acceptance claimed.
 
 ## Milestones
 
 1. Complete: inventory, main refresh, integration and conflict resolution.
 2. Active: close review findings, verify account isolation and exact-head CI.
-3. Pending: gated merge, close superseded PR, refresh main, redeploy the local
-   backend as required by its AGENTS.md, read back final state and remove temporary
-   registered test artifacts.
+3. Pending: gated merge, read back all original PRs, refresh main and deployed
+   backend state, then remove temporary registered test artifacts.
 
 ## Completion evidence
 
