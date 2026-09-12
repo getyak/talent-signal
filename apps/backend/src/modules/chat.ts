@@ -35,6 +35,7 @@ import type {
 } from "./chatAnswerProvider.js";
 import { boundedConversationHistory } from "./chatAnswerProvider.js";
 import { readAgentSessionConversation } from "./agentSessions.js";
+import { firstTurnSessionTitle } from "./sessionTitles.js";
 import { assertSessionChatSourcesAvailable, assertSessionForChat, purgeUnavailableSessionChatSources, recordSessionChatSources, markSessionContextAnswer } from "./agentSessionSources.js";
 import {
   bindChatMediaToManifest,
@@ -1155,6 +1156,9 @@ export async function createChatTask(
     const action = blocks.find((item) => item.kind === "action_proposal");
     const noAction = blocks.find((item) => item.kind === "no_action");
     const clarification = blocks.find((item) => item.kind === "clarification");
+    const sessionTitle = conversationHistory.length === 0 && !sessionConversation.sources?.length
+      ? firstTurnSessionTitle(request.objective, remoteChatResult?.title)
+      : null;
     const response: ChatTaskResponse = {
       contract_version: CONTRACT_VERSION,
       task_id: taskId,
@@ -1171,6 +1175,7 @@ export async function createChatTask(
       ...(remoteChatStatus==="completed" && runFiles?.receipts().length ? {artifacts:runFiles.receipts()} : {}),
       media,
       ...(request.telemetry ? { telemetry: request.telemetry } : {}),
+      ...(sessionTitle ? { session_title: sessionTitle } : {}),
       created_at: createdAt.toISOString(),
     };
     if (request.telemetry) {

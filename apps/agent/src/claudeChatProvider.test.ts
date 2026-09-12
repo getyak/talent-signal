@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ClaudeChatProvider } from "./claudeChatProvider.js";
+import { ClaudeChatProvider, splitFirstTurnSessionTitle } from "./claudeChatProvider.js";
 import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import { ClaudeHarnessInterruption, type ClaudeHarnessRequest } from "./claudeHarness.js";
 import { createEnvironmentChatAnswerProvider } from "./chatAnswerProvider.js";
@@ -14,6 +14,38 @@ const outcome = { text: "听起来今天很累。想说说发生了什么，还�
   turns: 1, toolCalls: 0, terminalReason: "completed", permissionDenials: [], reportedModels: ["synthetic-model"] };
 
 describe("Claude natural chat product adapter", () => {
+  it("extracts first-turn title metadata without adding a model request", async () => {
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      expect(JSON.parse(request.context!).session_title_requested).toBe(true);
+      expect(request.tools).toEqual([]);
+      return {
+        ...outcome,
+        text: "<session_title>比较两版外联话术</session_title>\n\n这里是比较结果。",
+      };
+    });
+    const answer = await new ClaudeChatProvider(configuration, execute).answer({
+      objective: "请比较这两版外联话术",
+      mode: "unscoped_conversation",
+      prompt_snapshot: bundledPrompt("assistant/conversation"),
+      context_blocks: [],
+      allowed_citation_ids: [],
+    });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(answer.title).toBe("比较两版外联话术");
+    expect(answer.body).toBe("这里是比较结果。");
+  });
+
+  it("falls back to a bounded objective and strips an unexpected envelope", () => {
+    expect(splitFirstTurnSessionTitle("普通回复", "第一行\n第二行")).toEqual({
+      title: "第一行 第二行",
+      body: "普通回复",
+    });
+    expect(splitFirstTurnSessionTitle(
+      "<session_title>旧标题</session_title>\n\n后续回复",
+      "后续问题",
+    ).body).toBe("后续回复");
+  });
+
   it("uses an ephemeral Memory-image Run and rejects expiry after the tool returns",async()=>{
     const bytes=await sharp({create:{width:10,height:10,channels:3,background:"white"}}).png().toBuffer();
     const id=randomUUID();let expired=false;const continuation=vi.fn();

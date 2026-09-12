@@ -2,6 +2,16 @@ import { CONTRACT_VERSION, TalentSignalHttpError, type TalentSignalClient, type 
 
 export type WorkspaceChatInput = { request_id: string; session_id: string; objective: string; time_zone: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const genericSessionTitles = new Set(["reply", "answer", "hello", "hi", "chat", "conversation", "response", "greeting", "回复", "回答", "你好", "您好", "嗨", "工作台对话", "对话", "聊天", "会话"]);
+
+/** Local first-paint fallback; the canonical API title replaces it only once. */
+export function workspaceSessionTitle(value: string): string {
+  const oneLine = value.replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ").replace(/\s+/gu, " ").trim();
+  const bounded = Array.from(oneLine).slice(0, 32).join("").trim();
+  const comparable = bounded.toLowerCase().replace(/^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu, "");
+  if (!bounded || genericSessionTitles.has(comparable)) return /\p{Script=Han}/u.test(value) ? "简单聊两句" : "Quick hello";
+  return bounded;
+}
 
 /** The browser submits intent; canonical product results supply conversation history. */
 export async function askWorkspaceChat(client: TalentSignalClient, input: WorkspaceChatInput) {
@@ -18,7 +28,7 @@ export async function askWorkspaceChat(client: TalentSignalClient, input: Worksp
     session = await client.saveAgentSession(input.session_id, {
       expected_revision: 0, idempotency_key: input.session_id,
       payload: { id: input.session_id, scopeKind: "unresolved_intent", personDisplayLabel: "",
-        contextDisplayLabel: "", title: "工作台对话", turns: [], updatedAt: now, isUnread: false },
+        contextDisplayLabel: "", title: workspaceSessionTitle(input.objective), turns: [], updatedAt: now, isUnread: false },
     });
   }
   const payload = session.session.payload;
@@ -32,7 +42,9 @@ export async function askWorkspaceChat(client: TalentSignalClient, input: Worksp
   if (!payload.turns.some(turn => turn.id === input.request_id)) {
     await client.saveAgentSession(input.session_id, {
       expected_revision: session.session.revision, idempotency_key: input.request_id,
-      payload: { ...payload, updatedAt: output.created_at, turns: [...payload.turns, {
+      payload: { ...payload,
+        ...(payload.turns.length === 0 && output.session_title ? { title: workspaceSessionTitle(output.session_title) } : {}),
+        updatedAt: output.created_at, turns: [...payload.turns, {
         id: input.request_id, objective: input.objective.trim(), createdAt: now,
         response: { contractVersion: CONTRACT_VERSION, taskID: output.task_id, contextManifestID: "",
           knowledgeSnapshotID: "", disposition: output.disposition, createdAt: output.created_at },

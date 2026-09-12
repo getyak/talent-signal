@@ -1270,6 +1270,11 @@ final class AgentSessionStore: ObservableObject {
         let prior = storedSessions[index]
         let sourceMessageID = storedSessions[index].pendingUnscopedChatIdempotencyKey
             .flatMap { UUID(uuidString: String($0.split(separator: ":").last ?? "")) }
+        if storedSessions[index].turns.isEmpty,
+           let proposedTitle = response.sessionTitle,
+           let title = Self.canonicalSessionTitle(from: proposedTitle) {
+            storedSessions[index].title = title
+        }
         storedSessions[index].turns.append(
             AgentSessionTurn(
                 id: sourceMessageID ?? UUID(),
@@ -1376,6 +1381,11 @@ final class AgentSessionStore: ObservableObject {
             ?? UUID()
 
         if let index = existingIndex {
+            if storedSessions[index].turns.isEmpty,
+               let proposedTitle = response.sessionTitle,
+               let title = Self.canonicalSessionTitle(from: proposedTitle) {
+                storedSessions[index].title = title
+            }
             if storedSessions[index].isUnresolvedIntent {
                 storedSessions[index].scope = .relationship(
                     personID: person.id,
@@ -1403,7 +1413,8 @@ final class AgentSessionStore: ObservableObject {
                         personDisplayLabel: person.displayLabel,
                         contextDisplayLabel: context.displayLabel
                     ),
-                    title: Self.sessionTitle(from: objective),
+                    title: response.sessionTitle.flatMap { Self.canonicalSessionTitle(from: $0) }
+                        ?? Self.sessionTitle(from: objective),
                     turns: [turn],
                     contactReceipts: [],
                     updatedAt: createdAt,
@@ -2490,14 +2501,34 @@ final class AgentSessionStore: ObservableObject {
     }
 
     private static func sessionTitle(from objective: String) -> String {
-        let firstLine = objective
-            .split(whereSeparator: \.isNewline)
-            .first
-            .map(String.init) ?? objective
-        let bounded = String(firstLine.prefix(54)).trimmingCharacters(
+        if let title = canonicalSessionTitle(from: objective) { return title }
+        return objective.range(of: "\\p{Script=Han}", options: .regularExpression) == nil
+            ? "Quick hello"
+            : "简单聊两句"
+    }
+
+    private static func canonicalSessionTitle(from value: String) -> String? {
+        let separators = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
+        let oneLine = value.components(separatedBy: separators)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let bounded = String(oneLine.prefix(32)).trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        return bounded.count < firstLine.count ? "\(bounded)…" : bounded
+        let comparable = bounded.lowercased().trimmingCharacters(
+            in: CharacterSet.whitespacesAndNewlines
+                .union(.punctuationCharacters)
+                .union(.symbols)
+        )
+        let generic: Set<String> = [
+            "reply", "answer", "hello", "hi", "chat", "conversation", "response", "greeting",
+            "回复", "回答", "你好", "您好", "嗨", "工作台对话", "对话", "聊天", "会话",
+        ]
+        guard !bounded.isEmpty, !comparable.isEmpty, !generic.contains(comparable) else {
+            return nil
+        }
+        return bounded
     }
 
     private static func contactSessionTitle(

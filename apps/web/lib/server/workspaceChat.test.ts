@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { TalentSignalHttpError, type TalentSignalClient, type AgentSessionResponse, CONTRACT_VERSION } from "@talent-signal/contracts";
-import { askWorkspaceChat } from "./workspaceChat";
+import { askWorkspaceChat, workspaceSessionTitle } from "./workspaceChat";
 const sid = "b31d4f3e-fa98-4eea-8b57-7a278d10dd41", rid = "ca3322d4-4534-4e6c-95df-b0ffed3c0574", tid = "aac2e37f-abe9-48bb-a48a-6a91c2f6920f";
 const input = { session_id: sid, request_id: rid, objective: "明天下午三点聊半小时", time_zone: "Asia/Shanghai" };
 const payload = { id: sid, scopeKind: "unresolved_intent" as const, personDisplayLabel: "", contextDisplayLabel: "", title: "test", turns: [], updatedAt: "2026-09-10T00:00:00Z", isUnread: false };
 const record = { contract_version: CONTRACT_VERSION, session: { session_id: sid, revision: 1, updated_at: payload.updatedAt, expires_at: "2026-09-17T00:00:00Z", deleted_at: null, payload, display_authority: "stale_unconfirmed" } } as AgentSessionResponse;
-const output = { task_id: tid, created_at: payload.updatedAt, disposition: "answer", blocks: [{ body: "草稿等待确认" }], external_effects: [] };
+const output = { task_id: tid, created_at: payload.updatedAt, disposition: "answer", blocks: [{ body: "草稿等待确认" }], external_effects: [], session_title: "安排明天下午会议" };
 function fixture() {
  const getAgentSession = vi.fn().mockResolvedValue(structuredClone(record));
  const saveAgentSession = vi.fn().mockResolvedValue(structuredClone(record));
@@ -17,8 +17,10 @@ describe("Web workspace conversation", () => {
   const f=fixture();f.getAgentSession.mockRejectedValueOnce(new TalentSignalHttpError(404,"not_found","",null));
   expect(await askWorkspaceChat(f.client,input)).toEqual(output);
   expect(f.saveAgentSession.mock.calls[0][1]).toMatchObject({idempotency_key:sid,expected_revision:0,payload:{scopeKind:"unresolved_intent",turns:[]}});
+  expect(f.saveAgentSession.mock.calls[0][1].payload.title).toBe(input.objective);
   expect(f.createUnscopedChatTask).toHaveBeenCalledWith({idempotency_key:`web-chat:${rid}`,session_id:sid,message_id:rid,objective:input.objective,time_zone:input.time_zone});
   expect(f.saveAgentSession.mock.calls[1][1].idempotency_key).toBe(rid);
+  expect(f.saveAgentSession.mock.calls[1][1].payload.title).toBe(output.session_title);
   expect(f.saveAgentSession.mock.calls[1][1].payload.turns[0]).toMatchObject({id:rid,objective:input.objective,response:{taskID:tid}});
   expect(f.saveAgentSession.mock.calls[1][1].payload.turns[0].response).not.toHaveProperty("unboundConversationBlocks");
  });
@@ -41,9 +43,14 @@ describe("Web workspace conversation", () => {
  });
  it("preserves earlier turns with an expected revision",async()=>{
   const f=fixture();const prior={id:tid,objective:"earlier"};f.getAgentSession.mockResolvedValue({...record,session:{...record.session,revision:4,payload:{...payload,turns:[prior]}}});
-  await askWorkspaceChat(f.client,input);expect(f.saveAgentSession.mock.calls[0][1].expected_revision).toBe(4);expect(f.saveAgentSession.mock.calls[0][1].payload.turns[0]).toEqual(prior);
+  await askWorkspaceChat(f.client,input);expect(f.saveAgentSession.mock.calls[0][1].expected_revision).toBe(4);expect(f.saveAgentSession.mock.calls[0][1].payload.turns[0]).toEqual(prior);expect(f.saveAgentSession.mock.calls[0][1].payload.title).toBe(payload.title);
  });
  it("rejects invalid intent before any network call",async()=>{
   const f=fixture();await expect(askWorkspaceChat(f.client,{...input,request_id:"invalid"})).rejects.toMatchObject({status:400});expect(f.getAgentSession).not.toHaveBeenCalled();
+ });
+ it("keeps local titles single-line, useful, and within the shared budget",()=>{
+  expect(workspaceSessionTitle("  比较 Maya\n两版外联话术  ")).toBe("比较 Maya 两版外联话术");
+  expect(Array.from(workspaceSessionTitle("梳理"+"🧭".repeat(40)))).toHaveLength(32);
+  expect(workspaceSessionTitle("你好")).toBe("简单聊两句");
  });
 });
