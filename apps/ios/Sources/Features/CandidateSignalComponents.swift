@@ -360,7 +360,7 @@ struct FactReviewCard: View {
     }
 
     private var stateColor: Color {
-        fact.assertion.status == .proposed ? .tsMutedInk : .tsWarning
+        fact.assertion.status == .proposed ? .tsInk : .tsWarning
     }
 
     private var decisionColor: Color {

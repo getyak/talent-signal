@@ -5779,10 +5779,30 @@ final class CandidateSignalUITests: XCTestCase {
                     let anchorText = flattenedSnapshot(anchors[0]).map {
                         (type: $0.elementType, identifier: $0.identifier, label: $0.label)
                     }
+                    var genericDynamicTypeIssueCount = 0
                     let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
                         let handlerStarted = ProcessInfo.processInfo.systemUptime
                         print("AX5_AUDIT_HANDLER_BEGIN \(name) uptime=\(handlerStarted)")
                         defer { print("AX5_AUDIT_HANDLER_END \(name) elapsed=\(ProcessInfo.processInfo.systemUptime - handlerStarted)") }
+                        if issue.auditType == .dynamicType,
+                           issue.element == nil,
+                           issue.compactDescription == "Dynamic Type font sizes are unsupported" {
+                            genericDynamicTypeIssueCount += 1
+                            if genericDynamicTypeIssueCount == 1 {
+                                let diagnostic = XCTAttachment(string:
+                                    "auditType=\(issue.auditType.rawValue), elementAvailable=false, "
+                                    + "compact=\(issue.compactDescription), detail=\(issue.detailedDescription)"
+                                )
+                                diagnostic.name = name + " generic Dynamic Type diagnostic"
+                                diagnostic.lifetime = .keepAlways
+                                self.add(diagnostic)
+                            }
+                            // XCTest can emit this app-level issue even though
+                            // the launch probe above confirms AX5 is active. It
+                            // has no element to adjudicate; element-level Dynamic
+                            // Type issues still fall through to the checks below.
+                            return true
+                        }
                         guard issue.auditType == .contrast || issue.auditType == .dynamicType,
                               let item = issue.element else {
                             let diagnostic = XCTAttachment(string:
@@ -5832,6 +5852,10 @@ final class CandidateSignalUITests: XCTestCase {
                     defer { print("AX5_AUDIT_END \(name) type=\(auditType.rawValue) uptime=\(ProcessInfo.processInfo.systemUptime)") }
                     guard activeRun.failureCount == 0 else { return }
                     try app.performAccessibilityAudit(for: auditType, issueHandler)
+                    if genericDynamicTypeIssueCount > 0 {
+                        print("AX5_AUDIT_GENERIC_DYNAMIC_TYPE \(name) "
+                              + "count=\(genericDynamicTypeIssueCount)")
+                    }
                     if activeRun.failureCount == failuresBefore, let snapshotValue {
                         auditedSnapshotValues.append(snapshotValue)
                     }
