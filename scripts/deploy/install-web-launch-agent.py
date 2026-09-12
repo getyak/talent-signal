@@ -18,6 +18,30 @@ def run(*args, check=True):
     return subprocess.run(args, check=check, capture_output=True, text=True)
 
 
+def bootstrap(domain, plist, target, check=True):
+    # bootout can return before launchd finishes removing the old registration.
+    # Retry only the transient EIO while this exact job is still absent.
+    for attempt in range(5):
+        result = run("launchctl", "bootstrap", domain, str(plist), check=False)
+        if result.returncode != 5 or run("launchctl", "print", target, check=False).returncode == 0:
+            break
+        if attempt < 4:
+            time.sleep(1)
+    if check:
+        result.check_returncode()
+    return result
+
+
+def bootout(target, check=True):
+    result = run("launchctl", "bootout", target, check=check)
+    # A job can remain registered in its terminating state after bootout returns.
+    for _ in range(120):
+        if run("launchctl", "print", target, check=False).returncode != 0:
+            return result
+        time.sleep(0.25)
+    raise RuntimeError("Previous Web job did not finish unloading; refusing activation")
+
+
 def listeners_belong_to(target):
     listeners = run("lsof", "-nP", "-t", "-iTCP:3000", "-sTCP:LISTEN", check=False).stdout.split()
     job = run("launchctl", "print", target, check=False)
@@ -88,12 +112,12 @@ def main():
     temporary = state / f"current-{os.getpid()}"
     try:
         if loaded:
-            run("launchctl", "bootout", target)
+            bootout(target)
         temporary.symlink_to(release, target_is_directory=True)
         temporary.replace(current)
         plist.write_bytes(plistlib.dumps(config))
         plist.chmod(0o600)
-        run("launchctl", "bootstrap", domain, str(plist))
+        bootstrap(domain, plist, target)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         for _ in range(45):
             try:
@@ -111,16 +135,22 @@ def main():
             time.sleep(1)
         raise RuntimeError("Web authentication readiness failed; inspect the launchd logs")
     except BaseException:
-        run("launchctl", "bootout", target, check=False)
+        unload_error = None
+        try:
+            bootout(target, check=False)
+        except Exception as error:
+            unload_error = error
         current.unlink(missing_ok=True)
         if old_release:
             current.symlink_to(old_release, target_is_directory=True)
         if old_plist is not None:
             plist.write_bytes(old_plist)
-            if loaded:
-                run("launchctl", "bootstrap", domain, str(plist), check=False)
+            if loaded and unload_error is None:
+                bootstrap(domain, plist, target, check=False)
         else:
             plist.unlink(missing_ok=True)
+        if unload_error is not None:
+            print(f"Restored previous release configuration, but the Web job could not unload: {unload_error}", file=sys.stderr)
         raise
     finally:
         temporary.unlink(missing_ok=True)
