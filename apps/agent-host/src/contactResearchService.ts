@@ -6,6 +6,7 @@ import {
 import { ExaProvider, type ExaSource } from "./exaProvider.js";
 import { TikHubProvider } from "./tikHubProvider.js";
 import { browseDiscoveredPublicPage } from "./isolatedPublicBrowser.js";
+import { browseViaExecutor } from "./browserExecutorClient.js";
 
 export interface ContactResearchDependencies {
   exa?: Pick<ExaProvider, "searchProfiles" | "searchWeb" | "fetchContent">;
@@ -44,7 +45,13 @@ export async function runContactResearchTool(
       throw new Error("CONTACT_RESEARCH_SOURCE_ID_MISMATCH");
     }
     if (input.operation === "browse") {
-      const page = await (dependencies.browse ?? browseDiscoveredPublicPage)(input.source.url, signal, environment);
+      const page = dependencies.browse
+        ? await dependencies.browse(input.source.url, signal, environment)
+        : environment.TALENT_SIGNAL_BROWSER_EXECUTOR_URL || environment.NODE_ENV === "production"
+          ? await browseViaExecutor({ version: 1, task_id: request.task_id, call_id: request.call_id,
+            source_id: input.source.source_id, provider_id: input.source.provider_id,
+            url: input.source.url, deadline: Date.now() + 28_000 }, signal, environment)
+          : await browseDiscoveredPublicPage(input.source.url, signal, environment);
       signal.throwIfAborted();
       sources = [{ source_id: sourceID("browser", page.url), url: page.url,
         title: page.title || input.source.title, text: page.text, channel: input.source.channel,

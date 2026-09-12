@@ -6,6 +6,7 @@ import { withAbort } from "./abortable.js";
 import { browserContainerLabels, removeBrowserContainer, sweepAbandonedBrowserContainers } from "./browserContainerCleanup.js";
 
 let active = 0, healthy = true;
+export function browserRuntimeIsHealthy(): boolean { return healthy; }
 export interface PublicBrowserObservation {
   url: string; title: string; text: string; engine: "chromium";
   engineVersion: string; requests: number; blockedRequests: number;
