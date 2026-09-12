@@ -102,7 +102,7 @@ writes retain exact-effect human authorization.
 4. **Active — evaluation and independent review:** execute synthetic adversarial
    and real-model cases, fix failures, review consequential boundaries and close
    all confirmed P0/P1 findings with reviewer readback.
-5. **Active — delivery:** draft PR172 linked to GET-9, latest-head CI and repository
+5. **Pending final acceptance — delivery:** draft PR178 linked to GET-9, latest-head CI and repository
    gates, merge/readback, local TestFlight backend deployment and applicable
    post-merge proof, then Linear completion/readback.
 
@@ -1354,3 +1354,45 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   parallel work before final CI/deployment; current live RPC proofs precede
   that merge. Trial20 core116.428s fails an unfiltered captured-time contrast
   finding after confirmation; the failure is retained, not an AX5 pass.
+
+### 2026-09-12 20:20 — main reconciled, managed executor verified, AX5 still open
+
+- `6d11a17a` merges main `ab20fb9b` without losing the new product observation
+  outbox, deployment policy or original-image return path. Agent217pass/1skip,
+  focused reconciliation54/54, new backend projection/probe6/6 after rebuilding
+  shared contracts, and full agent-host58/58 pass. Independent reconciliation
+  review found no P0/P1/P2. PR178 is now mergeable; Web/backend/security checks
+  passed on this exact head while iOS CI remained running at the last readback.
+- Active-daemon-loss evidence11/11 now proves the in-flight RPC rejects,
+  unverified cleanup keeps admission closed across daemon restart, and executor
+  restart verifies inventory before new successful work. Managed launch-agent
+  evidence18/18 binds a separate pinned6d11 checkout to the exact daemon/image,
+  persistent token, PID replacement77070→77120, authenticated readiness,
+  Chromium and zero workers. Main-release rollout and the new production
+  caller remain pending; the prior Opik sidecar image was not replaced.
+- Actual AX5 trial21 retains core50.146s timeout and relationship147.972s failure
+  from an invalid no-StaticText-descendants assertion. Public AX snapshots do
+  not establish VoiceOver focus stops; that assertion was removed. Eight
+  unfinished contrast analysis threads were observed in the owned simulator's
+  testmanagerd sample. The in-process timeout retry was removed; after that
+  test ended, only the task-owned simulator was shut down and booted. This is
+  test-environment recovery, not product lifecycle or a confirmed Apple root cause.
+- Fresh trial22 core26.203s failed a duplicate timestamp AX identity after three
+  anchors passed all four audit types. Hiding the decorative clock and removing
+  its one-text parent's combine resolves that duplicate. Trial23 then audits
+  complete time successfully in both states, but core222.517s still fails on the
+  original-message child at the deadline audit. Trial24 directly audits an
+  independently identified original Text instead of inheriting parent coverage.
+- Relationship trial23 verifies unique button/order, full name/context, unsent
+  value and Back behavior, but141.156s still fails unfiltered Dynamic Type on the
+  visible person's name. Screenshot shows no visible truncation. Trial24 uses
+  explicit caption-relative scaling, matching the existing context-label
+  mechanism; verification is pending. No audit error is ignored to pass it.
+- The same full screenshot reveals draft text squeezed into a narrow column by
+  three adjacent controls. An accessibility-layout-only change gives the draft
+  its full line width and moves controls below it, preserving the editable value
+  and Send/Voice actions. This later increment is not in trial24's binary and
+  needs its own review, real viewport checks and interaction regression pass.
+- Keep GET-9 In Progress. Native lifecycle recovery, installed Chrome, current
+  final-head review/CI, main deployment/Opik readback and exact processed
+  TestFlight/internal-group receipt remain required. No overall completion.

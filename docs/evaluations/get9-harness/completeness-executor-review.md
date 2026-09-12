@@ -56,13 +56,12 @@ PATH; the clean launcher now supplies its actual absolute CLI directory. The
 fourth launch acquired readiness. These were startup failures, not successful
 browser runs.
 
-Still required: actual daemon outage/recovery; startup orphan cleanup after
-interruption; source revocation before persistence through this RPC; deployment
-of the reviewed caller/configuration with managed secrets and service lifecycle;
-Web/iOS/installed Chrome acceptance; current-head CI, merge and exact processed
-TestFlight/internal-group readback. The existing sidecar image has parallel Opik
-changes and must be reconciled before deployment. None of these gates is implied
-by the transport report or passing unit tests.
+The initial checkpoint did not establish daemon recovery or source revocation;
+the later live reports below address those boundaries. Current remaining gates:
+main-release executor rollout and deployed caller configuration; Web/iOS/installed
+Chrome acceptance; current-head CI, merge and exact processed TestFlight/internal
+group readback. Preserve the parallel Opik changes when deploying the sidecar.
+None of these remaining gates is implied by transport or local tests.
 
 API references: [Node HTTP response close](https://nodejs.org/docs/latest-v24.x/api/http.html#event-close_2),
 [Docker environment precedence](https://docs.docker.com/reference/cli/docker/#environment-variables).
@@ -99,8 +98,8 @@ public sources, erased stored state/input, no confirmed state and no external
 effects. The script is
 [`evaluate-browser-rpc-revocation.mjs`](../../../scripts/evals/evaluate-browser-rpc-revocation.mjs).
 Its controlled model/search do not establish model quality, real Exa calls or
-installed-client acceptance. Managed production caller/service configuration,
-active-cleanup daemon loss, client acceptance and release gates remain open.
+installed-client acceptance. Managed production caller/service configuration, client acceptance and release
+gates remain open. Active-cleanup daemon loss is recorded below.
 
 [Real SDK through RPC](completeness-executor-product-first.json) passes12/12 in
 73.652seconds. It uses the original synthetic image, real Claude Agent SDK,
@@ -116,3 +115,30 @@ both exact executor configuration values at `staging:/agent-host`, without
 printing either value. The manifest and TestFlight deployment contract now
 require them. The existing running sidecar was not recreated; canonical secret
 configuration is not managed service or deployed caller acceptance.
+
+
+[Active daemon outage](completeness-executor-active-outage-first.json) passes11/11.
+A real worker was observed and paused before stopping only the dedicated daemon.
+The in-flight RPC rejected502 and cleanup uncertainty made readiness reject502.
+Restarting Docker did not clear that unhealthy state: a fresh call was refused
+without starting another worker. Executor restart verified empty worker inventory
+before readiness; a real fresh Chromium browse succeeded and final inventory was
+empty. This is recovery behavior of `f72ac347`, before the later main merge.
+
+## Managed lifecycle after the main reconciliation
+
+The [managed-service trial](completeness-executor-managed-first.json) passes18/18
+on a separately built, pinned `6d11a17a` checkout in Application Support. It uses
+the same independently verified daemon/image and a persistent owner-only token
+file. A foreground run first proved readiness, real Chromium and cleanup; the
+rendered launch agent then acquired the listener. Authentication rejection,
+real browse and zero workers passed. Killing the managed process caused launchd
+to replace PID77070 with77120; the replacement passed readiness, a fresh real
+browse, empty inventory and loopback-only listener readback. This does not prove
+reboot/login recovery, physical-device acceptance, or deployment of the updated
+product sidecar. The final main release still needs its pinned rollout.
+
+After merging main's product-observation defaults, the full agent-host suite
+passes58/58. Independent review closed the launch template's PATH ambiguity:
+it now explicitly requests executable search directories, not a Docker binary
+path. The template and operating contract are in the browser README.
