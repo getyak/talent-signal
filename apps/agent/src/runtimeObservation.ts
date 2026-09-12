@@ -31,7 +31,7 @@ export const RuntimeObservationPolicySchema = z.object({
   const privateIPv4 = parts.length === 4 && parts.every((value) => Number.isInteger(value) && value >= 0 && value <= 255)
     && (parts[0] === 127 || parts[0] === 10 || (parts[0] === 192 && parts[1] === 168)
       || (parts[0] === 172 && parts[1]! >= 16 && parts[1]! <= 31));
-  if (!((host === "localhost" || host === "[::1]" || host === "host.docker.internal" || privateIPv4)
+  if (!((host === "localhost" || host === "[::1]" || host === "host.docker.internal" || (host === "opik-frontend" && url.port === "5173") || privateIPv4)
     && ["http:", "https:"].includes(url.protocol)) || url.username || url.password || url.search || url.hash
     || url.pathname.replace(/\/$/u, "") !== "/api") {
     context.addIssue({ code: "custom", message: "RUNTIME_OBSERVATION_PRIVATE_ENDPOINT_REQUIRED" });
@@ -79,6 +79,8 @@ export const RuntimeObservationSchema = z.object({
   id: z.string().uuid(), run_id: Identifier, attempt_id: z.string().uuid(),
   source_workspace_id: Identifier, authorization_scope: Identifier,
   source_session_id: Identifier.nullable().default(null),
+  source_product_run_id: z.string().uuid().nullable().default(null),
+  source_product_run_generation: Identifier.nullable().default(null),
   source_lab_job_id: z.string().uuid().nullable().default(null),
   source_regression_id: z.string().uuid().nullable().default(null),
   source_regression_ids: z.array(z.string().uuid()).max(100).default([]),
@@ -88,6 +90,9 @@ export const RuntimeObservationSchema = z.object({
   native_trace_id: z.string().regex(/^[a-f0-9]{32}$/u).nullable(),
   spans: z.array(RuntimeObservationSpanSchema).min(1).max(500),
 }).strict().superRefine((observation, context) => {
+  if (observation.source_product_run_id && (!observation.source_product_run_generation || observation.source_refs.kind !== "product")) {
+    context.addIssue({ code: "custom", message: "Product run projections require a frozen product source generation." });
+  }
   const ids = new Set(observation.spans.map((span) => span.id));
   if (ids.size !== observation.spans.length || observation.spans.some((span) => span.parent_span_id !== null && !ids.has(span.parent_span_id))) {
     context.addIssue({ code: "custom", message: "Span ancestry must name unique spans in the observation." });
@@ -102,7 +107,7 @@ export const RuntimeObservationSchema = z.object({
     context.addIssue({ code: "custom", message: "Observation retention must stay within policy." });
   }
   if (observation.source_refs.kind === "product" && (expiry > Date.parse(observation.source_refs.expires_at)
-    || (!observation.source_session_id && !observation.source_regression_id && !observation.source_regression_ids.length && ![observation.source_refs.capture_ids, observation.source_refs.fragment_ids,
+    || (!observation.source_product_run_id && !observation.source_session_id && !observation.source_regression_id && !observation.source_regression_ids.length && ![observation.source_refs.capture_ids, observation.source_refs.fragment_ids,
       observation.source_refs.media_ids, observation.source_refs.person_ids, observation.source_refs.relationship_context_ids].some((ids) => ids.length)))) {
     context.addIssue({ code: "custom", message: "Product observation requires bounded source lineage." });
   }
@@ -115,6 +120,8 @@ export interface RuntimeObservationContext {
   workspace_id: string;
   authorization_scope: string;
   source_session_id?: string | null;
+  source_product_run_id?: string | null;
+  source_product_run_generation?: string | null;
   source_lab_job_id?: string | null;
   source_regression_id?: string | null;
   source_regression_ids?: string[];
