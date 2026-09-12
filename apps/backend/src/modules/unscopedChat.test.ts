@@ -34,12 +34,13 @@ describe("unscoped Agent conversation", () => {
       provider_id: "zhipu-chat-completions" as const, model: "glm-5.3", provider_request_id: null, input_tokens: 0, output_tokens: 0 }));
     const database = { query: vi.fn(async (sql: string) => ({ rows: sql.includes("FROM agent_sessions")
       ? [{ expires_at: new Date(Date.now() + 86_400_000) }] : [] })) } as unknown as DatabaseClient;
-    await executeUnscopedChatTask({
+    const execution = await executeUnscopedChatTask({
       request: { ...request, session_id: "session", message_id: "current", objective: "Expand option two." }, database, auth,
       provider: { providerId: "zhipu-chat-completions", model: "glm-5.3", supportsImageInput: false, answer },
     });
     expect(readAgentSessionConversation).toHaveBeenLastCalledWith(database, auth, "session", { personId: null, relationshipContextId: null });
     expect(answer).toHaveBeenCalledWith(expect.objectContaining({ conversation_history: messages, allowed_citation_ids: [], context_blocks: [] }));
+    expect(execution.body.session_title).toBeUndefined();
   });
 
   it("does not turn invalid Session scope into an unrestricted provider fallback", async () => {
@@ -86,6 +87,7 @@ describe("unscoped Agent conversation", () => {
     expect(execution).toMatchObject({
       remoteStatus: "completed",
       body: {
+        session_title: "简单聊两句",
         disposition: "answer",
         external_effects: [],
         blocks: [

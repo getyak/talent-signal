@@ -63,7 +63,7 @@ Today, Sessions, People, and Meetings are the primary mobile retrieval surfaces.
 it may begin without a relationship and bind one only when the Agent resolves
 an exact account-scoped Person and context or the recruiter chooses one.
 This lets a recent conversation resume without making contact selection a
-required field on every message.
+required field on every message. Its title is a human retrieval label for recognizing that continuing objective weeks later: one concrete, single-line phrase in the recruiter's language, never a generic reply label or a summary of only the latest answer. The first completed answer may refine the local objective-derived label; retries and later turns do not silently rename the Session.
 It is a projection, not a second record: Pursuit, evidence, Proposal, reviewed
 state, Action, and Receipt continue to own goals, provenance, decisions, and
 effects. Evidence remains one step from a consequential claim but does not

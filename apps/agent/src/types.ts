@@ -413,6 +413,8 @@ export interface AgentProviderRequest {
 
 export interface AgentProviderResult {
   calendarDraft?: import("@talent-signal/contracts").CalendarDraft;
+  /** First-turn display metadata only; never evidence or execution authority. */
+  sessionTitle?: string;
   prompt?: import("./promptRegistry.js").PromptReference;
   structuredOutput: unknown;
   inputTokens: number;
