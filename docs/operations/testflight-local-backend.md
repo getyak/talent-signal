@@ -138,6 +138,79 @@ in repository variables, files, or logs.
 Changing backend code does not require a new iOS archive while the origin and
 API contract remain compatible. Changing the origin requires a new archive.
 
+## Resident Web and coordinated updates
+
+The resident Web uses a production build on `0.0.0.0:3000`. Browser requests
+use Web session authentication; only the Web server talks to the loopback API
+at `http://127.0.0.1:4317`. Keep developer and fixture servers separate.
+
+Configure `staging:/web` in Infisical with a stable `AUTH_SECRET`,
+`AUTH_URL=http://<current-LAN-IP>:3000`, `AUTH_TRUST_HOST=true`,
+`TALENT_SIGNAL_BACKEND_URL=http://127.0.0.1:4317`, the explicit LAN cookie
+opt-in below, and enabled password authentication/registration. The resident
+launcher disables default-account quick login and explicitly enables
+`TALENT_SIGNAL_INTEGRATION_MODE=true`. Despite its name, that flag selects the
+real authenticated backend workspace; `false` selects the legacy synthetic
+demo. Verify a protected business page after login, not just the login response.
+Never write credentials into a LaunchAgent or source checkout.
+
+Build each approved revision in a clean detached worktree under
+`~/Library/Application Support/Talent Signal/web/releases/<revision>`:
+
+```sh
+pnpm install --frozen-lockfile
+./scripts/deploy/web-local.sh build
+python3 scripts/deploy/install-web-launch-agent.py "$PWD"
+```
+
+The build writes a revision/build-ID receipt from clean source. The installer
+checks that receipt and the listener process ownership, replaces the
+`web/current` symlink, and registers `com.talentsignal.web` with `RunAtLoad`
+and `KeepAlive`. It refuses to take over an unrelated port-3000 listener and
+restores the previous release/LaunchAgent if authentication readiness fails.
+Logs are under `~/Library/Logs/Talent Signal/web`; the active revision is in
+`web/active-release.json`. Retain the previous release for rollback. Do not
+rebuild, modify, or remove the live release worktree. After switching, verify
+LAN login, an authenticated workspace request, and launchd restart recovery.
+The Mac must be awake and the owning user logged in. Recheck the LAN address
+when the network changes, update `AUTH_URL`, and restart the owned Web agent.
+
+For ongoing updates, use the authorized hourly Codex heartbeat to compare
+remote main with the active Web revision and deployed backend revision. Only
+activate relevant main changes after their current Web/backend quality and
+security checks pass. Build before switching; preserve existing data, Opik
+policy, and parallel worktrees. Serialize deployment with the existing backend
+health keeper, and resume it afterward. Use a unique backend image tag and
+explicit revision with `TS_TESTFLIGHT_REBUILD=false` for the prepared image.
+After all deployment probes pass, persist `BACKEND_IMAGE` and
+`TALENT_SIGNAL_BACKEND_REVISION` together in `staging:/backend`; otherwise the
+health keeper could restore a stale image. Keep the previous image available
+and examine migration compatibility before rollback. Do not roll back data.
+Report successful version changes or actionable failures; stay quiet for
+unchanged healthy state. A scheduler trigger alone is not update proof.
+
+Next.js documents production binding in its [CLI reference](https://nextjs.org/docs/app/api-reference/cli/next#next-start-options).
+Opik initialization jobs must be checked for successful completion separately
+from long-running services: Compose [`--wait`](https://docs.docker.com/reference/cli/docker/compose/up/)
+requires running or healthy service state.
+
+## Opt-in private-LAN HTTP cookie policy
+
+Auth.js session, nonce, and Google challenge cookies are `Secure` in
+production by default. Keep that default. The only exception is an explicitly
+enabled private-LAN HTTP Web deployment used for trusted local-network testing:
+set `TALENT_SIGNAL_ALLOW_LAN_HTTP=true` **and** set `AUTH_URL` to a plain-http
+origin whose host is a literal loopback (`127.0.0.1`, `localhost`, `::1`) or a
+literal RFC1918 IPv4 address (`10/8`, `172.16/12`, `192.168/16`). The origin
+must have no userinfo, query, hash, or non-root path, and its host text must be
+canonical — values the URL parser silently rewrites, such as `0x7f000001`,
+`127.1`, `2130706433`, `0177.0.0.1`, expanded IPv6, or percent-encoded hosts,
+are rejected. Public IPs, arbitrary DNS names, link-local `169.254/16`, the
+broad `172/8` range, and `https` origins always keep `Secure`. An invalid
+opt-in fails closed: `Secure` stays enabled and `decideAuthCookieSecure`
+returns an actionable reason. This exception is for an owner-authorized trusted
+private LAN. HTTP does not encrypt traffic; use HTTPS on other networks.
+
 ## Operating boundary
 
 Keep the Mac awake and on power, start Docker after login or reboot, and verify
