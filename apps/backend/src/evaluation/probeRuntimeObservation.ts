@@ -27,7 +27,14 @@ try {
   if (!retained) throw new Error("PRODUCT_OBSERVATION_READBACK_REQUIRED");
   await access(process.env.TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX!, constants.W_OK);
   await observer.outbox.deleteRun(context);
-  if (!(await observer.outbox.status()).receipts.some(r => r.trace_id === session.id && r.state === "deleted")) throw new Error("PRODUCT_OBSERVATION_DELETE_READBACK_REQUIRED");
+  const deleteDeadline = Date.now() + 40_000;
+  let deleted = false;
+  do {
+    await observer.outbox.flush();
+    deleted = (await observer.outbox.status()).receipts.some(r => r.trace_id === session.id && r.state === "deleted");
+    if (!deleted) await new Promise(resolve => setTimeout(resolve, 500));
+  } while (!deleted && Date.now() < deleteDeadline);
+  if (!deleted) throw new Error("PRODUCT_OBSERVATION_DELETE_READBACK_REQUIRED");
   console.log(JSON.stringify({ status: "verified", endpoint: policy.endpoint, project: policy.project,
     synthetic_only: true, model_calls: 0, persistent_write: true, destination_readback: true, deletion_readback: true }));
 } finally { observer.dispose(); }
