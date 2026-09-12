@@ -67,6 +67,15 @@ describe("Claude natural chat product adapter", () => {
     ).body).toBe("后续回复");
   });
 
+  it("parses 32 compound graphemes within the 256-code-point transport cap", () => {
+    const title = "👩‍👩‍👧‍👦".repeat(32);
+    expect(Array.from(title)).toHaveLength(224);
+    expect(splitFirstTurnSessionTitle(
+      `<session_title>${title}</session_title>\n\nVisible reply`,
+      "Fallback",
+    )).toEqual({ title, body: "Visible reply" });
+  });
+
   it("uses an ephemeral Memory-image Run and rejects expiry after the tool returns",async()=>{
     const bytes=await sharp({create:{width:10,height:10,channels:3,background:"white"}}).png().toBuffer();
     const id=randomUUID();let expired=false;const continuation=vi.fn();

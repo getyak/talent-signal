@@ -45,7 +45,7 @@ export function boundedTitleFallback(objective: string): string {
 }
 
 export function splitFirstTurnSessionTitle(text: string, objective: string): { title: string; body: string } {
-  const match = text.match(/^\s*<session_title>([^<>\r\n]{1,200})<\/session_title>[ \t]*(?:\r?\n[ \t]*)*/u);
+  const match = text.match(/^\s*<session_title>([^<>\r\n]{1,256})<\/session_title>[ \t]*(?:\r?\n[ \t]*)*/u);
   const body = (match ? text.slice(match[0].length) : text).trim();
   return {
     title: match?.[1]?.trim() || boundedTitleFallback(objective),

@@ -881,7 +881,8 @@ export async function createChatTask(
         })
       : { hasRecordedTurns: false, messages: [] };
     const conversationHistory = boundedConversationHistory(sessionConversation.messages, request.message_id);
-    const sessionTitleRequested = !sessionConversation.hasRecordedTurns
+    const sessionTitleRequested = !request.previous_task_id
+      && !sessionConversation.hasRecordedTurns
       && !sessionConversation.sources?.length;
     if (request.previous_task_id && !request.session_id) {
       const prior = (await client.query<{ id:string; expires_at:Date; objective:string; output:{blocks:Array<{body:string}>} }>(
