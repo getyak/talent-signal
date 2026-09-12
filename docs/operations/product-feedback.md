@@ -84,7 +84,7 @@ introducing another approval step.
 
 See [GET-23 delivery evidence](../evaluations/2026-09-09-get-23/plan.md). Focused
 PostgreSQL tests run through `PRODUCT_RUN_TEST_DATABASE_URL` in an explicitly
-owned `get23_proof` or CI `lab_regression_ci` database. Existing feedback tests
+owned `get23_proof` / `opik_capture_test` or CI `lab_regression_ci` database. Existing feedback tests
 exercise a captured unrated product run through actual Lab admission and rerun.
 Native tests cover conflict intent, response loss, note restoration and
 withdrawal. UI evidence distinguishes genuine client/server interaction with a
