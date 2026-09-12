@@ -29,6 +29,7 @@ export async function manageTestWorkspace(_previous:TestActionState,form:FormDat
       revalidatePath('/workspace/settings/testing');return {workspace:result.workspace};
     }
     if(kind!=='enter')return {error:'无法识别操作。'};
+    if(await testWorkspaceSession(primary))return {error:'请先返回我的空间，再进入另一个测试空间。'};
     // Stable, secret entry credential makes retries recover the same backend entry.
     const accessToken=createHmac('sha256',authSecret()).update(`${primary.backendAccessToken}:${workspaceId}:${operationId}`).digest('base64url');
     const result=await testWorkspaceRequest<{entry:LabWorkspaceEntry}>(`/${workspaceId}/entries`,{id:operationId,access_token:accessToken});

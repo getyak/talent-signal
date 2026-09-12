@@ -98,6 +98,15 @@ uses Unicode code-point bounds and invalid metadata cannot discard a valid reply
 Independent review passed; Agent 238 passed (one existing skip), Backend 408
 passed (130 existing skips), and Agent typecheck/build passed.
 
+The sequential test-entry P2 now rejects a second entry while this request carries
+an existing test cookie, preserving its credential until explicit return. The
+regression proves no backend request or cookie write; Web 536 passed (one existing
+skip), typecheck and focused lint passed. Independent review found no P0/P1.
+A bounded P2 remains: concurrent requests starting with empty cookies, or enter
+racing return, are not serialized by this request-local check. The backend's
+multiple-entry contract is unchanged; owner stop/delete remains the revocation
+path. This is not represented as a concurrency fix.
+
 ## Milestones
 
 1. Complete: inventory, main refresh, integration and conflict resolution.

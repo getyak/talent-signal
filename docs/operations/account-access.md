@@ -78,6 +78,8 @@ fingerprint, verified by the route before accessing content. Response preference
 and artifact downloads also retain their stronger session binding. Standalone
 contact pages share one authenticated layout and workspace identifier; clients
 with a missing identifier refuse local API requests before network access.
+Entering another test workspace requires returning first while a test cookie is
+present; the existing credential is not overwritten by a sequential entry.
 When the primary login is missing, leaving a test workspace clears only the local
 test cookie and opens login recovery; a remote leave failure keeps retry state.
 Screenshot analysis and telemetry also reject missing scope identifiers within
