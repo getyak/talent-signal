@@ -29,6 +29,11 @@ const register=async():Promise<SessionResponse>=>{
 };
 const settings=(token:string):Promise<AccountSettings>=>request(token,'GET','/v1/account/settings');
 const mutate=(token:string,body:Record<string,unknown>,status=200)=>request(token,'POST','/v1/account/settings',body,status);
+const accessEvents=async(accountId:string,id:string)=>{
+  const rows=(await pool.query<{kind:string;details:Record<string,unknown>|null}>('SELECT kind,details FROM account_access_events WHERE account_id=$1 AND id=$2',[accountId,id])).rows;
+  return rows;
+};
+const eventCount=async(accountId:string)=>Number((await pool.query<{count:string}>('SELECT count(*)::text AS count FROM account_access_events WHERE account_id=$1',[accountId])).rows[0]!.count);
 try{
   const owner=await register(),outsider=await register();
   let state=await settings(owner.access_token);
@@ -36,24 +41,62 @@ try{
   assert.deepEqual(state.user.login_methods,['password']);assert.equal(state.sessions[0]?.is_current,true);
   assert(!JSON.stringify(state).includes('password_scrypt'));assert(!JSON.stringify(state).includes(owner.access_token));
   const profile={id:randomUUID(),kind:'profile',expected_revision:state.user.revision,name:'Updated synthetic owner'};
+  const eventsBeforeProfile=await eventCount(owner.account.id);
   state=await mutate(owner.access_token,profile);assert.equal(state.user.display_name,profile.name);
   const replay=await mutate(owner.access_token,profile);assert.equal(replay.user.revision,state.user.revision);
   await mutate(owner.access_token,{...profile,name:'Different replay'},409);
   await mutate(owner.access_token,{...profile,id:randomUUID(),name:'Stale'},409);
   await mutate(owner.access_token,{id:randomUUID(),kind:'revoke_session',session_id:state.sessions[0]!.id},409);
   await mutate(outsider.access_token,{id:randomUUID(),kind:'revoke_session',session_id:state.sessions[0]!.id},404);
+  // Accepted mutations persist canonical details; rejected writes and replay do not.
+  assert.equal(await eventCount(owner.account.id),eventsBeforeProfile+1,'one audit event for an accepted profile write');
+  const profileEvents=await accessEvents(owner.account.id,profile.id);
+  assert.equal(profileEvents.length,1);
+  assert.equal(profileEvents[0]!.kind,'profile');
+  assert.deepEqual(profileEvents[0]!.details,{target_user_id:owner.user.id,revision_before:1,revision_after:2});
+  assert(!JSON.stringify(profileEvents[0]!.details).includes(profile.name),'profile audit must not copy the personal name');
+  assert(!JSON.stringify(profileEvents[0]!.details).includes(owner.user.email),'profile audit must not copy the email');
   const memberId=randomUUID();
   await pool.query("INSERT INTO users(id,account_id,email,display_name,kind,account_role) VALUES ($1,$2,$3,'Synthetic member','password_human','member')",[memberId,owner.account.id,`${memberId}@example.test`]);
   const member=await inTransaction(pool,c=>insertSession(c,config,{accountId:owner.account.id,accountName:owner.account.name,accountSlug:owner.account.slug,userId:memberId,userEmail:`${memberId}@example.test`,displayName:'Synthetic member',role:'member',userKind:'password_human',username:null},'member-proof'));
+  const memberSessionId=(await pool.query<{id:string}>('SELECT id FROM sessions WHERE account_id=$1 AND user_id=$2 AND revoked_at IS NULL',[owner.account.id,memberId])).rows[0]!.id;
   const memberState=await settings(member.access_token);assert.equal(memberState.members.length,0);assert.equal(memberState.activity.length,0);
+  const eventsBeforeDenials=await eventCount(owner.account.id);
   await mutate(member.access_token,{id:randomUUID(),kind:'workspace',expected_revision:state.workspace.revision,name:'Denied'},403);
   await mutate(owner.access_token,{id:randomUUID(),kind:'member',expected_revision:state.workspace.revision,user_id:outsider.user.id,role:'member',status:'active'},404);
   await mutate(owner.access_token,{id:randomUUID(),kind:'member',expected_revision:state.workspace.revision,user_id:owner.user.id,role:'member',status:'revoked'},403);
-  state=await mutate(owner.access_token,{id:randomUUID(),kind:'workspace',expected_revision:state.workspace.revision,name:'Account proof workspace'});assert.equal(state.workspace.name,'Account proof workspace');
-  state=await mutate(owner.access_token,{id:randomUUID(),kind:'member',expected_revision:state.workspace.revision,user_id:memberId,role:'member',status:'revoked'});
+  await mutate(owner.access_token,{id:randomUUID(),kind:'member',expected_revision:state.workspace.revision+1,user_id:memberId,role:'member',status:'revoked'},409);
+  assert.equal(await eventCount(owner.account.id),eventsBeforeDenials,'rejected writes must not create audit events');
+  const workspaceEventId=randomUUID();
+  state=await mutate(owner.access_token,{id:workspaceEventId,kind:'workspace',expected_revision:state.workspace.revision,name:'Account proof workspace'});assert.equal(state.workspace.name,'Account proof workspace');
+  assert.deepEqual((await accessEvents(owner.account.id,workspaceEventId))[0]!.details,{revision_before:state.workspace.revision-1,revision_after:state.workspace.revision});
+  const memberEventId=randomUUID();
+  state=await mutate(owner.access_token,{id:memberEventId,kind:'member',expected_revision:state.workspace.revision,user_id:memberId,role:'member',status:'revoked'});
   await request(member.access_token,'GET','/v1/auth/session',undefined,401);
-  state=await mutate(owner.access_token,{id:randomUUID(),kind:'member',expected_revision:state.workspace.revision,user_id:memberId,role:'member',status:'active'});
+  const memberEvents=await accessEvents(owner.account.id,memberEventId);
+  assert.equal(memberEvents.length,1);
+  assert.deepEqual(memberEvents[0]!.details,{target_user_id:memberId,role_before:'member',role_after:'member',status_before:'active',status_after:'revoked',revoked_session_ids:[memberSessionId]});
+  assert(!JSON.stringify(memberEvents[0]!.details).includes(memberId+'@example.test'),'member audit must not copy the email');
+  const memberEventDetails=JSON.stringify(memberEvents[0]!.details);
+  state=await mutate(owner.access_token,{id:randomUUID(),kind:'member',expected_revision:state.workspace.revision,user_id:memberId,role:'admin',status:'active'});
   await request(member.access_token,'GET','/v1/auth/session',undefined,401);
+  // Later member changes must not rewrite the original event's captured details.
+  assert.equal(JSON.stringify((await accessEvents(owner.account.id,memberEventId))[0]!.details),memberEventDetails,'original audit details are immutable across later changes');
+  // An explicit session revocation records the exact target and before/after state.
+  const secondaryOwner=await inTransaction(pool,c=>insertSession(c,config,{accountId:owner.account.id,accountName:owner.account.name,accountSlug:owner.account.slug,userId:owner.user.id,userEmail:owner.user.email,displayName:'Synthetic owner',role:'member',userKind:'password_human',username:null},'secondary-owner-proof'));
+  const explicitSessionId=(await pool.query<{id:string}>('SELECT id FROM sessions WHERE account_id=$1 AND user_id=$2 AND client_label=$3',[owner.account.id,owner.user.id,'secondary-owner-proof'])).rows[0]!.id;
+  const revokeEventId=randomUUID();
+  await mutate(owner.access_token,{id:revokeEventId,kind:'revoke_session',session_id:explicitSessionId});
+  const revokeDetails=(await accessEvents(owner.account.id,revokeEventId))[0]!.details ?? {};
+  assert.equal(revokeDetails.target_session_id,explicitSessionId);
+  assert.equal(revokeDetails.revoked_at_before,null);
+  assert.equal(typeof revokeDetails.revoked_at_after,'string');
+  await request(secondaryOwner.access_token,'GET','/v1/auth/session',undefined,401);
+  // Replaying an accepted operation returns one event with its original details.
+  const revokeEventsBeforeReplay=await eventCount(owner.account.id);
+  await mutate(owner.access_token,{id:revokeEventId,kind:'revoke_session',session_id:explicitSessionId});
+  assert.equal(await eventCount(owner.account.id),revokeEventsBeforeReplay,'replay must not duplicate audit events');
+  assert.equal(JSON.stringify((await accessEvents(owner.account.id,revokeEventId))[0]!.details),JSON.stringify(revokeDetails),'replay must not rewrite original details');
   // Lab lifecycle must include all post-045 schema additions without weakening its manifest gate.
   const workspaceId=randomUUID();
   const created=(await request(owner.access_token,'POST','/v1/lab/workspaces',{id:workspaceId,duration_hours:1})).workspace;
@@ -65,9 +108,12 @@ try{
   const stopped=(await request(owner.access_token,'POST',`/v1/lab/workspaces/${workspaceId}/stop`,{id:randomUUID()})).workspace;
   assert.equal(stopped.state,'deleted');assert.equal(stopped.data_rows,0);
   await request(childToken,'GET','/v1/auth/session',undefined,401);
-  state=await mutate(owner.access_token,{id:randomUUID(),kind:'transfer',expected_revision:state.workspace.revision,user_id:memberId});
+  const transferEventId=randomUUID();
+  const ownerBefore=state.workspace.owner_user_id;
+  state=await mutate(owner.access_token,{id:transferEventId,kind:'transfer',expected_revision:state.workspace.revision,user_id:memberId});
   assert.equal(state.workspace.is_owner,false);assert.equal(state.workspace.can_manage,false);
   assert.equal(state.workspace.owner_user_id,memberId);
+  assert.deepEqual((await accessEvents(owner.account.id,transferEventId))[0]!.details,{target_user_id:memberId,owner_user_id_before:ownerBefore,owner_user_id_after:memberId});
   assert.equal((await settings(outsider.access_token)).workspace.name,outsider.account.name);
-  console.log(JSON.stringify({status:'passed',checks:['owner bootstrap','credential redaction','idempotent replay','stale revision','cross-account denial','owner protection','member suspension and session revocation','reinstatement does not restore sessions','test workspace isolation and verified cleanup','ownership transfer']},null,2));
+  console.log(JSON.stringify({status:'passed',checks:['owner bootstrap','credential redaction','idempotent replay','stale revision','cross-account denial','owner protection','member suspension and session revocation','reinstatement does not restore sessions','test workspace isolation and verified cleanup','ownership transfer','persisted audit details','immutable original details','no events on rejected writes','single event on replay']},null,2));
 }finally{await app.close();await pool.end();await rm(media,{recursive:true,force:true});}

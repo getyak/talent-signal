@@ -660,9 +660,9 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version IN ('065_screenshot_directory_authority', '058_account_management')`,
+           WHERE version IN ('065_screenshot_directory_authority', '058_account_management', '069_account_access_event_details')`,
         );
-        const requiredMigrations = ["065_screenshot_directory_authority", "058_account_management"];
+        const requiredMigrations = ["065_screenshot_directory_authority", "058_account_management", "069_account_access_event_details"];
         if (!requiredMigrations.every(version => result.rows.some(row => row.version === version))) {
           throw new Error("migration unavailable");
         }

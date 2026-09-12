@@ -30,6 +30,12 @@ Stopping a member or changing their role revokes their sessions. Reinstatement
 requires a new login. Each user can revoke their other sessions; current-session
 exit uses normal sign-out. Mutations recheck current authority, reject stale
 revisions, and retain idempotency and an account-scoped management record.
+Access-event details retain target IDs, member role/status transitions, ownership
+transfers and actual session revocations in the same transaction. Profile and
+workspace events retain revision changes without copying personal names into the
+trail. Events predating migration `069_account_access_event_details` have unknown
+(`NULL`) details; their history is not reconstructed. Replays preserve the original
+event, and restoring membership never revives a revoked session.
 These privileges do not authorize candidate-data collection or external effects.
 
 ## Default development fixture
@@ -63,6 +69,12 @@ separate; a persistent banner returns the user to their own workspace.
 Expired or mismatched test-session cookies fail closed. They never silently turn
 an in-progress test action into a real-workspace write. Workspace requests carry
 the rendered account scope, and stale tabs are refused if that scope changes.
+Screenshot analysis and telemetry mutations reject missing scope identifiers
+before reading private payloads, including requests from older tabs.
+This includes telemetry creation, batches and completion, even when they precede
+the primary product request: private trace content must use the same
+`workspaceSessionFetch` boundary as the action it records. A rejected product
+request cannot undo telemetry already retained under the wrong account.
 Test data may contain synthetic or explicitly authorized testing material only;
 isolation is not consent for external processing or retention.
 

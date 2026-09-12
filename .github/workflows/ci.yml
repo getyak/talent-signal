@@ -375,7 +375,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
-    timeout-minutes: 45
+    # Cold hosted builds reached AX5 after ~32 minutes. Keep both complete
+    # audit stages and native result upload within one bounded job.
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

@@ -32,6 +32,14 @@ describe("request-only identity memoization", () => {
     await expect(readBackendSessionClaims()).rejects.toMatchObject({ code: "backend_session_expired" });
   });
 
+  it("rejects a bound request after backend claims disappear instead of enabling fixture fallback", async () => {
+    expected.value = "old-test";
+    getToken.mockResolvedValue(null);
+    await expect(authenticatedBackendClient()).rejects.toMatchObject({ code: "backend_session_expired" });
+    expected.value = "";
+    expect(await authenticatedBackendClient()).toBeNull();
+  });
+
   it("checks expiry at client use time even when the decoded token is unchanged", async () => {
     vi.useFakeTimers();
     const start = Date.now();

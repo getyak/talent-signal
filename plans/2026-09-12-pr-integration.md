@@ -37,8 +37,8 @@ immediately after the real confirmation, before traversing all evidence context
 (12 targets, four audit types, 176.4 seconds, no failures or skips). The preceding
 successful deadline audit in the original failure also showed the complete result
 label. Ordering and geometry both changed; the underlying Apple finding is not
-conclusively attributed. No issue filter or coverage was relaxed. Both stages and
-current-head CI still require verification.
+conclusively attributed. No issue filter or coverage was relaxed. Both stages then passed together (2 tests,
+266.125 seconds, no failures or skips). Current-head CI still requires verification.
 
 Local backend verification: Agent 236 passed/1 existing skipped; Backend 407
 passed/130 existing skipped. Web complete suite initially passed 490 tests/1
@@ -47,6 +47,29 @@ and typecheck subsequently passed. Account lifecycle evaluation passed all ten
 checks in disposable PostgreSQL and is now included in CI. Opik proof remains
 version-bound. The local backend was deployed from `9baddbbf`, read back that
 exact revision and passed readiness. No new TestFlight release or unrelated Linear acceptance claimed.
+
+A subsequent GitHub P1 identified bare telemetry fetches before the protected Ask
+request. Trace create, batch and completion now use the rendered workspace guard;
+a regression exercises private text/files and an effective-account switch, with
+no cross-account writes and three expiry signals. The operational boundary now
+explicitly includes telemetry. A bound request with missing primary claims also
+fails closed rather than enabling local fixture fallback. Both P1 findings were
+independently closed; the complete Web suite passed 499 tests (one existing skip),
+with typecheck and focused lint passing. Fixture tests now explicitly supply
+unbound request headers. The hosted iOS job allows 60 minutes because a cold
+observed run reached AX5 only after about 32 minutes; audit coverage, timeout
+classification and retry limits are unchanged.
+
+The missing-scope screenshot P1 is also closed: screenshot processing and all
+telemetry mutations reject absent/empty workspace headers before reading payloads.
+The account-event P2 is fixed by additive migration `069_account_access_event_details`
+and atomic structured target/transition details, preserving historical unknowns.
+Independent review passed. Disposable PostgreSQL passed all 14 checks; Agent
+236 passed (one existing skip), Backend 408 passed (130 existing skips), Web
+499 passed (one existing skip), typecheck/lint and docs passed. Pi reached its
+bounded turn limit; the parent inspected and completed its source patch and
+corrected the explicit-session evaluation before testing. No worker-generated
+dependencies or build artifacts were copied.
 
 ## Milestones
 

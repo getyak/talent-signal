@@ -128,11 +128,16 @@ export const readPrimaryBackendSessionClaims = cache(async (): Promise<BackendSe
 });
 
 export const readBackendSessionClaims = cache(async (): Promise<BackendSessionClaims | null> => {
+  const expected = (await headers()).get("x-talent-signal-workspace");
   const primary = await readPrimaryBackendSessionClaims();
-  if (!primary) return null;
+  if (!primary) {
+    // A bound workspace request cannot fall back to a fixture account after
+    // another tab replaces the authenticated backend session.
+    if (expected) throw new BackendSessionExpiredError();
+    return null;
+  }
   const test = await testWorkspaceSession(primary);
   const claims = test?.claims ?? primary;
-  const expected = (await headers()).get("x-talent-signal-workspace");
   if (expected && expected !== claims.backendAccountId) throw new BackendSessionExpiredError();
   return claims;
 });

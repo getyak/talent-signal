@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     const claims = await readBackendSessionClaims();
     const expectedWorkspace = request.headers.get("x-talent-signal-workspace");
     if (!claims || backendSessionIsExpired(claims.backendExpiresAt)
-      || (expectedWorkspace && expectedWorkspace !== claims.backendAccountId)) {
+      || !expectedWorkspace || expectedWorkspace !== claims.backendAccountId) {
       throw new BackendSessionExpiredError();
     }
     const client = await authenticatedBackendClient();
