@@ -190,7 +190,7 @@ origin and Secure session cookies. The resident launcher disables the legacy
 LAN HTTP cookie exception below; it remains available only for separately
 authorized non-resident test deployments.
 
-For ongoing updates, use the authorized hourly Codex heartbeat to compare
+For ongoing updates, use the authorized scheduled Codex heartbeat to compare
 remote main with the active Web revision and deployed backend revision. Only
 activate relevant main changes after their current Web/backend quality and
 security checks pass. Build before switching; preserve existing data, Opik

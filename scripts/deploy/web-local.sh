@@ -19,12 +19,18 @@ export AUTH_DEFAULT_ACCOUNT_QUICK_LOGIN=false
 # This flag selects the authenticated backend product; false selects the old demo.
 export TALENT_SIGNAL_INTEGRATION_MODE=true
 node --input-type=module - <<'NODE'
+import { execFileSync } from "node:child_process";
 const origin = new URL(process.env.AUTH_URL ?? "");
 if (!process.env.AUTH_SECRET?.trim()) throw new Error("AUTH_SECRET is required in staging:/web");
 if (!process.env.TALENT_SIGNAL_BACKEND_URL?.trim()) throw new Error("TALENT_SIGNAL_BACKEND_URL is required in staging:/web");
 if (origin.protocol !== "https:" || !origin.hostname.endsWith(".ts.net") || origin.port !== "10443"
     || origin.username || origin.password || origin.search || origin.hash || origin.pathname !== "/") {
   throw new Error("Resident Web AUTH_URL must be the Tailscale HTTPS origin on port 10443");
+}
+const status = JSON.parse(execFileSync("tailscale", ["status", "--json"], { encoding: "utf8" }));
+const hostname = status.Self?.DNSName?.replace(/\.$/, "").toLowerCase();
+if (status.BackendState !== "Running" || !hostname || origin.hostname !== hostname) {
+  throw new Error("Resident Web AUTH_URL must match this running Tailscale node's MagicDNS name");
 }
 NODE
 cd "$repository_root"

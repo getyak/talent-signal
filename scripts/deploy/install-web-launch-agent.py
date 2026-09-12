@@ -135,16 +135,22 @@ def main():
             time.sleep(1)
         raise RuntimeError("Web authentication readiness failed; inspect the launchd logs")
     except BaseException:
-        bootout(target, check=False)
+        unload_error = None
+        try:
+            bootout(target, check=False)
+        except Exception as error:
+            unload_error = error
         current.unlink(missing_ok=True)
         if old_release:
             current.symlink_to(old_release, target_is_directory=True)
         if old_plist is not None:
             plist.write_bytes(old_plist)
-            if loaded:
+            if loaded and unload_error is None:
                 bootstrap(domain, plist, target, check=False)
         else:
             plist.unlink(missing_ok=True)
+        if unload_error is not None:
+            print(f"Restored previous release configuration, but the Web job could not unload: {unload_error}", file=sys.stderr)
         raise
     finally:
         temporary.unlink(missing_ok=True)
