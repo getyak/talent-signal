@@ -8,13 +8,13 @@ untracked files. Do not promote drafts or bypass repository rules.
 
 ## Current evidence and decisions
 
-- Baseline: main `97aca735`; primary checkout switched to main with `.workbuddy/`
+- Initial baseline: main `97aca735`; primary checkout switched to main with `.workbuddy/`
   retained. The clean previous main worktree was detached at its original commit.
 - Include #176: test workspace return recovery and navigation visibility.
 - Include #164: pinned pnpm/action-setup 6.1.0 update.
 - Include #162: Fastlane 2.239.0 update and resolved dependency lockfile.
 - Defer #169: explicitly draft, conflicting, with incomplete acceptance items.
-- Defer #173: CI fails for SDK version reporting and Opik runtime proof mismatch.
+- Defer #173 (closed by Dependabot and replaced by failing #181): CI fails for SDK version reporting and Opik runtime proof mismatch.
   The latter binds a real historical SDK/server integration receipt; changing its
   version fields would fabricate evidence. A dependency upgrade needs fresh
   integration verification and is outside this maintenance slice.
@@ -34,3 +34,15 @@ Exact final PR head passes all applicable CI/Security checks and has no unresolv
 P0/P1 findings; repository reports merged; original commits are reachable from
 main; primary main equals origin/main. This task does not claim a new TestFlight
 release or completion of unrelated Linear acceptance.
+
+## Integration update
+
+- PR #180 preserves #176, #164 and #162. Current-head review found no P0/P1;
+  one existing P2 owner-side leave-failure discoverability gap was acknowledged
+  and deferred in the review discussion, not claimed fixed. Protected pending
+  state and the Lab retry route remain available.
+- Original integration `9b945591` passed Security, Web, backend and control-plane
+  checks; iOS was still running when parallel PR #182 advanced main to
+  `02a2b58d`. Refresh against that exact main and rerun strict current-base CI.
+- Final merge/readback evidence is maintained on PR #180 and in the local
+  `build/pr-integration-20260912/receipt.json` artifact.
