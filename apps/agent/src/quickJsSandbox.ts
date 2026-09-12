@@ -11,7 +11,6 @@ export class RunCodeError extends Error {
   constructor(readonly code:string) {super(code);this.name="RunCodeError";}
 }
 let active=0;
-const runtimeURL=pathToFileURL(createRequire(import.meta.url).resolve("quickjs-emscripten")).href;
 
 // This launcher is fixed trusted Node code. Model code arrives only on stdin
 // and is evaluated inside QuickJS/WASM. No host bridge or module loader exists.
@@ -56,6 +55,7 @@ export async function runJavaScript(code:string,inputJSON:string,signal:AbortSig
     directory=await mkdtemp(join(tmpdir(),"talent-signal-code-"));signal.throwIfAborted();
     // Resolve the pinned package from trusted host code. No credentials, PATH,
     // NODE_OPTIONS or user-provided module paths cross this process boundary.
+    const runtimeURL=pathToFileURL(createRequire(import.meta.url).resolve("quickjs-emscripten")).href;
     const launcher=LAUNCHER.replace('from "quickjs-emscripten"',`from ${JSON.stringify(runtimeURL)}`);
     const payload=JSON.stringify({code,inputJSON,limits:RUN_CODE_LIMITS});
     const result=await new Promise<unknown>((resolve,reject)=>{

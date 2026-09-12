@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { ScreenshotContactTaskResponseSchema, type ScreenshotContactTaskResponse } from "@talent-signal/agent";
+import { ScreenshotContactTaskResponseSchema, type ScreenshotContactTaskResponse } from "@talent-signal/agent/contact-intake";
 import { backendAuthBaseUrl, readBackendSessionClaims, type BackendSessionClaims } from "./backendAuth";
 import { contactHandoffSessionVersion } from "./contact-handoff-session";
 import { backendSessionIsExpired } from "@/lib/backend-session";

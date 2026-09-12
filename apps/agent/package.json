@@ -21,6 +21,10 @@
     "./chat-answer-provider": {
       "types": "./dist/chatAnswerProvider.d.ts",
       "import": "./dist/chatAnswerProvider.js"
+    },
+    "./contact-intake": {
+      "types": "./dist/contactIntakeSchemas.d.ts",
+      "import": "./dist/contactIntakeSchemas.js"
     }
   },
   "files": [
