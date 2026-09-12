@@ -68,6 +68,20 @@ describe("named relationship question preflight", () => {
 });
 
 describe("structured Session title transport", () => {
+  it.each(["", "x".repeat(257), null, 42])("keeps a valid answer when optional title metadata is invalid", async title => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({
+      model: "glm-5.3",
+      choices: [{ message: { content: JSON.stringify({ kind: "answer", title: "Reply", body: "Visible reply", citation_ids: [], session_title: title }) } }],
+    }));
+    const result = await new ZhipuChatAnswerProvider({ apiKey: "synthetic-only", model: "glm-5.3", observer: null, fetcher }).answer({
+      objective: "Summarize the conversation", mode: "unscoped_conversation", session_title_requested: true,
+      prompt_snapshot: bundledPrompt("assistant/conversation"), context_blocks: [], allowed_citation_ids: [],
+    });
+    expect(result.body).toBe("Visible reply");
+    expect(result.session_title).toBeUndefined();
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it("accepts 32 compound graphemes within the 256-code-point cap", async () => {
     const title = "👩‍👩‍👧‍👦".repeat(32);
     expect(Array.from(title)).toHaveLength(224);

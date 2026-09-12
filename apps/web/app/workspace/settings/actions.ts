@@ -9,7 +9,7 @@ export type AccountActionState = { data?: AccountSettings; error?: string; saved
 export async function saveAccountSettings(_previous: AccountActionState, form: FormData): Promise<AccountActionState> {
   try {
     const scope=await readBackendSessionClaims();
-    if(!scope||scope.backendAccountId!==form.get('workspaceId'))return {error:'登录空间已变化，请刷新后重试。'};
+    if(!scope||(scope.backendAccountId!==form.get('workspaceId')||scope.backendUserId!==form.get('actorUserId')))return {error:'登录空间已变化，请刷新后重试。'};
   } catch { return {error:'登录或测试会话已过期，请返回自己的空间后重试。'}; }
   const kind = form.get('kind');
   const common = { id: String(form.get('operationId') ?? ''), expected_revision: Number(form.get('revision')) };

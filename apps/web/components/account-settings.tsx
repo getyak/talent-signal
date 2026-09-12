@@ -6,13 +6,13 @@ import Link from 'next/link';
 import { saveAccountSettings, type AccountActionState } from '@/app/workspace/settings/actions';
 import styles from './account-settings.module.css';
 
-const WorkspaceScope = createContext('');
+const WorkspaceScope = createContext({workspaceId:'',userId:''});
 const methodNames = { google:'Google',apple:'Apple',password:'邮箱密码' };
 const eventNames: Record<string,string> = {profile:'更新个人资料',workspace:'更新空间名称',member:'调整成员访问',transfer:'移交空间所有权',revoke_session:'退出其他会话'};
 function date(value:string){return new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',dateStyle:'medium',timeStyle:'short'});}
 
 function MutationForm({children, kind, revision, confirmation, onSaved}:{children:React.ReactNode;kind:string;revision?:number;confirmation?:string;onSaved:(data:AccountSettings)=>void}) {
-  const workspaceId=useContext(WorkspaceScope);
+  const {workspaceId,userId}=useContext(WorkspaceScope);
   const [operationId,setOperationId]=useState('');
   const [state,action,pending]=useActionState(async(previous:AccountActionState,form:FormData)=>{
     const result=await saveAccountSettings(previous,form);
@@ -27,7 +27,7 @@ function MutationForm({children, kind, revision, confirmation, onSaved}:{childre
     setOperationId(id);
   }}>
     <input type="hidden" name="operationId" defaultValue={operationId}/>
-    <input type="hidden" name="workspaceId" value={workspaceId}/><input type="hidden" name="kind" value={kind}/><input type="hidden" name="revision" value={revision??1}/>
+    <input type="hidden" name="workspaceId" value={workspaceId}/><input type="hidden" name="actorUserId" value={userId}/><input type="hidden" name="kind" value={kind}/><input type="hidden" name="revision" value={revision??1}/>
     <fieldset disabled={pending}>{children}</fieldset>
     <p aria-live="polite" className={state.error?styles.error:styles.notice}>{pending?'正在核验…':state.error??(state.saved?'已保存并核验。':'')}</p>
   </form>;
@@ -42,7 +42,7 @@ function NameForm({name,kind,revision,label,onSaved}:{name:string;kind:string;re
 export function AccountSettingsPanel({initial,section}:{initial:AccountSettings;section:'account'|'workspace'}){
   const [data,setData]=useState(initial);
   const role=data.workspace.is_owner?'所有者':data.workspace.role==='admin'?'管理员':'成员';
-  return <WorkspaceScope.Provider value={data.workspace.id}>
+  return <WorkspaceScope.Provider value={{workspaceId:data.workspace.id,userId:data.user.id}}>
     <header className={styles.heading}><p className={styles.eyebrow}>你的身份与空间</p><h1>{section==='account'?'账号与安全':'工作空间'}</h1><p>{section==='account'?'管理自己的资料、登录方式与访问设备。':'空间中的资料与成员，始终有清楚的归属。'}</p></header>
     <nav className={styles.tabs} aria-label="账号设置"><Link href="/workspace/settings" aria-current={section==='account'?'page':undefined}>账号与安全</Link><Link href="/workspace/settings?section=workspace" aria-current={section==='workspace'?'page':undefined}>工作空间</Link>{data.lab_enabled&&<Link href="/workspace/settings/testing">测试空间</Link>}</nav>
     {section==='account'?<>

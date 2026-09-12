@@ -6,6 +6,13 @@ const { auth, loadLabManifest } = vi.hoisted(() => ({
   auth: vi.fn(),
   loadLabManifest: vi.fn(),
 }));
+vi.mock("next/headers", () => ({cookies:async()=>({has:()=>false})}));
+vi.mock("@/lib/server/backendAuth",()=>({
+ readPrimaryBackendSessionClaims:async()=>null,
+ readBackendSessionClaims:async()=>({backendAccountId:"fixture",backendAccountName:"Fixture",backendAccountSlug:"fixture-alpha",backendExpiresAt:new Date(Date.now()+60000).toISOString()}),
+}));
+vi.mock("@/lib/server/testWorkspaceSession",()=>({TEST_WORKSPACE_COOKIE:"test-cookie",testWorkspaceSession:async()=>null}));
+vi.mock("@/app/workspace/settings/testing/actions",()=>({leaveTestWorkspace:vi.fn()}));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/app/login/actions", () => ({ signOutOfWorkspace: vi.fn() }));
 vi.mock("@/lib/server/labBackend", () => ({ loadLabManifest }));

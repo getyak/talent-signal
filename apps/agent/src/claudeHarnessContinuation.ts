@@ -16,7 +16,7 @@ export interface HarnessContinuation {
 export type HarnessContinuationFactory = (configurationFingerprint: string) => Promise<HarnessContinuation>;
 
 export function harnessContinuationFingerprint(configuration: ClaudeHarnessConfiguration, request: ClaudeHarnessRequest): string {
-  return createHash("sha256").update(JSON.stringify({ version: "get9-v1", sdk: "0.3.260",
+  return createHash("sha256").update(JSON.stringify({ version: "get9-v1", sdk: "0.3.266",
     endpoint: configuration.baseUrl, model: configuration.model, effort: request.effort ?? "high",
     transport_digest: createHash("sha256").update(configuration.httpsProxy ?? "direct").digest("hex"),
     credential_digest: createHash("sha256").update(configuration.credential.value).digest("hex"),

@@ -415,21 +415,6 @@ function requiredString(
   return trimmed;
 }
 
-function requiredCodePointString(
-  value: unknown,
-  name: string,
-  maxLength: number,
-): string {
-  if (typeof value !== "string") {
-    throw new Error(`Zhipu Chat ${name} must be a string.`);
-  }
-  const trimmed = value.trim();
-  if (!trimmed || Array.from(trimmed).length > maxLength) {
-    throw new Error(`Zhipu Chat ${name} is empty or too long.`);
-  }
-  return trimmed;
-}
-
 function parseProviderAnswer(
   value: Record<string, unknown>,
   allowedCitationIds: readonly string[],
@@ -445,9 +430,10 @@ function parseProviderAnswer(
   }
   const title = requiredString(value.title, "title", 160);
   const body = requiredString(value.body, "body", 4_000);
-  const sessionTitle = value.session_title === undefined
-    ? undefined
-    : requiredCodePointString(value.session_title, "session_title", 256);
+  // Optional display metadata cannot invalidate a usable, evidence-checked answer.
+  const candidateTitle = typeof value.session_title === "string" ? value.session_title.trim() : "";
+  const sessionTitle = candidateTitle && Array.from(candidateTitle).length <= 256
+    ? candidateTitle : undefined;
   if (!Array.isArray(value.citation_ids)) {
     throw new Error("Zhipu Chat citation_ids must be an array.");
   }

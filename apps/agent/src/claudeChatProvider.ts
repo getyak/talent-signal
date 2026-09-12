@@ -45,17 +45,36 @@ export function boundedTitleFallback(objective: string): string {
 }
 
 export function splitFirstTurnSessionTitle(text: string, objective: string): { title: string; body: string } {
-  const match = text.match(/^\s*<session_title>([^<>\r\n]{1,256})<\/session_title>[ \t]*(?:\r?\n[ \t]*)*/u);
-  const body = (match ? text.slice(match[0].length) : text).trim();
+  // Remove the envelope independently from validating its optional metadata.
+  const match = text.match(/^\s*<session_title>([\s\S]*?)<\/session_title>[ \t]*(?:\r?\n[ \t]*)*/u);
+  let body = (match ? text.slice(match[0].length) : text).trim();
+  while (body.startsWith("<session_title>")) {
+    const extra = body.match(/^<session_title>[\s\S]*?<\/session_title>\s*/u);
+    if (extra) body = body.slice(extra[0].length).trim();
+    else {
+      // An unclosed metadata line is unusable; retain subsequent answer lines.
+      const newline = body.indexOf("\n");
+      body = newline < 0 ? "" : body.slice(newline + 1).trim();
+    }
+  }
+  const candidate = match?.[1]?.trim();
+  const title = candidate && !/[<>\r\n]/u.test(candidate) && Array.from(candidate).length <= 256
+    ? candidate : boundedTitleFallback(objective);
   return {
-    title: match?.[1]?.trim() || boundedTitleFallback(objective),
+    title,
     body,
   };
 }
 
 export function configuredClaudeChatPrompt(text: string, preset: ChatPromptPreset = "baseline") {
   // Remove only the formal legacy transport clause; preserve all task/source policy.
-  const natural = text.replace(CONVERSATION_JSON_PROTOCOL, "").replace(RELATIONSHIP_JSON_PROTOCOL, "");
+  const protocols = [
+    CONVERSATION_JSON_PROTOCOL,
+    RELATIONSHIP_JSON_PROTOCOL,
+    'Return JSON {"kind":"answer"|"clarification","title":string,"body":string,"citation_ids":[]}.',
+    'Return JSON {"kind":"answer"|"question_set"|"clarification","title":string,"body":string,"citation_ids":string[]}.',
+  ];
+  const natural = protocols.reduce((prompt, protocol) => prompt.replace(protocol, ""), text);
   return applyChatPreset(`${natural}\n\n${CLAUDE_NATURAL_OUTPUT_GUIDANCE}`, preset);
 }
 
@@ -63,7 +82,7 @@ export function configuredClaudeChatPrompt(text: string, preset: ChatPromptPrese
 export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvider {
   readonly providerId = "claude-agent-sdk" as const;
   readonly id = "claude-agent-sdk";
-  readonly sdkVersion = "0.3.260";
+  readonly sdkVersion = "0.3.266";
   readonly supportsPromptPresets = true;
   readonly effectivePrompt = configuredClaudeChatPrompt;
   matchesReportedModel(reported: string | null): boolean {

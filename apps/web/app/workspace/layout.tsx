@@ -1,5 +1,6 @@
 import { SignOut } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
 import { auth } from "@/auth";
@@ -11,9 +12,15 @@ import {
   WorkspaceShellNav,
 } from "@/components/workspace-shell-nav";
 import styles from "@/components/workspace-shell.module.css";
-import { loadAccountSettings } from "@/lib/server/accountBackend";
-import { readPrimaryBackendSessionClaims } from "@/lib/server/backendAuth";
-import { testWorkspaceSession } from "@/lib/server/testWorkspaceSession";
+import {
+  readBackendSessionClaims,
+  readPrimaryBackendSessionClaims,
+} from "@/lib/server/backendAuth";
+import {
+  TEST_WORKSPACE_COOKIE,
+  testWorkspaceSession,
+} from "@/lib/server/testWorkspaceSession";
+import { backendSessionIsExpired } from "@/lib/backend-session";
 import { leaveTestWorkspace } from "@/app/workspace/settings/testing/actions";
 import accountStyles from "@/components/account-settings.module.css";
 
@@ -77,23 +84,36 @@ export default async function WorkspaceLayout({
     return children;
   }
 
-  let settings: Awaited<ReturnType<typeof loadAccountSettings>> | null = null;
   let testName: string | null = null;
   try {
     const primary = await readPrimaryBackendSessionClaims();
     if (primary) testName = (await testWorkspaceSession(primary))?.name ?? null;
   } catch { testName = "测试会话已过期"; }
-  try { settings = await loadAccountSettings(); } catch { /* Keep navigation available during account service failure. */ }
-  const accountName = settings?.user.display_name ?? session.user.name ?? session.user.email ?? "招聘顾问";
-  const backendAccount = (
-    session as typeof session & {
-      account?: { name: string; slug: string };
+  // The rendered scope must come from the effective backend session, never from
+  // account settings: a settings outage must not unbind the rendered workspace.
+  let scope: string | null = null;
+  let backendAccount: {name:string;slug:string} | null = null;
+  try {
+    const claims = await readBackendSessionClaims();
+    if (claims && !backendSessionIsExpired(claims.backendExpiresAt)) {
+      scope = claims.backendAccountId;
+      backendAccount = {name:claims.backendAccountName,slug:claims.backendAccountSlug};
     }
-  ).account;
+  } catch { /* Scope mismatch or unreadable test session: stay unbound. */ }
+  const hasTestWorkspace = (await cookies()).has(TEST_WORKSPACE_COOKIE);
+  if (!scope) {
+    return <section className={accountStyles.section} aria-live="polite">
+      <h1>需要重新确认登录空间</h1>
+      <p className={accountStyles.error}>登录空间已变化或会话已过期，暂不能显示工作区内容。</p>
+      {hasTestWorkspace ? <form action={leaveTestWorkspace}><button type="submit">返回我的空间</button></form>
+        : <Link href="/login?reason=backend_session_expired">重新登录</Link>}
+    </section>;
+  }
+  const accountName = session.user.name ?? session.user.email ?? "招聘顾问";
   const fixtureFallback =
     !backendAccount && process.env.TALENT_SIGNAL_INTEGRATION_MODE === "true";
-  const fixtureWorkspace = Boolean(testName) || (settings?.workspace.is_test ?? backendAccount?.slug.startsWith("fixture-") ?? fixtureFallback);
-  const workspaceName = settings?.workspace.name ?? backendAccount?.name;
+  const fixtureWorkspace = Boolean(testName) || (backendAccount?.slug.startsWith("fixture-") ?? fixtureFallback);
+  const workspaceName = backendAccount?.name;
   const accountTitle = fixtureWorkspace
     ? `${accountName} · ${workspaceName ?? "Alpha 寻访测试"} · 合成测试工作台`
     : `${accountName} · ${workspaceName ?? "账号专属工作台"}`;
@@ -136,7 +156,7 @@ export default async function WorkspaceLayout({
 
       {/* Lab loads independently after hydration; it must not hold up product HTML. */}
       <TalentSignalLabShell initialManifest={null}>
-        <div className={styles.stage} id="workspace-content" data-workspace-scope={settings?.workspace.id} key={settings?.workspace.id}>
+        <div className={styles.stage} id="workspace-content" data-workspace-scope={scope} key={scope}>
           {testName && <div className={accountStyles.banner} role="status"><span>测试空间 · {testName}</span><form action={leaveTestWorkspace}><button type="submit">返回我的空间</button></form></div>}
           {children}
         </div>

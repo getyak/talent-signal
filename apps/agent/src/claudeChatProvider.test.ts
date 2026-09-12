@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ClaudeChatProvider, splitFirstTurnSessionTitle } from "./claudeChatProvider.js";
+import { ClaudeChatProvider, splitFirstTurnSessionTitle, configuredClaudeChatPrompt } from "./claudeChatProvider.js";
 import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import { ClaudeHarnessInterruption, type ClaudeHarnessRequest } from "./claudeHarness.js";
 import { createEnvironmentChatAnswerProvider } from "./chatAnswerProvider.js";
@@ -74,6 +74,32 @@ describe("Claude natural chat product adapter", () => {
       `<session_title>${title}</session_title>\n\nVisible reply`,
       "Fallback",
     )).toEqual({ title, body: "Visible reply" });
+  });
+
+  it.each(["", "Explain <div> layouts", "first\nsecond", "x".repeat(257)])(
+    "removes malformed optional title metadata without exposing it as prose: %s", title => {
+      expect(splitFirstTurnSessionTitle(`<session_title>${title}</session_title>\n\nVisible answer`, "Fallback"))
+        .toEqual({ title: "Fallback", body: "Visible answer" });
+    },
+  );
+
+  it("removes repeated or unclosed leading metadata while preserving reply examples", () => {
+    expect(splitFirstTurnSessionTitle("<session_title>Draft title\n\nVisible answer", "Fallback"))
+      .toEqual({ title: "Fallback", body: "Visible answer" });
+    expect(splitFirstTurnSessionTitle("<session_title>Title</session_title>\n<session_title>Duplicate</session_title>\nVisible answer", "Fallback"))
+      .toEqual({ title: "Title", body: "Visible answer" });
+    const prose = "Example: <session_title>Title</session_title>";
+    expect(splitFirstTurnSessionTitle(prose, "Fallback").body).toBe(prose);
+  });
+
+  it.each([
+    'Return JSON {"kind":"answer"|"clarification","title":string,"body":string,"citation_ids":[]}.',
+    'Return JSON {"kind":"answer"|"question_set"|"clarification","title":string,"body":string,"citation_ids":string[]}.',
+  ])("adapts frozen legacy output protocols while retaining evidence rules", protocol => {
+    const prompt = configuredClaudeChatPrompt(`Preserve evidence authority.\n${protocol}`).text;
+    expect(prompt).toContain("Preserve evidence authority.");
+    expect(prompt).toContain("respond with natural prose");
+    expect(prompt).not.toContain("Return JSON");
   });
 
   it("uses an ephemeral Memory-image Run and rejects expiry after the tool returns",async()=>{
