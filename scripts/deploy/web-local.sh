@@ -15,7 +15,8 @@ export NODE_ENV=production
 export AUTH_TRUST_HOST=true
 export AUTH_DEFAULT_ACCOUNT_ENABLED=false
 export AUTH_DEFAULT_ACCOUNT_QUICK_LOGIN=false
-export TALENT_SIGNAL_INTEGRATION_MODE=false
+# This flag selects the authenticated backend product; false selects the old demo.
+export TALENT_SIGNAL_INTEGRATION_MODE=true
 node --input-type=module - <<'NODE'
 const origin = new URL(process.env.AUTH_URL ?? "");
 if (!process.env.AUTH_SECRET?.trim()) throw new Error("AUTH_SECRET is required in staging:/web");

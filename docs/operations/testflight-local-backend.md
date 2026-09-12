@@ -148,7 +148,10 @@ Configure `staging:/web` in Infisical with a stable `AUTH_SECRET`,
 `AUTH_URL=http://<current-LAN-IP>:3000`, `AUTH_TRUST_HOST=true`,
 `TALENT_SIGNAL_BACKEND_URL=http://127.0.0.1:4317`, the explicit LAN cookie
 opt-in below, and enabled password authentication/registration. The resident
-launcher disables default-account quick login and integration fixtures.
+launcher disables default-account quick login and explicitly enables
+`TALENT_SIGNAL_INTEGRATION_MODE=true`. Despite its name, that flag selects the
+real authenticated backend workspace; `false` selects the legacy synthetic
+demo. Verify a protected business page after login, not just the login response.
 Never write credentials into a LaunchAgent or source checkout.
 
 Build each approved revision in a clean detached worktree under
