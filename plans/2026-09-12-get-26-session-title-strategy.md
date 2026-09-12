@@ -34,8 +34,9 @@ must not add a second model request or silently rename an established Session.
    ownership.
 2. **Complete:** implement same-call generation, canonicalization, first-result
    persistence, tests, and product documentation.
-3. **Active:** run relevant checks and independent review; fix confirmed P0/P1.
-4. **Pending:** create linked PR, pass current-head gates, merge, deploy the
+3. **Complete:** relevant Agent, backend, Web, docs, PostgreSQL, and iOS checks
+   pass; independent review has no remaining findings or unresolved P0/P1.
+4. **Active:** create linked PR, pass current-head gates, merge, deploy the
    TestFlight backend, verify acceptance, and close GET-26.
 
 ## Verification
