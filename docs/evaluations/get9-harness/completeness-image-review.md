@@ -1,6 +1,7 @@
 # GET-9 original-image completeness follow-up
 
-Status: implementation and independent review passed; client acceptance continues. This is not overall
+Status: source-review correction and the new native trial passed independent
+review. Earlier failures remain evidence. This is not overall
 GET-9 acceptance. Baseline PR #172 merged as `65afe690`; the follow-up branch is
 `codex/get-9-harness-completeness`.
 
@@ -119,3 +120,69 @@ no contact or external effect is created. Original HTTP bytes match the fixture.
 [Independent quality](completeness-image-web-ui-quality.json) is 4/3/3, with no
 recovery exercised. Child position estimates and extra identity speculation are
 recorded limitations. Native and installed-extension proof remain separate.
+
+## Actual native original-image trial — September 12
+
+[Native receipt](completeness-image-ios-ui.json) passes ten execution checks:
+actual Photos selection and Send, identical original bytes, main/child original
+regions, both comments and the exact reference, and an owner question without
+contact creation or external effects. The [visible question](completeness-image-ios-ui.png)
+does not establish semantic acceptance.
+
+[Independent quality](completeness-image-ios-ui-quality.json) is **3/2/3**;
+recovery was not exercised. The main Agent initially guessed a slash, supplied
+that guess to the child, and then saved its corrected reading as a source
+ambiguity. The child's native-pixel result explicitly found clear text. There
+was no main-Agent reread after that correction. The synthetic header was also
+stored as irrelevant uncertainty. This repeats the fifth product trial's
+failure class despite the existing prompt instruction.
+
+The raw receipt and failed quality judgment remain unchanged historical
+evidence. A new persistence-boundary correction and separate native trial are
+required; reading the final identifier correctly does not pass this trial.
+
+## Source-review boundary correction — September 12
+
+New screenshot writes use structured region/field uncertainty while the stored
+extraction contract remains compatible. Current-Run opaque native-read receipts
+are bound to actual main/child identity by the SDK completion hook. Expected
+answers and old child context are excluded from the host-built delegation
+prompt. Optional child verification must complete; the main Agent then rereads
+the same region before recording. Contradictory clear/uncertain assessments,
+same-region guesses presented as source conflicts, and definite speaker/time/
+identity fields with unresolved supporting readings are rejected before storage.
+The host does not judge whether pixels are visually readable.
+
+[Eighth trial](completeness-image-product-eighth.json) failed: SDK0.3.260 sends
+the MCP content array to `PostToolUse`, while the initial adapter expected an
+object. Reads remained unbound, repeated attempts exhausted the unchanged
+token budget, and no understanding was stored. This intermediate-build failure
+is retained. The adapter and tests now handle the observed array shape.
+
+[Ninth trial](completeness-image-product-ninth.json) passes **15/15** execution
+checks in43.247s. Real hook metadata identifies the child and its structured
+review. A premature record fails; the main Agent rereads, records both correct
+comments with no false uncertainty, and pauses for ownership. Original hashes
+and expiry denial agree. [Independent quality](completeness-image-product-ninth-quality.json)
+is4/4/3/3. Four recorded implementation hashes match the reviewed build.
+This is synthetic HTTP/SDK/PostgreSQL proof; a new native trial remains required.
+
+Independent review closed a P1 cross-field contradiction and P2 denied-delegation
+side effect. Parent Agent suite211pass/one explicit skip; independent focused
+checks35/35. The regression cases retain real source gaps and reader disagreement,
+reject fabricated/other-reader/prior-Run receipts and reversed source indices,
+and leave ordinary original-size images without mandatory child delegation.
+Hook contract: [official SDK hooks](https://code.claude.com/docs/en/agent-sdk/hooks).
+
+The [second native receipt](completeness-image-ios-ui-second.json) passes14/14
+after a new actual Photos selection and Send. Original62,723bytes/hash agree;
+the main Agent and child read the original document reference and both authors.
+Stale-read and contradictory-uncertainty submissions are actually denied before
+storage, followed by a fresh read and successful correction. The final task
+waits for ownership with both comments and no source uncertainty, contact or
+external effect. No manual record repair or iOS restart was used in this trial.
+[Full viewport](completeness-image-ios-ui-second.png) and
+[independent quality](completeness-image-ios-ui-second-quality.json) show4/4/3/3.
+The remaining quality deductions concern repeated question text and extra calls.
+Client buildbe7b2075 and current backend implementation hashes are separate in
+the receipt. This closes this native scenario, not overall GET-9 delivery.

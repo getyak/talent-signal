@@ -28,8 +28,7 @@ known.
 The capture-to-action loop retains deterministic identity, evidence, permission,
 recovery and effect gates. Inside an admitted Agent task, the Claude Agent SDK
 owns planning, model/tool iteration, context management and delegated work.
-Product services validate each requested capability; they do not run a second
-model planner around the SDK.
+Domain tools validate capabilities; the SDK remains the only model planner.
 
 ### Open-ended agent task
 
@@ -59,11 +58,12 @@ without database or filing authority. Only public anchors, typed research calls
 and legacy process-only images cross to it. The Agent core owns schemas, policy
 and orchestration, not secrets or canonical state.
 
-Scoped chat can trace an admitted Memory fragment to original screenshot tiles.
-Tool-returned images share the processing and ephemeral-session policy of inputs.
-Source guards cover the entire Run and final commit; the shortest image expiry
-bounds derived records. Diagnostics retain metadata, not pixels. Neither a tool
-receipt nor an artifact creates confirmation, a new source or publication authority.
+Scoped chat traces admitted Memory to original screenshot tiles. Input and tool images
+share ephemeral processing policy. Source guards cover the Run and final commit;
+the shortest image expiry bounds derivatives. Diagnostics retain metadata, not pixels.
+Receipts and artifacts establish no confirmation, new source or publication authority; a read proves scoped access, not visual correctness.
+Uncertainty binds original regions and fields. Corrected model readings or reader disagreement are not source conflicts;
+readable nearby text cannot resolve uncertain speaker, time or identity fields.
 
 ## Governed loop
 

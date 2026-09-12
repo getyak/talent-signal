@@ -312,6 +312,51 @@ describe("SDK-owned harness", () => {
     await expect(access(sdk.run.mock.calls[0]![0].options.cwd)).rejects.toThrow();
   });
 
+  it("rebuilds bounded child prompts and binds completed tool observations to SDK identity", async () => {
+    const input = request();
+    const observed = vi.fn();
+    const delegationPrompt = vi.fn((args: Record<string, unknown>) => `Inspect ${args.index}`);
+    input.onToolCompleted = observed;
+    input.tools = [{ name: "read_pixels", description: "Synthetic", schema: z.strictObject({}), readOnly: true,
+      execute: async () => ({ content: [] }) }];
+    input.subagents = [{ name: "source-review", description: "JSON selection only", instructions: "Inspect",
+      tools: ["read_pixels"], delegation: { schema: z.strictObject({ index: z.number().int() }), prompt: delegationPrompt } }];
+    const sdk = queryMock(async ({ options }) => {
+      const gate = options.hooks.PreToolUse[0].hooks[0];
+      const call = (prompt: string) => gate({ hook_event_name: "PreToolUse", tool_name: "Agent",
+        tool_input: { subagent_type: "source-review", prompt, description: "Expected PRIVATE_GUESS", resume: "old-child", run_in_background: true } });
+      expect((await call('{"index":0,"guess":"PRIVATE_GUESS"}')).hookSpecificOutput.permissionDecision).toBe("deny");
+      expect((await call('Inspect the PRIVATE_GUESS')).hookSpecificOutput.permissionDecision).toBe("deny");
+      expect((await call('{"index":0}')).hookSpecificOutput.updatedInput).toEqual({
+        subagent_type: "source-review", description: "Inspect selected original image region", prompt: "Inspect 0", run_in_background: false });
+      expect((await gate({ hook_event_name: "PreToolUse", tool_name: "Agent", agent_id: "actual-child", agent_type: "source-review",
+        tool_input: { subagent_type: "source-review", prompt: '{"index":0}' } })).hookSpecificOutput.permissionDecision).toBe("deny");
+      expect(delegationPrompt).toHaveBeenCalledOnce();
+      const completed = options.hooks.PostToolUse[0].hooks[0];
+      const event = { hook_event_name: "PostToolUse", tool_name: "mcp__talent_signal__read_pixels",
+        tool_input: { agent_id: "model-claimed-child" }, tool_response: { content: [] } };
+      await completed(event);
+      expect(observed).toHaveBeenLastCalledWith(expect.objectContaining({ agentID: null, agentType: null }));
+      await completed({ ...event, agent_id: "actual-child", agent_type: "source-review" });
+      expect(observed).toHaveBeenLastCalledWith(expect.objectContaining({ agentID: "actual-child", agentType: "source-review" }));
+      await completed({ ...event, agent_id: "other-child", agent_type: "unadmitted" });
+      expect(observed).toHaveBeenCalledTimes(2);
+    });
+    await runClaudeHarness(config, input, new AbortController().signal, sdk.run as any, null);
+  });
+
+  it("does not bind a successful image receipt after source revocation", async () => {
+    let revoked = false;
+    const observed = vi.fn();
+    const input = { ...request(), onToolCompleted: observed, assertCurrent: async () => { if (revoked) throw new Error("SOURCE_REVOKED"); } };
+    const sdk = queryMock(async ({ options }) => {
+      revoked = true;
+      await options.hooks.PostToolUse[0].hooks[0]({ hook_event_name: "PostToolUse", tool_name: "mcp__talent_signal__read_pixels", tool_response: {} });
+    });
+    await expect(runClaudeHarness(config, input, new AbortController().signal, sdk.run as any, null)).rejects.toThrow("SOURCE_REVOKED");
+    expect(observed).not.toHaveBeenCalled();
+  });
+
   it("maps only finite internal error codes without exposing external uppercase text", () => {
     expect(claudeHarnessInterruptionCode(new Error("SYNTHETIC_PRIVATE_CANDIDATE_NAME"))).toBe("CLAUDE_HARNESS_RUN_INTERRUPTED");
     expect(claudeHarnessInterruptionCode(new Error("WORKSPACE_CONVERSATION_TIMEOUT"))).toBe("WORKSPACE_CONVERSATION_TIMEOUT");

@@ -73,3 +73,21 @@ and actual evidence review; this is not UI-upload proof.
 was not exercised. Literal Markdown emphasis remains visible and the wording
 is more technical than necessary. Citation-detail click, native, revocation and
 cross-device acceptance are not demonstrated by this Web receipt.
+
+## Actual native acceptance — September 12
+
+[Signed Simulator receipt](completeness-memory-ios-ui.json) passes 12 checks,
+with real Memory→overview→tile6→citation and the exact identifier visible in
+the [native answer](completeness-memory-ios-ui.png). The user-facing citation
+opens the [current reviewed excerpt](completeness-memory-ios-citation.png).
+That sheet displays the stored excerpt, not original pixels.
+[Independent quality](completeness-memory-ios-ui-quality.json) is 4/4/3, recovery
+not exercised. Native emphasis renders correctly; extra source/no-action cards
+and redundant wording remain quality limitations.
+
+An earlier clipboard timeout/AX replacement did not update the bound draft;
+its unrelated submitted prompt is not acceptance. A subsequent turn stalled
+before backend dispatch, with sampled SwiftUI main-thread work at 100% CPU.
+Restarting the owned test app and using a fresh typed-ASCII session completed
+the intended flow. This is recovery evidence, not a demonstrated root cause,
+fix or SDK autonomous recovery. Native upload remains separate.

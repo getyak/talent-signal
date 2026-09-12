@@ -1159,3 +1159,53 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   scoped to the owned device and using the machine build lock. Native image
   acceptance, current-head PR/CI/merge/deployment/TestFlight and Linear closure
   remain open. The prior Chrome installation rejection has not been bypassed.
+
+### 2026-09-12 — native quality regression and deployment gap
+
+- Follow-up PR178 is draft at ce6e7fd5. Browser lifecycle evidence and Web
+  image proof are committed. Native localization catalog, source-lifecycle
+  test mocks/cleanup-failure coverage, and a schema-only Web import with lazy
+  QuickJS resolution fix the subsequent CI failures. Current Backend, Web,
+  Security and both actual Vercel deployments pass; iOS smoke remains pending.
+- Native Memory→overview→tile→citation passes12checks, independent4/4/3.
+  Citation sheet opens the reviewed excerpt. An earlier wrong-input attempt
+  and SwiftUI stall remain failures; restarting the owned app is not a fix.
+- Active milestone: native original-image quality. Execution10/10 but
+  independent3/2/3: the main Agent records its resolved reading error as a
+  source ambiguity. Preserve the failed receipt, repair the persistence
+  boundary without concealing genuine ambiguity, then run a new native trial
+  and independent review. Existing prompt-only guidance was insufficient.
+- Deployment inspection found the real Compose research sidecar has neither
+  a Docker CLI nor a browser executor route. Host-only browser tests therefore
+  do not complete deployment. A narrow authenticated executor outside the
+  credentialed sidecar must retain public-fetch mediation, scoped operations,
+  bounded lifecycle and verified cleanup. Do not mount the primary Docker
+  socket or expose model/DB credentials to the executor. The transport and
+  actual Compose acceptance remain to be implemented and reviewed.
+- GET-9 remains In Progress. Native quality/stall, actual executor deployment,
+  installed Chrome acceptance and current-head merge/deployment/exact
+  TestFlight proof remain open. No old or skipped check substitutes for them.
+
+### 2026-09-12 18:00 — native source quality repaired; iOS CI next
+
+- Source-review correction independently passes after P1 cross-field and P2
+  denied-delegation fixes. Current-Run/reader receipts, neutral child selectors,
+  structured uncertainty and post-child rereads reject resolved-reading/source
+  contradictions before persistence. Model visual correctness still requires
+  evaluation. Agent211pass/one skip, focused46/46, independent35/35, types/build
+  pass. Canonical documentation remains inside its320-line budget.
+- Eighth real SDK trial failed on an actual MCP-array hook shape, exhausting the
+  unchanged token budget without recording. Ninth uses that observed shape,
+  passes15/15 in43.247s, quality4/4/3/3. Failed evidence remains unchanged.
+- Second actual native Photos→Send trial passes14/14, quality4/4/3/3. Original
+  DOCIOS-e82012c6/62,723bytes preserved. Two actual validation errors recover
+  through original-pixel reread and corrected understanding; no false uncertainty,
+  contact or external effect remains. Signed clientbe7b2075, reviewed backend
+  dist hashes recorded. Earlier native failure and SwiftUI stall remain history;
+  the stall itself has not been diagnosed or fixed.
+- Active milestone: current PR iOS CI failure. ce6e7fd5 Backend/Web/Security and
+  both Vercel deployments pass, but iOS smoke fails one hosted feedback-source
+  load test and the AX5 dark-mode contrast audit. Inspect the actual failing
+  surface and repair before release; do not suppress the audit or extend waits
+  without evidence. Executor deployment, installed Chrome acceptance, remaining
+  native recovery and final merge/deployment/exact TestFlight remain open.

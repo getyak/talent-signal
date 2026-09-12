@@ -67,6 +67,17 @@ export interface HarnessSubagent {
   instructions: string;
   /** Only read-only tools from this Run may be delegated. */
   tools: readonly string[];
+  /** Optional host-owned delegation boundary. The model supplies JSON selectors,
+   * never a free-form expected answer or a resumable child conversation. */
+  delegation?: { schema: z.ZodObject; prompt(input: Record<string, unknown>): string };
+}
+
+export interface HarnessToolObservation {
+  name: string;
+  input: unknown;
+  result: unknown;
+  agentID: string | null;
+  agentType: string | null;
 }
 
 export interface ClaudeHarnessRequest {
@@ -91,6 +102,8 @@ export interface ClaudeHarnessRequest {
   /** Recheck the account, source generation and lease before every capability. */
   assertCurrent(): Promise<void>;
   onText?: (text: string) => void;
+  /** Trusted SDK completion metadata, internal to this Run; not model input. */
+  onToolCompleted?: (event: HarnessToolObservation) => void;
 }
 
 export interface ClaudeHarnessResult {
@@ -364,13 +377,25 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       const capability = request.tools.find(entry => `${HARNESS_MCP_PREFIX}${entry.name}` === input.tool_name);
       const validation = capability?.schema.safeParse(args);
       const validInput = !validation || validation.success;
-      const allow = permitted && delegated && validInput;
-      if (!allow) denials.push(permitted && delegated && !validInput ? "TOOL_INPUT_INVALID" : "TOOL_NOT_AUTHORIZED");
+      const child = input.tool_name === "Agent" ? subagents.find(agent => args.subagent_type === agent.name) : undefined;
+      let childInput: Record<string, unknown> | undefined;
+      let childInputValid = true;
+      if (permitted && delegated && validInput && child?.delegation) {
+        try {
+          const selected = child.delegation.schema.parse(JSON.parse(String(args.prompt)));
+          childInput = { subagent_type: child.name, description: "Inspect selected original image region",
+            prompt: child.delegation.prompt(selected), run_in_background: false };
+        } catch { childInputValid = false; }
+      }
+      const allow = permitted && delegated && validInput && childInputValid;
+      if (!allow) denials.push(permitted && delegated && (!validInput || !childInputValid) ? "TOOL_INPUT_INVALID" : "TOOL_NOT_AUTHORIZED");
       return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: allow ? "allow" : "deny",
         // Product completion depends on child receipts. Keep child execution
         // inside this foreground Run, with its existing cancellation and budget.
-        ...(allow && input.tool_name === "Agent" ? {updatedInput:{...args,run_in_background:false}} : {}),
-        permissionDecisionReason: allow ? "Current product capability grant." : permitted && delegated && !validInput
+        ...(allow && input.tool_name === "Agent" ? {updatedInput:childInput ?? {...args,run_in_background:false}} : {}),
+        permissionDecisionReason: allow ? "Current product capability grant." : !childInputValid
+          ? "DELEGATION_INPUT_INVALID: Supply only the JSON region selectors declared in this subagent's description. Omit expected readings, guesses and previous conversation."
+          : permitted && delegated && !validInput
           ? schemaRepairHint(capability!.schema, validation!.error!)
           : "Not granted for this Run or subagent." } };
     }] }];
@@ -414,7 +439,17 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       // Task also removes admitted Agent delegation before our permission hook.
       disallowedTools: [...FORBIDDEN_BUILT_INS, ...(subagents.length ? [] : ["Agent", "Task"])],
       mcpServers: { talent_signal: createSdkMcpServer({ name: "talent_signal", version: "1.0.0", tools: sdkTools }) },
-      hooks: { PreToolUse: gate, ...(continuation?.resume ? { SessionStart: [{ hooks: [async input => {
+      hooks: { PreToolUse: gate, ...(request.onToolCompleted ? { PostToolUse: [{ hooks: [async input => {
+        if (input.hook_event_name !== "PostToolUse") return {};
+        controller.signal.throwIfAborted();
+        await assertCurrent();
+        const entry = request.tools.find(tool => `${HARNESS_MCP_PREFIX}${tool.name}` === input.tool_name);
+        if (entry && (!input.agent_id || subagents.some(agent => agent.name === input.agent_type && agent.tools.includes(entry.name)))) {
+          request.onToolCompleted!({ name: entry.name, input: input.tool_input, result: input.tool_response,
+            agentID: input.agent_id ?? null, agentType: input.agent_type ?? null });
+        }
+        return {};
+      }] }] } : {}), ...(continuation?.resume ? { SessionStart: [{ hooks: [async input => {
         // SDK 0.3.260 materializes resumed copies in the parent OS temp directory,
         // independently of options.env.TMPDIR. Track only this run's SDK path.
         const root = dirname(dirname(dirname(input.transcript_path)));
