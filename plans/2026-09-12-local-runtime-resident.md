@@ -14,9 +14,9 @@ Owner-authorized local testing. Backend remains loopback-only; Web listens on LA
 
 ## Milestones
 1. [complete] Prepare isolated main baseline, update backend and preserve secrets/data.
-2. [active] Review scoped Pi cookie compatibility, build Web and install resident LaunchAgent.
-3. [pending] Prove LAN HTTP login/session/protected request plus health and restart recovery.
-4. [pending] Record operating/update contracts, independent review and repository delivery; configure requested future update policy.
+2. [complete] Review scoped Pi cookie compatibility, build Web and install resident LaunchAgent.
+3. [complete] Prove LAN HTTP login/session/protected request plus health and restart recovery.
+4. [complete] Record operating/update contracts, independent review and active hourly automation. Repository delivery receipt: PR #182; latest-head CI and merge are verified there.
 
 ## Verification
 Exact deployed code/image, backend readiness and Opik probe; Web production build, LAN listener, real browser login persistence, authentication on protected route, launchd ownership/restart. Report local-LAN-address validation separately from another physical device.
@@ -26,3 +26,13 @@ Exact deployed code/image, backend readiness and Opik probe; Web production buil
 - Web production build passed; full Web suite: 474 passed, 1 skipped. Cookie policy: 63 passed. Lint, docs and Infisical manifest checks passed.
 - Independent review identified build provenance and listener ownership gaps; both were fixed and independently closed with no remaining P0/P1/P2.
 - Browser connector inventory was unavailable, so native Chrome is used for the real LAN login proof.
+
+## Live acceptance
+- Immutable Web release: `5a69bfb67576d8fbfd7c3f9e738a3b947d2a8490`, build `3A8mbCC1CDn7NSSytPDAP`, under the owner Library Application Support directory. Clean-source receipt and launchd listener ownership verified.
+- LAN Web: `http://192.168.1.6:3000`. Native Chrome signed in with a purpose-created synthetic account, loaded the account-specific Today page with no fixture fallback, and retained the session after Web process termination/recovery. No candidate data was created.
+- Separate Colima network namespace returned HTTP 200 for the Mac LAN address. Another physical device was not available for verification.
+- KeepAlive recovered listener PID 29519 to 30122 automatically. Backend keeper's health fast path passed; it now uses the immutable current release and persisted Infisical image metadata.
+- Codex hourly heartbeat `talent-signal` is ACTIVE, gates updates on applicable current-main checks, preserves existing work/data, and remains quiet for unchanged healthy state.
+
+## Corrected assumption
+`TALENT_SIGNAL_INTEGRATION_MODE=false` selects the legacy synthetic workspace, despite its name. A real Chrome login exposed this mistake before acceptance. The launcher and Infisical now explicitly use `true`; account-bound backend reads and no-seed backend authentication remain required. The canonical operations document records this distinction and the requirement to check a protected business page after login.
