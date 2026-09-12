@@ -140,14 +140,16 @@ API contract remain compatible. Changing the origin requires a new archive.
 
 ## Resident Web and coordinated updates
 
-The resident Web uses a production build on `0.0.0.0:3000`. Browser requests
+The resident Web uses a production build on `127.0.0.1:3000`, exposed through
+Tailscale Serve at `https://<Mac-MagicDNS-name>:10443`. This is a private
+tailnet endpoint, not a physical-LAN address or public Funnel. Browser requests
 use Web session authentication; only the Web server talks to the loopback API
 at `http://127.0.0.1:4317`. Keep developer and fixture servers separate.
 
 Configure `staging:/web` in Infisical with a stable `AUTH_SECRET`,
-`AUTH_URL=http://<current-LAN-IP>:3000`, `AUTH_TRUST_HOST=true`,
-`TALENT_SIGNAL_BACKEND_URL=http://127.0.0.1:4317`, the explicit LAN cookie
-opt-in below, and enabled password authentication/registration. The resident
+`AUTH_URL=https://<Mac-MagicDNS-name>:10443`, `AUTH_TRUST_HOST=true`,
+`TALENT_SIGNAL_BACKEND_URL=http://127.0.0.1:4317`,
+`TALENT_SIGNAL_ALLOW_LAN_HTTP=false`, and enabled password authentication/registration. The resident
 launcher disables default-account quick login and explicitly enables
 `TALENT_SIGNAL_INTEGRATION_MODE=true`. Despite its name, that flag selects the
 real authenticated backend workspace; `false` selects the legacy synthetic
@@ -171,11 +173,24 @@ restores the previous release/LaunchAgent if authentication readiness fails.
 Logs are under `~/Library/Logs/Talent Signal/web`; the active revision is in
 `web/active-release.json`. Retain the previous release for rollback. Do not
 rebuild, modify, or remove the live release worktree. After switching, verify
-LAN login, an authenticated workspace request, and launchd restart recovery.
-The Mac must be awake and the owning user logged in. Recheck the LAN address
-when the network changes, update `AUTH_URL`, and restart the owned Web agent.
+Tailscale HTTPS login, an authenticated workspace request, and launchd restart
+recovery. The Mac must be awake and the owning user logged in; clients must
+join the authorized tailnet. Physical Wi-Fi/LAN address changes do not change
+`AUTH_URL`. Never automatically replace it with a `192.168.x.x` address.
 
-For ongoing updates, use the authorized hourly Codex heartbeat to compare
+Inspect `tailscale serve status --json` before installing the owned handler:
+
+```sh
+tailscale serve --bg --yes --https=10443 http://127.0.0.1:3000
+```
+
+Refuse an occupied 10443 handler belonging to another service. Preserve API
+443, n8n 8443, Opik 9443, and other existing routes. Verify the exact HTTPS
+origin and Secure session cookies. The resident launcher disables the legacy
+LAN HTTP cookie exception below; it remains available only for separately
+authorized non-resident test deployments.
+
+For ongoing updates, use the authorized scheduled Codex heartbeat to compare
 remote main with the active Web revision and deployed backend revision. Only
 activate relevant main changes after their current Web/backend quality and
 security checks pass. Build before switching; preserve existing data, Opik
