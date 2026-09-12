@@ -1025,6 +1025,7 @@ struct RelationshipAskView: View {
                 minHeight: scopeSelectorMinimumHeight,
                 alignment: .leading
             )
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(
                 selectedScope == nil
                     ? appLanguage.text("Choose a relationship for this message")

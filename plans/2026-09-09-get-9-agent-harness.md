@@ -1209,3 +1209,148 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   surface and repair before release; do not suppress the audit or extend waits
   without evidence. Executor deployment, installed Chrome acceptance, remaining
   native recovery and final merge/deployment/exact TestFlight remain open.
+
+### 2026-09-12 — actual AX5 and executor transport investigation
+
+- HEAD204bccfa passed Backend/Web/Security and both Vercel builds; its iOS
+  job later failed only the old AX5 audit (557 unit tests passed). The old CI34685890291 artifact was downloaded in
+  verified ranges after two slow downloads, ZIP CRC-checked and inspected.
+  Its contrast crop contains the clipped upper half of the review heading.
+- The feedback render test now explicitly mounts and lays out its hosting view
+  in a foreground-active scene, retaining the real `.task` and10-second source
+  assertion. Independent review passes; local AnswerFeedbackTests10/10 passes,
+  render0.724s. The preceding XCTest bootstrap timeout remains an infrastructure
+  failure, not a repaired product lifecycle defect.
+- A live display probe exposed a false premise: the old AX5 launch string
+  rendered `large`. UIKit's typed raw value renders `accessibility5`. True AX5
+  cannot keep source and review sections in one viewport. Work in progress uses
+  actual clipping geometry and separate audited views; failed trials remain in
+  `/tmp/get9-ios-ax5-*`. Eleven other uses of the invalid AX5 string were corrected with actual
+  display-probe assertions; their earlier results do not prove AX5 coverage. Do not close
+  the accessibility milestone before full text/result coverage and review pass.
+- Executor transport feasibility: a temporary HTTP listener bound only to Mac
+  127.0.0.1 returned the expected nonce from the existing TestFlight research
+  sidecar through192.168.5.2, resolved independently in the default Lima guest.
+  `host.lima.internal` and `host.docker.internal` are absent in that container.
+  This is connectivity proof only; the deployed sidecar image has changed to
+  `opik-20260912-v2` through other work and must be preserved/reconciled.
+- Reviewed executor direction: a private authenticated browse-only RPC to a
+  trusted Mac process with no model/DB environment, using the dedicated Docker
+  socket and pinned daemon/image identity for run/inspect/rm/health. Fail closed
+  without configuration; never fall back to the default context. Bound identity,
+  request/response bytes, deadline, concurrency, deduplication and ledger TTL;
+  premature response close cancels and verifies cleanup before capacity returns.
+  Keep source/lease checks before and after RPC and before persistence. Enforce
+  one executor instance, sweep abandoned containers on startup, and prove the
+  actual Compose path including cancellation, revocation and daemon recovery.
+  Empty environment is not Mac filesystem isolation. No implementation or
+  deployment acceptance is claimed yet.
+
+
+### 2026-09-12 19:18 — executor transport delivered; actual AX5 remains open
+
+- Independent commit `f72ac347` adds the production browse-only RPC, clean Mac
+  executor, authenticated readiness, pinned Docker socket/daemon/image, bounded
+  identity/deadline/bytes, shared concurrent calls and verified cancellation.
+  No confirmed P0/P1/P2 remains after independent review. Agent-host57/57 passed
+  before the final health-race correction; the correction's focused3/3 and
+  typecheck pass. `pnpm docs:check` passes. See
+  [executor evidence](../docs/evaluations/get9-harness/completeness-executor-review.md).
+- Existing TestFlight sidecar transport reached real Chromium through the
+  private host route in5.150seconds;401/ready200 verified. Live cancellation and
+  deduplication10/10 included an observed running worker, one worker for duplicate
+  calls,409 conflicts, disappearance after abort, successful fresh call, and
+  zero final workers. Wrong daemon/image/socket reject; the daemon was not
+  stopped, and its actual outage/restart acceptance remains open. The deployed
+  sidecar application/configuration remains unchanged, preserving parallel Opik
+  work. The task-owned executor currently listens on loopback4319 with a0600
+  token file outside the repository; this is not final managed deployment.
+- Actual AX5 trial10:5/12 pass,7 fail. Trial11:Today now passes after removing
+  unsafe coordinate fallback from `tapWhenVisible`; three other cases fail.
+  The helper previously clicked the fixed composer instead of the covered
+  target; the capture journey also swiped an above-screen target farther away.
+  Bidirectional scrolling and real hittability now replace that fallback.
+  Other helper methods have not all been audited and are not claimed repaired.
+- Audio's added state readback finds Toggle value0 after a nominal tap. Video
+  shows only the top of its multi-screen label while its actual switch is still
+  below the viewport. Trial12 centers that control before clicking and reads its
+  value; it is pending. AgentStudio trial11 never acquired the display probe
+  and showed a default English/normal-size preview, so that failure is not AX5
+  product evidence. Trial12 explicitly terminates the prior app in test setup
+  before launching the requested fixture; its cause/recovery remain unproven.
+- Core audit trials10/11 fail with XCTest accessibilityAudit-56, including the
+  allowed one retry. Do not suppress the error, delete contrast checks or claim
+  AX5 completion. Trial12 is running with source/heading/name/message/action
+  viewports preserved; the seventh remaining acceptance failures still need
+  diagnosis and verification. Failed artifacts and summaries remain in
+  [actual AX5 trials](../docs/evaluations/get9-harness/completeness-ios-actual-ax5-trials.json).
+- No merge, new production backend release, TestFlight release or Linear closure
+  has occurred; these partial proofs do not satisfy the remaining gates. Continue all original GET-9 acceptance,
+  including deployed RPC revocation/recovery, installed Chrome, native recovery,
+  current-head CI and exact processed build/internal-group receipt.
+
+### 2026-09-12 — recovery proven; actual AX5 diagnostics continue
+
+- Rebuilt `f72ac347` executor passes real recovery14/14: actual paused-worker
+  orphan survives executor SIGKILL, restart removes it before admission; an
+  idle dedicated daemon outage rejects readiness/browse, restart restores a
+  successful fresh browse in the same executor, final inventory empty. Trial1
+  failed an incorrect503 expectation (actual protocol502), retained separately.
+  Active-cleanup daemon loss and managed deployment are not covered.
+- Real RPC source revocation passes9/9 with deterministic model/search:
+  Chromium returns public HTTPS evidence, then the source receipt is revoked
+  before the backend checkpoint. The result is fenced, task is deleted and
+  persisted state/input erased. This is boundary proof, not model quality or
+  production deployment. See the updated executor evidence report.
+- AX5 trial12: AgentStudio31.289s and Audio33.725s pass; core226.555s fails at
+  final Dynamic Type audit. Its pre-audit result is fully visible; the reported
+  `PROPOSED FACTS` heading was elsewhere, then clipped in the audit-generated
+  screenshot. No Dynamic Type exception was added. Trial15 adds fully visible
+  heading/deadline audits; the heading passes, remaining stages are running.
+- AX5 trial13: original contact Session recovery79.375s and canonical workspace
+ 88.976s pass. Relationship capture134.184s failed the obsolete Close-button
+  assertion; current navigation uses Session BackButton. Trial14 verifies that
+  actual BackButton and return to workspace but fails old flattened query order.
+  Two exported fixed AX trees retain scope-before-composer-before-send. The
+  helper also matches a zero-size Other with the composer's ID. Independent
+  review recommends one immutable hierarchy with exact control types; this
+  correction is pending verification, not an established VoiceOver focus test.
+- Trial14 core12.920s never acquired the effective display probe, matching an
+  earlier first-test startup anomaly. Trial15 uses test-without-building and
+  reaches actual AX5 audits, but this does not prove the startup cause fixed.
+- Independent review found no confirmed P0/P1/P2 in the prior incremental
+  corrections. Snapshot changes, new evaluation script and current-head CI still
+  require review/verification. PR178 remains draft; no release/Linear closure.
+- Follow-up review required an explicit no-result-exposed assertion in the RPC
+  revocation evaluation. Trial2 passes10/10 including `CONTACT_TASK_LEASE_LOST`
+  and absent model result; corresponding P2s are independently closed.
+- AX5 trial15 passes the fully visible proposed-facts heading, then fails
+  contrast at the deadline-heading audit249.782s. Its audit failure screenshot
+  is blank and has no resolvable issue element; do not classify it as a proven
+  product color issue or suppress it. Trial16 catches a compile error from a
+  non-public snapshot property; the attachment now uses public index/type/id/
+  frame attributes. Trial17 compiles and is running the corrected snapshot
+  code. No Dynamic Type/contrast gate has been removed.
+- Real SDK through the production RPC client passes12/12 in73.652s; independent
+  quality4/3/3/not_exercised. The reviewer flags overbroad negative-search
+  phrasing and verbosity; no career fact was inferred. Recovery/delegation are
+  not scored on this successful path. The new Infisical URL/token were absent,
+  then migrated only to staging:/agent-host and exact readback passed2/2; the
+  existing sidecar remains unchanged. Manifest validation passes.
+- AX5 trial17: fixed hierarchy-order check and real Back return passed, but the
+  relationship journey145.292s fails Dynamic Type on the person's label child.
+  The existing button had full label/value/hint but did not explicitly ignore
+  redundant children. Trial20 adds that single-button semantic boundary and
+  removes the old child-text Dynamic Type exception; visual text still requires
+  screenshot review. Core trial19 passed eight regions before an offscreen,
+  previously audited instruction was reported clipped during confirmation.
+- Trial20 scopes duplicate Dynamic Type coverage to unchanged UI stages and
+  exact identity/value/configuration/dimensions; confirmation clears coverage
+  and reaudits the source/proposal context. Every audit type repositions and
+  freezes a fresh snapshot. This is pending independent review and device
+  verification. Trial18's availability compile error was corrected before19.
+- Latest remote main is `ab20fb9b` (PR179: private product observation defaults).
+  PR178 currently reports conflicts against it. Preserve and reconcile that
+  parallel work before final CI/deployment; current live RPC proofs precede
+  that merge. Trial20 core116.428s fails an unfiltered captured-time contrast
+  finding after confirmation; the failure is retained, not an AX5 pass.

@@ -66,3 +66,53 @@ by the transport report or passing unit tests.
 
 API references: [Node HTTP response close](https://nodejs.org/docs/latest-v24.x/api/http.html#event-close_2),
 [Docker environment precedence](https://docs.docker.com/reference/cli/docker/#environment-variables).
+
+## Later live recovery and revocation checks
+
+The executor was rebuilt from `f72ac347` before these runs.
+[Recovery trial 2](completeness-executor-recovery-second.json) passes14/14:
+exactly one real worker was observed and paused, its executor was killed, the
+worker remained, and a fresh executor removed that actual orphan before
+readiness. A fresh browse then succeeded. The task-owned Colima profile was
+stopped; readiness and browse both rejected with502. Restarting that same daemon
+restored readiness in the same executor process, a new browse succeeded, and
+final worker inventory was empty. Other Docker contexts were not stopped.
+This covers idle daemon outage and process-loss orphan recovery, not daemon loss
+while cleanup is in flight.
+
+[Recovery trial 1](completeness-executor-recovery-first.json) remains failed:
+the script incorrectly expected503 for a runtime readiness error. The existing
+protocol and its unit test specify502. Its real outage rejected successfully,
+but the incorrect assertion stopped the trial; the owned daemon was restored
+before trial2. No service behavior was changed to satisfy this assertion.
+
+[RPC source revocation trial 2](completeness-executor-revocation-second.json) passes10/10.
+The retained [first trial](completeness-executor-revocation-first.json) passed9/9,
+but review required an explicit no-result-returned-to-model assertion. Trial2
+adds that gate and accurately names the stored-hash check.
+A deterministic model drove a real product task through PostgreSQL, the Unix
+research socket, the production RPC client, Chromium and public HTTPS. After
+Chromium returned, the evaluation revoked that synthetic capture's source
+receipt before returning the result to the backend checkpoint. The tool was
+fenced with `CONTACT_TASK_LEASE_LOST`; readback showed a deleted task, empty
+public sources, erased stored state/input, no confirmed state and no external
+effects. The script is
+[`evaluate-browser-rpc-revocation.mjs`](../../../scripts/evals/evaluate-browser-rpc-revocation.mjs).
+Its controlled model/search do not establish model quality, real Exa calls or
+installed-client acceptance. Managed production caller/service configuration,
+active-cleanup daemon loss, client acceptance and release gates remain open.
+
+[Real SDK through RPC](completeness-executor-product-first.json) passes12/12 in
+73.652seconds. It uses the original synthetic image, real Claude Agent SDK,
+product HTTP, Unix socket, private RPC, Chromium, public HTTPS and PostgreSQL
+readback. Independent quality scores are task completion4, grounding3,
+naturalness3, recovery not exercised. The answer correctly withholds career
+facts but overstates the breadth of its negative search conclusion and repeats
+information despite a brevity request. No recovery/delegation quality score is
+claimed for this all-successful path. Search remains controlled.
+
+The [Infisical readback](completeness-executor-secrets-readback.json) confirms
+both exact executor configuration values at `staging:/agent-host`, without
+printing either value. The manifest and TestFlight deployment contract now
+require them. The existing running sidecar was not recreated; canonical secret
+configuration is not managed service or deployed caller acceptance.

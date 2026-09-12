@@ -76,3 +76,10 @@ CHAT_MEDIA_S3_FORCE_PATH_STYLE=false
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_SESSION_TOKEN=
+
+# Browse-only private executor; resolve and verify the guest-to-host IP from
+# this exact research sidecar. Do not expose it through Tailscale Serve.
+# Store both values in Infisical staging:/agent-host. Only the research sidecar
+# receives them; the trusted Mac executor reads the token from an owner-only file.
+TALENT_SIGNAL_BROWSER_EXECUTOR_URL=http://replace-with-verified-private-ip:4319
+TALENT_SIGNAL_BROWSER_EXECUTOR_TOKEN=replace-with-generated-64-hex-token

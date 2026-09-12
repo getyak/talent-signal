@@ -1,0 +1,191 @@
+{
+  "status": "incomplete",
+  "trials": [
+    {
+      "trial": "tenth",
+      "resultBundle": "/tmp/get9-ios-ax5-tenth.xcresult",
+      "cases": [
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAgentStudioRemainsReachableInChineseAtAX5",
+          "result": "failed",
+          "seconds": 24.413
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAudioSignalAX5DarkKeepsConsentAndStopReachable",
+          "result": "failed",
+          "seconds": 31.095
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAX5DarkModeCriticalContentRemainsReachable",
+          "result": "failed",
+          "seconds": 90.041
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testCanonicalContactReceiptAX5DarkChineseOpensPeopleDetail",
+          "result": "failed",
+          "seconds": 59.677
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testCanonicalWorkspaceAX5DarkReducedMotionKeepsNavigationReachable",
+          "result": "failed",
+          "seconds": 112.264
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testCaptureSessionDecisionRemainsReachableInChineseDarkAX5",
+          "result": "passed",
+          "seconds": 12.042
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testContactProposalAX5DarkChineseKeepsReviewAndComposerReachable",
+          "result": "passed",
+          "seconds": 21.091
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testGlobalVoiceHoldRemainsReachableInChineseDarkAX5ReducedMotion",
+          "result": "passed",
+          "seconds": 12.853
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testRelationshipCaptureAX5DarkPreservesEvidenceActionAndScopeOrder",
+          "result": "failed",
+          "seconds": 193.795
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testTodayInlineDecisionsRemainReachableInChineseDarkAX5",
+          "result": "failed",
+          "seconds": 24.271
+        },
+        {
+          "suite": "TalentSignalUITests.Get5SessionUITests",
+          "test": "testMarkdownChineseDarkAX5ReducedMotionRemainsReachable",
+          "result": "passed",
+          "seconds": 33.036
+        },
+        {
+          "suite": "TalentSignalUITests.StandaloneOnboardingUITests",
+          "test": "testStandaloneAX5LongMixedSignalHasKeyboardExitAndReachableManualReview",
+          "result": "passed",
+          "seconds": 60.422
+        }
+      ]
+    },
+    {
+      "trial": "eleventh",
+      "resultBundle": "/tmp/get9-ios-ax5-eleventh.xcresult",
+      "cases": [
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAgentStudioRemainsReachableInChineseAtAX5",
+          "result": "failed",
+          "seconds": 12.786
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAudioSignalAX5DarkKeepsConsentAndStopReachable",
+          "result": "failed",
+          "seconds": 19.703
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAX5DarkModeCriticalContentRemainsReachable",
+          "result": "failed",
+          "seconds": 93.656
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testTodayInlineDecisionsRemainReachableInChineseDarkAX5",
+          "result": "passed",
+          "seconds": 20.247
+        }
+      ]
+    },
+    {
+      "trial": "twelfth",
+      "resultBundle": "/tmp/get9-ios-ax5-twelfth.xcresult",
+      "cases": [
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAgentStudioRemainsReachableInChineseAtAX5",
+          "result": "passed",
+          "seconds": 31.289
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAudioSignalAX5DarkKeepsConsentAndStopReachable",
+          "result": "passed",
+          "seconds": 33.725
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAX5DarkModeCriticalContentRemainsReachable",
+          "result": "failed",
+          "seconds": 226.555
+        }
+      ]
+    },
+    {
+      "trial": "thirteenth",
+      "resultBundle": "/tmp/get9-ios-ax5-thirteenth.xcresult",
+      "cases": [
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testCanonicalContactReceiptAX5DarkChineseOpensPeopleDetail",
+          "result": "passed",
+          "seconds": 79.375
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testCanonicalWorkspaceAX5DarkReducedMotionKeepsNavigationReachable",
+          "result": "passed",
+          "seconds": 88.976
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testRelationshipCaptureAX5DarkPreservesEvidenceActionAndScopeOrder",
+          "result": "failed",
+          "seconds": 134.184
+        }
+      ]
+    },
+    {
+      "trial": "fourteenth",
+      "resultBundle": "/tmp/get9-ios-ax5-fourteenth.xcresult",
+      "cases": [
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAX5DarkModeCriticalContentRemainsReachable",
+          "result": "failed",
+          "seconds": 12.92
+        },
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testRelationshipCaptureAX5DarkPreservesEvidenceActionAndScopeOrder",
+          "result": "failed",
+          "seconds": 147.479
+        }
+      ]
+    },
+    {
+      "trial": "fifteenth",
+      "resultBundle": "/tmp/get9-ios-ax5-fifteenth.xcresult",
+      "cases": [
+        {
+          "suite": "TalentSignalUITests.CandidateSignalUITests",
+          "test": "testAX5DarkModeCriticalContentRemainsReachable",
+          "result": "failed",
+          "seconds": 249.782
+        }
+      ]
+    }
+  ]
+}

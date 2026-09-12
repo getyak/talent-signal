@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 @MainActor
 final class Get5SessionUITests: XCTestCase {
@@ -182,10 +183,12 @@ final class Get5SessionUITests: XCTestCase {
             "--force-dark", "-AppleInterfaceStyle", "Dark",
             "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
             "-talent-signal.interface-language", "zh-Hans",
-            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
         openNewComposer()
         send("Review this synthetic note.")
         XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 8))

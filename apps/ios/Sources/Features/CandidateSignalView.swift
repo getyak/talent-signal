@@ -140,6 +140,21 @@ struct CandidateSignalView: View {
                         .padding(.bottom, 40)
                     }
                     .clipped()
+                    .accessibilityIdentifier("capture-review-scroll")
+#if DEBUG
+                    .overlay {
+                        if ProcessInfo.processInfo.environment["TS_IOS_UI_TEST_DISPLAY_PROBE"] == "true" {
+                            GeometryReader { geometry in
+                                let frame = geometry.frame(in: .global)
+                                Color.clear.frame(width: 1, height: 1)
+                                    .accessibilityElement()
+                                    .accessibilityIdentifier("review-visible-viewport")
+                                    .accessibilityValue("\(frame.minX)|\(frame.minY)|\(frame.width)|\(frame.height)")
+                            }
+                            .allowsHitTesting(false)
+                        }
+                    }
+#endif
                     .onChange(of: store.stage) { _ in
                         Task { @MainActor in
                             proxy.scrollTo("screen-top", anchor: .top)

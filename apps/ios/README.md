@@ -525,6 +525,15 @@ simulator, and runs the unit and UI tests. When Docker is available it starts
 an isolated local backend and synthetic fixtures for backend-dependent
 journeys; otherwise those journeys may skip.
 
+Dynamic Type UI tests use `UIContentSizeCategory` raw values rather than
+hand-written category strings. Enable the existing Debug display probe and
+read back the effective size before claiming AX5 coverage: an invalid launch
+value can silently render the default size. Audit each required text and
+result in its actual visible viewport; a label's existence does not prove its
+body is readable. Retain overlapping screenshots for content taller than one
+viewport, and keep geometry/ownership from before an audit that may scroll
+while collecting issue screenshots.
+
 The release identity is:
 
 - App name: `Talent Signal`
@@ -580,3 +589,12 @@ a successful `main` CI run with iOS release-input changes publishes
 automatically. App Store Connect must separately keep an internal testing group
 with automatic distribution enabled; that group plus an invited-device install
 is the proof that a processed build is available on a phone.
+
+The core AX5 audit repositions and captures one immutable hierarchy before each
+of the same four audit types. A repeated offscreen Dynamic Type finding may be
+covered only by an explicit anchor that already passed every type and every
+visible segment in the same unchanged UI stage, with matching type, identity,
+label, value, display configuration and dimensions. Confirmation clears that
+coverage and reaudits the source/proposal context. Current visible anchors,
+unknown identities, oversized visible text and previously failed anchors never
+receive this coverage exception. Retain original audit failures as evidence.

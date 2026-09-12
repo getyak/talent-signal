@@ -249,6 +249,7 @@ struct FactReviewCard: View {
                 Text("Exact evidence · \(fact.assertion.evidenceMessageID)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityIdentifier("fact-evidence-label-\(fact.id)")
                 Text("“\(fact.assertion.evidenceQuote)”")
                     .font(.body)
                     .foregroundStyle(Color.tsInk)

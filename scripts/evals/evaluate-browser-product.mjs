@@ -18,7 +18,8 @@ const configuration = claudeHarnessConfiguration({ ...process.env, ANTHROPIC_BAS
 const bytes = await readFile(new URL("./fixtures/get9-research.png", import.meta.url));
 const hash = value => createHash("sha256").update(value).digest("hex");
 const objective = "保存这段合成聊天。请搜索陈夏的公开资料，并实际用浏览器打开搜索得到的网页核对内容；不要把示例站点或同名页面当作其职业证据。最后简短说明核对结果，不发消息或修改已确认事实。";
-const report = { evaluation: "get9-browser-product.v1", createdAt: new Date().toISOString(), dataClass: "synthetic", imageID,
+const usesExecutor = Boolean(process.env.TALENT_SIGNAL_BROWSER_EXECUTOR_URL);
+const report = { browserTransport: usesExecutor ? "private-rpc" : "local-direct", evaluation: "get9-browser-product.v1", createdAt: new Date().toISOString(), dataClass: "synthetic", imageID,
   scope: "Real HTTP/product task, Claude Agent SDK, Unix-socket research client/server, Chromium container, public HTTPS example.com and PostgreSQL readback. Search discovery is a controlled Exa-shaped fixture; no Exa network acceptance or installed-client acceptance is claimed.",
   objective, tools: [], searches: [], browserLifecycle: [], status: "running", releaseReady: false,
   qualityReview: { status: "pending_independent_review", rubric: "get9-quality-v1", scale: [0, 1, 2, 3, 4], minimumEachDimension: 3 } };
@@ -42,7 +43,7 @@ try {
   const search = async query => { report.searches.push(query); return [page]; };
   researchServer = await startPersonResearchServer({ socketPath: join(directory, "research.sock"),
     environment: { ...process.env, TALENT_SIGNAL_BROWSER_IMAGE: imageID },
-    contactResearch: { browse: (url, signal, environment) => browseDiscoveredPublicPage(url, signal, environment, undefined, event => report.browserLifecycle.push(event)), exa: { searchWeb: search, searchProfiles: search, fetchContent: async () => page } } });
+    contactResearch: { ...(usesExecutor ? {} : { browse: (url, signal, environment) => browseDiscoveredPublicPage(url, signal, environment, undefined, event => report.browserLifecycle.push(event)) }), exa: { searchWeb: search, searchProfiles: search, fetchContent: async () => page } } });
   app = await buildApp({ pool, config: { databaseUrl: databaseURL, host: "127.0.0.1", port: 0, allowedOrigins: [],
     appleSignInAudiences: [], appleSignInEnabled: false, passwordAuthEnabled: false, passwordRegistrationEnabled: false,
     simulatedAuthEnabled: true, internalLabEnabled: false, retentionSweepIntervalMs: 3_600_000, sessionTtlSeconds: 3600,
