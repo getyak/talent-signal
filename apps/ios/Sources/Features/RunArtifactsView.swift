@@ -32,16 +32,16 @@ struct RunArtifactsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if listing {
-                ProgressView(language.text("Checking generated files…", zhHans: "正在检查生成的文件…"))
+                ProgressView(language.text("Checking generated files…"))
                     .font(.caption)
             } else if listFailed {
-                Button(language.text("Files could not be loaded. Retry", zhHans: "文件列表加载失败，重试")) {
+                Button(language.text("Files could not be loaded. Retry")) {
                     listAttempt += 1
                 }
                 .font(.caption)
             }
             if !files.isEmpty {
-                Text(language.text("Generated files · analysis to verify", zhHans: "生成的文件 · 分析结果，待核实"))
+                Text(language.text("Generated files · analysis to verify"))
                     .font(.caption).foregroundStyle(.secondary)
                 ForEach(files) { file in
                     Button {
@@ -57,12 +57,12 @@ struct RunArtifactsView: View {
                                 exporting = true
                             } catch {
                                 if !Task.isCancelled {
-                                    notice = language.text("This file is unavailable. Try again or generate it from current evidence.", zhHans: "文件暂不可用。请重试，或根据当前资料重新生成。")
+                                    notice = language.text("This file is unavailable. Try again or generate it from current evidence.")
                                 }
                             }
                         }
                     } label: {
-                        Label(language.text("Save ", zhHans: "保存 ") + file.name, systemImage: "arrow.down.document")
+                        Label(language.text("Save ") + file.name, systemImage: "arrow.down.document")
                     }
                     .buttonStyle(.bordered).disabled(busy)
                     .accessibilityIdentifier("run-artifact-\(file.id)")
@@ -82,7 +82,7 @@ struct RunArtifactsView: View {
         }
         .fileExporter(isPresented: $exporting, document: document, contentType: contentType, defaultFilename: filename) { result in
             document = nil
-            if case .failure = result { notice = language.text("The file could not be saved. Try again.", zhHans: "文件未能保存，请重试。") }
+            if case .failure = result { notice = language.text("The file could not be saved. Try again.") }
         }
         .onChange(of: exporting) { showing in if !showing { document = nil } }
         .onDisappear { loadingTask?.cancel(); loadingTask = nil; document = nil; files = [] }
