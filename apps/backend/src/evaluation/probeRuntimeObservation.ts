@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { access, constants } from "node:fs/promises";
 import { createEnvironmentRuntimeObserver } from "@talent-signal/agent";
 
-const observer = createEnvironmentRuntimeObserver();
+export async function probeRuntimeObservation(environment: NodeJS.ProcessEnv = process.env) {
+const root = environment.TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX?.trim();
+if (!root) throw new Error("RUNTIME_OBSERVATION_OUTBOX_REQUIRED");
+// A transport probe has no database source validator and must never scan the
+// native product queue. This directory still lives on the durable volume.
+const observer = createEnvironmentRuntimeObserver({ ...environment, TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX: join(root, "deployment-probes") });
 if (!observer) throw new Error("PRODUCT_OBSERVATION_POLICY_REQUIRED");
 const policy = observer.outbox.policy;
 if (!policy.authorization_scopes.includes("product_run")) throw new Error("PRODUCT_OBSERVATION_PROJECTION_REQUIRED");
@@ -25,7 +32,7 @@ try {
     if (!retained) await new Promise(resolve => setTimeout(resolve, 500));
   } while (!retained && Date.now() < deadline);
   if (!retained) throw new Error("PRODUCT_OBSERVATION_READBACK_REQUIRED");
-  await access(process.env.TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX!, constants.W_OK);
+  await access(join(root, "deployment-probes"), constants.W_OK);
   await observer.outbox.deleteRun(context);
   const deleteDeadline = Date.now() + 40_000;
   let deleted = false;
@@ -35,6 +42,11 @@ try {
     if (!deleted) await new Promise(resolve => setTimeout(resolve, 500));
   } while (!deleted && Date.now() < deleteDeadline);
   if (!deleted) throw new Error("PRODUCT_OBSERVATION_DELETE_READBACK_REQUIRED");
-  console.log(JSON.stringify({ status: "verified", endpoint: policy.endpoint, project: policy.project,
-    synthetic_only: true, model_calls: 0, persistent_write: true, destination_readback: true, deletion_readback: true }));
+  return { status: "verified", endpoint: policy.endpoint, project: policy.project,
+    synthetic_only: true, model_calls: 0, persistent_write: true, destination_readback: true, deletion_readback: true };
 } finally { observer.dispose(); }
+
+}
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  console.log(JSON.stringify(await probeRuntimeObservation()));
+}

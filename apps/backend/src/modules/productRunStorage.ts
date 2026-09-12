@@ -91,8 +91,12 @@ export function productRunSink(pool: Pool, id: string, onError: (error: unknown)
             WHERE r.id=$1 FOR SHARE OF r,g NOWAIT`,[id,admittedGeneration??null])).rows[0];
           if (!row?.available) return;
           for (const span of pending.values()) {
-            await client.query(`UPDATE product_run_spans SET span=$3::jsonb WHERE id=$1 AND run_id=$2
-              AND product_run_source_available($2)`,[span.id,id,JSON.stringify(span)]);
+            // Cleanup can remove the metadata placeholder before the task commits.
+            // Restore the request-local event only under the exact source lease above.
+            await client.query(`INSERT INTO product_run_spans(id,run_id,span)
+              SELECT $1,$2,$3::jsonb WHERE product_run_source_available($2)
+              ON CONFLICT(id) DO UPDATE SET span=EXCLUDED.span
+              WHERE product_run_spans.run_id=EXCLUDED.run_id`,[span.id,id,JSON.stringify(span)]);
           }
         });
       } catch (error) { onError(error); }
