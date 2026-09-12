@@ -120,6 +120,7 @@ final class RelationshipArchiveTests: XCTestCase {
           "contract_version": "2026-08-24.10",
           "task_id": "11111111-1111-4111-8111-111111111111",
           "disposition": "answer",
+          "session_title": "查看 Maya 的 CPO 进展",
           "blocks": [{
             "id": "22222222-2222-4222-8222-222222222222",
             "kind": "answer",
@@ -148,6 +149,11 @@ final class RelationshipArchiveTests: XCTestCase {
         )
 
         XCTAssertEqual(response.agentEvent?.kind, "resolved_contact_context")
+        XCTAssertEqual(response.sessionTitle, "查看 Maya 的 CPO 进展")
+        XCTAssertEqual(
+            response.relationshipAskProjection.sessionTitle,
+            "查看 Maya 的 CPO 进展"
+        )
         XCTAssertEqual(response.agentEvent?.personDisplayLabel, "Maya Chen")
         XCTAssertEqual(
             response.agentEvent?.relationshipContextDisplayLabel,
@@ -1102,6 +1108,69 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertTrue(store.unreadSessions.isEmpty)
         store.delete(sessionID)
         XCTAssertTrue(store.sessions.isEmpty)
+    }
+
+    @MainActor
+    func testFirstAnswerAppliesBoundedSessionTitleOnlyOnce() throws {
+        let store = AgentSessionStore()
+        let sessionID = try XCTUnwrap(
+            store.beginUnscopedSession(
+                objective: "  比较 Maya\n两版外联话术  "
+            )
+        )
+        func response(taskID: String, title: String) -> RelationshipAskResponse {
+            RelationshipAskResponse(
+                contractVersion: "test",
+                taskID: taskID,
+                contextManifestID: "none-unbound-conversation",
+                knowledgeSnapshotID: "none-unbound-conversation",
+                disposition: "answer",
+                blocks: [
+                    .init(
+                        id: "block-\(taskID)",
+                        kind: "answer",
+                        title: "Answer",
+                        body: "Done.",
+                        status: "informational",
+                        citationDependencyIDs: [],
+                        requiresUserDecision: false
+                    ),
+                ],
+                createdAt: "2026-09-12T00:00:00.000Z",
+                sessionTitle: title
+            )
+        }
+
+        XCTAssertTrue(
+            store.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: "比较话术",
+                response: response(taskID: "task-1", title: "整理 Maya 外联话术")
+            )
+        )
+        XCTAssertEqual(store.session(id: sessionID)?.title, "整理 Maya 外联话术")
+
+        XCTAssertTrue(
+            store.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: "继续",
+                response: response(taskID: "task-2", title: "不应覆盖原标题")
+            )
+        )
+        XCTAssertEqual(store.session(id: sessionID)?.title, "整理 Maya 外联话术")
+    }
+
+    @MainActor
+    func testObjectiveTitleKeepsCompoundCharactersWhole() throws {
+        let store = AgentSessionStore()
+        let family = "👨‍👩‍👧‍👦"
+        let sessionID = try XCTUnwrap(
+            store.beginUnscopedSession(objective: "整理" + String(repeating: family, count: 40))
+        )
+        let title = try XCTUnwrap(store.session(id: sessionID)?.title)
+        XCTAssertEqual(title.count, 32)
+        XCTAssertTrue(title.hasSuffix(family))
+        XCTAssertLessThanOrEqual(title.unicodeScalars.count, 256)
     }
 
     @MainActor

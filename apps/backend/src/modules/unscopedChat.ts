@@ -29,6 +29,7 @@ import type {
 } from "./chatAnswerProvider.js";
 import { boundedConversationHistory } from "./chatAnswerProvider.js";
 import { readAgentSessionConversation } from "./agentSessions.js";
+import { firstTurnSessionTitle } from "./sessionTitles.js";
 import { productObservationContext } from "./runtimeObservationSources.js";
 import { assertSessionChatSourcesAvailable, assertSessionForChat, purgeUnavailableSessionChatSources, recordSessionChatSources, markSessionContextAnswer, type AgentSessionChatSource } from "./agentSessionSources.js";
 import {
@@ -129,8 +130,10 @@ export async function executeUnscopedChatTask(input: {
         input.database, input.auth, input.request.session_id,
         { personId: null, relationshipContextId: null },
       )
-    : { messages: [] };
+    : { hasRecordedTurns: false, messages: [] };
   const conversationHistory = boundedConversationHistory(sessionConversation.messages, input.request.message_id);
+  const sessionTitleRequested = !sessionConversation.hasRecordedTurns
+    && !sessionConversation.sources?.length;
   observation = input.database && input.auth ? await productObservationContext(input.database, input.auth, taskID,
     "unscoped_conversation", { sessionID: input.request.session_id,
       screenshotTaskIDs: sessionConversation.sources?.map((source) => source.taskID) ?? [] }) : undefined;
@@ -139,6 +142,7 @@ export async function executeUnscopedChatTask(input: {
   const continuation = input.provider?.providerId === "claude-agent-sdk" && observation?.source_refs?.kind === "product"
     ? input.continuation?.(sources) : undefined;
   let providerResult: RemoteChatAnswerResult | null = null;
+  let proposedSessionTitle: string | null = null;
   let agentProviderResult: UnscopedChatExecution["agentProviderResult"] = null;
   let remoteStatus: UnscopedChatExecution["remoteStatus"] = input.provider
     ? "fallback"
@@ -159,6 +163,7 @@ export async function executeUnscopedChatTask(input: {
           objective: input.request.objective,
           provider: input.provider,
           sessionID: input.request.session_id ?? null,
+          sessionTitleRequested,
           ...(input.request.message_id ? { messageID: input.request.message_id } : {}),
           conversationHistory,
           runID: taskID,
@@ -180,6 +185,7 @@ export async function executeUnscopedChatTask(input: {
           outputTokens: execution.providerResult.outputTokens,
           ...(execution.providerResult.prompt ? { prompt: execution.providerResult.prompt } : {}),
         };
+        proposedSessionTitle = execution.providerResult.sessionTitle ?? null;
         remoteStatus = "agent_completed";
       } else {
         providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
@@ -189,6 +195,7 @@ export async function executeUnscopedChatTask(input: {
           ...(responsePreference ? { responsePreference } : {}),
           ...(calendarContext ? { calendarContext } : {}),
           objective: input.request.objective,
+          session_title_requested: sessionTitleRequested,
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           context_blocks: [],
           allowed_citation_ids: [],
@@ -199,6 +206,7 @@ export async function executeUnscopedChatTask(input: {
           throw new Error("Unscoped Chat cannot return an evidence question set.");
         }
         block = responseBlock(providerResult);
+        proposedSessionTitle = providerResult.session_title ?? null;
         remoteStatus = "completed";
       }
     } catch {
@@ -212,6 +220,7 @@ export async function executeUnscopedChatTask(input: {
         providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
           mode: "unscoped_conversation",
           objective: input.request.objective,
+          session_title_requested: sessionTitleRequested,
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           context_blocks: [],
           allowed_citation_ids: [],
@@ -222,6 +231,7 @@ export async function executeUnscopedChatTask(input: {
           throw new Error("Unscoped Chat cannot return an evidence question set.");
         }
         block = responseBlock(providerResult);
+        proposedSessionTitle = providerResult.session_title ?? null;
       } catch {
         providerResult = null;
         block = localFallbackBlock(input.request.objective, true);
@@ -231,6 +241,12 @@ export async function executeUnscopedChatTask(input: {
   } else {
     block = localFallbackBlock(input.request.objective, false);
   }
+
+  // Prefer the title proposed by the current answer model call; otherwise use
+  // a bounded objective-derived fallback. Never generic, never over budget.
+  const firstTurnTitle = sessionTitleRequested
+    ? firstTurnSessionTitle(input.request.objective, proposedSessionTitle)
+    : null;
 
   return {
     conversationMessageIDs: conversationHistory.map((message) => message.message_id),
@@ -243,6 +259,7 @@ export async function executeUnscopedChatTask(input: {
       blocks: [sessionConversation.sources?.length ? markSessionContextAnswer(block, input.request.objective) : block],
       agent_event: agentEvent,
       external_effects: [],
+      ...(firstTurnTitle ? { session_title: firstTurnTitle } : {}),
       created_at: (input.createdAt ?? new Date()).toISOString(),
     },
     remoteStatus,

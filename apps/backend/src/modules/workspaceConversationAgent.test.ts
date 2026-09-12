@@ -105,6 +105,30 @@ describe("workspace conversation Agent", () => {
     });
   });
 
+  it("keeps the reply heading separate from first-result Session metadata", async () => {
+    const provider = new ScriptedAgentProvider([], {
+      outcome: "reply",
+      title: "Current reply",
+      body: "Here is the comparison.",
+      session_title: "Compare outreach drafts",
+    });
+    const run = vi.spyOn(provider, "run");
+    const execution = await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "Compare these outreach drafts",
+      sessionTitleRequested: true,
+      contacts: { search: vi.fn(), read: vi.fn() },
+      provider,
+    });
+    expect(run).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionTitleRequested: true }),
+      expect.any(Function),
+      expect.any(AbortSignal),
+    );
+    expect(execution.block.title).toBe("Current reply");
+    expect(execution.providerResult.sessionTitle).toBe("Compare outreach drafts");
+  });
+
   it("passes the named-relationship lookup contract to the provider", async () => {
     const query = vi.fn();
     const provider = {

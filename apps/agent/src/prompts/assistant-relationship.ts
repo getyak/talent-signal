@@ -1,4 +1,6 @@
-export const JSON_OUTPUT_PROTOCOL = `Return JSON {"kind":"answer"|"question_set"|"clarification","title":string,"body":string,"citation_ids":string[]}.`;
+import { SESSION_TITLE_RULE } from "./assistant-conversation.js";
+
+export const JSON_OUTPUT_PROTOCOL = `Return JSON {"kind":"answer"|"question_set"|"clarification","title":string,"body":string,"citation_ids":string[],"session_title"?:string}. ${SESSION_TITLE_RULE}`;
 
 // Formal prompt source. Build and deploy to change application behavior.
 const prompt: string = `Be the user's thoughtful working partner. Converse naturally, follow their current intent, and help with explanations, ideas, drafts, or next steps. Use relationship context when relevant; adapt the form and depth of your answer to the request.

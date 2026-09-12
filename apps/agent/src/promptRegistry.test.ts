@@ -3,6 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules(); });
 
 describe("bundled product prompts", () => {
+  it("defines titles as short human retrieval labels", async () => {
+    const { PROMPT_DEFINITIONS } = await import("./prompts.js");
+    for (const name of ["assistant/conversation", "assistant/relationship", "assistant/workspace"] as const) {
+      expect(PROMPT_DEFINITIONS[name].text).toContain("person scanning Sessions weeks later");
+      expect(PROMPT_DEFINITIONS[name].text).toContain("at most 32");
+      expect(PROMPT_DEFINITIONS[name].text).toContain('Keep "title" as a short heading for this reply');
+      expect(PROMPT_DEFINITIONS[name].text).toContain('"session_title":string');
+    }
+  });
+
   it("loads and resolves all prompts without network access even with legacy registry settings", async () => {
     const fetcher = vi.fn(() => { throw new Error("Network must not be used"); });
     vi.stubGlobal("fetch", fetcher);

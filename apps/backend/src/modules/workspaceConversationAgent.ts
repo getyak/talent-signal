@@ -173,6 +173,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
   contacts: WorkspaceContactLookup;
   sessionID?: string | null;
   messageID?: string;
+  sessionTitleRequested?: boolean;
   conversationHistory?: readonly ConversationMessage[];
   promptSnapshot?: PromptSnapshot;
   runID?: string;
@@ -483,6 +484,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
         ...(input.responsePreference ? { responsePreference: input.responsePreference } : {}),
         ...(input.calendarContext ? { calendarContext: input.calendarContext } : {}),
         objective: input.objective,
+        sessionTitleRequested: input.sessionTitleRequested === true,
         conversationHistory: input.conversationHistory ?? [],
         systemPrompt: snapshot.text,
         scopeSummary: {
@@ -509,6 +511,9 @@ export async function executeWorkspaceConversationAgentCore(input: {
     const output = measureLabServerStageSync("validation", () => WorkspaceConversationFinalOutputSchema.parse(
       providerResult.structuredOutput,
     ));
+    if (input.sessionTitleRequested && "session_title" in output && output.session_title) {
+      providerResult.sessionTitle = output.session_title;
+    }
     if (
       (runState.proposal && output.outcome !== "contact_change_proposal") ||
       (runState.readScope && output.outcome !== "use_contact") ||
@@ -626,6 +631,7 @@ export async function executeWorkspaceConversationAgent(input: {
   provider: AgentProvider;
   sessionID?: string | null;
   messageID?: string;
+  sessionTitleRequested?: boolean;
   conversationHistory?: readonly ConversationMessage[];
   runID?: string;
   observation?: RuntimeObservationContext;
@@ -685,6 +691,7 @@ export async function executeWorkspaceConversationAgent(input: {
         ...(input.responsePreference ? { responsePreference: input.responsePreference } : {}),
         ...(input.calendarContext ? { calendarContext: input.calendarContext } : {}),
     ...(input.messageID === undefined ? {} : { messageID: input.messageID }),
+    ...(input.sessionTitleRequested === undefined ? {} : { sessionTitleRequested: input.sessionTitleRequested }),
     ...(input.conversationHistory === undefined ? {} : { conversationHistory: input.conversationHistory }),
     ...(input.sessionID === undefined ? {} : { sessionID: input.sessionID }),
   });
