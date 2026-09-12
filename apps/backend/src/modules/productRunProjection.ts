@@ -68,6 +68,7 @@ export function startProductRunProjection(pool: Pool, onError: () => void): () =
   let stopped = false, active: Promise<void> | undefined;
   const sweep = async () => {
     let cursor = "00000000-0000-0000-0000-000000000000";
+    const seen = new Set<string>();
     do {
       const rows = (await pool.query<ProjectionRun>(`SELECT r.*,CASE WHEN r.status='running' THEN 'interrupted' ELSE r.status END AS status,
         COALESCE((SELECT jsonb_agg(s.span ORDER BY s.created_at,s.id) FROM product_run_spans s WHERE s.run_id=r.id),'[]') AS spans
@@ -78,7 +79,8 @@ export function startProductRunProjection(pool: Pool, onError: () => void): () =
               AND w.state='active' AND w.expires_at>now())) ORDER BY r.id LIMIT 50`,
       [cursor, base.source_workspace_ids, base.retention_days])).rows;
       for (const row of rows) {
-        cursor = row.id;
+        cursor = row.id; seen.add(row.id);
+        try {
         // Active isolated workspaces inherit only their already admitted owner's scope.
         const policy = { ...base, project: `${base.project}-product-runs`, source_workspace_ids: [...new Set([...base.source_workspace_ids, row.account_id])] };
         let outbox = outboxes.get(row.account_id);
@@ -92,9 +94,11 @@ export function startProductRunProjection(pool: Pool, onError: () => void): () =
         if (fingerprints.get(row.id) !== observation.attempt_id) {
           await outbox.enqueue(observation); fingerprints.set(row.id, observation.attempt_id);
         }
+        } catch { onError(); }
       }
       if (rows.length < 50) break;
     } while (!stopped);
+    if (!stopped) for (const id of fingerprints.keys()) if (!seen.has(id)) fingerprints.delete(id);
     // Discover prior process queues too: source removal must still delete remote traces
     // when there are no remaining available runs for that account after restart.
     const { readdir } = await import("node:fs/promises");
@@ -104,7 +108,7 @@ export function startProductRunProjection(pool: Pool, onError: () => void): () =
       const outbox = new RuntimeObservationOutbox(join(root, "product-runs", id), policy, new PrivateOpikRuntimeTransport(policy, process.env.OPIK_API_KEY));
       outbox.setSourceValidator(context => runtimeObservationSourcesAvailable(pool, context)); outboxes.set(id, outbox);
     }
-    for (const outbox of outboxes.values()) await outbox.flush();
+    for (const outbox of outboxes.values()) await outbox.flush().catch(onError);
   };
   const tick = () => { if (!stopped && !active) active = sweep().catch(onError).finally(() => { active = undefined; }); };
   const timer = setInterval(tick, 30_000); timer.unref(); tick();
