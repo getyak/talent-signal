@@ -207,6 +207,11 @@ export const ContactWorkspaceToolInputSchema = z.strictObject({
   reason: z.string().trim().min(1).max(500).optional(),
 });
 
+// Optional title metadata must never discard an otherwise valid answer.
+const OptionalSessionTitleSchema = z.string().trim().min(1)
+  .refine(value => Array.from(value).length <= 256, "Session title exceeds 256 code points")
+  .optional().catch(undefined);
+
 export const WorkspaceConversationFinalOutputSchema = z.discriminatedUnion(
   "outcome",
   [
@@ -214,13 +219,13 @@ export const WorkspaceConversationFinalOutputSchema = z.discriminatedUnion(
       outcome: z.literal("reply"),
       title: z.string().trim().min(1).max(160),
       body: z.string().trim().min(1).max(4_000),
-      session_title: z.string().trim().min(1).max(256).optional(),
+      session_title: OptionalSessionTitleSchema,
     }),
     z.strictObject({
       outcome: z.literal("clarification"),
       title: z.string().trim().min(1).max(160),
       body: z.string().trim().min(1).max(1_000),
-      session_title: z.string().trim().min(1).max(256).optional(),
+      session_title: OptionalSessionTitleSchema,
     }),
     z.strictObject({
       outcome: z.literal("use_contact"),

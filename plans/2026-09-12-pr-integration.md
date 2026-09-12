@@ -89,6 +89,15 @@ leave recovery clears the local test cookie and opens login without claiming a
 remote leave; remote failures retain retry state. Independent review passed; full Web tests passed 535 with one existing skip.
 Typecheck, lint and docs passed; current-head CI and production activation remain required.
 
+During final CI, #184 advanced to `a51ab5a5`. Independent review rejected its
+blanket nil-element Dynamic Type waiver: it records an unadjudicated failure as
+a successful audited viewport. The original title functionality through
+`4c1abe56` remains integrated; the new waiver and unrelated color adjustment are
+not adopted. A newly reported title-schema P2 is fixed: optional title metadata
+uses Unicode code-point bounds and invalid metadata cannot discard a valid reply.
+Independent review passed; Agent 238 passed (one existing skip), Backend 408
+passed (130 existing skips), and Agent typecheck/build passed.
+
 ## Milestones
 
 1. Complete: inventory, main refresh, integration and conflict resolution.

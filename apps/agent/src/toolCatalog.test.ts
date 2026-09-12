@@ -139,3 +139,18 @@ describe("provider-neutral Agent capability catalog", () => {
     ).toMatchObject({ outcome: "reply", session_title: "Compare outreach drafts" });
   });
 });
+
+for (const outcome of ["reply", "clarification"] as const) {
+  it(`preserves ${outcome} bodies independently of optional Unicode title metadata`, () => {
+    const reply = { outcome, title: "Answer", body: "The substantive answer." };
+    const title = "Discuss " + "👨‍👩‍👧‍👦".repeat(23);
+    expect(title.length).toBeGreaterThan(256);
+    expect(Array.from(title).length).toBeLessThanOrEqual(256);
+    expect(WorkspaceConversationFinalOutputSchema.parse({ ...reply, session_title: title })).toMatchObject({ ...reply, session_title: title });
+    for (const invalid of [" ", "a".repeat(257), 42, null]) {
+      const result = WorkspaceConversationFinalOutputSchema.parse({ ...reply, session_title: invalid });
+      expect(result).toMatchObject({ ...reply, session_title: undefined });
+    }
+    expect(WorkspaceConversationFinalOutputSchema.safeParse({ ...reply, body: "", session_title: "ok" }).success).toBe(false);
+  });
+}
