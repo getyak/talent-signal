@@ -1,6 +1,57 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Manage test workspace": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage test workspace"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理测试工作区"
+          }
+        }
+      }
+    },
+    "Switching workspace…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switching workspace…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在切换工作区…"
+          }
+        }
+      }
+    },
+    "Could not switch workspace": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not switch workspace"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能切换工作区"
+          }
+        }
+      }
+    },
     "Apple Calendar add": {
       "localizations": {
         "zh-Hans": {

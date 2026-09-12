@@ -2,18 +2,24 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  currentSessionMock,
+  readBackendSessionClaimsMock,
   analyzeScreenshotMock,
   authMock,
   classifyScreenshotAnalysisFailureMock,
   getScreenshotAnalysisAvailabilityMock,
   issueScreenshotAnalysisReceiptMock,
 } = vi.hoisted(() => ({
+  currentSessionMock: vi.fn(),
+  readBackendSessionClaimsMock: vi.fn(),
   analyzeScreenshotMock: vi.fn(),
   authMock: vi.fn(),
   classifyScreenshotAnalysisFailureMock: vi.fn(),
   getScreenshotAnalysisAvailabilityMock: vi.fn(),
   issueScreenshotAnalysisReceiptMock: vi.fn(),
 }));
+
+vi.mock("@/lib/server/backendAuth", () => ({ readBackendSessionClaims: readBackendSessionClaimsMock, authenticatedBackendClient: async () => ({ currentSession: currentSessionMock }) }));
 
 vi.mock("@/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/server/screenshot-analysis", () => ({
@@ -28,6 +34,7 @@ vi.mock("@/lib/server/screenshot-analysis-receipt", () => ({
 }));
 
 import { POST } from "./route";
+import { BackendSessionExpiredError } from "@/lib/backend-session";
 
 function buildRequest(options: {
   ip?: string;
@@ -48,6 +55,7 @@ function buildRequest(options: {
       headers: {
         host: "127.0.0.1:3000",
         origin: "http://127.0.0.1:3000",
+        "x-talent-signal-workspace": "owner",
         "x-forwarded-for": options.ip ?? "203.0.113.10",
       },
       body: form,
@@ -58,6 +66,8 @@ function buildRequest(options: {
 describe("screenshot analysis route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentSessionMock.mockResolvedValue({account:{id:"owner"},user:{id:"user"}});
+    readBackendSessionClaimsMock.mockResolvedValue({ backendAccountId: "owner", backendUserId: "user", backendExpiresAt: new Date(Date.now()+60000).toISOString() });
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     authMock.mockResolvedValue({ user: { id: "recruiter" } });
     getScreenshotAnalysisAvailabilityMock.mockReturnValue({
@@ -86,6 +96,38 @@ describe("screenshot analysis route", () => {
       },
     });
     issueScreenshotAnalysisReceiptMock.mockReturnValue("receipt-1");
+  });
+
+  it.each([null, ""])("rejects absent or empty rendered scope before reading private images: %s", async scope => {
+    const request = buildRequest({ ip: "203.0.113.97" });
+    if (scope === null) request.headers.delete("x-talent-signal-workspace");
+    else request.headers.set("x-talent-signal-workspace", scope);
+    const readImage = vi.spyOn(request, "formData");
+    const result = await POST(request);
+    expect(result.status).toBe(401);
+    expect(await result.json()).toMatchObject({ code: "backend_session_expired" });
+    expect(readImage).not.toHaveBeenCalled();
+    expect(currentSessionMock).not.toHaveBeenCalled();
+    expect(analyzeScreenshotMock).not.toHaveBeenCalled();
+    expect(issueScreenshotAnalysisReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale test workspace before image or model processing", async () => {
+    const request = buildRequest({ ip: "203.0.113.99" });
+    request.headers.set("x-talent-signal-workspace", "old-test-workspace");
+    const result = await POST(request);
+    expect(result.status).toBe(401);
+    expect(await result.json()).toMatchObject({ code: "backend_session_expired" });
+    expect(analyzeScreenshotMock).not.toHaveBeenCalled();
+    expect(issueScreenshotAnalysisReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it.each([new BackendSessionExpiredError(), new Error("Backend unavailable")])("does not process a revoked or unverifiable test session", async failure => {
+    currentSessionMock.mockRejectedValueOnce(failure);
+    const result = await POST(buildRequest({ip:"203.0.113.98"}));
+    expect([401,503]).toContain(result.status);
+    expect(analyzeScreenshotMock).not.toHaveBeenCalled();
+    expect(issueScreenshotAnalysisReceiptMock).not.toHaveBeenCalled();
   });
 
   it("returns exact non-secret admission codes when screenshot analysis is unavailable", async () => {

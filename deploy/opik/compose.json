@@ -304,7 +304,7 @@
         "-c",
         " sleep 10s; /usr/bin/mc alias set s3 http://minio:9000 THAAIOSFODNN7EXAMPLE LESlrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY --api S3v4 ; /usr/bin/mc mb --ignore-existing s3/public; /usr/bin/mc anonymous set download s3/public/; "
       ],
-      "image": "minio/mc@sha256:470f5546b596e16c7816b9c3fa7a78ce4076bb73c2c73f7faeec0c8043923123",
+      "image": "quay.io/minio/mc@sha256:470f5546b596e16c7816b9c3fa7a78ce4076bb73c2c73f7faeec0c8043923123",
       "networks": {
         "default": null
       },

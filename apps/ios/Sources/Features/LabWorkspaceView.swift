@@ -169,6 +169,7 @@ struct LabWorkspaceView: View {
                                     }
                                 }
                                     .disabled(store.isWorking)
+                                    .accessibilityIdentifier("lab-workspace-enter-\(workspace.id.uuidString.lowercased())")
                             }
                             Button(language.text("Delete"), role: .destructive) { endingWorkspace = workspace }
                                 .disabled(store.isWorking)
@@ -225,28 +226,88 @@ struct LabWorkspaceBanner: View {
     @Environment(\.appLanguage) private var language
     @ObservedObject var store: LabWorkspaceStore
     @State private var showsManager = false
+    @State private var returnError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Label(language.text("TEST WORKSPACE · ISOLATED"), systemImage: "shippingbox.fill")
-                .font(.caption.weight(.bold))
-            HStack(spacing: 12) {
-                Button(language.text("Return to original")) { Task { await store.returnToOwner() } }
-                    .disabled(store.isWorking)
-                    .accessibilityIdentifier("lab-workspace-banner-return")
-                Button(language.text("Manage")) { showsManager = true }
-                    .accessibilityIdentifier("lab-workspace-banner-manage")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                workspaceLabel
+                Spacer(minLength: 0)
+                controls
             }
-            .font(.subheadline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 0) {
+                workspaceLabel
+                controls
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .foregroundStyle(Color.white)
-        .background(Color.tsVermilion)
+        .padding(.vertical, 4)
+        .foregroundStyle(Color.tsInk)
+        .background(Color.tsSurface)
+        .overlay(alignment: .bottom) { Divider() }
         .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("lab-workspace-banner")
         .sheet(isPresented: $showsManager) {
-            NavigationStack { LabWorkspaceView(store: store) }
+            NavigationStack {
+                LabWorkspaceView(store: store)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(language.text("Done")) { showsManager = false }
+                        }
+                    }
+            }
+        }
+        .alert(language.text("Could not switch workspace"), isPresented: Binding(
+            get: { returnError != nil },
+            set: { if !$0 { returnError = nil } }
+        )) {
+            Button(language.text("Retry")) { returnToOriginal() }
+            Button(language.text("Cancel"), role: .cancel) { returnError = nil }
+        } message: {
+            Text(language.text(returnError ?? ""))
+        }
+    }
+
+    private var workspaceLabel: some View {
+        Label(language.text("Test workspace"), systemImage: "shippingbox")
+            .font(.subheadline.weight(.medium))
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(language.text("TEST WORKSPACE · ISOLATED"))
+    }
+
+    private var controls: some View {
+        HStack(spacing: 8) {
+            Button(action: returnToOriginal) {
+                HStack(spacing: 6) {
+                    if isReturning { ProgressView() }
+                    Text(language.text(isReturning ? "Switching workspace…" : "Return to original"))
+                }
+                .frame(minHeight: 44)
+            }
+            .disabled(store.isWorking)
+            .accessibilityIdentifier("lab-workspace-banner-return")
+            Button { showsManager = true } label: {
+                Image(systemName: "ellipsis")
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(language.text("Manage test workspace"))
+            .accessibilityIdentifier("lab-workspace-banner-manage")
+        }
+        .font(.subheadline.weight(.semibold))
+        .tint(Color.tsVermilion)
+        .buttonStyle(.plain)
+    }
+
+    private var isReturning: Bool { store.isWorking && store.journey?.phase == .returning }
+
+    private func returnToOriginal() {
+        returnError = nil
+        Task {
+            await store.returnToOwner()
+            if store.isInTestWorkspace {
+                returnError = store.notice ?? LabWorkspaceError.busy.localizedDescription
+            }
         }
     }
 }

@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CONTRACT_VERSION, type PersonDirectoryItem } from "@talent-signal/contracts";
 
 vi.mock("server-only", () => ({}));
+// These fixture integration cases have no rendered workspace binding.
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 
 import { parseScreenshotCaptureDraft } from "../screenshot-capture";
 import { issueScreenshotAnalysisReceipt } from "./screenshot-analysis-receipt";

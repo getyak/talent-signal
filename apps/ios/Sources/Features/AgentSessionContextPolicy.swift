@@ -12,7 +12,7 @@ enum AgentSessionContextPolicy {
         .init(contractVersion: response.contractVersion, taskID: response.taskID,
               contextManifestID: response.contextManifestID, knowledgeSnapshotID: response.knowledgeSnapshotID,
               disposition: response.disposition, blocks: response.blocks.map(readOnlyBlock), media: [],
-              createdAt: response.createdAt, citations: [])
+              createdAt: response.createdAt, sessionTitle: response.sessionTitle, citations: [])
     }
 
     static func exportMarkdown(_ session: AgentSession, language: AppLanguage) -> String {

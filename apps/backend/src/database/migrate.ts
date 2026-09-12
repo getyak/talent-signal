@@ -65,6 +65,7 @@ const MIGRATIONS = [
   "056_agent_session_chat_lifecycle",
   "057_feedback_learning",
   "058_product_run_monitor",
+  "058_account_management",
   "059_lab_account_cleanup",
   "058_claude_harness_sessions",
   "059_harness_identity_lifecycle",
@@ -77,6 +78,7 @@ const MIGRATIONS = [
   "066_harness_run_artifacts",
   "067_harness_artifact_parent_authority",
   "068_harness_artifact_reply_retirement",
+  "069_account_access_event_details",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

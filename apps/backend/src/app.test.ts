@@ -32,6 +32,8 @@ describe("readiness rate limiting", () => {
         {
           version: "065_screenshot_directory_authority",
         },
+        { version: "058_account_management" },
+        { version: "069_account_access_event_details" },
       ],
     });
     const app = await buildApp({
@@ -60,16 +62,28 @@ describe("readiness rate limiting", () => {
     );
   }, 10_000);
 
-  it("stays unavailable until the current Harness source migration is applied", async () => {
-    const query = vi.fn().mockImplementation(async (sql: string) => ({
-      rows: sql.includes("065_screenshot_directory_authority") ? [] : [{ version: "056_agent_session_chat_lifecycle" }],
-    }));
-    const app = await buildApp({ config, pool: { query } as unknown as Pool });
-    apps.push(app);
-    const response = await app.inject({ method: "GET", url: "/health/ready" });
-    expect(response.statusCode).toBe(503);
-    expect(response.json()).toEqual({ status: "not_ready", database: "unavailable" });
-  });
+  it.each([
+    "065_screenshot_directory_authority",
+    "058_account_management",
+    "069_account_access_event_details",
+  ])(
+    "stays unavailable when required migration %s is missing",
+    async missing => {
+      const query = vi.fn().mockResolvedValue({
+        rows: [
+          "065_screenshot_directory_authority",
+          "058_account_management",
+          "069_account_access_event_details",
+        ]
+          .filter(version => version !== missing).map(version => ({ version })),
+      });
+      const app = await buildApp({ config, pool: { query } as unknown as Pool });
+      apps.push(app);
+      const response = await app.inject({ method: "GET", url: "/health/ready" });
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ status: "not_ready", database: "unavailable" });
+    },
+  );
 });
 
 describe("Talent Signal Lab capability policy", () => {

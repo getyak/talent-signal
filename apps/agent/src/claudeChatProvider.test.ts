@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ClaudeChatProvider } from "./claudeChatProvider.js";
+import { ClaudeChatProvider, splitFirstTurnSessionTitle, configuredClaudeChatPrompt } from "./claudeChatProvider.js";
 import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import { ClaudeHarnessInterruption, type ClaudeHarnessRequest } from "./claudeHarness.js";
 import { createEnvironmentChatAnswerProvider } from "./chatAnswerProvider.js";
@@ -14,6 +14,94 @@ const outcome = { text: "听起来今天很累。想说说发生了什么，还�
   turns: 1, toolCalls: 0, terminalReason: "completed", permissionDenials: [], reportedModels: ["synthetic-model"] };
 
 describe("Claude natural chat product adapter", () => {
+  it("extracts first-turn title metadata without adding a model request", async () => {
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      expect(JSON.parse(request.context!).session_title_requested).toBe(true);
+      expect(request.tools).toEqual([]);
+      return {
+        ...outcome,
+        text: "<session_title>比较两版外联话术</session_title>\n\n这里是比较结果。",
+      };
+    });
+    const answer = await new ClaudeChatProvider(configuration, execute).answer({
+      objective: "请比较这两版外联话术",
+      mode: "unscoped_conversation",
+      session_title_requested: true,
+      prompt_snapshot: bundledPrompt("assistant/conversation"),
+      context_blocks: [],
+      allowed_citation_ids: [],
+    });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(answer.title).toBe("回复");
+    expect(answer.session_title).toBe("比较两版外联话术");
+    expect(answer.body).toBe("这里是比较结果。");
+  });
+
+  it("does not return Session metadata when the host closes the first-result gate", async () => {
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      expect(JSON.parse(request.context!).session_title_requested).toBe(false);
+      return { ...outcome, text: "<session_title>不应采用</session_title>\n\n后续回复" };
+    });
+    const answer = await new ClaudeChatProvider(configuration, execute).answer({
+      objective: "继续比较",
+      mode: "unscoped_conversation",
+      session_title_requested: false,
+      conversation_history: [{ message_id: "prior", role: "assistant", text: "先前回复" }],
+      prompt_snapshot: bundledPrompt("assistant/conversation"),
+      context_blocks: [],
+      allowed_citation_ids: [],
+    });
+    expect(answer.title).toBe("回复");
+    expect(answer.session_title).toBeUndefined();
+    expect(answer.body).toBe("后续回复");
+  });
+
+  it("falls back to a bounded objective and strips an unexpected envelope", () => {
+    expect(splitFirstTurnSessionTitle("普通回复", "第一行\n第二行")).toEqual({
+      title: "第一行 第二行",
+      body: "普通回复",
+    });
+    expect(splitFirstTurnSessionTitle(
+      "<session_title>旧标题</session_title>\n\n后续回复",
+      "后续问题",
+    ).body).toBe("后续回复");
+  });
+
+  it("parses 32 compound graphemes within the 256-code-point transport cap", () => {
+    const title = "👩‍👩‍👧‍👦".repeat(32);
+    expect(Array.from(title)).toHaveLength(224);
+    expect(splitFirstTurnSessionTitle(
+      `<session_title>${title}</session_title>\n\nVisible reply`,
+      "Fallback",
+    )).toEqual({ title, body: "Visible reply" });
+  });
+
+  it.each(["", "Explain <div> layouts", "first\nsecond", "x".repeat(257)])(
+    "removes malformed optional title metadata without exposing it as prose: %s", title => {
+      expect(splitFirstTurnSessionTitle(`<session_title>${title}</session_title>\n\nVisible answer`, "Fallback"))
+        .toEqual({ title: "Fallback", body: "Visible answer" });
+    },
+  );
+
+  it("removes repeated or unclosed leading metadata while preserving reply examples", () => {
+    expect(splitFirstTurnSessionTitle("<session_title>Draft title\n\nVisible answer", "Fallback"))
+      .toEqual({ title: "Fallback", body: "Visible answer" });
+    expect(splitFirstTurnSessionTitle("<session_title>Title</session_title>\n<session_title>Duplicate</session_title>\nVisible answer", "Fallback"))
+      .toEqual({ title: "Title", body: "Visible answer" });
+    const prose = "Example: <session_title>Title</session_title>";
+    expect(splitFirstTurnSessionTitle(prose, "Fallback").body).toBe(prose);
+  });
+
+  it.each([
+    'Return JSON {"kind":"answer"|"clarification","title":string,"body":string,"citation_ids":[]}.',
+    'Return JSON {"kind":"answer"|"question_set"|"clarification","title":string,"body":string,"citation_ids":string[]}.',
+  ])("adapts frozen legacy output protocols while retaining evidence rules", protocol => {
+    const prompt = configuredClaudeChatPrompt(`Preserve evidence authority.\n${protocol}`).text;
+    expect(prompt).toContain("Preserve evidence authority.");
+    expect(prompt).toContain("respond with natural prose");
+    expect(prompt).not.toContain("Return JSON");
+  });
+
   it("uses an ephemeral Memory-image Run and rejects expiry after the tool returns",async()=>{
     const bytes=await sharp({create:{width:10,height:10,channels:3,background:"white"}}).png().toBuffer();
     const id=randomUUID();let expired=false;const continuation=vi.fn();

@@ -5669,7 +5669,32 @@ final class CandidateSignalUITests: XCTestCase {
         }
     }
 
+    /// Pre-confirmation stage of the AX5 dark-mode critical content audit.
+    /// Kept as its own test process so one XCTest run does not accumulate the
+    /// audits of the post-confirmation stage. The post-confirmation stage lives
+    /// in `testAX5DarkModeCriticalContentRemainsReachableAfterConfirmation`.
     func testAX5DarkModeCriticalContentRemainsReachable() throws {
+        try auditAX5DarkModeCriticalContent(stage: .preConfirmation)
+    }
+
+    /// Post-confirmation stage of the AX5 dark-mode critical content audit.
+    /// Launches the fixture fresh, performs the existing explicit confirmation
+    /// action, verifies the `Confirmed locally` product state, then audits the
+    /// nine context anchors plus the confirmation/deadline/result anchors.
+    func testAX5DarkModeCriticalContentRemainsReachableAfterConfirmation() throws {
+        try auditAX5DarkModeCriticalContent(stage: .postConfirmation)
+    }
+
+    private enum AX5CriticalContentStage {
+        case preConfirmation
+        case postConfirmation
+    }
+
+    /// Single owner of the AX5 dark-mode audit logic. The `stage` parameter
+    /// selects which independently launched test method is running so the
+    /// pre-confirmation and post-confirmation stages share one implementation
+    /// instead of duplicating the audit loop.
+    private func auditAX5DarkModeCriticalContent(stage: AX5CriticalContentStage) throws {
         guard #available(iOS 17.0, *) else { throw XCTSkip("Accessibility audits require iOS 17 or newer.") }
         app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launchArguments = [
@@ -5874,18 +5899,26 @@ final class CandidateSignalUITests: XCTestCase {
             try auditViewport(reviewInstruction, name: "AX5 dark review instruction")
             try auditViewport(app.staticTexts["fact-evidence-label-competing_process-m1"], name: "AX5 dark exact evidence label")
         }
-        try auditSourceAndProposalContext()
-        guard activeRun.failureCount == 0 else { return }
-        let confirmation = app.buttons["fact-confirm-competing_process-m1"]
-        tapWhenVisible(confirmation)
-        XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
-        // Product state changed: no earlier pass can cover the new state.
-        verifiedAnchors.removeAll()
-        try auditSourceAndProposalContext()
-        guard activeRun.failureCount == 0 else { return }
-        try auditViewport(confirmation, name: "AX5 dark local confirmation")
-        try auditViewport(app.staticTexts["fact-card-decision_deadline-m1"], name: "AX5 dark deadline heading")
-        try auditViewport(app.staticTexts["fact-decision-competing_process-m1"], name: "AX5 dark confirmed result")
+        switch stage {
+        case .preConfirmation:
+            try auditSourceAndProposalContext()
+        case .postConfirmation:
+            guard activeRun.failureCount == 0 else { return }
+            let confirmation = app.buttons["fact-confirm-competing_process-m1"]
+            tapWhenVisible(confirmation)
+            XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
+            // Product state changed: no earlier pass can cover the new state.
+            // This stage is launched fresh, so no anchor was verified yet.
+            verifiedAnchors.removeAll()
+            // Inspect the changed result immediately after the human action,
+            // before traversing the full evidence context. Every post-action
+            // target still receives all four audits in this fresh app session.
+            try auditViewport(app.staticTexts["fact-decision-competing_process-m1"], name: "AX5 dark confirmed result")
+            try auditSourceAndProposalContext()
+            guard activeRun.failureCount == 0 else { return }
+            try auditViewport(confirmation, name: "AX5 dark local confirmation")
+            try auditViewport(app.staticTexts["fact-card-decision_deadline-m1"], name: "AX5 dark deadline heading")
+        }
     }
 
     func testAccessibilityOrderPlacesEvidenceBeforeFactDecision() {

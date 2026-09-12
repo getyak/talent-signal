@@ -792,6 +792,8 @@ export async function readAgentSessionConversation(
   sessionId: string,
   scope: { personId: string | null; relationshipContextId: string | null },
 ): Promise<{
+  /** Persistence truth, independent of whether old content is still admissible. */
+  hasRecordedTurns: boolean;
   messages: Array<{
     message_id: string;
     role: "user" | "assistant";
@@ -801,7 +803,7 @@ export async function readAgentSessionConversation(
   unavailableScreenshotContext?: boolean;
 }> {
   const row = await rowFor(client, auth, sessionId);
-  if (!row) return { messages: [] };
+  if (!row) return { hasRecordedTurns: false, messages: [] };
   if (row.deleted_at || row.expires_at <= new Date())
     throw new ApiError(
       410,
@@ -977,6 +979,7 @@ export async function readAgentSessionConversation(
     ).values(),
   ];
   return {
+    hasRecordedTurns: payload.turns.length > 0,
     messages: boundedMessages,
     ...(sources.length ? { sources } : {}),
     ...(unavailableScreenshotContext

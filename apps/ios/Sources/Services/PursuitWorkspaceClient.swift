@@ -1740,6 +1740,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
     let contextManifestID: String
     let knowledgeSnapshotID: String
     let disposition: String
+    let sessionTitle: String?
     let blocks: [Block]
     let media: [ChatMediaAsset]
     let createdAt: String
@@ -1915,6 +1916,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         blocks: [Block],
         media: [ChatMediaAsset] = [],
         createdAt: String,
+        sessionTitle: String? = nil,
         citations: [Citation] = [],
         labFeatureReceipt: LabFeatureAdoptionReceipt? = nil
     ) {
@@ -1923,6 +1925,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         self.contextManifestID = contextManifestID
         self.knowledgeSnapshotID = knowledgeSnapshotID
         self.disposition = disposition
+        self.sessionTitle = sessionTitle
         self.blocks = blocks
         self.media = media
         self.createdAt = createdAt
@@ -1937,6 +1940,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         contextManifestID = try container.decode(String.self, forKey: .contextManifestID)
         knowledgeSnapshotID = try container.decode(String.self, forKey: .knowledgeSnapshotID)
         disposition = try container.decode(String.self, forKey: .disposition)
+        sessionTitle = try container.decodeIfPresent(String.self, forKey: .sessionTitle)
         blocks = try container.decode([Block].self, forKey: .blocks)
         media = try container.decodeIfPresent([ChatMediaAsset].self, forKey: .media) ?? []
         createdAt = try container.decode(String.self, forKey: .createdAt)
@@ -1954,6 +1958,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             blocks: blocks,
             media: media,
             createdAt: createdAt,
+            sessionTitle: sessionTitle,
             citations: citations,
             labFeatureReceipt: labFeatureReceipt
         )
@@ -1965,6 +1970,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         case contextManifestID = "context_manifest_id"
         case knowledgeSnapshotID = "knowledge_snapshot_id"
         case disposition, blocks, media
+        case sessionTitle = "session_title"
         case createdAt = "created_at"
     }
 }
@@ -2084,6 +2090,7 @@ struct UnscopedChatTaskResponse: Decodable, Equatable, Identifiable {
     let contractVersion: String
     let taskID: String
     let disposition: String
+    let sessionTitle: String?
     let blocks: [RelationshipAskResponse.Block]
     let externalEffects: [String]
     let agentEvent: AgentEvent?
@@ -2162,12 +2169,14 @@ struct UnscopedChatTaskResponse: Decodable, Equatable, Identifiable {
             knowledgeSnapshotID: "none-unbound-conversation",
             disposition: disposition,
             blocks: blocks,
-            createdAt: createdAt
+            createdAt: createdAt,
+            sessionTitle: sessionTitle
         )
     }
 
     enum CodingKeys: String, CodingKey {
         case disposition, blocks
+        case sessionTitle = "session_title"
         case contractVersion = "contract_version"
         case taskID = "task_id"
         case agentEvent = "agent_event"

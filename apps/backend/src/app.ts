@@ -1,6 +1,7 @@
 import {RunArtifactSchema} from "@talent-signal/contracts";
 import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessRunFiles.js";
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
+import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
@@ -659,15 +660,16 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '065_screenshot_directory_authority'`,
+           WHERE version IN ('065_screenshot_directory_authority', '058_account_management', '069_account_access_event_details')`,
         );
-        if (!result.rows[0]) {
+        const requiredMigrations = ["065_screenshot_directory_authority", "058_account_management", "069_account_access_event_details"];
+        if (!requiredMigrations.every(version => result.rows.some(row => row.version === version))) {
           throw new Error("migration unavailable");
         }
         return {
           status: "ready",
           database: "ready",
-          migration: result.rows[0].version,
+          migration: "065_screenshot_directory_authority",
         };
       } catch {
         return reply.status(503).send({
@@ -793,6 +795,7 @@ export async function buildApp(
   registerGoogleAuth(app, pool, config);
   const authenticate = createAuthGuard(pool, deploymentExposure?.workspaceIds);
   registerProductRunMonitoring(app, pool, authenticate);
+  registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
   registerAgentSessionRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];

@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import {loadRunArtifactBlob,type RunArtifact} from "@/lib/run-artifact-download";
-import {WORKSPACE_SESSION_EXPIRED_EVENT} from "./workspace-session-request";
+import {WORKSPACE_SESSION_EXPIRED_EVENT, workspaceSessionFetch} from "./workspace-session-request";
 export function RunArtifacts({taskID}:{taskID:string}){return <TaskRunArtifacts key={taskID} taskID={taskID}/>;}
 function TaskRunArtifacts({taskID}:{taskID:string}){
   const [inventory,setInventory]=useState<{files:RunArtifact[];sessionVersion:string}|null>(null);
@@ -11,7 +11,7 @@ function TaskRunArtifacts({taskID}:{taskID:string}){
     const controller=new AbortController();lifetime.current=controller;
     const cancel=()=>{controller.abort();setInventory(null);};
     window.addEventListener(WORKSPACE_SESSION_EXPIRED_EVENT,cancel);window.addEventListener("pagehide",cancel);
-    void fetch(`/api/chat-artifacts/${encodeURIComponent(taskID)}`,{cache:"no-store",signal:controller.signal})
+    void workspaceSessionFetch(`/api/chat-artifacts/${encodeURIComponent(taskID)}`,{cache:"no-store",signal:controller.signal})
       .then(async response=>{if(response.ok){const files=await response.json(),sessionVersion=response.headers.get("x-workspace-session");
         if(!controller.signal.aborted&&sessionVersion)setInventory({files,sessionVersion});}}).catch(()=>{});
     return ()=>{controller.abort();window.removeEventListener(WORKSPACE_SESSION_EXPIRED_EVENT,cancel);window.removeEventListener("pagehide",cancel);};

@@ -337,19 +337,20 @@ struct TalentSignalApp: App {
                 }
         case let .signedIn(session):
             if labRuntimeStore.workspaceStore.allowsDisplay(session) {
-                RuntimeWorkspaceRoot(session: session) {
-                RelationshipArchiveView(
-                    session: .authenticated(session),
-                    onSignOut: {
-                        await appSessionStore.signOut()
-                        return appSessionStore.phase == .signedOut
-                    }
-                )
-                }
-                .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
                     if session.user.kind == "lab_human" {
                         LabWorkspaceBanner(store: labRuntimeStore.workspaceStore)
                     }
+                    RuntimeWorkspaceRoot(session: session) {
+                        RelationshipArchiveView(
+                            session: .authenticated(session),
+                            onSignOut: {
+                                await appSessionStore.signOut()
+                                return appSessionStore.phase == .signedOut
+                            }
+                        )
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .id(RuntimeEndpoint.scope(session.baseURL, accountID: session.account.id, userID: session.user.id))
             } else {

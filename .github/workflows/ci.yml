@@ -160,7 +160,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.18.0
 
@@ -215,7 +215,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.18.0
 
@@ -244,6 +244,15 @@ jobs:
           pnpm --filter @talent-signal/backend migrate
           pnpm --filter @talent-signal/backend seed
           pnpm --filter @talent-signal/backend exec vitest run src/modules/screenshotContactTasks.integration.test.ts
+
+      - name: Verify account authority and isolated workspace cleanup
+        env:
+          DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+          ACCOUNT_EVALUATION_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/account_proof
+        run: |
+          pnpm --filter @talent-signal/backend exec node --input-type=module -e "import { Pool } from 'pg'; const pool = new Pool({connectionString:process.env.DATABASE_URL}); try { await pool.query('CREATE DATABASE account_proof'); } finally { await pool.end(); }"
+          DATABASE_URL="$ACCOUNT_EVALUATION_DATABASE_URL" pnpm --filter @talent-signal/backend migrate
+          pnpm --filter @talent-signal/backend exec tsx src/evaluation/runAccountManagementEvaluation.ts
 
       - name: Exercise saved regression lifecycle with a synthetic provider
         env:
@@ -316,7 +325,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.18.0
 
@@ -366,7 +375,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
-    timeout-minutes: 45
+    # Cold hosted builds reached AX5 after ~32 minutes. Keep both complete
+    # audit stages and native result upload within one bounded job.
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

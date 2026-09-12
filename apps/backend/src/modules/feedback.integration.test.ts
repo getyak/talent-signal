@@ -30,7 +30,9 @@ const provider: RemoteChatAnswerProviding = {
     requests.push(structuredClone(input));
     await beforeAnswer?.();
     const prompt = input.prompt_snapshot ?? bundledPrompt("assistant/relationship");
-    return { kind: "answer", title: "Evidence-backed next step", body: "Clarify the current date before suggesting a meeting.",
+    return { kind: "answer", title: "Evidence-backed next step",
+      ...(input.session_title_requested ? { session_title: "Clarify tentative meeting date" } : {}),
+      body: "Clarify the current date before suggesting a meeting.",
       citation_ids: input.allowed_citation_ids.slice(0, 1), provider_id: "zhipu-chat-completions", model: this.model,
       provider_request_id: `fixture-${requests.length}`, input_tokens: 20, output_tokens: 12, usage_reported: true,
       prompt_snapshot: prompt, prompt_revision: configuredChatPrompt("relationship", input.prompt_preset ?? "baseline", prompt.text).revision };
@@ -229,6 +231,8 @@ describe.skipIf(!pool)("Authenticated product feedback learning PostgreSQL loop"
     const payload={idempotency_key:randomUUID(),person_id:f.person,relationship_context_id:f.context,
       previous_task_id:previous,objective:`请修改上一条回答：${"保留待确认状态。".repeat(110)}`};
     const correction=await ask(payload);expect(correction.statusCode,correction.body).toBe(201);
+    expect(requests.at(-1)!.session_title_requested).toBe(false);
+    expect(correction.json().session_title).toBeUndefined();
     const childDetail=await new ProductRunService(pool!).detail(auth,correction.json().task_id,true);
     const childCaseID=randomUUID();
     await saveProductRunCase(pool!,auth,childDetail,{id:childCaseID,output_hash:childDetail.run.output_hash!,expected_behavior:"Preserve the corrected tentative date."});

@@ -8,7 +8,7 @@ import type { AgentProvider, AgentProviderRequest, AgentProviderResult, AgentToo
 /** Existing artifact tasks share the same executor as natural chat and screenshots. */
 export class ClaudeAgentSDKProvider implements AgentProvider {
   readonly id = "claude-agent-sdk";
-  readonly sdkVersion = "0.3.260";
+  readonly sdkVersion = "0.3.266";
   readonly inputCapabilities;
   private readonly configuration: ClaudeHarnessConfiguration;
 

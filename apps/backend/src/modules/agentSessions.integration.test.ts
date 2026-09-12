@@ -247,6 +247,7 @@ async function screenshotContextFixture(bound = false) {
 }
 function contextProvider(
   observe?: (request: RemoteChatAnswerRequest) => void,
+  sessionTitle?: string,
 ): RemoteChatAnswerProviding {
   return {
     providerId: "zhipu-chat-completions",
@@ -259,6 +260,7 @@ function contextProvider(
         title: "Friday",
         body: "Synthetic derived Friday reply: clarify the date before making a plan.",
         citation_ids: request.allowed_citation_ids.slice(0, 1),
+        ...(sessionTitle ? { session_title: sessionTitle } : {}),
         provider_id: "zhipu-chat-completions",
         model: "synthetic-model",
         provider_request_id: null,
@@ -530,14 +532,14 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
     expect(
       restoredAttempt.payload!.turns[0]!.response.savedBlocks,
     ).toBeUndefined();
-    expect(
-      (
-        await readAgentSessionConversation(pool!, auth, f.value.id, {
-          personId: f.person,
-          relationshipContextId: f.context,
-        })
-      ).messages,
-    ).toEqual([]);
+    const unavailableHistory = await readAgentSessionConversation(
+      pool!,
+      auth,
+      f.value.id,
+      { personId: f.person, relationshipContextId: f.context },
+    );
+    expect(unavailableHistory.hasRecordedTurns).toBe(true);
+    expect(unavailableHistory.messages).toEqual([]);
   });
   it("keeps corrected or revoked tasks redacted after source restoration, but retains stale intact history", async () => {
     const f = await fixture();
@@ -640,6 +642,89 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
         })
       ).messages.at(-1)!.text,
     ).toBe("Two evidence-grounded options");
+  });
+  it("names only the first scoped reply and preserves per-reply block titles", async () => {
+    const f = await fixture();
+    await compileRelationshipWiki(pool!, auth, f.person, f.context, {
+      idempotency_key: randomUUID(),
+      objective: "Prepare reviewed context",
+    });
+    const value: AgentSessionPayload = { ...f.value, turns: [] };
+    const session = await create(value);
+    const firstRequest = {
+      objective: "Explain the reviewed source",
+      person_id: f.person,
+      relationship_context_id: f.context,
+      session_id: value.id,
+      idempotency_key: randomUUID(),
+    };
+    let firstObserved!: RemoteChatAnswerRequest;
+    const first = await createChatTask(
+      pool!,
+      auth,
+      firstRequest,
+      contextProvider(
+        (request) => {
+          firstObserved = request;
+        },
+        "Reviewed source summary",
+      ),
+    );
+    expect(firstObserved.session_title_requested).toBe(true);
+    expect(first.body.session_title).toBe("Reviewed source summary");
+    expect(first.body.blocks.find((item) => item.kind === "answer")?.title).toBe(
+      "Friday",
+    );
+
+    const firstTurn: AgentSessionPayload["turns"][number] = {
+      id: randomUUID(),
+      objective: firstRequest.objective,
+      createdAt: first.body.created_at,
+      response: {
+        contractVersion: first.body.contract_version,
+        taskID: first.body.task_id,
+        contextManifestID: first.body.context_manifest_id,
+        knowledgeSnapshotID: first.body.knowledge_snapshot_id,
+        disposition: first.body.disposition,
+        createdAt: first.body.created_at,
+      },
+    };
+    await mutateAgentSession(
+      pool!,
+      auth,
+      value.id,
+      mutation({ ...value, turns: [firstTurn] }, session.revision),
+    );
+    expect(
+      (
+        await readAgentSessionConversation(pool!, auth, value.id, {
+          personId: f.person,
+          relationshipContextId: f.context,
+        })
+      ).hasRecordedTurns,
+    ).toBe(true);
+
+    let laterObserved!: RemoteChatAnswerRequest;
+    const later = await createChatTask(
+      pool!,
+      auth,
+      {
+        ...firstRequest,
+        objective: "What should I do next?",
+        idempotency_key: randomUUID(),
+      },
+      contextProvider(
+        (request) => {
+          laterObserved = request;
+        },
+        "Incorrect later rename",
+      ),
+    );
+    expect(laterObserved.session_title_requested).toBe(false);
+    expect(later.body.session_title).toBeUndefined();
+    expect(later.body.blocks.find((item) => item.kind === "answer")?.title).toBe(
+      "Friday",
+    );
   });
   it("rejects client sentinel scope forgery and withholds legacy forged canonical history", async () => {
     const f = await fixture();

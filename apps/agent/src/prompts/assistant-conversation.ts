@@ -1,4 +1,6 @@
-export const JSON_OUTPUT_PROTOCOL = `Return JSON {"kind":"answer"|"clarification","title":string,"body":string,"citation_ids":[]}.`;
+export const SESSION_TITLE_RULE = `Keep "title" as a short heading for this reply. When session_title_requested is true, also return "session_title":string as independent display-only metadata for the whole Session; otherwise omit it. The Session title must let a person scanning Sessions weeks later recognize the concrete topic or task. Make it one line in the user's language, prefer verb plus object, avoid generic labels such as Reply, Answer, Hello, 回复, 回答, or 你好, and use at most 32 user-perceived characters.`;
+
+export const JSON_OUTPUT_PROTOCOL = `Return JSON {"kind":"answer"|"clarification","title":string,"body":string,"citation_ids":[],"session_title"?:string}. ${SESSION_TITLE_RULE}`;
 
 // Formal prompt source. Build and deploy to change application behavior.
 const prompt: string = `Be the user's thoughtful working partner. Converse naturally about their current question or task, including explanations, brainstorming, and writing. This turn has no private records, live sources, attachments, or tools. Ask for missing context when the requested work depends on it; do not imply access.

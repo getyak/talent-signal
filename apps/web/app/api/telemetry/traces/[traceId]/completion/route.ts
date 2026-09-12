@@ -20,6 +20,11 @@ export async function POST(
   if (!isAllowedMutationOrigin(request.headers)) {
     return NextResponse.json({ code: "cross_origin_telemetry_denied" }, { status: 403 });
   }
+  if (!request.headers.get("x-talent-signal-workspace")) {
+    return NextResponse.json({ code: "backend_session_expired" }, {
+      status: 401, headers: { "Cache-Control": "no-store, max-age=0" },
+    });
+  }
   const { traceId } = await context.params;
   const body = await request.json().catch(() => null) as CompleteTelemetryTraceRequest | null;
   if (!TRACE_ID.test(traceId) || !body || !matchesTypeBox(CompleteTelemetryTraceRequestSchema, body)) {

@@ -1,3 +1,5 @@
+import { workspaceSessionFetch } from "@/components/workspace-session-request";
+
 import type {
   AppendTelemetryBatchRequest,
   CreateTelemetryTraceRequest,
@@ -123,7 +125,7 @@ export async function beginWebTrace(input: {
     attributes: input.attributes ?? {},
     content_parts: parts,
   };
-  const response = await fetch("/api/telemetry/traces", {
+  const response = await workspaceSessionFetch("/api/telemetry/traces", {
     method: "POST",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
@@ -147,7 +149,7 @@ export async function appendWebTrace(
   trace: WebTraceHandle,
   batch: AppendTelemetryBatchRequest,
 ): Promise<void> {
-  const response = await fetch(`/api/telemetry/traces/${trace.trace_id}/batch`, {
+  const response = await workspaceSessionFetch(`/api/telemetry/traces/${trace.trace_id}/batch`, {
     method: "POST",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
@@ -164,7 +166,7 @@ export async function completeWebTrace(
     attributes?: Record<string, string | number | boolean | null>;
   },
 ): Promise<void> {
-  const response = await fetch(
+  const response = await workspaceSessionFetch(
     `/api/telemetry/traces/${trace.trace_id}/completion`,
     {
       method: "POST",
