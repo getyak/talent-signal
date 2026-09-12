@@ -51,4 +51,6 @@ if [[ ! -f "$repository_root/apps/web/.next/BUILD_ID" ]]; then
   exit 1
 fi
 # https://nextjs.org/docs/app/api-reference/cli/next#next-start-options
-exec pnpm --filter @talent-signal/web start --hostname 127.0.0.1 --port 3000
+# Use the built release directly; service recovery must not bootstrap a package manager.
+cd "$repository_root/apps/web"
+exec node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
