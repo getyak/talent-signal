@@ -26,9 +26,29 @@ it.each(["/api/auth/callback/google", "/api/auth/signout", "/api/analyze", "/api
   expect(proxy(new NextRequest(`https://example.test${path}`, { method: "POST" })).headers.get("x-middleware-next")).toBe("1");
 });
 
-it("leaves reads to existing route authorization and matches only API paths", () => {
+it.each(["GET", "HEAD"])("rejects old unbound private %s requests before current-account reads", method => {
   expect(config.matcher).toBe("/api/:path*");
-  expect(proxy(new NextRequest("https://example.test/api/chat-artifacts/task")).headers.get("x-middleware-next")).toBe("1");
+  for (const path of ["/api/contact-agent/tasks", "/api/contact-agent/tasks/11111111-1111-4111-8111-111111111111"]) {
+    const request = new NextRequest(`https://example.test${path}`, { method });
+    expect(proxy(request).status).toBe(401);
+    request.headers.set("x-talent-signal-workspace", "rendered-account");
+    expect(proxy(request).headers.get("x-middleware-next")).toBe("1");
+  }
+});
+
+it("preserves extension task readback and keyed recovery with a route-verified session", () => {
+  const headers = { "x-contact-handoff-session": "synthetic-fingerprint-checked-by-route" };
+  for (const path of ["/api/contact-agent/tasks/11111111-1111-4111-8111-111111111111", "/api/contact-agent/tasks?handoff_request_id=request-key"]) {
+    expect(proxy(new NextRequest(`https://example.test${path}`, { headers })).headers.get("x-middleware-next")).toBe("1");
+    expect(proxy(new NextRequest(`https://example.test${path}`)).status).toBe(401);
+  }
+  for (const path of ["/api/contact-agent/tasks", "/api/contact-agent/tasks?handoff_request_id="]) {
+    expect(proxy(new NextRequest(`https://example.test${path}`, { headers })).status).toBe(401);
+  }
+});
+
+it.each(["/api/contact-agent/tasks/11111111-1111-4111-8111-111111111111/images/0", "/api/product-runs/run/screenshot", "/api/pursuit-agent-tasks/task/stream", "/api/chat-artifacts/task"])("preserves native resource and stream route authority for %s", path => {
+  expect(proxy(new NextRequest(`https://example.test${path}`)).headers.get("x-middleware-next")).toBe("1");
 });
 
 it("preserves only the exact session-bound extension handoff transport", () => {

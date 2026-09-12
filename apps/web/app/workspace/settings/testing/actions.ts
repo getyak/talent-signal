@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { TalentSignalClient, TalentSignalHttpError, type LabWorkspace, type LabWorkspaceEntry } from '@talent-signal/contracts';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { backendSessionRecoveryHref } from '@/lib/backend-session';
 import { authSecret, backendAuthBaseUrl } from '@/lib/server/backendAuth';
 import { primaryAccount, testWorkspaceRequest } from '@/lib/server/testWorkspaceBackend';
 import { clearTestWorkspaceSession, setTestWorkspaceSession, testWorkspaceSession } from '@/lib/server/testWorkspaceSession';
@@ -47,7 +48,15 @@ export async function manageTestWorkspace(_previous:TestActionState,form:FormDat
   revalidatePath('/workspace','layout');redirect('/workspace/today');
 }
 export async function leaveTestWorkspace(){
-  const primary=await primaryAccount();
+  let primary:Awaited<ReturnType<typeof primaryAccount>>;
+  try{primary=await primaryAccount();}
+  catch(error){
+    if(!(error instanceof TalentSignalHttpError)||error.status!==401)throw error;
+    // Explicit return can clear this browser's stale test cookie even when
+    // backend authority is gone. No remote leave/revocation is claimed.
+    await clearTestWorkspaceSession();revalidatePath('/workspace','layout');
+    redirect(backendSessionRecoveryHref('/workspace/settings/testing'));
+  }
   let test;
   try{test=await testWorkspaceSession(primary);}catch{ /* Explicit return may discard an expired cookie; no hidden scope fallback. */ }
   if(test){

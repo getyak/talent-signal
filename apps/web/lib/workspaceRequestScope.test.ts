@@ -34,3 +34,17 @@ describe("rendered workspace request scope", () => {
     expect(new Headers(request.mock.calls[0][1]?.headers).has("X-Talent-Signal-Workspace")).toBe(false);
   });
 });
+
+it.each([undefined, "", " "])("does not send local API requests without a rendered scope: %s", async scope => {
+  const browser = Object.assign(new EventTarget(), { location: { href: "https://example.test/contact-agent/people/person", origin: "https://example.test" } });
+  vi.stubGlobal("window", browser);
+  vi.stubGlobal("document", { querySelector: () => scope === undefined ? null : { dataset: { workspaceScope: scope } } });
+  const expired = vi.fn();
+  browser.addEventListener("talent-signal:workspace-session-expired", expired);
+  const request = vi.fn<typeof fetch>();
+  const response = await workspaceSessionFetch("/api/contact-agent/tasks", undefined, request);
+  expect(response.status).toBe(401);
+  expect(await response.json()).toEqual({ code: "backend_session_expired" });
+  expect(request).not.toHaveBeenCalled();
+  expect(expired).toHaveBeenCalledOnce();
+});

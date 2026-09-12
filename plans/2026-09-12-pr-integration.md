@@ -79,6 +79,16 @@ session-fingerprint validation. Independent review closed the compatibility P1;
 full Web tests passed 518 (one existing skip), with typecheck/lint passing.
 The production build and current-head gates remain required.
 
+Standalone contact pages now share the authenticated workspace layout and test
+banner. Missing or blank client scope fails before network access. API ingress
+also rejects unbound task-history reads from older JavaScript, preserving the
+installed extension's session-bound create/readback/keyed-recovery transports.
+Native resource links and streams retain their existing route authority.
+Artifact inventory and downloads carry the workspace identifier. Missing-primary
+leave recovery clears the local test cookie and opens login without claiming a
+remote leave; remote failures retain retry state. Independent review passed; full Web tests passed 535 with one existing skip.
+Typecheck, lint and docs passed; current-head CI and production activation remain required.
+
 ## Milestones
 
 1. Complete: inventory, main refresh, integration and conflict resolution.

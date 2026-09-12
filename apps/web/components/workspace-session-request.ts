@@ -30,10 +30,14 @@ export async function workspaceSessionFetch(
   request: typeof fetch = fetch,
 ): Promise<Response> {
   const scope = typeof document !== "undefined"
-    ? document.querySelector<HTMLElement>("[data-workspace-scope]")?.dataset.workspaceScope
+    ? document.querySelector<HTMLElement>("[data-workspace-scope]")?.dataset.workspaceScope?.trim()
     : undefined;
   const target = typeof window !== "undefined" ? new URL(input instanceof Request ? input.url : String(input), window.location.href) : null;
   const local = target && target.origin === window.location.origin && target.pathname.startsWith("/api/");
+  if (local && !scope) {
+    window.dispatchEvent(new Event(WORKSPACE_SESSION_EXPIRED_EVENT));
+    return Response.json({ code: "backend_session_expired" }, { status: 401 });
+  }
   const scoped = scope && local ? { ...init, headers: new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)) } : init;
   if (scope && local && scoped?.headers instanceof Headers) scoped.headers.set("X-Talent-Signal-Workspace", scope);
   const response = await request(input, scoped);

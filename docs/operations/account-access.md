@@ -69,12 +69,17 @@ separate; a persistent banner returns the user to their own workspace.
 Expired or mismatched test-session cookies fail closed. They never silently turn
 an in-progress test action into a real-workspace write. Workspace requests carry
 the rendered account scope, and stale tabs are refused if that scope changes.
-The Web API ingress requires a rendered workspace identifier for mutations,
-including older tabs that already hold an analysis receipt. Reads retain their
-route authorization; login, public demo and extension protocols keep their own
-boundaries. The exact extension task-create handoff uses its existing session
-fingerprint, verified by the route before reading content. Response preferences
-use the same workspace wrapper while retaining their stronger session binding.
+The Web API ingress requires a rendered workspace identifier for task-history reads
+and workspace mutations, including older tabs that already hold an analysis receipt.
+Native image links and event streams retain their route authorization.
+Login, public demo and extension protocols keep their own boundaries. Extension
+task creation, exact task readback and keyed recovery use the existing session
+fingerprint, verified by the route before accessing content. Response preferences
+and artifact downloads also retain their stronger session binding. Standalone
+contact pages share one authenticated layout and workspace identifier; clients
+with a missing identifier refuse local API requests before network access.
+When the primary login is missing, leaving a test workspace clears only the local
+test cookie and opens login recovery; a remote leave failure keeps retry state.
 Screenshot analysis and telemetry also reject missing scope identifiers within
 their routes before reading private payloads.
 This includes telemetry creation, batches and completion, even when they precede
