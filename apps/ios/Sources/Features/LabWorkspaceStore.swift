@@ -42,6 +42,7 @@ final class LabWorkspaceStore: ObservableObject {
     var hasOpenJourney: Bool { journey?.isOpen == true }
     var requiresOnlineRestore: Bool { secureStoreFailed || journey?.isChildPhase == true }
     var currentWorkspace: LabWorkspace? { journey?.workspace }
+    var isInTestWorkspace: Bool { sessionStore.currentSession?.user.kind == "lab_human" }
 
     func allowsDisplay(_ session: TalentSignalSession) -> Bool {
         guard !secureStoreFailed else { return false }
@@ -93,7 +94,11 @@ final class LabWorkspaceStore: ObservableObject {
         } else if current.user.kind == "lab_human",
                   current.account.id == active.targetAccountID,
                   current.user.id == active.targetUserID {
-            await inspectChild(client: client, child: current)
+            if active.phase == .returning {
+                await returnToOwner(requestStop: active.stopID != nil)
+            } else {
+                await inspectChild(client: client, child: current)
+            }
         } else {
             notice = LabWorkspaceError.wrongAccount.localizedDescription
         }
@@ -151,7 +156,13 @@ final class LabWorkspaceStore: ObservableObject {
             if [.preparing, .entryReady].contains(journey.phase), journey.stopID == nil {
                 await continueEntry(owner: current, client: client, createIfNeeded: journey.workspace == nil)
             } else { await settleOwnerOperations(owner: current) }
-        } else if current.user.kind == "lab_human" { await inspectChild(client: client, child: current) }
+        } else if current.user.kind == "lab_human" {
+            if journey.phase == .returning {
+                await returnToOwner(requestStop: journey.stopID != nil)
+            } else {
+                await inspectChild(client: client, child: current)
+            }
+        }
     }
 
     func returnToOwner() async { await returnToOwner(requestStop: false) }
