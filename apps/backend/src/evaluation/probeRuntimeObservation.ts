@@ -15,9 +15,16 @@ try {
   if (!session) throw new Error("PRODUCT_OBSERVATION_SCOPE_DENIED");
   // No model is invoked. Destination readback is performed by the concrete transport.
   await session.complete({ synthetic: true, result: "transport-only" }, "ok");
-  await observer.outbox.flush();
-  const state = await observer.outbox.status();
-  if (!state.receipts.some(r => r.trace_id === session.id && r.state === "retained")) throw new Error("PRODUCT_OBSERVATION_READBACK_REQUIRED");
+  // Opik indexes writes asynchronously; require bounded destination readback,
+  // rather than assuming a successful POST is immediately queryable.
+  const deadline = Date.now() + 40_000;
+  let retained = false;
+  do {
+    await observer.outbox.flush();
+    retained = (await observer.outbox.status()).receipts.some(r => r.trace_id === session.id && r.state === "retained");
+    if (!retained) await new Promise(resolve => setTimeout(resolve, 500));
+  } while (!retained && Date.now() < deadline);
+  if (!retained) throw new Error("PRODUCT_OBSERVATION_READBACK_REQUIRED");
   await access(process.env.TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX!, constants.W_OK);
   await observer.outbox.deleteRun(context);
   if (!(await observer.outbox.status()).receipts.some(r => r.trace_id === session.id && r.state === "deleted")) throw new Error("PRODUCT_OBSERVATION_DELETE_READBACK_REQUIRED");
