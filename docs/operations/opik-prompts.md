@@ -87,7 +87,8 @@ backs up current local text without contacting Opik. Git remains the source hist
 CLI settings are `TALENT_SIGNAL_PROMPT_REGISTRY_URL` (default local API),
 `TALENT_SIGNAL_PROMPT_PROJECT`, `OPIK_WORKSPACE` and optional `OPIK_API_KEY`.
 Existing Infisical `/shared` values support this developer tooling. Application
-containers receive none of these settings and no longer join the Opik network.
+containers receive no prompt-registry settings. The internal TestFlight API
+joins the private Opik network only for source-bound runtime observation.
 Legacy registry settings in a host shell cannot enable remote runtime loading.
 
 ## Local service

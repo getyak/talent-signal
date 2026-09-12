@@ -76,3 +76,7 @@ CHAT_MEDIA_S3_FORCE_PATH_STYLE=false
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_SESSION_TOKEN=
+
+# Required private runtime policy: configure exact owner account IDs in Infisical /backend.
+# See docs/operations/product-feedback.md; include product_run for durable local projections.
+TALENT_SIGNAL_OPIK_RUNTIME_POLICY=

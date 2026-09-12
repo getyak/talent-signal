@@ -15,6 +15,7 @@ import { registerLabJobRoutes } from "./modules/labJobRoutes.js";
 import { environmentLabCIVerifier, type LabCIVerifying } from "./modules/labCIVerifier.js";
 import { randomUUID } from "node:crypto";
 import { sweepRuntimeObservationSources } from "./modules/runtimeObservationLifecycle.js";
+import { startProductRunProjection } from "./modules/productRunProjection.js";
 
 import {
   AgentRunResponseSchema,
@@ -3164,6 +3165,7 @@ export async function buildApp(
       ),
   );
 
+  const stopProductProjection = startProductRunProjection(pool, () => app.log.error("Product run Opik projection unavailable; local records retained"));
   const retentionSweep = setInterval(() => {
     void expireScreenshotContactTasks(pool,chatMediaStorage).catch(()=>app.log.error("Contact task retention sweep failed"));
     void runSourceLifecycleSweep(pool).catch((error: unknown) => {
@@ -3176,6 +3178,7 @@ export async function buildApp(
   retentionSweep.unref();
   app.addHook("onClose", async () => {
     clearInterval(retentionSweep);
+    await stopProductProjection();
     await screenshotRunner?.close();
   });
 

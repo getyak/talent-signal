@@ -75,6 +75,11 @@ The TestFlight Compose boundary differs from synthetic development:
   credential boundary;
 - Docker logs rotate locally.
 
+Before starting, configure the owner-scoped private observation policy described
+in [Product runs and feedback](product-feedback.md#internal-testing-delivery-default).
+It is a required part of internal product testing, including a durable outbox
+and a container-to-Opik write/read/delete probe.
+
 ## Start and verify
 
 With Tailscale connected and Docker running:

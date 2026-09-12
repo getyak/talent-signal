@@ -29,7 +29,8 @@ describe("private runtime observation", () => {
   it("is disabled by default and rejects cloud, redirect-shaped, and out-of-scope destinations", () => {
     expect(createEnvironmentRuntimeObserver({})).toBeNull();
     expect(RuntimeObservationPolicySchema.safeParse({ ...policy, endpoint: "http://host.docker.internal:5173/api" }).success).toBe(true);
-    for (const endpoint of ["https://www.comet.com/opik/api", "http://localhost:5173/api?forward=cloud", "http://user:secret@localhost:5173/api", "http://internal.example/api", "http://host.docker.internal.example/api"]) {
+    expect(RuntimeObservationPolicySchema.safeParse({ ...policy, endpoint: "http://opik-frontend:5173/api" }).success).toBe(true);
+    for (const endpoint of ["http://opik-frontend:80/api", "http://opik-frontend.evil:5173/api", "https://www.comet.com/opik/api", "http://localhost:5173/api?forward=cloud", "http://user:secret@localhost:5173/api", "http://internal.example/api", "http://host.docker.internal.example/api"]) {
       expect(RuntimeObservationPolicySchema.safeParse({ ...policy, endpoint }).success).toBe(false);
     }
     expect(() => new RuntimeObservationSession(policy, { ...context, workspace_id: "another-account" }, {}, { enqueue: async () => {} })).toThrow("SCOPE_DENIED");

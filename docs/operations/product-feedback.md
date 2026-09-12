@@ -35,7 +35,12 @@ Screenshot and person-research details can be inspected/exported, but their
 end-to-end automatic replay is not implemented by this adapter. The UI names
 that limitation explicitly. Existing Opik trace/experiment integration remains
 available through its configured runtime policy; this local monitor does not
-require Opik to capture admitted product requests.
+require Opik to capture admitted product requests. Internal testing deployment
+also projects already captured, source-available runs into the private
+`<runtime-project>-product-runs` Opik project every 30 seconds. It preserves
+original timestamps and missing details; it never invokes a model to backfill
+history. Active Lab workspaces inherit only their admitted owner account scope.
+Unbound failures remain metadata-only in the local monitor.
 
 `apps/eval-runner/src/promptfooProvider.ts` implements Promptfoo's JavaScript
 provider interface and delegates to the existing Lab job service. Configure two
@@ -88,3 +93,25 @@ controlled provider from a live external model execution.
 API references: [Fastify hooks](https://fastify.dev/docs/latest/Reference/Hooks/),
 [Node AsyncLocalStorage](https://nodejs.org/api/async_context.html),
 [Promptfoo JavaScript provider](https://www.promptfoo.dev/docs/providers/custom-api/).
+
+## Internal testing delivery default
+
+Treat local run capture, durable retry storage, private Opik connectivity and
+destination readback as part of configuring product testing. A healthy Opik UI
+alone does not prove instrumentation. Store the scoped policy in
+`staging:/backend/TALENT_SIGNAL_OPIK_RUNTIME_POLICY`; keep `product_run` in its
+scope alongside the admitted native provider scopes. Use seven days or the
+source's earlier expiry. Never expand this default to public exposure, other
+accounts, another model provider, credential content or indefinite retention.
+
+The TestFlight deployment starts the pinned Opik service and requires a
+synthetic write/read/delete transport probe from inside the API container.
+After instrumentation changes, also verify a real authenticated product request
+by its `x-talent-signal-run-id`, local spans, retained outbox receipt and exact
+Opik trace. A transport-only probe cannot prove model instrumentation. Claude
+SDK diagnostics identify host-supplied context separately from observed SDK
+messages; neither claims access to an unobserved provider wire request.
+
+When reporting a deployment, name missing task-family coverage or unavailable
+fields explicitly. Product-run projections retain captured provider payloads but
+do not reinterpret SDK aggregate usage as separately billed model leaves.

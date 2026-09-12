@@ -176,8 +176,8 @@ digest. A baseline process with no exposure configuration keeps its existing
 audience and reports no scoped-release proof.
 
 The existing internal TestFlight Compose passes these optional scope and Opik
-settings to the API and persists the outbox in its own named volume. An empty
-policy leaves export disabled. The normal deployment script captures the
+settings to the API and persists the outbox in its own named volume. Internal TestFlight deployment requires an explicit owner-scoped policy;
+an empty policy fails deployment validation. Other environments remain opt-in. The normal deployment script captures the
 checkout revision when rebuilding; reuse or rollback must preserve the selected
 image's original revision or report it unavailable. Backend readiness requires
 the feedback migration 057 before admitting this implementation as ready.
@@ -189,8 +189,9 @@ Runtime observation is configured separately from prompt mirroring with
 `TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX`. The policy identifies the private endpoint,
 Opik project/workspace, source workspaces, authorization scopes, retention and
 content-byte bound. Use `http://localhost:5173/api` for host processes or the
-fixed `http://host.docker.internal:5173/api` gateway from Docker on this Mac;
-verify connectivity from the actual container before enabling it. There is
+fixed `http://opik-frontend:5173/api` service on the private Opik Docker network;
+the TestFlight Compose joins that network. `host.docker.internal` is supported
+only on runtimes where that gateway resolves. Verify from the actual container. There is
 no cloud fallback. Do not point the outbox at
 temporary storage or a tracked repository directory.
 

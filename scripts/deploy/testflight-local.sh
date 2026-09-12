@@ -72,6 +72,7 @@ compose=(
   --file "$repository_root/compose.testflight.yaml"
 )
 
+"$repository_root/scripts/prompts/start-opik.sh"
 "${compose[@]}" config --quiet
 if [[ "${TS_TESTFLIGHT_REBUILD:-true}" == "true" ]]; then
   BUILDKIT_PROGRESS=plain "${compose[@]}" build api person-research-agent
@@ -81,6 +82,8 @@ fi
 "${compose[@]}" up --detach --wait postgres
 "${compose[@]}" run --rm migrate
 "${compose[@]}" up --detach --wait --remove-orphans api person-research-agent
+
+"${compose[@]}" exec -T api node apps/backend/dist/evaluation/probeRuntimeObservation.js
 
 "${compose[@]}" exec -T api node -e \
   "fetch('https://appleid.apple.com/auth/keys').then(async response => { const body = await response.json(); if (!response.ok || !Array.isArray(body.keys) || body.keys.length === 0) process.exit(1); }).catch(() => process.exit(1))"
