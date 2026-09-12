@@ -71,6 +71,14 @@ bounded turn limit; the parent inspected and completed its source patch and
 corrected the explicit-session evaluation before testing. No worker-generated
 dependencies or build artifacts were copied.
 
+A final old-client audit found that an already-issued screenshot receipt could
+still reach an unbound commit route. A Next.js API ingress guard now requires
+rendered scope on workspace mutations, with existing login/demo/extension
+boundaries preserved. The exact extension handoff retains mandatory pre-body
+session-fingerprint validation. Independent review closed the compatibility P1;
+full Web tests passed 518 (one existing skip), with typecheck/lint passing.
+The production build and current-head gates remain required.
+
 ## Milestones
 
 1. Complete: inventory, main refresh, integration and conflict resolution.

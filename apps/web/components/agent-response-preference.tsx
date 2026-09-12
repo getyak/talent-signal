@@ -1,10 +1,11 @@
 "use client";
+import { workspaceSessionFetch } from "./workspace-session-request";
 import { useEffect, useRef, useState } from "react";
 import type { AgentPreferenceMutation, AgentPreferenceResponse } from "@talent-signal/contracts";
 import styles from "./agent-review-form.module.css";
 
 async function preferenceRequest(sessionVersion: string, input?: AgentPreferenceMutation): Promise<AgentPreferenceResponse> {
-  const result = await fetch("/api/agent-preferences", { method: input ? "PUT" : "GET", cache: "no-store",
+  const result = await workspaceSessionFetch("/api/agent-preferences", { method: input ? "PUT" : "GET", cache: "no-store",
     headers: { "x-workspace-session": sessionVersion, ...(input ? { "content-type": "application/json" } : {}) },
     ...(input ? { body: JSON.stringify(input) } : {}) });
   const body = await result.json();
