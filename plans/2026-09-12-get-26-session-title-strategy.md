@@ -36,8 +36,10 @@ must not add a second model request or silently rename an established Session.
    persistence, tests, and product documentation.
 3. **Complete:** relevant Agent, backend, Web, docs, PostgreSQL, and iOS checks
    pass; independent review has no remaining findings or unresolved P0/P1.
-4. **Active:** create linked PR, pass current-head gates, merge, deploy the
-   TestFlight backend, verify acceptance, and close GET-26.
+4. **Complete:** the implementation was integrated through [PR 180](https://github.com/getyak/talent-signal/pull/180),
+   passed current-head CI, Security, and the full iOS release smoke, merged as
+   `d3978dd52c78418cd2acc3e6ed2058b9b90c8891`, and was verified on the local
+   TestFlight backend. Linear GET-26 was read back as Done on 2026-09-13.
 
 ## Verification
 
@@ -47,4 +49,10 @@ must not add a second model request or silently rename an established Session.
 - Backend tests prove the field appears only on the first context-free result.
 - Web and iOS tests prove first-answer replacement and later-turn stability.
 - Full relevant TypeScript checks, iOS checks, docs checks, and repository CI
-  must pass on the delivered commit.
+  passed on integration head `be3cde0277223b5e186c6afb1f34f3564a2c283a`.
+- The deployed backend revision `61c99524252ea464ce52d271e32750c2edf7ba5a`
+  has the same Backend, Agent, and Contracts tree as merged `main`; the API is
+  healthy and its database includes migration `069_account_access_event_details`.
+- [PR 184](https://github.com/getyak/talent-signal/pull/184) was closed as
+  superseded. Its later unproven AX5 waiver and color adjustment were not
+  shipped.
