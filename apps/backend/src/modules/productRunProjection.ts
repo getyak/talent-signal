@@ -16,7 +16,7 @@ const unknownUsage = { input_tokens: null, output_tokens: null, source: "unavail
 
 /** Project only already captured evidence; never rerun a model or invent historical spans. */
 export function projectProductRun(row: ProjectionRun, policy: RuntimeObservationPolicy): RuntimeObservation {
-  const runID = `product-run:${row.id}`, traceID = observationID(`${row.account_id}:${runID}`);
+  const runID = `product-run:${row.id}:generation:${row.source_generation}`, traceID = observationID(`${row.account_id}:${runID}`);
   const digest = observationHash([row.source_generation, row.updated_at, row.input, row.output, row.spans]);
   const rootID = observationID(`${traceID}:${digest}:root`);
   const bounded = (content: RuntimeObservation["spans"][number]["input"]) => content?.retained_bytes > policy.max_content_bytes

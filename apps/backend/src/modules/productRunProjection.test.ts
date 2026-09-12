@@ -37,6 +37,11 @@ describe("captured product run projection", () => {
     expect(after.spans[1]!.parent_span_id).toBe(after.spans[0]!.id);
     expect(after.spans[1]!.model).toBe("synthetic");
   });
+  it("gives a re-admitted source generation a new trace instead of reviving a tombstone", () => {
+    const row = run(), before = projectProductRun(row, policy); row.source_generation = "2";
+    const after = projectProductRun(row, policy);
+    expect(after.id).not.toBe(before.id); expect(after.source_product_run_id).toBe(before.source_product_run_id);
+  });
   it("requires source availability for this exact run and account", async () => {
     const obs = projectProductRun(run(), policy);
     for (const available of [false, true]) {
