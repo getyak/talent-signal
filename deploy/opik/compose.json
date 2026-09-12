@@ -282,6 +282,13 @@
           "max-size": "10m",
           "max-file": "3"
         }
+      },
+      "networks": {
+        "default": {
+          "aliases": [
+            "opik-frontend"
+          ]
+        }
       }
     },
     "mc": {

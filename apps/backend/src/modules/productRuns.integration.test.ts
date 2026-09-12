@@ -9,7 +9,7 @@ import { saveProductRunOutput, productRunSink } from "./productRunStorage.js";
 import type { AuthContext } from "./auth.js";
 
 const database = process.env.PRODUCT_RUN_TEST_DATABASE_URL;
-if (database && (!['127.0.0.1','localhost'].includes(new URL(database).hostname) || !['/get23_proof','/lab_regression_ci','/get9_eval'].includes(new URL(database).pathname)))
+if (database && (!['127.0.0.1','localhost'].includes(new URL(database).hostname) || !['/get23_proof','/lab_regression_ci','/get9_eval','/opik_capture_test'].includes(new URL(database).pathname)))
   throw new Error('Use the owned get23_proof disposable database.');
 const pool = database ? new Pool({ connectionString: database, max: 6 }) : null;
 const auth: AuthContext = { accountId: randomUUID(), accountSlug: `runs-${randomUUID()}`, userId: randomUUID(),
@@ -137,6 +137,26 @@ suite('product runs and durable feedback',()=>{
     const rows=await pool!.query("SELECT row_to_json(r)::text AS body FROM product_runs r WHERE id=$1 UNION ALL SELECT span::text FROM product_run_spans WHERE run_id=$1",[run.id]);
     expect(JSON.stringify(rows.rows)).not.toContain(marker);
     heldStarted=undefined;heldRelease=undefined;
+  });
+  it('restores an in-flight event removed by cleanup only after its exact source is admitted',async()=>{
+    const fixture=await run();const detail=await service.detail(auth,fixture.id,true);
+    const generation=(await pool!.query<{source_generation:string}>('SELECT source_generation FROM product_runs WHERE id=$1',[detail.run.id])).rows[0]!.source_generation;
+    const sink=productRunSink(pool!,detail.run.id,error=>{throw error;},generation);
+    await withProductRunCapture(sink,()=>captureProductStep('host.context','context',{objective:'synthetic pending context'},async()=>({observed:true})));
+    // Deterministically reproduce the cleanup tick that previously lost an early event.
+    await expect.poll(async()=>Number((await pool!.query("SELECT count(*) AS n FROM product_run_spans WHERE run_id=$1 AND span->>'name'='host.context'",[detail.run.id])).rows[0].n)).toBe(1);
+    await pool!.query('DELETE FROM product_run_spans WHERE run_id=$1',[detail.run.id]);
+    await sink.flush();
+    const restored=await service.detail(auth,fixture.id,true);
+    expect(restored.spans).toHaveLength(1);
+    expect(restored.spans[0]!.input.value).toEqual({objective:'synthetic pending context'});
+    const revoked=productRunSink(pool!,detail.run.id,error=>{throw error;},generation);
+    await withProductRunCapture(revoked,()=>captureProductStep('revoked.context','context',{secret:'synthetic revoked context'},async()=>({observed:true})));
+    await expect.poll(async()=>Number((await pool!.query("SELECT count(*) AS n FROM product_run_spans WHERE run_id=$1 AND span->>'name'='revoked.context'",[detail.run.id])).rows[0].n)).toBe(1);
+    await pool!.query('INSERT INTO agent_session_retracted_tasks(account_id,task_id) VALUES($1,$2)',[auth.accountId,fixture.id]);
+    await pool!.query('DELETE FROM product_run_spans WHERE run_id=$1',[detail.run.id]);
+    await revoked.flush();
+    expect((await pool!.query('SELECT id FROM product_run_spans WHERE run_id=$1',[detail.run.id])).rows).toEqual([]);
   });
   it('never revives deleted candidate context or delayed spans when a screenshot checkpoint advances',async()=>{
     const fixture=await run();const person=randomUUID(),marker='synthetic-deleted-candidate-'+randomUUID();

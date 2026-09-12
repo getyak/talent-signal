@@ -58,6 +58,8 @@ export class PrivateOpikRuntimeTransport implements RuntimeObservationTransport 
       observation_digest: digest, source_workspace_id: observation.source_workspace_id,
       authorization_scope: observation.authorization_scope, run_id: observation.run_id,
       source_session_id: observation.source_session_id,
+      source_product_run_id: observation.source_product_run_id,
+      source_product_run_generation: observation.source_product_run_generation,
       source_lab_job_id: observation.source_lab_job_id,
       source_regression_id: observation.source_regression_id,
       source_regression_ids: observation.source_regression_ids,
@@ -187,7 +189,7 @@ export class RuntimeObservationOutbox {
   private readonly root: string;
   private sourceValidator: ((context: RuntimeObservationContext) => Promise<boolean>) | undefined;
   constructor(root: string, readonly policy: RuntimeObservationPolicy, private readonly transport: RuntimeObservationTransport) {
-    this.root = resolve(root); RuntimeObservationPolicySchema.parse(policy);
+    this.root = resolve(root); this.policy = RuntimeObservationPolicySchema.parse(policy);
   }
   private path(id: string) {
     if (!/^[a-f0-9-]{36}$/u.test(id)) throw new Error("RUNTIME_OBSERVATION_ID_INVALID");
@@ -212,11 +214,11 @@ export class RuntimeObservationOutbox {
   setSourceValidator(validate: (context: RuntimeObservationContext) => Promise<boolean>): void { this.sourceValidator = validate; }
   private context(value: RuntimeObservation): RuntimeObservationContext {
     return { run_id: value.run_id, workspace_id: value.source_workspace_id, authorization_scope: value.authorization_scope,
-      source_session_id: value.source_session_id, source_lab_job_id: value.source_lab_job_id,
+      source_session_id: value.source_session_id, source_product_run_id: value.source_product_run_id, source_product_run_generation: value.source_product_run_generation, source_lab_job_id: value.source_lab_job_id,
       source_regression_id: value.source_regression_id, source_regression_ids: value.source_regression_ids, source_refs: value.source_refs };
   }
   private async sourceAvailable(value: RuntimeObservation): Promise<boolean> {
-    if (value.source_refs.kind === "synthetic" && !value.source_lab_job_id && !value.source_regression_id && !value.source_regression_ids.length) return true;
+    if (value.source_refs.kind === "synthetic" && !value.source_product_run_id && !value.source_lab_job_id && !value.source_regression_id && !value.source_regression_ids.length) return true;
     if (!this.sourceValidator) throw new Error("OPIK_RUNTIME_SOURCE_VALIDATION_REQUIRED");
     return this.sourceValidator(this.context(value));
   }

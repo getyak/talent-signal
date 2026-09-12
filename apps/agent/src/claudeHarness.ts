@@ -1,5 +1,6 @@
 import { harnessContinuationFingerprint, type HarnessContinuation, type HarnessContinuationFactory } from "./claudeHarnessContinuation.js";
 import { createEnvironmentRuntimeObserver, type RuntimeObserver } from "./runtimeObservationOutbox.js";
+import { recordProductEvent } from "./productRunCapture.js";
 import type { RuntimeObservationContext, RuntimeObservationSession } from "./runtimeObservation.js";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -14,6 +15,15 @@ import type { ClaudeHarnessConfiguration } from "./claudeHarnessConfiguration.js
 export const CLAUDE_HARNESS_VERSION = "get9-v1";
 export const HARNESS_MCP_PREFIX = "mcp__talent_signal__";
 type SDKRetryEvidence = { afterMs: number; attempt: number; maxRetries: number; delayMs: number; httpStatus: number | null };
+type ObservedSDKAssistant = {
+  body: unknown;
+  id: string;
+  model: string;
+  usage: { input_tokens: number; output_tokens: number;
+    cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null } | null;
+  firstAt: string;
+  lastAt: string;
+};
 type CleanupFailureCode = "SDK_STREAM_CLOSE_FAILED" | "SDK_STREAM_RETURN_FAILED" | "SDK_WARM_DISPOSE_FAILED" | "SDK_WORKSPACE_DISPOSE_FAILED" | "SDK_SESSION_FINALIZE_FAILED" | "SDK_OBSERVATION_COMPLETE_FAILED";
 
 function schemaRepairHint(schema: z.ZodObject, error: z.ZodError): string {
@@ -281,6 +291,28 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
     }
   }
   await assertCurrent();
+  const captureSecrets = [configuration.credential.value].filter(value => value.length > 0);
+  const modelFrames = new Map<string, ObservedSDKAssistant>();
+  // Per-message leaf usage only; the aggregate result usage is never a model leaf.
+  const flushObservedAssistantSpans = async () => {
+    for (const frame of modelFrames.values()) await recordProductEvent("harness.sdk.assistant", "llm", undefined, frame.body, {
+      sdk_message_id: frame.id, model: frame.model, provider: "claude-agent-sdk",
+      usage: frame.usage ? { input_tokens: frame.usage.input_tokens, output_tokens: frame.usage.output_tokens,
+        cache_read_input_tokens: frame.usage.cache_read_input_tokens ?? null,
+        cache_creation_input_tokens: frame.usage.cache_creation_input_tokens ?? null, source: "provider" }
+        : { source: "unavailable" },
+      timing_basis: "sdk_message_frame_receipt_window",
+    }, { startedAt: frame.firstAt, finishedAt: frame.lastAt, secrets: captureSecrets });
+  };
+  // Host-supplied request fields, explicitly not the SDK/provider wire request.
+  await recordProductEvent("harness.context.supplied", "context", {
+    objective: request.objective, system_prompt: request.systemPrompt,
+    context: request.context ?? null,
+    images: (request.images ?? []).map(part => ({ kind: part.kind, mime_type: part.mimeType,
+      byte_size: part.byteSize, content_hash: part.contentHash })),
+  }, { model: configuration.model, endpoint: configuration.baseUrl }, {
+    source: "host_supplied_request_fields", excludes: "sdk_or_provider_wire_request",
+  }, { secrets: captureSecrets });
   const workspace = await createClaudeHarnessWorkspace(request.budget.maxDurationMs, continuation?.sessionID);
   const directory = workspace.directory;
   const executionStarted = Date.now();
@@ -351,15 +383,32 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
           controller.signal.throwIfAborted();
           return result;
         };
-        if (!observation) return execute();
-        let actual: Awaited<ReturnType<typeof execute>> | undefined;
-        await observation.step(entry.name, "tool", parsed.data, async () => {
-          actual = await execute();
-          return { ...actual, content: actual.content.map(block => block.type === "image"
-            ? { type: "image", mimeType: block.mimeType, pixels: "retained only by the original product source" }
-            : block) };
-        });
-        return actual!;
+        const observedExecute = async () => {
+          if (!observation) return execute();
+          let actual: Awaited<ReturnType<typeof execute>> | undefined;
+          await observation.step(entry.name, "tool", parsed.data, async () => {
+            actual = await execute();
+            return { ...actual, content: actual.content.map(block => block.type === "image"
+              ? { type: "image", mimeType: block.mimeType, pixels: "retained only by the original product source" }
+              : block) };
+          });
+          return actual!;
+        };
+        // Product diagnostics observe the dispatch, including thrown tool errors.
+        const startedAt = new Date().toISOString();
+        try {
+          const result = await observedExecute();
+          const rejected = typeof result === "object" && result !== null && (result as { isError?: boolean }).isError === true;
+          await recordProductEvent(entry.name, "tool", parsed.data, result,
+            { read_only: entry.readOnly, is_error: rejected }, { startedAt, finishedAt: new Date().toISOString(),
+              failed: rejected, secrets: captureSecrets });
+          return result;
+        } catch (error) {
+          await recordProductEvent(entry.name, "tool", parsed.data, undefined, { read_only: entry.readOnly },
+            { startedAt, finishedAt: new Date().toISOString(), failed: true, secrets: captureSecrets });
+          throw error;
+        }
+
       }, { annotations: { readOnlyHint: entry.readOnly, destructiveHint: !entry.readOnly }, alwaysLoad: entry.alwaysLoad ?? false }));
     const gate: NonNullable<Options["hooks"]>["PreToolUse"] = [{ hooks: [async (input) => {
       if (input.hook_event_name !== "PreToolUse") return { continue: true };
@@ -497,6 +546,14 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
         if(message.message.model && !message.message.model.startsWith("<"))reportedModels.add(message.message.model);
         if (message.message.model && !message.message.model.startsWith("<")) observation?.recordSDKAssistant(message.message, message.message,
           createHash("sha256").update(request.systemPrompt).digest("hex").slice(0, 16));
+        if (message.message.model && !message.message.model.startsWith("<")) {
+          // Upsert by SDK message ID: repeated frames for one message are one span.
+          const receivedAt = new Date().toISOString();
+          const previous = modelFrames.get(message.message.id);
+          modelFrames.set(message.message.id, { body: message.message, id: message.message.id,
+            model: message.message.model, usage: message.message.usage ?? null,
+            firstAt: previous?.firstAt ?? receivedAt, lastAt: receivedAt });
+        }
         const usage = message.message.usage;
         messageUsage.set(message.message.id, { input: usage.input_tokens +
           (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0), output: usage.output_tokens });
@@ -528,8 +585,16 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       estimatedUsd: result.total_cost_usd, turns: result.num_turns, toolCalls,
       reportedModels: [...reportedModels], modelResponses: messageUsage.size, sdkTiming, apiRetries,
       terminalReason: result.terminal_reason ?? "completed", permissionDenials: [...denials, ...result.permission_denials.map(() => "SDK_PERMISSION_DENIED")] };
+    await flushObservedAssistantSpans();
     return completedOutput;
   } catch (error) {
+    if (modelFrames.size === 0) {
+      const failureCode = error instanceof ClaudeHarnessFailure ? error.message
+        : claudeHarnessInterruptionCode(controller.signal.aborted ? controller.signal.reason : error);
+      await recordProductEvent("harness.execution.failure", "context", { code: failureCode }, undefined,
+        { phase: "before_model_response", terminal_reason: failureCode }, { failed: true, secrets: captureSecrets });
+    }
+    await flushObservedAssistantSpans();
     if (error instanceof ClaudeHarnessFailure) { primaryError = error; throw error; }
     const reason = controller.signal.aborted ? controller.signal.reason : error;
     const code = claudeHarnessInterruptionCode(reason);

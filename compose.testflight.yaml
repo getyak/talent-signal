@@ -66,7 +66,7 @@ services:
       TALENT_SIGNAL_DEPLOYMENT_ID: ${TALENT_SIGNAL_DEPLOYMENT_ID:-talent-signal-testflight-local}
       TALENT_SIGNAL_DATA_DOMAIN: ${TALENT_SIGNAL_DATA_DOMAIN:-internal-testflight}
       TALENT_SIGNAL_DEPLOYMENT_EXPOSURE: ${TALENT_SIGNAL_DEPLOYMENT_EXPOSURE:-}
-      TALENT_SIGNAL_OPIK_RUNTIME_POLICY: ${TALENT_SIGNAL_OPIK_RUNTIME_POLICY:-}
+      TALENT_SIGNAL_OPIK_RUNTIME_POLICY: ${TALENT_SIGNAL_OPIK_RUNTIME_POLICY:?Private Opik policy is required for internal product testing}
       TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX: /var/lib/talent-signal/runtime-observation
       OPIK_API_KEY: ${OPIK_API_KEY:-}
       PASSWORD_AUTH_ENABLED: ${PASSWORD_AUTH_ENABLED:-false}
@@ -125,6 +125,9 @@ services:
       - ${TS_TESTFLIGHT_DNS_FALLBACK:-114.114.114.114}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-4317}:4317"
+    networks:
+      - default
+      - opik
     depends_on:
       postgres:
         condition: service_healthy
@@ -200,3 +203,8 @@ volumes:
   talent_signal_testflight_runtime_observation:
   talent_signal_testflight_agent_ipc:
   talent_signal_testflight_agent_state:
+
+networks:
+  opik:
+    external: true
+    name: talent-signal-opik_default

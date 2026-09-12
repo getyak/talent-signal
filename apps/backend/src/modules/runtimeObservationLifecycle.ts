@@ -16,6 +16,11 @@ export async function sweepRuntimeObservationSources(database: DatabaseClient,
 }
 
 export async function runtimeObservationSourcesAvailable(database: DatabaseClient, run: RuntimeObservationContext): Promise<boolean> {
+  if (run.source_product_run_id) {
+    const row = (await database.query<{ available: boolean }>(`SELECT product_run_source_available(id) AND source_generation::text=$3 AS available
+      FROM product_runs WHERE id=$1 AND account_id::text=$2`, [run.source_product_run_id, run.workspace_id, run.source_product_run_generation ?? null])).rows[0];
+    return row?.available === true;
+  }
   for (const regressionID of new Set([...(run.source_regression_ids ?? []), ...(run.source_regression_id ? [run.source_regression_id] : [])])) {
     const row = (await database.query<{ id: string }>(`SELECT id FROM lab_regressions
       WHERE account_id::text=$1 AND id=$2 AND deleted_at IS NULL AND expires_at>now()`,
