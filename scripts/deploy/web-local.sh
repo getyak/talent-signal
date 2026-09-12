@@ -13,6 +13,7 @@ fi
 # Only the server process talks to the backend. Never expose its credentials to clients.
 export NODE_ENV=production
 export AUTH_TRUST_HOST=true
+export TALENT_SIGNAL_ALLOW_LAN_HTTP=false
 export AUTH_DEFAULT_ACCOUNT_ENABLED=false
 export AUTH_DEFAULT_ACCOUNT_QUICK_LOGIN=false
 # This flag selects the authenticated backend product; false selects the old demo.
@@ -21,7 +22,10 @@ node --input-type=module - <<'NODE'
 const origin = new URL(process.env.AUTH_URL ?? "");
 if (!process.env.AUTH_SECRET?.trim()) throw new Error("AUTH_SECRET is required in staging:/web");
 if (!process.env.TALENT_SIGNAL_BACKEND_URL?.trim()) throw new Error("TALENT_SIGNAL_BACKEND_URL is required in staging:/web");
-if (origin.port !== "3000") throw new Error("Resident Web AUTH_URL must name port 3000");
+if (origin.protocol !== "https:" || !origin.hostname.endsWith(".ts.net") || origin.port !== "10443"
+    || origin.username || origin.password || origin.search || origin.hash || origin.pathname !== "/") {
+  throw new Error("Resident Web AUTH_URL must be the Tailscale HTTPS origin on port 10443");
+}
 NODE
 cd "$repository_root"
 if [[ "$command_name" == "build" ]]; then
@@ -47,4 +51,4 @@ if [[ ! -f "$repository_root/apps/web/.next/BUILD_ID" ]]; then
   exit 1
 fi
 # https://nextjs.org/docs/app/api-reference/cli/next#next-start-options
-exec pnpm --filter @talent-signal/web start --hostname 0.0.0.0 --port 3000
+exec pnpm --filter @talent-signal/web start --hostname 127.0.0.1 --port 3000
