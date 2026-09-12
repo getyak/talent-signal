@@ -36,10 +36,10 @@
     "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
     "@talent-signal/evaluation": "workspace:*",
-    "opik": "2.2.45"
+    "opik": "2.2.56"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.5.0",
     "tsx": "^4.23.13",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^5.0.0"
