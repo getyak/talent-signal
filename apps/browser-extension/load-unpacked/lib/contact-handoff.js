@@ -15,13 +15,13 @@ export async function contactTaskFromReviewedImage(envelope) {
   let browserSource;
   if (envelope.source.url && envelope.source.title) {
     const url=new URL(envelope.source.url);
-    if (url.username || url.password || (!["https:","http:"].includes(url.protocol) && url.href!=="local-file://reviewed-screenshot")) throw new Error("CONTACT_HANDOFF_SOURCE_INVALID");
+    if (url.username || url.password || (!["https:","http:"].includes(url.protocol) && url.href!=="local-file://reviewed-screenshot" && url.href!=="screen://user-selected")) throw new Error("CONTACT_HANDOFF_SOURCE_INVALID");
     url.search=""; url.hash="";
     if(url.href.length>1000)throw new Error("CONTACT_HANDOFF_SOURCE_TOO_LONG");
     browserSource={title:envelope.source.title.slice(0,500),locator:url.href};
   }
   return { idempotency_key: envelope.idempotency_key, captured_at: envelope.source.captured_at,
-    ...(browserSource?{browser_source:browserSource}:{}),
+    ...(browserSource?{browser_source:browserSource,source:{kind:browserSource.locator.startsWith("screen:")?"screen":browserSource.locator.startsWith("local-file:")?"uploaded_image":"visible_tab",title:browserSource.title,url:browserSource.locator,time_basis:envelope.source.time_basis??"captured_at"}}:{}),
     objective: "整理这张我已审阅的截图；聊天按来源归档，个人主页生成可编辑的联系人草稿。",
     image: { media_type: match[1], byte_size: bytes.length, content_hash: [...digest].map(byte => byte.toString(16).padStart(2,"0")).join(""), data_base64: match[2] },
     allow_public_research: false };
@@ -29,7 +29,7 @@ export async function contactTaskFromReviewedImage(envelope) {
 
 export function contactTaskReviewURL(origin, taskID) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(taskID)) throw new Error("CONTACT_TASK_ID_INVALID");
-  const url = new URL("/contact-agent", normalizeLocalOrigin(origin));
+  const url = new URL("/workspace/captures", normalizeLocalOrigin(origin));
   url.searchParams.set("task", taskID); url.searchParams.set("source", "browser-extension"); return url.toString();
 }
 

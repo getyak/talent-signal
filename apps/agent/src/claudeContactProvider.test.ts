@@ -7,6 +7,23 @@ import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import type { ClaudeHarnessRequest } from "./claudeHarness.js";
 
 describe("multimodal contact SDK adapter", () => {
+  it("passes reviewed text to the same harness with a source-specific understanding tool",async()=>{
+    const text="Synthetic Person works at Example Labs.";
+    const readImage=vi.fn(async()=>{throw new Error("TEXT_RUN_MUST_NOT_READ_PIXELS");});
+    const execute=vi.fn(async (_configuration,request:ClaudeHarnessRequest)=>{
+      expect(JSON.parse(request.context!).reviewed_source_text).toBe(text);
+      expect(request.images).toEqual([]);
+      expect(request.tools.map(t=>t.name)).toContain("record_text_understanding");
+      expect(request.tools.map(t=>t.name)).not.toContain("record_screenshot_understanding");
+      expect(request.tools.map(t=>t.name)).not.toContain("inspect_screenshot_region");
+      expect(request.subagents).toEqual([]);
+      return {text:"Synthetic",structuredOutput:null,sessionID:"synthetic-text",inputTokens:1,outputTokens:1,estimatedUsd:0,turns:1,toolCalls:0,terminalReason:"completed",permissionDenials:[],reportedModels:["synthetic"]};
+    });
+    const model=new ClaudeContactAgentModel(claudeHarnessConfiguration({ANTHROPIC_API_KEY:"synthetic",TALENT_SIGNAL_AGENT_MODEL:"synthetic"}),execute);
+    await model.run({objective:"Read source",text,images:[],systemPrompt:"Synthetic",state:{},assertCurrent:async()=>{},readImage,recordUnderstanding:vi.fn(),invoke:vi.fn()},new AbortController().signal);
+    expect(execute).toHaveBeenCalledOnce();
+    expect(readImage).not.toHaveBeenCalled();
+  });
   it("starts with the original image and lets the Agent request understanding when useful", async () => {
     const bytes = await sharp({create:{width:20,height:40,channels:3,background:"white"}}).png().toBuffer();
     const config = claudeHarnessConfiguration({ ANTHROPIC_API_KEY: "synthetic", TALENT_SIGNAL_AGENT_MODEL: "synthetic" });

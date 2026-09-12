@@ -18,7 +18,7 @@ test("hashes only reviewed bytes and disables unapproved public research",async(
  await assert.rejects(contactTaskFromReviewedImage({...envelope,source:{...envelope.source,title:"Synthetic",url:"https://user:password@example.com/profile"}}));
  await assert.rejects(contactTaskFromReviewedImage({...envelope,retention_mode:"ephemeral"}));
  await assert.rejects(contactTaskFromReviewedImage({...envelope,authorization:{decision:"preview"}}));
- assert.match(contactTaskReviewURL(envelope.handoff_target,taskID),/contact-agent\?task=/u);
+ assert.match(contactTaskReviewURL(envelope.handoff_target,taskID),/workspace\/captures\?task=/u);
  assert.throws(()=>contactTaskReviewURL(envelope.handoff_target,"../../elsewhere"));
 });
 test("keeps credentials in Web, checks the intended account and reads back the exact task",async()=>{

@@ -243,7 +243,7 @@ import {
   type PersonResearchAgentProviding,
 } from "./modules/personResearchAgentClient.js";
 import { createPersonResearchTask } from "./modules/personResearchTasks.js";
-import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask, confirmScreenshotContactProfile,
+import { deleteContactCaptureTask, loadBrowserCaptureTask, createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask, confirmScreenshotContactProfile,
   cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, lookupScreenshotContactReceipt, loadScreenshotContactImage,
   environmentScreenshotContactDependencies, ScreenshotContactTaskRunner,
   type ScreenshotContactDependencies } from "./modules/screenshotContactTasks.js";
@@ -2573,6 +2573,12 @@ export async function buildApp(
     return reply.header("cache-control","private, no-store").header("x-content-type-options","nosniff")
       .type(image.media_type).send(Buffer.from(image.data_base64,"base64"));
   });
+  app.post<{Params:{id:string};Body:{expected_revision:number}}>("/v1/contact-agent/tasks/:id/delete",{
+    preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1})},{additionalProperties:false})}
+  },async request=>deleteContactCaptureTask(pool,request.auth,request.params.id,request.body.expected_revision,chatMediaStorage));
+  app.get<{Params:{requestId:string}}>("/v1/contact-agent/browser-captures/:requestId", {
+    preHandler:authenticate,schema:{security,params:Type.Object({requestId:Type.String({pattern:"^[a-zA-Z0-9-]{8,80}$"})})}
+  }, async request=>loadBrowserCaptureTask(pool,request.auth,request.params.requestId));
   app.get<{Querystring:{handoff_request_id?:string}}>("/v1/contact-agent/tasks",{preHandler:authenticate,
     schema:{security,querystring:Type.Object({handoff_request_id:Type.Optional(Type.String({minLength:1,maxLength:128}))},{additionalProperties:false})}},
     async request=>request.query.handoff_request_id

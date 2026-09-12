@@ -101,11 +101,16 @@ export const ScreenshotContactImageSchema = z.strictObject({
     data_base64: Text.max(13_400_000),
   });
 
-export const ScreenshotContactTaskRequestSchema = z.strictObject({
+export const ContactCaptureSourceSchema = z.strictObject({
+  kind: z.enum(["selected_text", "page_text", "visible_tab", "screen", "uploaded_image"]),
+  title: Text.max(500),
+  url: z.string().max(4096),
+  time_basis: z.enum(["captured_at", "imported_at"]).default("captured_at"),
+});
+
+const ContactTaskInputShape = {
   idempotency_key: Text.max(128),
   objective: Text.max(4_000),
-  image: ScreenshotContactImageSchema,
-  additional_images: z.array(ScreenshotContactImageSchema).max(9).optional(),
   selected_person_id: ID.optional(),
   selected_relationship_context_id: ID.optional(),
   allow_public_research: z.boolean().default(true),
@@ -113,11 +118,24 @@ export const ScreenshotContactTaskRequestSchema = z.strictObject({
   browser_source: z.strictObject({
     title: Text.max(500),
     locator: Text.max(1000).refine(value => {
-      if (value === "local-file://reviewed-screenshot") return true;
+      if (["local-file://reviewed-screenshot","screen://user-selected"].includes(value)) return true;
       try { const url=new URL(value); return ["https:","http:"].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash; }
       catch { return false; }
     }, "Browser provenance must omit credentials, query parameters and fragments."),
   }).optional(),
+  source: ContactCaptureSourceSchema.optional(),
+};
+
+export const TextContactTaskRequestSchema = z.strictObject({
+  ...ContactTaskInputShape,
+  text: Text.max(50_000),
+  source: ContactCaptureSourceSchema,
+});
+
+export const ScreenshotContactTaskRequestSchema = z.strictObject({
+  ...ContactTaskInputShape,
+  image: ScreenshotContactImageSchema,
+  additional_images: z.array(ScreenshotContactImageSchema).max(9).optional(),
 }).refine(request => [request.image, ...(request.additional_images ?? [])].reduce((total, image) => total + image.byte_size, 0) <= 30_000_000, "Screenshots must total at most 30 MB.");
 
 export const ContactTaskCandidateSchema = z.strictObject({
@@ -148,6 +166,9 @@ export type ContactProfileConfirmation = z.infer<typeof ContactProfileConfirmati
 export const ScreenshotContactTaskResponseSchema = z.strictObject({
   task_id: ID,
   revision: z.number().int().min(1),
+  source: ContactCaptureSourceSchema.optional(),
+  source_text: z.string().max(50_000).optional(),
+  source_captured_at: z.iso.datetime().optional(),
   status: z.enum(["running", "waiting_for_user", "completed", "partial", "failed", "cancelled", "deleted"]),
   contact: z.strictObject({
     person_id: ID, relationship_context_id: ID, display_name: Text.max(200),
@@ -178,4 +199,5 @@ export const ScreenshotContactTaskResponseSchema = z.strictObject({
 });
 
 export type ScreenshotContactTaskRequest = z.infer<typeof ScreenshotContactTaskRequestSchema>;
+export type TextContactTaskRequest = z.infer<typeof TextContactTaskRequestSchema>;
 export type ScreenshotContactTaskResponse = z.infer<typeof ScreenshotContactTaskResponseSchema>;

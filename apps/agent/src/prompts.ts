@@ -7,6 +7,7 @@ import PUBLIC_RESEARCH_SYSTEM_PROMPT from "./prompts/research-company.js";
 import PERSON_RESEARCH_SYSTEM_PROMPT from "./prompts/research-person.js";
 import CONTACT_INTAKE_SYSTEM_PROMPT from "./prompts/capture-contact.js";
 import CONTACT_EXTRACTION_SYSTEM_PROMPT from "./prompts/capture-transcription.js";
+import CONTACT_TEXT_EXTRACTION_SYSTEM_PROMPT from "./prompts/capture-text-transcription.js";
 import TEXT_EXTRACTION_SYSTEM_PROMPT from "./prompts/capture-text.js";
 import SCREENSHOT_SYSTEM_PROMPT from "./prompts/capture-screenshot.js";
 
@@ -26,6 +27,7 @@ export const PROMPT_DEFINITIONS = {
   "research/company": { text: PUBLIC_RESEARCH_SYSTEM_PROMPT, sourceFile: "prompts/research-company.ts", description: "Authorized public company and market research." },
   "research/person": { text: PERSON_RESEARCH_SYSTEM_PROMPT, sourceFile: "prompts/research-person.ts", description: "Public profile research from visible text clues." },
   "capture/contact": { text: CONTACT_INTAKE_SYSTEM_PROMPT, sourceFile: "prompts/capture-contact.ts", description: "Screenshot contact filing and analysis." },
+  "capture/text-transcription": { text: CONTACT_TEXT_EXTRACTION_SYSTEM_PROMPT, sourceFile: "prompts/capture-text-transcription.ts", description: "Exact-source extraction from intentionally submitted web text." },
   "capture/transcription": { text: CONTACT_EXTRACTION_SYSTEM_PROMPT, sourceFile: "prompts/capture-transcription.ts", description: "Screenshot transcription into the host-supplied schema." },
   "capture/text": { text: TEXT_EXTRACTION_SYSTEM_PROMPT, sourceFile: "prompts/capture-text.ts", description: "Text evidence extraction into the host-supplied schema." },
   "capture/screenshot": { text: SCREENSHOT_SYSTEM_PROMPT, sourceFile: "prompts/capture-screenshot.ts", description: "Screenshot evidence extraction." },

@@ -1,3 +1,4 @@
+import { webRequest, connectWebOrigin } from "./lib/web-transport.js";
 import {
   makeCaptureDraft,
   normalizeUploadedImageSource,
@@ -504,6 +505,7 @@ function renderReview() {
   elements.captureKindChip.textContent = {
     visible_tab: "Visible pixels",
     selected_text: "Selected text",
+    page_text: "Page text",
     fixture: "Synthetic fixture",
   }[draft.kind];
   if (draft.synthetic_label) {
@@ -513,14 +515,14 @@ function renderReview() {
   const cleared = Boolean(draft.local_cleared);
   elements.localCleared.hidden = !cleared;
   elements.screenshotReview.hidden = cleared || draft.kind !== "visible_tab";
-  elements.textReview.hidden = cleared || draft.kind !== "selected_text";
+  elements.textReview.hidden = cleared || !["selected_text", "page_text"].includes(draft.kind);
   elements.fixtureReview.hidden = draft.kind !== "fixture";
 
   if (draft.kind === "visible_tab" && !cleared) {
     syncCropInputs();
     renderCanvas();
     renderRedactionList();
-  } else if (draft.kind === "selected_text" && !cleared) {
+  } else if (["selected_text", "page_text"].includes(draft.kind) && !cleared) {
     elements.reviewedText.value = draft.reviewed_text ?? "";
     renderTextSummary();
   } else if (draft.kind === "fixture") {
@@ -876,13 +878,13 @@ function renderRetention() {
     : "available";
   elements.approvalCheck.closest("label").hidden = imageHandoffBlocked;
   elements.submitHeading.textContent = imageHandoffBlocked
-    ? "Screenshot reviewed. Web image intake is not connected yet."
+    ? "Choose the supported reviewed-source retention mode."
     : "Submit this reviewed capture?";
   elements.handoffEffect.textContent = imageHandoffBlocked
     ? "No transfer · reviewed pixels remain local"
-    : "Upload one reviewed capture for backend review only";
+    : "Save this source, process it with AI, and file a reversible internal person record when identity is clear";
   elements.submitNote.textContent = imageHandoffBlocked
-    ? "The reviewed pixels remain local to this panel. Talent Signal will not pretend they were uploaded before Web owns raw-image retention and derivative deletion."
+    ? "This retention mode is unavailable. Select reviewed-source retention before submitting pixels to Web for AI processing."
     : "Submission is a capture handoff only. It does not confirm facts, contact anyone, create a meeting, or update an ATS.";
   elements.handoffTarget.textContent =
     isSyntheticTransport(state.draft)
@@ -905,7 +907,7 @@ function renderSubmission() {
     !retentionCompatibility("visible_tab", elements.retentionMode.value).supported;
   elements.openWebReview.hidden = !(
     submission.state === "received" &&
-    submission.capture_id &&
+    (submission.task_id || submission.capture_id) &&
     !isSyntheticTransport(state.draft)
   );
 
@@ -921,7 +923,7 @@ function renderSubmission() {
   }
 
   elements.submitButton.textContent = imageHandoffBlocked
-    ? "Image handoff not connected"
+    ? "Choose supported retention"
     : presentation.action_label;
   updateSubmitAvailability();
   renderProgress();
@@ -934,7 +936,7 @@ function assetIsReady() {
   if (state.draft.kind === "visible_tab") {
     return Boolean(state.image && elements.canvas.width && elements.canvas.height);
   }
-  if (state.draft.kind === "selected_text") {
+  if (["selected_text", "page_text"].includes(state.draft.kind)) {
     return Boolean(state.draft.reviewed_text?.trim());
   }
   return state.draft.kind === "fixture";
@@ -971,7 +973,7 @@ function reviewAsset() {
     };
   }
 
-  if (state.draft.kind === "selected_text") {
+  if (["selected_text", "page_text"].includes(state.draft.kind)) {
     return {
       type: "reviewed_text",
       text: state.draft.reviewed_text.trim(),
@@ -1006,44 +1008,14 @@ async function postRealHandoff(origin, envelope) {
     state.contactHandoffEnvelope = envelope;
     return chrome.runtime.sendMessage({ type: "handoff.reviewed-image", envelope });
   }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
-  try {
-    const headers = {
-      "Content-Type": "application/json",
-      "Idempotency-Key": envelope.idempotency_key,
-    };
-    if (envelope.session.version) {
-      headers["X-Talent-Signal-Session-Version"] = envelope.session.version;
-    }
-    const response = await fetch(`${origin}/api/browser-extension/captures`, {
-      method: "POST",
-      credentials: "include",
-      headers,
-      body: JSON.stringify(envelope),
-      signal: controller.signal,
-    });
-    return classifyReceiptResponse(response.status, await responseBody(response));
-  } finally {
-    clearTimeout(timeout);
-  }
+  const response = await webRequest(origin, "/api/browser-extension/captures", {
+    method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":envelope.idempotency_key,"X-Talent-Signal-Session-Version":envelope.session.version},body:JSON.stringify(envelope),
+  });
+  return classifyReceiptResponse(response.status,response.body);
 }
-
 async function getRealReceipt(origin, requestId) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5_000);
-  try {
-    const response = await fetch(
-      `${origin}/api/browser-extension/captures/${encodeURIComponent(requestId)}`,
-      {
-        credentials: "include",
-        signal: controller.signal,
-      },
-    );
-    return classifyReceiptResponse(response.status, await responseBody(response));
-  } finally {
-    clearTimeout(timeout);
-  }
+  const response=await webRequest(origin,`/api/browser-extension/captures/${encodeURIComponent(requestId)}`);
+  return classifyReceiptResponse(response.status,response.body);
 }
 
 function clearPrivatePayloadAfterReceipt() {
@@ -1235,18 +1207,9 @@ async function checkSession() {
 
   try {
     const origin = normalizeLocalOrigin(elements.localOrigin.value);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5_000);
-    let response;
-    try {
-      response = await fetch(`${origin}/api/browser-extension/session`, {
-        credentials: "include",
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-    state.session = sessionCopy(response.status, await responseBody(response));
+    await connectWebOrigin(origin);
+    const response=await webRequest(origin,"/api/browser-extension/session");
+    state.session = sessionCopy(response.status,response.body);
   } catch (error) {
     state.session = {
       state: "not_ready",
@@ -1262,9 +1225,10 @@ async function checkSession() {
 async function openSignIn() {
   try {
     const origin = normalizeLocalOrigin(elements.localOrigin.value);
+    await connectWebOrigin(origin);
     const target = new URL("/login", origin);
     target.searchParams.set("source", "browser-extension");
-    target.searchParams.set("returnTo", "/workspace");
+    target.searchParams.set("callbackUrl", "/workspace/captures");
     await chrome.tabs.create({ url: target.toString() });
   } catch (error) {
     state.session = {
@@ -1276,13 +1240,13 @@ async function openSignIn() {
 }
 
 async function openExactWebReview() {
-  if (!state.submission.capture_id || isSyntheticTransport(state.draft)) {
+  if (!(state.submission.task_id || state.submission.capture_id) || isSyntheticTransport(state.draft)) {
     return;
   }
   try {
     const target = (state.submission.contact_task_id ? contactTaskReviewURL : buildExactWebReviewUrl)(
       elements.localOrigin.value,
-      state.submission.capture_id,
+      state.submission.task_id || state.submission.capture_id,
     );
     await chrome.tabs.create({ url: target });
   } catch (error) {
@@ -1480,3 +1444,22 @@ async function initialize() {
 }
 
 initialize();
+
+byId("capture-page").addEventListener("click",()=>requestCapture("capture.page"));
+byId("capture-screen").addEventListener("click",()=>{
+  chrome.desktopCapture.chooseDesktopMedia(["screen","window","tab"],async streamId=>{
+    if(!streamId)return;
+    let stream;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{mandatory:{chromeMediaSource:"desktop",chromeMediaSourceId:streamId}}});
+      const video=document.createElement("video");video.srcObject=stream;await video.play();
+      await new Promise(resolve=>video.requestVideoFrameCallback(resolve));
+      const canvas=document.createElement("canvas");canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+      canvas.getContext("2d").drawImage(video,0,0);
+      const dataUrl=canvas.toDataURL("image/png");
+      stream.getTracks().forEach(track=>track.stop());stream=null;
+      await openReview(makeCaptureDraft({kind:"visible_tab",source:{title:"Screen capture",url:"screen://user-selected",captured_at:new Date().toISOString()},dataUrl}));
+    }catch(error){showCaptureAlert("Screen capture unavailable",error.message);}
+    finally{stream?.getTracks().forEach(track=>track.stop());}
+  });
+});
