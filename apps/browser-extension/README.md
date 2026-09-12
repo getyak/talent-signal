@@ -6,6 +6,9 @@ sources enter the signed-in account's durable contact task pipeline. AI may
 create or reuse an internal Person and preserve proposed source observations;
 it cannot confirm facts, merge people, contact anyone, or execute external work.
 
+This extension is distinct from the repository's Codex plugin. Image profile
+drafts require human confirmation in the shared review view before saving.
+
 ## Use
 
 1. Open `chrome://extensions`, enable Developer mode and choose Load unpacked.
@@ -66,6 +69,13 @@ with no remaining source are removed through the existing deletion contract.
 Missing identity and multiple people stay reviewable; no-person sources finish
 without inventing a Person. Failed and interrupted work resumes on the same task.
 The Web inbox refreshes across devices and links to the actual person and source.
+
+The image recovery journal keeps at most 20 metadata records for 30 days and
+cleans expired records when read. Capacity eviction removes only completed
+records; pending or unknown submissions remain protected. A missing or expired
+record does not prove that submission never happened. Check the workspace's
+existing task before submitting the source again; never infer failure from a
+lost local receipt.
 
 ## Permissions
 

@@ -106,7 +106,8 @@ export async function startPersonResearchServer(
     string,
     { identity: string; promise: Promise<PersonResearchServiceResponse> }
   >();
-  const researchCalls = new Map<string, { identity: string; promise: Promise<ContactResearchToolResponse> }>();
+  const researchCalls = new Map<string, { identity: string; promise: Promise<ContactResearchToolResponse>;
+    controller: AbortController; subscribers: number }>();
   const server = createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/v1/contact-research/tools") {
       if (request.headers["content-type"]?.split(";", 1)[0] !== "application/json") {
@@ -126,13 +127,25 @@ export async function startPersonResearchServer(
           json(response, 503, { error: "CONTACT_RESEARCH_CAPACITY_EXHAUSTED" });
           return;
         }
-        const promise = existing?.promise ?? runContactResearchTool(parsed, options.environment, options.contactResearch);
-        if (!existing) researchCalls.set(key, { identity, promise });
-        try { json(response, 200, await promise); }
-        finally { if (!existing) researchCalls.delete(key); }
+        const controller = existing?.controller ?? new AbortController();
+        const entry = existing ?? { identity, controller, subscribers: 0,
+          promise: runContactResearchTool(parsed, options.environment, options.contactResearch, controller.signal) };
+        if (!existing) researchCalls.set(key, entry);
+        entry.subscribers++;
+        let detached = false;
+        const detach = () => {
+          if (detached) return;
+          detached = true; entry.subscribers--;
+          if (!entry.subscribers) entry.controller.abort(new Error("CONTACT_RESEARCH_CLIENT_CLOSED"));
+        };
+        response.once("close", detach);
+        if (response.destroyed) detach();
+        try { const result = await entry.promise; if (!response.destroyed) json(response, 200, result); }
+        finally { response.removeListener("close", detach); detach(); if (!existing) researchCalls.delete(key); }
       } catch (error) {
         const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
-          ? error.code : "CONTACT_RESEARCH_UNAVAILABLE";
+          ? error.code : error instanceof Error && /^BROWSER_[A-Z_]+$/u.test(error.message)
+            ? error.message : "CONTACT_RESEARCH_UNAVAILABLE";
         json(response, 502, { error: code });
       }
       return;

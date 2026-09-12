@@ -13,7 +13,7 @@ export function mergeContactExtractions(parts: ContactChatExtraction[]): {
   let sequence = 0;
   const extraction = ContactChatExtractionSchema.parse({
     platform: parts[0]!.platform,
-    conversation_kind: parts.every(p => p.conversation_kind === "direct") ? "direct" : "unknown",
+    conversation_kind: parts.every(p => p.conversation_kind === parts[0]!.conversation_kind) ? parts[0]!.conversation_kind : "unknown",
     contact_name: parts.find(p => p.contact_name)?.contact_name ?? null,
     // Keep all distinct clues; never silently drop message evidence. The bounded
     // model schema limits clue context, while per-image checkpoints retain originals.

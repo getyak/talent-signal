@@ -3735,6 +3735,120 @@ final class RelationshipArchiveTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testCompletedSourceReviewRetiresOnlyItsPendingAskAndPreservesDraft() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let now = Date()
+        let session = AgentSession(id: UUID(), scope: .relationship(personID: "person-1",
+            relationshipContextID: "context-1", personDisplayLabel: "Synthetic", contextDisplayLabel: "Work"),
+            title: "Review recovery", turns: [], contactReceipts: [], updatedAt: now, isUnread: false)
+        let store = AgentSessionStore(sessions: [session], persistence: persistence)
+        let objective = "Export the synthetic reviewed record"
+        XCTAssertEqual(store.beginAsk(objective, personID: "person-1", relationshipContextID: "context-1",
+            proposedIdempotencyKey: "old-review-request", sessionID: session.id), "old-review-request")
+        let citation = relationshipAskReadbackFixture(citationLastReviewID: nil).citations[0]
+        let operation = try store.beginEvidenceReview(idempotencyKey: "review-recovery", taskID: "task-1",
+            citation: citation, personDisplayName: "Synthetic", relationshipContextDisplayName: "Work",
+            expectedReviewStatus: "reviewed", decision: "reviewed", reason: "Synthetic source checked",
+            pendingAskSessionID: session.id, pendingAskKey: "old-review-request")
+        XCTAssertTrue(store.markEvidenceReviewUnknown(operation.idempotencyKey, message: "Response lost"))
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertEqual(restored.latestEvidenceReviews(taskID: "task-1").first?.pendingAskKey, "old-review-request")
+        let result = PursuitEvidenceReviewResult(reviewID: "review-1", priorReviewID: nil, decidedAt: "2026-09-10T03:00:00Z")
+        let before = persistence.data
+        persistence.failSave = true
+        XCTAssertFalse(restored.markEvidenceReviewApplied(operation.idempotencyKey, result: result))
+        XCTAssertEqual(persistence.data, before)
+        XCTAssertEqual(restored.latestEvidenceReviews(taskID: "task-1").first?.state, .outcomeUnknown)
+        XCTAssertEqual(restored.session(id: session.id)?.pendingScopedAskIdempotencyKey, "old-review-request")
+        persistence.failSave = false
+        XCTAssertTrue(restored.markEvidenceReviewApplied(operation.idempotencyKey, result: result))
+        let readback = AgentSessionStore(persistence: persistence)
+        XCTAssertEqual(readback.latestEvidenceReviews(taskID: "task-1").first?.state, .applied)
+        XCTAssertEqual(readback.session(id: session.id)?.pendingObjective, objective)
+        XCTAssertNil(readback.session(id: session.id)?.pendingScopedAskIdempotencyKey)
+        XCTAssertEqual(readback.beginAsk(objective, personID: "person-1", relationshipContextID: "context-1",
+            proposedIdempotencyKey: "fresh-explicit-send", sessionID: session.id), "fresh-explicit-send")
+        XCTAssertTrue(readback.markEvidenceReviewApplied(operation.idempotencyKey, result: result))
+        XCTAssertEqual(readback.session(id: session.id)?.pendingScopedAskIdempotencyKey, "fresh-explicit-send")
+    }
+
+    func testPendingCitationOwnerRejectsChangedOrExpiredSessionBeforeLateReadback() async throws {
+        let now = Date()
+        var session = AgentSession(id: UUID(), scope: .relationship(personID: "person-1",
+            relationshipContextID: "context-1", personDisplayLabel: "Synthetic", contextDisplayLabel: "Work"),
+            title: "Review recovery", turns: [], contactReceipts: [], updatedAt: now, isUnread: false)
+        func current(_ value: AgentSession?, workspace: String = "workspace-1", user: String = "user-1") -> AskCitationReviewOwner? {
+            AskCitationReviewOwner.current(session: value, workspaceID: workspace, userID: user,
+                personID: "person-1", contextID: "context-1", now: now)
+        }
+        let original = try XCTUnwrap(current(session))
+        XCTAssertNotEqual(original, current(session, workspace: "workspace-2"))
+        XCTAssertNotEqual(original, current(session, user: "user-2"))
+        XCTAssertNil(current(nil))
+        var expired = session; expired.retentionExpiresAt = now.addingTimeInterval(-1)
+        XCTAssertNil(current(expired))
+        // The captured owner cannot re-open a source after a same-ID scope sync.
+        await Task.yield()
+        session.scope = .relationship(personID: "person-1", relationshipContextID: "context-2",
+            personDisplayLabel: "Synthetic", contextDisplayLabel: "Changed")
+        XCTAssertNil(current(session))
+        XCTAssertNotEqual(original, current(session))
+    }
+
+    func testPendingCitationRefreshCannotLoginToUnauthenticatedRemote() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RecoveryReadbackURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        RecoveryReadbackURLProtocol.requests = 0
+        let client = URLPursuitWorkspaceClient(baseURL: URL(string: "https://example.invalid")!, session: network)
+        let response = relationshipAskResponseFixture()
+        let requirement = AskCitationReviewRequirement(response: response, taskID: response.taskID,
+            citation: relationshipAskReadbackFixture(citationLastReviewID: nil).citations[0])
+        do {
+            _ = try await client.refreshReviewRequirement(requirement, personID: "person-1", relationshipContextID: "context-1")
+            XCTFail("A remote fixture login must never be attempted")
+        } catch PursuitWorkspaceClientError.loopbackOnly { }
+        XCTAssertEqual(RecoveryReadbackURLProtocol.requests, 0)
+    }
+
+    func testPendingCitationReviewRefreshRequiresSameSourceAndCurrentAuthority() throws {
+        let response = relationshipAskResponseFixture()
+        let readback = relationshipAskReadbackFixture(citationLastReviewID: nil)
+        let requirement = AskCitationReviewRequirement(response: response, taskID: response.taskID,
+            citation: readback.citations[0])
+        XCTAssertEqual(try readback.validatedReviewRequirement(requirement,
+            expectedAccountID: "account-1", expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"), requirement)
+        // A fresh readback is required even though no successful Session turn exists.
+        for availability in ["deleted", "expired", "unauthorized", "superseded"] {
+            let unavailable = relationshipAskReadbackFixture(citationAvailability: availability, citationLastReviewID: nil)
+            XCTAssertThrowsError(try unavailable.validatedReviewRequirement(requirement,
+                expectedAccountID: "account-1", expectedPersonID: "person-1",
+                expectedRelationshipContextID: "context-1"))
+        }
+        for scope in [("other-account", "person-1", "context-1"),
+                      ("account-1", "other-person", "context-1"),
+                      ("account-1", "person-1", "other-context")] {
+            XCTAssertThrowsError(try readback.validatedReviewRequirement(requirement,
+                expectedAccountID: scope.0, expectedPersonID: scope.1,
+                expectedRelationshipContextID: scope.2))
+        }
+        // A later review cannot authorize retrying the old decision.
+        XCTAssertThrowsError(try relationshipAskReadbackFixture().validatedReviewRequirement(requirement,
+            expectedAccountID: "account-1", expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"))
+        let changedDecision = relationshipAskReadbackFixture(citationReviewStatus: "rejected", citationLastReviewID: nil)
+        XCTAssertThrowsError(try changedDecision.validatedReviewRequirement(requirement,
+            expectedAccountID: "account-1", expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"))
+        let wrongTask = AskCitationReviewRequirement(response: response, taskID: "other-task", citation: readback.citations[0])
+        XCTAssertThrowsError(try readback.validatedReviewRequirement(wrongTask,
+            expectedAccountID: "account-1", expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"))
+    }
+
     func testAskReadbackRejectsMissingReviewAuthorityAsReviewFailure() {
         let response = relationshipAskResponseFixture()
         let repairableReadbacks = [
@@ -4534,4 +4648,15 @@ final class RetrievalNavigationTests: XCTestCase {
         XCTAssertTrue(preparation.contains(activity.timeZoneIdentifier))
         XCTAssertTrue(preparation.contains("unresolved evidence"))
     }
+}
+
+private final class RecoveryReadbackURLProtocol: URLProtocol, @unchecked Sendable {
+    static var requests = 0
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.requests += 1
+        client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+    }
+    override func stopLoading() { }
 }

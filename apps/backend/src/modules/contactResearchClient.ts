@@ -26,7 +26,14 @@ export class LocalContactResearchClient implements ContactResearchClient {
         });
         response.on("error", reject);
         response.on("end", () => {
-          if (response.statusCode !== 200) reject(new Error(`CONTACT_RESEARCH_HTTP_${response.statusCode}`));
+          if (response.statusCode !== 200) {
+            let code = `CONTACT_RESEARCH_HTTP_${response.statusCode}`;
+            try {
+              const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+              if (typeof body.error === "string" && /^(?:BROWSER|CONTACT_RESEARCH)_[A-Z_]+$/u.test(body.error)) code = body.error;
+            } catch { /* Keep the bounded HTTP status when the error is not structured. */ }
+            reject(new Error(code));
+          }
           else accept(Buffer.concat(chunks).toString("utf8"));
         });
       });

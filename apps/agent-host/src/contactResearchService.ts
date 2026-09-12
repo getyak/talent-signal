@@ -5,10 +5,13 @@ import {
 } from "@talent-signal/agent";
 import { ExaProvider, type ExaSource } from "./exaProvider.js";
 import { TikHubProvider } from "./tikHubProvider.js";
+import { browseDiscoveredPublicPage } from "./isolatedPublicBrowser.js";
+import { browseViaExecutor } from "./browserExecutorClient.js";
 
 export interface ContactResearchDependencies {
   exa?: Pick<ExaProvider, "searchProfiles" | "searchWeb" | "fetchContent">;
   tikhub?: Pick<TikHubProvider, "searchProfiles">;
+  browse?: typeof browseDiscoveredPublicPage;
 }
 
 function sourceID(provider: string, url: string): string {
@@ -29,18 +32,40 @@ export async function runContactResearchTool(
   raw: unknown,
   environment: NodeJS.ProcessEnv = process.env,
   dependencies: ContactResearchDependencies = {},
+  executionSignal?: AbortSignal,
 ): Promise<ContactResearchToolResponse> {
   const request = ContactResearchToolRequestSchema.parse(raw);
-  const signal = AbortSignal.timeout(30_000);
+  const signal = AbortSignal.any([AbortSignal.timeout(30_000), ...(executionSignal ? [executionSignal] : [])]);
+  signal.throwIfAborted();
   const exa = () => dependencies.exa ?? new ExaProvider({ apiKey: environment.EXA_API_KEY ?? "" });
   let sources: ContactPublicSource[];
   const input = request.input;
-  if (input.operation === "fetch") {
+  if (input.operation === "fetch" || input.operation === "browse") {
     if (input.source.source_id !== sourceID(input.source.provider_id, input.source.url)) {
       throw new Error("CONTACT_RESEARCH_SOURCE_ID_MISMATCH");
     }
-    const page = await exa().fetchContent(input.source.url, signal);
-    sources = [fromExa(page, input.source.channel, "fetched")];
+    if (input.operation === "browse") {
+      const page = dependencies.browse
+        ? await dependencies.browse(input.source.url, signal, environment)
+        : environment.TALENT_SIGNAL_BROWSER_EXECUTOR_URL || environment.NODE_ENV === "production"
+          ? await browseViaExecutor({ version: 1, task_id: request.task_id, call_id: request.call_id,
+            source_id: input.source.source_id, provider_id: input.source.provider_id,
+            url: input.source.url, deadline: Date.now() + 28_000 }, signal, environment)
+          : await browseDiscoveredPublicPage(input.source.url, signal, environment);
+      signal.throwIfAborted();
+      sources = [{ source_id: sourceID("browser", page.url), url: page.url,
+        title: page.title || input.source.title, text: page.text, channel: input.source.channel,
+        provider_id: "browser", provider_request_id: request.call_id,
+        content_hash: createHash("sha256").update(page.text).digest("hex"),
+        retrieved_at: new Date().toISOString(), stage: "fetched",
+        browser_observation: { engine: page.engine, engine_version: page.engineVersion,
+          initial_url: input.source.url, final_url: page.url, requests: page.requests,
+          blocked_requests: page.blockedRequests, http_requests: page.httpRequests,
+          response_bytes: page.responseBytes, discovered_source_id: input.source.source_id } }];
+    } else {
+      const page = await exa().fetchContent(input.source.url, signal);
+      sources = [fromExa(page, input.source.channel, "fetched")];
+    }
   } else {
     const query = normalize(input.query);
     if (!request.anchors.some((anchor) => query.includes(normalize(anchor)))) {
@@ -72,6 +97,7 @@ export async function runContactResearchTool(
       }));
     }
   }
+  signal.throwIfAborted();
   return ContactResearchToolResponseSchema.parse({
     contract_version: CONTACT_RESEARCH_CONTRACT, task_id: request.task_id,
     call_id: request.call_id, sources, external_effects: [],

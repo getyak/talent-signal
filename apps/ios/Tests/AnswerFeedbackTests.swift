@@ -138,21 +138,42 @@ final class AnswerFeedbackTests: XCTestCase {
     }
 
     func testCorrectionSheetRendersInChineseWithLargeText() async throws {
-        let editor = makeEditor(FeedbackFixture())
-        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let service = FeedbackFixture()
+        let editor = makeEditor(service)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive },
+            "The hosted sheet requires a foreground-active window scene.")
         let previous = scene.windows.first { $0.isKeyWindow }
         let window = UIWindow(windowScene: scene)
-        window.rootViewController = UIHostingController(rootView: AnswerFeedbackSheet(editor: editor, synchronize: { true })
-            .environment(\.appLanguage, .simplifiedChinese).dynamicTypeSize(.accessibility2))
+        var appeared = false
+        var synchronized = false
+        let host = UIHostingController(rootView: AnswerFeedbackSheet(editor: editor, synchronize: {
+            synchronized = true
+            return true
+        })
+            .environment(\.appLanguage, .simplifiedChinese).dynamicTypeSize(.accessibility2)
+            .onAppear { appeared = true })
+        window.rootViewController = host
+        host.loadViewIfNeeded()
         window.makeKeyAndVisible()
         defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+        window.layoutIfNeeded()
+        host.view.layoutIfNeeded()
         // Hosting and SwiftUI's .task are scheduled asynchronously. Wait for
         // the canonical source, rather than assuming a CI frame-time budget.
         let deadline = ContinuousClock.now.advanced(by: .seconds(10))
         while !editor.canEdit, editor.error == nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(50))
         }
-        XCTAssertTrue(editor.canEdit, editor.error?.localizedDescription ?? "The hosted feedback sheet did not load its source.")
+        XCTAssertTrue(editor.canEdit, """
+            The hosted feedback sheet did not load its source. \
+            appeared=\(appeared), list=\(service.listCount), synchronized=\(synchronized), \
+            sourceReads=\(service.sourceCount), busy=\(editor.isBusy), pending=\(editor.hasPending), \
+            sourceState=\(editor.source?.sourceState ?? "nil"), error=\(String(describing: editor.error)), \
+            scene=\(scene.activationState.rawValue), key=\(window.isKeyWindow), \
+            attached=\(host.view.window === window), bounds=\(window.bounds)
+            """)
         let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
             window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
         }
@@ -189,14 +210,19 @@ private final class FeedbackFixture: AnswerFeedbackServing {
     var loseReadbackOnce = false, conflict = false, wrongReadback = false
     var sourceGone = false
     var submissions: [AnswerFeedbackMutation] = [], writeCount = 0
+    var listCount = 0, sourceCount = 0
     var saved: AnswerFeedbackRecord?
     private var keys = Set<UUID>()
     func source(sessionID: UUID, turnID: UUID) async throws -> AnswerFeedbackSource {
+        sourceCount += 1
         if sourceGone { throw AnswerFeedbackError.unavailable }
         return AnswerFeedbackSource(sessionID: self.sessionID, turnID: self.turnID, sessionRevision: 1,
             taskID: taskID, executionID: executionID, outputHash: String(repeating: "a", count: 64), sourceState: sourceState)
     }
-    func list(sessionID: UUID, turnID: UUID) async throws -> [AnswerFeedbackRecord] { saved.map { [$0] } ?? [] }
+    func list(sessionID: UUID, turnID: UUID) async throws -> [AnswerFeedbackRecord] {
+        listCount += 1
+        return saved.map { [$0] } ?? []
+    }
     func submit(id: UUID, mutation: AnswerFeedbackMutation) async throws -> AnswerFeedbackRecord {
         submissions.append(mutation)
         if conflict { throw AnswerFeedbackError.conflict }

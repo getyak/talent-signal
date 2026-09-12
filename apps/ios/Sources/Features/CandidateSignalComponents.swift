@@ -101,12 +101,13 @@ struct FixtureReviewView: View {
 
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "clock")
+                    .accessibilityHidden(true)
                 Text("Captured \(session.fixture.context.capturedAt) · \(session.fixture.context.sourceTimezone ?? "timezone unknown")")
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("capture-timestamp-label")
             }
             .font(.caption)
             .foregroundStyle(Color.tsMutedInk)
-            .accessibilityElement(children: .combine)
         }
         .tsCard()
     }
@@ -125,6 +126,7 @@ struct FixtureReviewView: View {
                         .foregroundStyle(Color.tsInk)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
+                        .accessibilityIdentifier("message-text-\(message.id)")
                 }
                 .padding(.vertical, 4)
                 .accessibilityElement(children: .combine)
@@ -220,19 +222,35 @@ struct FactReviewCard: View {
     @State private var editing = false
     @State private var draft = ""
 
+    private var factHeading: some View {
+        Text(fact.assertion.label)
+            .font(.headline)
+            .foregroundStyle(Color.tsInk)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("fact-card-\(fact.id)")
+    }
+
+    private var factStatus: some View {
+        Text(fact.assertion.status.title)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(stateColor)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(fact.assertion.label)
-                    .font(.headline)
-                    .foregroundStyle(Color.tsInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("fact-card-\(fact.id)")
-                Spacer(minLength: 8)
-                Text(fact.assertion.status.title)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(stateColor)
-                    .fixedSize(horizontal: false, vertical: true)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 6) {
+                    factHeading
+                    factStatus
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    factHeading
+                    Spacer(minLength: 8)
+                    factStatus
+                }
             }
 
             if let priorValue {
@@ -249,6 +267,7 @@ struct FactReviewCard: View {
                 Text("Exact evidence · \(fact.assertion.evidenceMessageID)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityIdentifier("fact-evidence-label-\(fact.id)")
                 Text("“\(fact.assertion.evidenceQuote)”")
                     .font(.body)
                     .foregroundStyle(Color.tsInk)

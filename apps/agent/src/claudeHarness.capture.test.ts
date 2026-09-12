@@ -120,4 +120,21 @@ describe("Claude harness product-run diagnostics", () => {
     expect((context.input.value as { images: unknown[] }).images).toEqual([
       { kind: "image", mime_type: "image/png", byte_size: bytes.length, content_hash: image.contentHash }]);
   });
+  it("returns original MCP image results while product diagnostics redact their bytes", async () => {
+    const bytes = Buffer.from("synthetic-original-region-bytes").toString("base64");
+    const input = request({ tools: [{ name: "read_region", description: "Read admitted original region", readOnly: true,
+      schema: z.strictObject({}), execute: async () => ({ content: [{ type: "image" as const, mimeType: "image/png", data: bytes }] }) }] });
+    const { spans, sink } = collector();
+    const sdk = (({ options }: any) => ({ close: vi.fn(), async *[Symbol.asyncIterator]() {
+      const handler = options.mcpServers.talent_signal.instance.server._requestHandlers.get("tools/call");
+      const original = await handler({ method: "tools/call", params: { name: "read_region", arguments: {} } },
+        { signal: new AbortController().signal });
+      expect(JSON.stringify(original)).toContain(bytes);
+      yield result();
+    } })) as any;
+    await withProductRunCapture(sink, () => runClaudeHarness(config, input, new AbortController().signal, sdk, null));
+    expect(spans.some(span => span.name === "read_region" && span.status === "completed")).toBe(true);
+    expect(JSON.stringify(spans)).not.toContain(bytes);
+  });
+
 });

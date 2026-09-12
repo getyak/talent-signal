@@ -28,8 +28,7 @@ known.
 The capture-to-action loop retains deterministic identity, evidence, permission,
 recovery and effect gates. Inside an admitted Agent task, the Claude Agent SDK
 owns planning, model/tool iteration, context management and delegated work.
-Product services validate each requested capability; they do not run a second
-model planner around the SDK.
+Domain tools validate capabilities; the SDK remains the only model planner.
 
 ### Open-ended agent task
 
@@ -52,22 +51,23 @@ grant. The separately gated contact-filing task below adds that explicit grant.
 
 ### Runtime placement
 
-Runtime follows capability ownership. The backend owns contact-filing scope,
-durable product state and domain tools. The shared SDK runtime can inspect the
-authorized original images directly and request typed understanding, research
-or reviewable drafts. Recognition is a capability, not a compulsory planning
-stage. Only public identity anchors and typed research calls cross to the Agent
-Host, which owns open-web credentials and network policy, never database access
-or authority to change a contact. The legacy read-only definition forwards
-process-only image input to that host without granting filing authority.
+The backend owns authenticated scope, canonical evidence, filing, review, confirmed
+state, effects and audit. The SDK provides image understanding and reviewable drafts;
+recognition is optional. The Agent Host owns web credentials and network policy,
+without database or filing authority. Only public anchors, typed research calls
+and legacy process-only images cross to it. The Agent core owns schemas, policy
+and orchestration, not secrets or canonical state.
 
-The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision. The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
+Scoped chat traces admitted Memory to original screenshot tiles. Input and tool images
+share ephemeral processing policy. Source guards cover the Run and final commit;
+the shortest image expiry bounds derivatives. Diagnostics retain metadata, not pixels.
+Receipts and artifacts establish no confirmation, new source or publication authority; a read proves scoped access, not visual correctness.
+Uncertainty binds original regions and fields. Corrected model readings or reader disagreement are not source conflicts;
+readable nearby text cannot resolve uncertain speaker, time or identity fields.
 
 ## Governed loop
 
 ![Talent Signal agent runtime flow](talent-signal-agent-runtime-flow.png)
-
-Every run follows the same conceptual discipline:
 
 1. authorize one immutable objective, Pursuit or subject scope, and budget;
 2. compile the smallest relevant context;

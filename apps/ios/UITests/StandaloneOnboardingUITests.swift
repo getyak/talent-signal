@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class StandaloneOnboardingUITests: XCTestCase {
     @MainActor
@@ -110,10 +111,12 @@ final class StandaloneOnboardingUITests: XCTestCase {
             "--standalone-clear-pending-shortcut-fixtures",
             "-AppleInterfaceStyle", "Dark",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
 
         let appearance = app.descendants(matching: .any)["standalone-appearance"]
         XCTAssertTrue(appearance.waitForExistence(timeout: 5))

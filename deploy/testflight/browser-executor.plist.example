@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.talentsignal.browser-executor</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>-i</string>
+    <string>HOME=/var/empty</string>
+    <string>PATH=REPLACE_ABSOLUTE_EXECUTABLE_SEARCH_DIRECTORIES</string>
+    <string>TALENT_SIGNAL_BROWSER_EXECUTOR_TOKEN_FILE=REPLACE_ABSOLUTE_TOKEN_FILE</string>
+    <string>TALENT_SIGNAL_BROWSER_DOCKER_SOCKET=REPLACE_ABSOLUTE_DOCKER_SOCKET</string>
+    <string>TALENT_SIGNAL_BROWSER_DAEMON_ID=REPLACE_VERIFIED_DAEMON_ID</string>
+    <string>TALENT_SIGNAL_BROWSER_IMAGE=REPLACE_IMMUTABLE_IMAGE_ID</string>
+    <string>REPLACE_ABSOLUTE_NODE_BINARY</string>
+    <string>REPLACE_RELEASE_CHECKOUT/apps/agent-host/dist/browserExecutorMain.js</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ExitTimeOut</key><integer>45</integer>
+  <key>ProcessType</key><string>Standard</string>
+  <key>StandardOutPath</key><string>/dev/null</string>
+  <key>StandardErrorPath</key><string>/dev/null</string>
+</dict>
+</plist>

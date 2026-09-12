@@ -221,3 +221,13 @@ support.
 - If Infisical is unavailable, fail closed for production model, storage, auth,
   and database credentials. Do not silently fall back to committed or shared
   personal credentials.
+
+The browser research sidecar requires `TALENT_SIGNAL_BROWSER_EXECUTOR_URL` and
+`TALENT_SIGNAL_BROWSER_EXECUTOR_TOKEN` from `staging:/agent-host`. The URL must
+use the verified private guest-to-host IPv4 route; the token is64 random hex
+characters. Only the research sidecar receives these values in Compose. The
+trusted Mac executor receives the same token through an owner-only file and a
+clean, explicit environment; no model or database credentials belong in that
+process. The TestFlight contract refuses deployment when either value is
+missing. See the [browser runtime contract](../../apps/agent-host/browser/README.md)
+for daemon/image pinning, local listener ownership and recovery requirements.

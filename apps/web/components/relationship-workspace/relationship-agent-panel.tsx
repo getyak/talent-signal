@@ -1,4 +1,5 @@
 "use client";
+import {RunArtifacts} from "@/components/run-artifacts";
 
 import { CalendarDraftReview } from "@/components/calendar-draft-review";
 
@@ -388,6 +389,7 @@ export function RelationshipAgentPanel({
               </footer>
             </article>
           ))}
+          <RunArtifacts taskID={response.task_id} />
           <ProductFeedback key={response.task_id} taskID={response.task_id} onCorrect={text => onObjectiveChange(`请修改上一条回答：${text}`)} />
         </div>
       ) : (

@@ -9,6 +9,8 @@ final class CandidateSignalUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        app.terminate()
+        XCTAssertEqual(app.state, .notRunning)
         app.launchArguments = [
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
@@ -151,10 +153,12 @@ final class CandidateSignalUITests: XCTestCase {
             "-AppleLocale", "zh_CN",
             "-talent-signal.interface-language", "zh-Hans",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         let agentEntry = app.buttons["relationship-agent-studio"]
@@ -173,7 +177,10 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("agent-sources").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["agent-import-contacts-file"].exists)
-        XCTAssertTrue(app.buttons["agent-add-profile-reference"].exists)
+        let profileReference = app.buttons["agent-add-profile-reference"]
+        scrollToVisible(profileReference)
+        XCTAssertTrue(profileReference.isHittable)
+        XCTAssertGreaterThanOrEqual(profileReference.frame.height, 44)
         let actionButton = app.buttons["agent-open-action-button"]
         scrollToVisible(actionButton)
         XCTAssertGreaterThanOrEqual(actionButton.frame.height, 44)
@@ -183,7 +190,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("action-button-settings").waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["创建两步快捷指令"].exists)
-        XCTAssertTrue(element("shortcut-local-boundary").exists)
+        scrollToVisible(element("shortcut-local-boundary"))
         let buildShortcut = element("build-screenshot-shortcut")
         scrollToVisible(buildShortcut)
         XCTAssertGreaterThanOrEqual(buildShortcut.frame.height, 44)
@@ -592,10 +599,12 @@ final class CandidateSignalUITests: XCTestCase {
             "-AppleLocale", "zh_CN",
             "-talent-signal.interface-language", "zh-Hans",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         let calendarReminder = element("today-calendar-reminder")
@@ -696,7 +705,7 @@ final class CandidateSignalUITests: XCTestCase {
         let scope = element("ask-scope-selector")
         XCTAssertTrue(scope.waitForExistence(timeout: 5))
         XCTAssertTrue(
-            (scope.value as? String)?.contains("Leila Hartmann") == true
+            accessibleScopeContent(scope).contains("Leila Hartmann")
         )
         let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
@@ -1103,10 +1112,12 @@ final class CandidateSignalUITests: XCTestCase {
             "--force-dark",
             "-AppleInterfaceStyle", "Dark",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         let todayInbox = app.buttons["today-capture-inbox"]
@@ -1776,7 +1787,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
         let scope = element("ask-scope-selector")
         XCTAssertTrue(scope.waitForExistence(timeout: 5))
-        XCTAssertTrue((scope.value as? String)?.contains("Leila Hartmann") == true)
+        XCTAssertTrue(accessibleScopeContent(scope).contains("Leila Hartmann"))
         XCTAssertFalse(element("ask-response-turn").exists)
         let askSheet = element("relationship-ask-screen")
         let closeAsk = app.navigationBars.buttons["BackButton"]
@@ -1852,9 +1863,9 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(requestCount.value as? String, "0")
         let selectedScope = element("ask-scope-selector")
         XCTAssertTrue(
-            (selectedScope.value as? String)?.contains(
+            accessibleScopeContent(selectedScope).contains(
                 "Leila Hartmann, Chief Product Officer search"
-            ) == true
+            )
         )
         preserveScreenshot("Preferred person requires an explicit relationship")
     }
@@ -2478,10 +2489,12 @@ final class CandidateSignalUITests: XCTestCase {
             "-AppleLocale", "zh_CN",
             "-talent-signal.interface-language", "zh-Hans",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         let globalInput = app.buttons["relationship-guide"]
@@ -3402,9 +3415,11 @@ final class CandidateSignalUITests: XCTestCase {
         app.terminate()
         app.launchArguments = auditArguments + [
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
         XCTAssertTrue(
             element("canonical-pursuit-today").waitForExistence(timeout: 15)
         )
@@ -4476,7 +4491,7 @@ final class CandidateSignalUITests: XCTestCase {
 
     @MainActor
     func testRelationshipCaptureRequiresExplicitOwnerAndIndependentReview() async throws {
-        try await runRelationshipCaptureJourney(auditsAccessibility: false)
+        try await runRelationshipCaptureJourney(accessibilityLayout: false)
     }
 
     @MainActor
@@ -4534,12 +4549,23 @@ final class CandidateSignalUITests: XCTestCase {
 
     @MainActor
     func testRelationshipCaptureAX5DarkPreservesEvidenceActionAndScopeOrder() async throws {
-        try await runRelationshipCaptureJourney(auditsAccessibility: true)
+        try await runRelationshipCaptureJourney(accessibilityLayout: true)
+    }
+
+    @MainActor
+    func testRelationshipCaptureAX5DraftKeyboardAndBackRemainUsable() async throws {
+        // Independent interaction evidence; the original AX5 audit test remains
+        // required and still runs its unchanged, unfiltered audit types.
+        try await runRelationshipCaptureJourney(
+            accessibilityLayout: true,
+            performsScopedAudit: false
+        )
     }
 
     @MainActor
     private func runRelationshipCaptureJourney(
-        auditsAccessibility: Bool
+        accessibilityLayout: Bool,
+        performsScopedAudit: Bool = true
     ) async throws {
         let backendURL = testConfiguration(
             "TS_IOS_BACKEND_URL",
@@ -4567,22 +4593,24 @@ final class CandidateSignalUITests: XCTestCase {
             "--capture-handle", "+658\(phoneSuffix)",
             "--capture-name", "UI owner \(captureSeed.uuidString.prefix(8))"
         ]
-        if auditsAccessibility {
+        if accessibilityLayout {
             app.launchArguments += [
                 "--force-dark",
                 "-AppleInterfaceStyle", "Dark",
                 "-UIPreferredContentSizeCategoryName",
-                "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+                UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             ]
         } else {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
         }
+        if accessibilityLayout { app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true" }
         app.launch()
+        if accessibilityLayout { app.assertEffectiveAccessibility5() }
 
         XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 10))
         XCTAssertTrue(element("unknown-speaker-boundary").exists)
         XCTAssertTrue(element("capture-speaker-review").exists)
-        if auditsAccessibility {
+        if accessibilityLayout {
             assertAccessibilityOrder([
                 "inspect-capture-source",
                 "reviewed-ocr-text",
@@ -4645,7 +4673,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("device-contact-handoff").exists)
         XCTAssertTrue(app.buttons["review-device-contact"].exists)
         XCTAssertTrue(element("capture-completion-receipt").exists)
-        if auditsAccessibility {
+        if accessibilityLayout {
             assertAccessibilityOrder([
                 "capture-review-outcome",
                 "continue-capture-in-agent",
@@ -4687,65 +4715,128 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 30))
         let scopeSelector = element("ask-scope-selector")
         XCTAssertTrue(scopeSelector.waitForExistence(timeout: 5))
-        let expectedScopeValue =
-            "UI owner \(captureSeed.uuidString.prefix(8)), Current client relationship"
-        let expectedNavigationTitle = "UI owner \(captureSeed.uuidString.prefix(8))"
-        XCTAssertEqual(
-            scopeSelector.value as? String,
-            expectedScopeValue
-        )
+        let expectedScopeName = "UI owner \(captureSeed.uuidString.prefix(8))"
+        let expectedScopeContext = "Current client relationship"
+        XCTAssertTrue(scopeSelector.label.contains(expectedScopeName))
+        XCTAssertTrue(scopeSelector.label.contains(expectedScopeContext))
         let seededComposer = app.textFields["ask-composer"]
         XCTAssertTrue(seededComposer.waitForExistence(timeout: 5))
-        if auditsAccessibility {
+        if accessibilityLayout {
             XCTAssertGreaterThanOrEqual(
                 scopeSelector.frame.height,
                 80,
                 "The AX5 relationship selector should expand instead of clipping its context."
             )
-            let closeButton = app.buttons["Close"]
-            XCTAssertTrue(closeButton.exists)
-            let closePresentAtAX5 = closeButton.exists
+            let backButton = app.navigationBars["Session"].buttons["BackButton"]
+            XCTAssertTrue(backButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(backButton.isHittable)
+            XCTAssertGreaterThanOrEqual(backButton.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(backButton.frame.height, 44)
             XCTAssertFalse(element("ask-remote-ai-disclosure").exists)
-            assertAccessibilityOrder([
-                "ask-scope-selector",
-                "ask-composer",
-                "ask-send",
-            ])
-            preserveScreenshot("AX5 relationship scope before accessibility audit")
-            if #available(iOS 17.0, *) {
-                let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
-                    guard issue.auditType == .dynamicType,
-                          let issueElement = issue.element,
-                          issueElement.identifier.isEmpty else {
-                        return false
-                    }
-                    if issueElement.elementType == .button,
-                       issueElement.label == "Close",
-                       closePresentAtAX5,
-                       self.app.navigationBars[expectedNavigationTitle].exists {
-                        // The system NavigationStack button visibly enlarges
-                        // at AX5 but XCTest reports the UIKit-hosted toolbar
-                        // node as partially unsupported while it cycles sizes.
-                        return true
-                    }
-                    guard issueElement.label == "Current client relationship",
-                          scopeSelector.value as? String == expectedScopeValue,
-                          scopeSelector.frame.contains(issueElement.frame) else {
-                        return false
-                    }
-                    // SwiftUI exposes this visual label node to XCTest even
-                    // though the selector combines its children into one
-                    // button. The pre-audit AX5 assertion and screenshot prove
-                    // that the label grows and wraps; the button's full value
-                    // is the single VoiceOver announcement. Keep every other
-                    // Dynamic Type issue unsuppressed.
-                    return true
+            try assertScopedSessionAccessibilityOrder()
+            let editorFrame = seededComposer.frame
+            XCTAssertGreaterThanOrEqual(editorFrame.width, app.windows.firstMatch.frame.width * 0.75,
+                                        "AX5 draft text needs the available line width instead of sharing it with three controls.")
+            XCTAssertGreaterThanOrEqual(app.buttons["ask-send"].frame.minY, editorFrame.maxY - 1,
+                                        "AX5 Send must remain reachable below the full-width draft.")
+            guard let activeRun = testRun else {
+                XCTFail("Interaction proof requires an active XCTest failure counter.")
+                return
+            }
+            guard activeRun.failureCount == 0 else { return }
+            func preserveSessionViewport(_ name: String) {
+                let evidence = XCTAttachment(string:
+                    "application=\(app.frame), window=\(app.windows.firstMatch.frame), "
+                    + "navigation=\(app.navigationBars["Session"].frame), back=\(backButton.frame), "
+                    + "backHittable=\(backButton.isHittable), scope=\(scopeSelector.frame), "
+                    + "composer=\(seededComposer.frame), keyboardExists=\(app.keyboards.firstMatch.exists)"
+                )
+                evidence.name = name + " geometry"
+                evidence.lifetime = .keepAlways
+                add(evidence)
+                let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                screen.name = name + " full screen"
+                screen.lifetime = .keepAlways
+                add(screen)
+            }
+            func selectEntireDraft() -> Bool {
+                guard activeRun.failureCount == 0 else { return false }
+                seededComposer.press(forDuration: 1.1)
+                let button = app.buttons["Select All"]
+                let menuItem = app.menuItems["Select All"]
+                // At AX5 the system edit menu paginates even its standard actions.
+                // Follow only the visible, observed Forward control; never guess coordinates.
+                _ = button.waitForExistence(timeout: 2)
+                for _ in 0..<3 {
+                    guard activeRun.failureCount == 0 else { return false }
+                    if (button.exists && button.isHittable) || (menuItem.exists && menuItem.isHittable) { break }
+                    let forward = app.buttons["Forward"]
+                    guard forward.exists, forward.isHittable else { break }
+                    forward.tap()
                 }
+                let selection = button.exists && button.isHittable ? button : menuItem
+                guard selection.waitForExistence(timeout: 2), selection.isHittable else {
+                    preserveSessionViewport("AX5 text selection menu unavailable")
+                    XCTFail("The system Select All action must be visible before replacing the draft.")
+                    return false
+                }
+                selection.tap()
+                return activeRun.failureCount == 0
+            }
+            preserveSessionViewport("AX5 scoped Session before editing")
+            let originalDraft = try XCTUnwrap(seededComposer.value as? String)
+            seededComposer.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+            guard activeRun.failureCount == 0 else { return }
+            guard selectEntireDraft() else { return }
+            let longDraft = originalDraft + " Keep the original evidence and relationship context visible while I review this longer draft. AX5_END"
+            seededComposer.typeText(longDraft)
+            XCTAssertEqual(seededComposer.value as? String, longDraft)
+            let send = app.buttons["ask-send"]
+            XCTAssertTrue(send.isHittable)
+            XCTAssertTrue(app.windows.firstMatch.frame.contains(send.frame))
+            XCTAssertLessThanOrEqual(send.frame.maxY, app.keyboards.firstMatch.frame.minY + 1)
+            guard activeRun.failureCount == 0 else { return }
+            preserveScreenshot("AX5 long draft end and Send above keyboard")
+            preserveSessionViewport("AX5 keyboard and long draft")
+            guard selectEntireDraft() else { return }
+            seededComposer.typeText(originalDraft)
+            XCTAssertEqual(seededComposer.value as? String, originalDraft)
+            XCTAssertFalse(element("ask-response-turn").exists)
+            let scopeButton = app.buttons["ask-scope-selector"]
+            XCTAssertTrue(scopeButton.isHittable)
+            guard activeRun.failureCount == 0 else { return }
+            scopeButton.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+            guard activeRun.failureCount == 0 else { return }
+            scopeButton.tap()
+            XCTAssertTrue(scopeButton.label.contains(expectedScopeName))
+            XCTAssertTrue(scopeButton.label.contains(expectedScopeContext))
+            let navigationRestored = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in
+                    backButton.exists && backButton.isHittable
+                        && self.app.windows.firstMatch.frame.contains(backButton.frame)
+                }, object: backButton
+            )
+            guard await XCTWaiter.fulfillment(of: [navigationRestored], timeout: 5) == .completed else {
+                preserveScreenshot("AX5 navigation missing after keyboard dismissal")
+                preserveSessionViewport("AX5 missing navigation after keyboard dismissal")
+                XCTFail("Session Back must remain fully visible after editing and dismissing the keyboard.")
+                return
+            }
+            guard activeRun.failureCount == 0 else { return }
+            preserveScreenshot("AX5 relationship scope before accessibility audit")
+            preserveSessionViewport("AX5 scoped Session after keyboard dismissal")
+            if performsScopedAudit, #available(iOS 17.0, *) {
+                let failuresBefore = activeRun.failureCount
                 try app.performAccessibilityAudit(for: [
                     .dynamicType,
                     .hitRegion,
                     .sufficientElementDescription,
-                ], issueHandler)
+                ])
+                // XCTest can return from an audit after recording a failure.
+                // Later UI events may then be disabled; they are not proof.
+                if activeRun.failureCount > failuresBefore { return }
             }
         }
         XCTAssertEqual(
@@ -4754,6 +4845,21 @@ final class CandidateSignalUITests: XCTestCase {
         )
         XCTAssertFalse(element("ask-response-turn").exists)
         preserveScreenshot("Capture continues in a scoped unsent Agent Session")
+        if accessibilityLayout {
+            guard let activeRun = testRun else {
+                XCTFail("Back navigation proof requires an active XCTest failure counter.")
+                return
+            }
+            guard activeRun.failureCount == 0 else { return }
+            let backButton = app.navigationBars["Session"].buttons["BackButton"]
+            guard backButton.isHittable else { XCTFail("Session Back must be hittable."); return }
+            backButton.tap()
+            XCTAssertTrue(element("relationship-ask-screen").waitForNonExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["archive-tab-people"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["archive-tab-people"].isHittable)
+            guard activeRun.failureCount == 0 else { return }
+            preserveScreenshot("AX5 returns from scoped Session to workspace navigation")
+        }
     }
 
     func testBackgroundInterruptionPreservesReviewDecision() {
@@ -5089,9 +5195,11 @@ final class CandidateSignalUITests: XCTestCase {
             "-talent-signal.interface-language", "zh-Hans",
             "-UIAccessibilityReduceMotionEnabled", "YES",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         launchWithCleanAgentSessions()
+        app.assertEffectiveAccessibility5()
 
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
         tapWhenVisible(app.buttons["relationship-guide"])
@@ -5124,7 +5232,9 @@ final class CandidateSignalUITests: XCTestCase {
             let originalSessionIdentifier = contactSessionIdentifier(matching: "陈晓") else { return }
 
         app.terminate()
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
         guard openContactSession(matching: "陈晓",
             expectedIdentifier: originalSessionIdentifier) != nil else { return }
@@ -5460,9 +5570,11 @@ final class CandidateSignalUITests: XCTestCase {
             "-talent-signal.interface-language", "zh-Hans",
             "-UIAccessibilityReduceMotionEnabled", "YES",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
 
         XCTAssertTrue(
             app.buttons["relationship-guide"].waitForExistence(timeout: 8)
@@ -5505,9 +5617,11 @@ final class CandidateSignalUITests: XCTestCase {
             "--force-dark",
             "-AppleInterfaceStyle", "Dark",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
         ]
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
+        app.assertEffectiveAccessibility5()
 
         XCTAssertTrue(element("audio-signal-capture").waitForExistence(timeout: 8))
         XCTAssertTrue(element("audio-signal-idle").exists)
@@ -5522,8 +5636,25 @@ final class CandidateSignalUITests: XCTestCase {
         authorizationBasis.typeText("Direct synthetic permission")
         XCTAssertTrue(dismissAudioKeyboard.waitForExistence(timeout: 3))
         dismissAudioKeyboard.tap()
-        tapWhenVisible(app.switches["audio-signal-authorization"], maxSwipes: 24)
-        tapWhenVisible(app.buttons["start-audio-signal"], maxSwipes: 24)
+        let permission = app.switches["audio-signal-authorization"]
+        // At AX5 the Toggle label spans multiple screens. XCTest can report
+        // its visible label as hittable while the actual switch is offscreen.
+        let switchViewport = app.windows.firstMatch.frame.insetBy(dx: 0, dy: 120)
+        for _ in 0..<24 {
+            if permission.exists {
+                let frame = permission.frame
+                if switchViewport.contains(CGPoint(x: frame.midX, y: frame.midY)) { break }
+                if frame.midY < switchViewport.midY { app.swipeDown() } else { app.swipeUp() }
+            } else { app.swipeUp() }
+        }
+        preserveScreenshot("Audio AX5 visible authorization switch")
+        tapWhenVisible(permission, maxSwipes: 24)
+        XCTAssertEqual(permission.value as? String, "1")
+        let startRecording = app.buttons["start-audio-signal"]
+        scrollToVisible(startRecording, maxSwipes: 24)
+        XCTAssertEqual(startRecording.label, "Start foreground recording")
+        preserveScreenshot("Audio AX5 authorization before start")
+        tapWhenVisible(startRecording, maxSwipes: 24)
         XCTAssertTrue(element("audio-signal-recording").waitForExistence(timeout: 5))
         tapWhenVisible(app.buttons["stop-audio-signal"], maxSwipes: 24)
         XCTAssertTrue(element("audio-signal-saved-local").waitForExistence(timeout: 5))
@@ -5539,88 +5670,222 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     func testAX5DarkModeCriticalContentRemainsReachable() throws {
+        guard #available(iOS 17.0, *) else { throw XCTSkip("Accessibility audits require iOS 17 or newer.") }
+        app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launchArguments = [
             "--fixture-id", "TS-CORE-01",
             "--force-dark",
             "-AppleInterfaceStyle", "Dark",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue
         ]
         app.launch()
 
+        let display = element("lab-effective-display")
+        XCTAssertTrue(display.waitForExistence(timeout: 8))
+        XCTAssertTrue((display.value as? String)?.contains("|dark|accessibility5|") == true,
+                      "The contrast audit requires actual dark AX5 rendering: \(String(describing: display.value))")
         XCTAssertTrue(element("fixture-banner").waitForExistence(timeout: 8))
         XCTAssertTrue(element("message-m1").exists)
-        tapWhenVisible(app.buttons["fact-confirm-competing_process-m1"])
-        XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
         let reviewInstruction = element("proposal-review-instruction")
         XCTAssertTrue(reviewInstruction.exists)
-        let statusBar = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-            .statusBars.firstMatch
-        XCTAssertTrue(statusBar.exists)
-        positionBelowStatusBar(reviewInstruction, statusBar: statusBar)
-        XCTAssertGreaterThanOrEqual(reviewInstruction.frame.minY, statusBar.frame.maxY)
-        // Xcode 26 audits the antialiased remnant of a label clipped at the
-        // scroll viewport edge. Keep the known source label fully visible so
-        // the audit measures its rendered text instead of that clipped edge.
-        let sourceLabel = app.staticTexts["Candidate · m1"]
-        XCTAssertTrue(sourceLabel.exists)
-        positionBelowStatusBar(sourceLabel, statusBar: statusBar)
-        XCTAssertGreaterThanOrEqual(sourceLabel.frame.minY, statusBar.frame.maxY)
-        XCTAssertTrue(reviewInstruction.frame.intersects(app.windows.firstMatch.frame))
-        preserveScreenshot("AX5 dark status-safe review")
+        let viewportProbe = element("review-visible-viewport")
+        XCTAssertTrue(viewportProbe.waitForExistence(timeout: 5))
+        let coordinates = (viewportProbe.value as? String ?? "").split(separator: "|").compactMap { Double($0) }
+        guard coordinates.count == 4 else {
+            XCTFail("Missing review clipping geometry: \(String(describing: viewportProbe.value))")
+            return
+        }
+        let visible = CGRect(x: coordinates[0], y: coordinates[1], width: coordinates[2], height: coordinates[3])
+        XCTAssertGreaterThan(visible.height, 0)
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(visible))
+        let viewportEvidence = XCTAttachment(string: "display=\(String(describing: display.value)), viewport=\(visible)")
+        viewportEvidence.name = "Actual AX5 display and clipping viewport"
+        viewportEvidence.lifetime = .keepAlways
+        add(viewportEvidence)
+        guard let activeRun = testRun else {
+            XCTFail("The audit requires an active XCTest failure counter.")
+            return
+        }
+        // XCUIElement and XCUIElementSnapshot can bridge the same value as
+        // NSString or Swift.String. Optional debug descriptions are not values.
+        func stableAccessibilityValue(_ value: Any?) -> String? {
+            guard let value else { return "absent" }
+            if let text = value as? String { return "text:" + text }
+            if let number = value as? NSNumber { return "number:" + number.stringValue }
+            return nil // Unknown value types cannot acquire coverage.
+        }
+        var verifiedAnchors: [(type: XCUIElement.ElementType, identifier: String, label: String, value: String, size: CGSize, display: String)] = []
+        @available(iOS 17.0, *)
+        func auditViewport(_ anchor: XCUIElement, name: String) throws {
+            guard activeRun.failureCount == 0 else { return }
+            guard anchor.exists else { XCTFail("The audit anchor must exist."); return }
+            let failuresBefore = activeRun.failureCount
+            let displayBefore = String(describing: display.value)
+            let valueBefore = stableAccessibilityValue(anchor.value)
+            let safe = visible.insetBy(dx: 0, dy: 12)
+            let fullHeight = anchor.frame.height
+            guard fullHeight > 0 else { XCTFail("The audit anchor must have positive height."); return }
+            // Coverage compares immutable snapshots with immutable snapshots.
+            // Live element values are separately checked before/after the audit;
+            // their representation need not equal XCUIElementSnapshot.value.
+            var auditedSnapshotValues: [String] = []
+            func auditSegment(offset: CGFloat, height: CGFloat, suffix: String, auditType: XCUIAccessibilityAuditType) throws {
+                func segmentFrame() -> CGRect {
+                    let frame = anchor.frame
+                    return CGRect(x: frame.minX, y: frame.minY + offset, width: frame.width, height: height)
+                }
+                guard activeRun.failureCount == 0 else { return }
+                for _ in 0..<16 {
+                    guard activeRun.failureCount == 0 else { return }
+                    if safe.contains(segmentFrame()) { break }
+                    let frame = segmentFrame()
+                    // Aim at the center so UIKit's drag threshold does not
+                    // leave the target a few points outside the clipping edge.
+                    let delta = safe.midY - frame.midY
+                    let distance = min(max(delta, -visible.height * 0.4), visible.height * 0.4)
+                    let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: visible.midX, dy: visible.midY))
+                    let end = start.withOffset(CGVector(dx: 0, dy: distance))
+                    start.press(forDuration: 0.01, thenDragTo: end,
+                                withVelocity: .slow, thenHoldForDuration: 0.25)
+                }
+                let anchorEvidence = XCTAttachment(string: "target=\(anchor.identifier), fullFrame=\(anchor.frame), segment=\(segmentFrame()), viewport=\(safe)")
+                anchorEvidence.name = name + suffix + " geometry"
+                anchorEvidence.lifetime = .keepAlways
+                add(anchorEvidence)
+                preserveScreenshot(name + suffix)
+                guard safe.contains(segmentFrame()) else {
+                    XCTFail("The audit segment must be fully visible: \(segmentFrame()), viewport: \(safe)")
+                    return
+                }
+                guard activeRun.failureCount == 0 else { return }
+                if #available(iOS 17.0, *) {
+                    let anchorIdentity = (type: anchor.elementType, identifier: anchor.identifier, label: anchor.label)
+                    let allNodes = flattenedSnapshot(try app.snapshot())
+                    let scrolls = allNodes.filter { $0.elementType == .scrollView && $0.identifier == "capture-review-scroll" }
+                    guard scrolls.count == 1 else { XCTFail("The review must have one clipping scroll owner."); return }
+                    let nodes = flattenedSnapshot(scrolls[0])
+                    let frames = nodes.map { (type: $0.elementType, identifier: $0.identifier, label: $0.label, value: stableAccessibilityValue($0.value), frame: $0.frame) }
+                    let globalIdentities = allNodes.map { (type: $0.elementType, identifier: $0.identifier, label: $0.label) }
+                    let anchors = nodes.filter {
+                        $0.elementType == anchorIdentity.type && $0.identifier == anchorIdentity.identifier && $0.label == anchorIdentity.label
+                    }
+                    guard anchors.count == 1 else { XCTFail("The audit anchor must have one fixed snapshot identity."); return }
+                    let snapshotValue = stableAccessibilityValue(anchors[0].value)
+                    if let previous = auditedSnapshotValues.first, previous != snapshotValue {
+                        XCTFail("The anchor snapshot value changed between audit segments.")
+                        return
+                    }
+                    let anchorText = flattenedSnapshot(anchors[0]).map {
+                        (type: $0.elementType, identifier: $0.identifier, label: $0.label)
+                    }
+                    let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
+                        let handlerStarted = ProcessInfo.processInfo.systemUptime
+                        print("AX5_AUDIT_HANDLER_BEGIN \(name) uptime=\(handlerStarted)")
+                        defer { print("AX5_AUDIT_HANDLER_END \(name) elapsed=\(ProcessInfo.processInfo.systemUptime - handlerStarted)") }
+                        guard issue.auditType == .contrast || issue.auditType == .dynamicType,
+                              let item = issue.element else {
+                            let diagnostic = XCTAttachment(string:
+                                "auditType=\(issue.auditType.rawValue), elementAvailable=\(issue.element != nil), "
+                                + "compact=\(issue.compactDescription), detail=\(issue.detailedDescription)"
+                            )
+                            diagnostic.name = name + " unresolved audit issue"
+                            diagnostic.lifetime = .keepAlways
+                            self.add(diagnostic)
+                            return false
+                        }
+                        let type = item.elementType, identifier = item.identifier, label = item.label
+                        let matches = frames.filter {
+                            $0.type == type && $0.identifier == identifier && $0.label == label
+                        }
+                        if issue.auditType == .dynamicType {
+                            let previous = verifiedAnchors.filter {
+                                $0.type == type && $0.identifier == identifier && $0.label == label
+                            }
+                            print("AX5_DYNAMIC_DIAGNOSTIC id=\(identifier) local=\(matches.count) global=\(globalIdentities.filter { $0.type == type && $0.identifier == identifier && $0.label == label }.count) frames=\(matches.map(\.frame)) previousSizes=\(previous.map(\.size)) valueMatches=\(previous.contains { entry in matches.contains { entry.value == $0.value } }) displayMatches=\(previous.contains { $0.display == displayBefore })")
+                        }
+                        guard matches.count == 1,
+                              globalIdentities.filter({ $0.type == type && $0.identifier == identifier && $0.label == label }).count == 1
+                        else { return false }
+                        let frame = matches[0].frame
+                        if frame.intersects(visible), anchorText.contains(where: {
+                            $0.type == type && $0.identifier == identifier && $0.label == label
+                        }) { return false }
+                        // Keep oversized text intersecting the viewport auditable;
+                        // its readable portions are inspected in overlapping views.
+                        if frame.intersects(visible), frame.height > visible.height { return false }
+                        guard !visible.contains(frame) else { return false }
+                        if issue.auditType == .contrast { return true }
+                        // A duplicate offscreen Dynamic Type report is covered
+                        // only by this unchanged stage's successful full audit.
+                        return verifiedAnchors.contains {
+                            $0.type == type && $0.identifier == identifier && $0.label == label
+                                && $0.value == matches[0].value && $0.display == displayBefore
+                                && abs($0.size.width - frame.width) < 0.5
+                                && abs($0.size.height - frame.height) < 0.5
+                        }
+                    }
 
-        if #available(iOS 17.0, *) {
-            let auditTypes: XCUIAccessibilityAuditType = [
-                .dynamicType,
-                .contrast,
-                .hitRegion,
-                .sufficientElementDescription
-            ]
-            let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
-                guard issue.auditType == .contrast,
-                      let issueElement = issue.element else {
-                    return false
+                    // A -56 timeout can leave Apple's contrast analysis running
+                    // in testmanagerd. Propagate it; an in-process retry adds work.
+                    print("AX5_AUDIT_BEGIN \(name) type=\(auditType.rawValue) uptime=\(ProcessInfo.processInfo.systemUptime)")
+                    defer { print("AX5_AUDIT_END \(name) type=\(auditType.rawValue) uptime=\(ProcessInfo.processInfo.systemUptime)") }
+                    guard activeRun.failureCount == 0 else { return }
+                    try app.performAccessibilityAudit(for: auditType, issueHandler)
+                    if activeRun.failureCount == failuresBefore, let snapshotValue {
+                        auditedSnapshotValues.append(snapshotValue)
+                    }
                 }
-                let frame = issueElement.frame
-                let window = self.app.windows.firstMatch.frame
-                if issueElement.identifier.hasPrefix("fact-confirm-"),
-                   frame.maxY >= window.maxY - 4 {
-                    // iOS 26 can retain the already-used confirmation control
-                    // as a clipped accessibility node at the scroll edge. Its
-                    // audit crop contains only the button's rounded edge and
-                    // the canvas behind it, not any visible label. Keep its
-                    // contrast findings active away from the viewport edge.
-                    return true
-                }
-                let scrollView = self.app.scrollViews.firstMatch
-                let viewportBottom = scrollView.exists
-                    ? scrollView.frame.maxY
-                    : window.maxY
-                let statusBottom = statusBar.frame.maxY
-                // SwiftUI reports the edge-to-edge window as the ScrollView
-                // frame even though the bottom 34 points sit behind the home
-                // indicator safe area. Xcode then audits only the antialiased
-                // edge of a clipped line and reports false low contrast.
-                // Ignore nodes that cross a system-occluded edge while keeping
-                // every fully visible contrast finding active.
-                let visibleViewportBottom = min(viewportBottom, window.maxY - 34)
-                return frame.minY < statusBottom
-                    || frame.maxY > visibleViewportBottom
             }
-
-            do {
-                try app.performAccessibilityAudit(for: auditTypes, issueHandler)
-            } catch let error as NSError
-                where error.domain == "com.apple.xcode.xctest.accessibilityAudit"
-                    && error.code == -56 {
-                // Xcode occasionally times out before producing any audit
-                // result. Retry that infrastructure failure once; recorded
-                // accessibility issues are not errors and remain unsuppressed.
-                XCTAssertTrue(reviewInstruction.waitForExistence(timeout: 2))
-                try app.performAccessibilityAudit(for: auditTypes, issueHandler)
+            let segmentHeight = min(fullHeight, safe.height - 64)
+            let stride = segmentHeight * 0.75
+            let count = fullHeight <= segmentHeight ? 1 : Int(ceil((fullHeight - segmentHeight) / stride)) + 1
+            for index in 0..<count {
+                let offset = min(CGFloat(index) * stride, fullHeight - segmentHeight)
+                // Each audit can adjust display size or scroll for its issue
+                // screenshot. Reposition and freeze geometry before every type.
+                let auditTypes: [XCUIAccessibilityAuditType] = [.dynamicType, .contrast, .hitRegion, .sufficientElementDescription]
+                for auditType in auditTypes {
+                    try auditSegment(offset: offset, height: segmentHeight,
+                                     suffix: " audit \(auditType.rawValue)" + (count == 1 ? "" : " part \(index + 1) of \(count)"),
+                                     auditType: auditType)
+                    if activeRun.failureCount > failuresBefore { return }
+                }
+            }
+            XCTAssertEqual(String(describing: display.value), displayBefore, "Audit must restore the actual AX5 display configuration.")
+            XCTAssertEqual(stableAccessibilityValue(anchor.value), valueBefore)
+            if valueBefore != nil,
+               let snapshotValue = auditedSnapshotValues.first,
+               auditedSnapshotValues.count == count * 4,
+               activeRun.failureCount == failuresBefore {
+                verifiedAnchors.append((anchor.elementType, anchor.identifier, anchor.label, snapshotValue, anchor.frame.size, displayBefore))
             }
         }
-        preserveScreenshot("AX5 dark critical review")
+
+        // Actual AX5 requires separate viewports for these sections.
+        func auditSourceAndProposalContext() throws {
+            try auditViewport(app.staticTexts["fixture-banner"], name: "AX5 dark source notice")
+            try auditViewport(app.staticTexts["REVIEW BEFORE ONE NEXT STEP"], name: "AX5 dark review heading")
+            try auditViewport(app.staticTexts["candidate-name"], name: "AX5 dark candidate name")
+            try auditViewport(app.staticTexts["capture-timestamp-label"], name: "AX5 dark complete capture time")
+            try auditViewport(app.staticTexts["Candidate · m1"], name: "AX5 dark original evidence")
+            try auditViewport(app.staticTexts["message-text-m1"], name: "AX5 dark complete original message")
+            try auditViewport(app.staticTexts["PROPOSED FACTS"], name: "AX5 dark proposed facts heading")
+            try auditViewport(reviewInstruction, name: "AX5 dark review instruction")
+            try auditViewport(app.staticTexts["fact-evidence-label-competing_process-m1"], name: "AX5 dark exact evidence label")
+        }
+        try auditSourceAndProposalContext()
+        guard activeRun.failureCount == 0 else { return }
+        let confirmation = app.buttons["fact-confirm-competing_process-m1"]
+        tapWhenVisible(confirmation)
+        XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
+        // Product state changed: no earlier pass can cover the new state.
+        verifiedAnchors.removeAll()
+        try auditSourceAndProposalContext()
+        guard activeRun.failureCount == 0 else { return }
+        try auditViewport(confirmation, name: "AX5 dark local confirmation")
+        try auditViewport(app.staticTexts["fact-card-decision_deadline-m1"], name: "AX5 dark deadline heading")
+        try auditViewport(app.staticTexts["fact-decision-competing_process-m1"], name: "AX5 dark confirmed result")
     }
 
     func testAccessibilityOrderPlacesEvidenceBeforeFactDecision() {
@@ -5928,6 +6193,16 @@ final class CandidateSignalUITests: XCTestCase {
         ))
         let matchingRows = expectedIdentifier.map { rows.matching(identifier: $0) }
             ?? rows.matching(NSPredicate(format: "label CONTAINS %@", label))
+        if !matchingRows.firstMatch.exists {
+            // AX5 virtualizes long lists. Use the same visible search a person
+            // uses to locate a saved Session instead of assuming every row is
+            // present in the initial accessibility tree.
+            let search = app.textFields["sessions-search-field"]
+            guard requireElement(search, timeout: 5,
+                reason: "Saved Sessions search was unavailable.") else { return nil }
+            typeTextReliably(label, into: search)
+            preserveScreenshot("Find the original contact Session at AX5")
+        }
         guard requireElement(matchingRows.firstMatch, timeout: 8,
             reason: "The original contact Session was not in saved Sessions.") else { return nil }
         guard matchingRows.count == 1 else {
@@ -5949,16 +6224,25 @@ final class CandidateSignalUITests: XCTestCase {
         return identifier
     }
 
+    private func accessibleScopeContent(_ selector: XCUIElement) -> String {
+        // Compact and full-width selectors expose the same name/context using
+        // either an explicit value or their native text label. Keep both.
+        [selector.label, selector.value as? String ?? ""]
+            .map { $0.replacingOccurrences(of: "\n", with: ", ") }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+    }
+
     private func assertContactContinuationScope(
         person: String,
         context: String? = nil
     ) {
         let selector = element("ask-scope-selector")
         XCTAssertTrue(selector.waitForExistence(timeout: 5))
-        let value = selector.value as? String
-        XCTAssertTrue(value?.contains(person) == true)
+        let content = accessibleScopeContent(selector)
+        XCTAssertTrue(content.contains(person))
         if let context {
-            XCTAssertTrue(value?.contains(context) == true)
+            XCTAssertTrue(content.contains(context))
         }
     }
 
@@ -6048,50 +6332,11 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     private func tapWhenVisible(_ element: XCUIElement, maxSwipes: Int = 14) {
-        var swipes = 0
-        while !element.exists, swipes < maxSwipes {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(element.exists, "Expected \(element) to exist after scrolling")
-        if element.isHittable {
-            element.tap()
-            return
-        }
-
-        let window = app.windows.firstMatch
-        let center = CGPoint(x: element.frame.midX, y: element.frame.midY)
-        if window.frame.contains(center) {
-            // XCTest can keep a visible SwiftUI control marked non-hittable at
-            // a scroll or safe-area edge. A coordinate tap preserves the
-            // current viewport for the following accessibility assertions.
-            tapVisibleCenter(element)
-            return
-        }
-
-        while !element.isHittable, swipes < maxSwipes {
-            app.swipeUp()
-            swipes += 1
-        }
-        if element.isHittable {
-            element.tap()
-        } else {
-            tapVisibleCenter(element)
-        }
-    }
-
-    private func tapVisibleCenter(_ element: XCUIElement) {
-        XCTAssertTrue(element.waitForExistence(timeout: 5))
-        let window = app.windows.firstMatch
-        let frame = element.frame
-        XCTAssertGreaterThan(frame.width, 0)
-        XCTAssertGreaterThan(frame.height, 0)
-        XCTAssertTrue(window.frame.contains(CGPoint(x: frame.midX, y: frame.midY)))
-        let target = CGVector(
-            dx: (frame.midX - window.frame.minX) / window.frame.width,
-            dy: (frame.midY - window.frame.minY) / window.frame.height
-        )
-        window.coordinate(withNormalizedOffset: target).tap()
+        scrollToVisible(element, maxSwipes: maxSwipes)
+        // A frame inside the window can still be covered by the persistent
+        // composer. Never turn a non-hittable target into a coordinate tap.
+        guard element.exists, element.isHittable else { return }
+        element.tap()
     }
 
     private func openSessionActions(_ row: XCUIElement) {
@@ -6213,7 +6458,11 @@ final class CandidateSignalUITests: XCTestCase {
     private func scrollToVisible(_ element: XCUIElement, maxSwipes: Int = 14) {
         var swipes = 0
         while (!element.exists || !element.isHittable), swipes < maxSwipes {
-            app.swipeUp()
+            if element.exists, element.frame.midY < app.windows.firstMatch.frame.midY {
+                app.swipeDown()
+            } else {
+                app.swipeUp()
+            }
             swipes += 1
         }
         XCTAssertTrue(element.exists, "Expected \(element) to exist after scrolling")
@@ -6291,6 +6540,38 @@ final class CandidateSignalUITests: XCTestCase {
         app.textFields["ask-composer"].firstMatch
     }
 
+    private func flattenedSnapshot(_ snapshot: any XCUIElementSnapshot) -> [any XCUIElementSnapshot] {
+        [snapshot] + snapshot.children.flatMap { flattenedSnapshot($0) }
+    }
+
+    private func assertScopedSessionAccessibilityOrder() throws {
+        // One immutable AX hierarchy, not query-index enumeration across snapshots.
+        // This verifies hierarchy order; it is not a VoiceOver focus traversal.
+        let snapshot = try app.snapshot()
+        let roots = flattenedSnapshot(snapshot).filter {
+            $0.identifier == "relationship-ask-screen" && !$0.frame.isEmpty
+        }
+        XCTAssertEqual(roots.count, 1)
+        guard let root = roots.first, roots.count == 1 else { return }
+        let nodes = flattenedSnapshot(root)
+        let expected: [(XCUIElement.ElementType, String)] = [
+            (.button, "ask-scope-selector"), (.textField, "ask-composer"), (.button, "ask-send")
+        ]
+        var previous = -1
+        for (type, identifier) in expected {
+            let matches = nodes.indices.filter { nodes[$0].elementType == type && nodes[$0].identifier == identifier }
+            XCTAssertEqual(matches.count, 1, "The Session must expose one \(identifier) of the required control type.")
+            guard let index = matches.first, matches.count == 1 else { return }
+            XCTAssertFalse(nodes[index].frame.isEmpty)
+            XCTAssertGreaterThan(index, previous, "Session AX hierarchy must place \(identifier) after prior context.")
+            previous = index
+        }
+        let evidence = XCTAttachment(string: nodes.enumerated().map { "\($0.offset)|\($0.element.elementType.rawValue)|\($0.element.identifier)|\($0.element.frame)" }.joined(separator: "\n"))
+        evidence.name = "Atomic Session accessibility hierarchy"
+        evidence.lifetime = .keepAlways
+        add(evidence)
+    }
+
     private func assertAccessibilityOrder(
         _ identifiers: [String],
         file: StaticString = #filePath,
@@ -6342,19 +6623,6 @@ final class CandidateSignalUITests: XCTestCase {
             app.buttons["close-relationship-menu"]
                 .waitForExistence(timeout: 5)
         )
-    }
-
-    private func positionBelowStatusBar(
-        _ element: XCUIElement,
-        statusBar: XCUIElement
-    ) {
-        var attempts = 0
-        while element.frame.minY < statusBar.frame.maxY, attempts < 3 {
-            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.32))
-            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.44))
-            start.press(forDuration: 0.01, thenDragTo: end)
-            attempts += 1
-        }
     }
 
     private func preserveScreenshot(_ name: String) {

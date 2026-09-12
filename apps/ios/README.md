@@ -525,11 +525,57 @@ simulator, and runs the unit and UI tests. When Docker is available it starts
 an isolated local backend and synthetic fixtures for backend-dependent
 journeys; otherwise those journeys may skip.
 
+Dynamic Type UI tests use `UIContentSizeCategory` raw values rather than
+hand-written category strings. Enable the existing Debug display probe and
+read back the effective size before claiming AX5 coverage: an invalid launch
+value can silently render the default size. Audit each required text and
+result in its actual visible viewport; a label's existence does not prove its
+body is readable. Retain overlapping screenshots for content taller than one
+viewport, and keep geometry/ownership from before an audit that may scroll
+while collecting issue screenshots.
+
 The release identity is:
 
 - App name: `Talent Signal`
 - Bundle ID: `com.talentsignal.app`
 - Team ID: `6RG2F8YY59`
+
+The core AX5 audit repositions and captures one immutable hierarchy before each
+of the same four audit types. A repeated offscreen Dynamic Type finding may be
+covered only by an explicit anchor that already passed every type and every
+visible segment in the same unchanged UI stage, with matching type, identity,
+label, value, display configuration and dimensions. Confirmation clears that
+coverage and reaudits the source/proposal context. Current visible anchors,
+unknown identities, oversized visible text and previously failed anchors never
+receive this coverage exception. Retain original audit failures as evidence.
+
+A XCTest accessibilityAudit-56 timeout fails the test without an in-process
+retry. Observed timed-out contrast work continued consuming CPU inside
+`testmanagerd`; retrying added more work. Preserve the bundle and diagnostics
+first. Recover only the owned test Simulator after the test run ends; do not
+report this test-infrastructure recovery as application lifecycle correctness.
+AX snapshot descendants are not a VoiceOver focus traversal: redundant-looking
+text nodes alone do not prove separate accessibility stops.
+
+Treat the first XCTest failure as terminal for later interaction evidence.
+XCTest may return from an audit after recording failure while suppressing later
+UI events. Later query/assertion log lines or named screenshots are not proof
+that a keyboard opened, a tap executed, or navigation returned. Place independent
+interaction checks before the audit and stop the path if its failure count rises.
+Use terminating guards for audit/interaction prerequisites, including existence
+and viewport geometry; a recorded assertion can return without stopping control
+flow.
+Keep interaction and audit outcomes separate. The dedicated AX5 keyboard/draft/
+Back case exercises the same journey without calling the scoped screen audit;
+it cannot close a failure in the original required, unfiltered audit case.
+For navigation/keyboard anomalies, pair application images with
+`XCUIScreen.main.screenshot()` and window/control geometry before interpreting
+missing pixels as a hidden navigation state.
+Compare AX values by typed content, not `String(describing: Any?)`: NSString and
+Swift.String can have unequal Optional debug descriptions for identical values.
+Compare snapshot values with snapshot values across all successful audit segments;
+check live element values separately before/after. Unknown types acquire no
+coverage, and a changing snapshot value fails the anchor.
 
 ## TestFlight
 

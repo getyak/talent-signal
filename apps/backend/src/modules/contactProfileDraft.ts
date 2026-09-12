@@ -13,7 +13,7 @@ const normalized = (value:string) => value.normalize("NFKC").trim().toLowerCase(
 
 /** Profile images have no messages. Keep their interpretation separate from chat filing. */
 export function profileUnderstanding(parts:ContactChatExtraction[]): {extraction:ContactChatExtraction;draft:Draft}|null {
-  if (!parts.length || parts.some(p=>p.conversation_kind!=="not_chat" || p.messages.length)) return null;
+  if (!parts.length || parts.some(p=>!["profile","not_chat"].includes(p.conversation_kind) || p.messages.length)) return null;
   if(new Set(parts.map(p=>normalized(p.platform))).size!==1)return null;
   const names=new Set(parts.map(p=>p.contact_name).filter((n):n is string=>Boolean(n)).map(normalized));
   // Different profiles require separate tasks, including incompatible stable account clues.
@@ -25,7 +25,7 @@ export function profileUnderstanding(parts:ContactChatExtraction[]): {extraction
   if(names.size>1 || [...stable.values()].some(values=>values.size>1)) return null;
   const clues=parts.flatMap((p,index)=>p.identity_clues.map(c=>({...c,source_image_index:index}))).slice(0,12);
   if(!clues.length)return null;
-  const extraction=ContactChatExtractionSchema.parse({platform:parts[0]!.platform,conversation_kind:"not_chat",
+  const extraction=ContactChatExtractionSchema.parse({platform:parts[0]!.platform,conversation_kind:parts.every(p=>p.conversation_kind==="profile")?"profile":"not_chat",
     contact_name:parts.find(p=>p.contact_name)?.contact_name??null,identity_clues:clues,messages:[],
     uncertainties:[...new Set(parts.flatMap(p=>p.uncertainties))].slice(0,15)});
   return {extraction,draft:{platform:extraction.platform,display_name:extraction.contact_name??"",fields:clues.map((c,clue_index)=>({...c,clue_index}))}};

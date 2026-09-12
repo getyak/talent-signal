@@ -285,6 +285,14 @@ export async function loadScreenshotContactImage(pool:Pool,auth:AuthContext,id:s
   return image;
 }
 
+/** Revalidate a derived view without retaining or fetching its pixels again. */
+export async function assertScreenshotContactImageCurrent(pool:Pool,auth:AuthContext,id:string,index:number,hash:string){
+  await assertSourceCurrent(pool,await rowFor(pool,auth,id));
+  if (!(await pool.query(`SELECT 1 FROM contact_task_images WHERE account_id=$1 AND task_id=$2
+    AND image_index=$3 AND content_hash=$4 AND status='stored' AND expires_at>clock_timestamp()`,
+  [auth.accountId,id,index,hash])).rowCount) deny("CONTACT_IMAGE_UNAVAILABLE");
+}
+
 export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,raw: unknown, storage?:ChatMediaStorage): Promise<{body:Response;replayed:boolean}> {
   const parsed=ScreenshotContactTaskRequestSchema.or(TextContactTaskRequestSchema).safeParse(raw);
   if (!parsed.success) throw new ApiError(422,"CONTACT_TASK_INPUT_INVALID","请选择最多 10 张截图，每张不超过 10 MB，总计不超过 30 MB。");
@@ -340,7 +348,7 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
   if (!response.capture_id) return ["save_contact_chat","ask_contact_clarification"];
   const tools:ContactIntakeToolName[]=["update_contact","finish_contact_task","ask_contact_clarification"];
   if(row.input_manifest.allow_public_research && row.state.turns<14 && response.public_sources.length<25) tools.push("search_contact_public");
-  if(response.public_sources.length>0 && row.state.turns<15)tools.push("fetch_contact_source");
+  if(response.public_sources.length>0 && row.state.turns<15)tools.push("fetch_contact_source","browse_contact_source");
   return tools;
 }
 
@@ -512,6 +520,7 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
     }
     case "ask_contact_clarification":{
       const args=CONTACT_INTAKE_TOOLS.ask_contact_clarification.schema.parse(call.arguments);
+      if(/\\[nr]/u.test(args.question))deny("CONTACT_QUESTION_ESCAPED_TEXT");
       response.question=args.question;response.status="waiting_for_user";return {status:response.status,question:args.question,candidates:response.candidates};
     }
     default:deny("CONTACT_TOOL_NOT_AUTHORIZED");
@@ -612,7 +621,7 @@ export class ScreenshotContactTaskRunner {
             screenshot_identity_clues:row.state.response.extraction!.identity_clues.map((clue,index)=>({source_ref:`clue${index+1}`,...clue})),
             public_sources:row.state.response.public_sources.map((source,index)=>({...source,source_ref:`public${index+1}`,text:source.text.slice(0,8_000)})).slice(-5),
             profile_fields:row.state.response.profile_fields,remaining_turns:18-row.state.turns},observations:row.state.observations.slice(-12).map(observation=>{
-              if(observation.tool!=="search_contact_public"&&observation.tool!=="fetch_contact_source")return observation;
+              if(observation.tool!=="search_contact_public"&&observation.tool!=="fetch_contact_source"&&observation.tool!=="browse_contact_source")return observation;
               const result=observation.result as {sources?:ContactPublicSource[]};
               return result.sources?{tool:observation.tool,result:{sources:result.sources.map(source=>({source_id:source.source_id,title:source.title,url:source.url,stage:source.stage}))}}:observation;
             }),tools,
@@ -622,7 +631,7 @@ export class ScreenshotContactTaskRunner {
         const call=reply.calls[0];if(reply.calls.length!==1||!call)deny("CONTACT_AGENT_EXPECTED_ONE_TOOL_CALL");
         try{
           if(!tools.includes(call.name as ContactIntakeToolName))deny("CONTACT_TOOL_NOT_AUTHORIZED");
-          if(call.name==="search_contact_public"||call.name==="fetch_contact_source")await captureProductStep(call.name,"tool",call.arguments,()=>this.research(auth,id,epoch,call,signal));
+          if(call.name==="search_contact_public"||call.name==="fetch_contact_source"||call.name==="browse_contact_source")await captureProductStep(call.name,"tool",call.arguments,()=>this.research(auth,id,epoch,call,signal));
           else await this.checkpoint(auth,id,epoch,async(client,r)=>{
             const result=await captureProductStep(call.name,"tool",call.arguments,()=>executeLocalTool(client,auth,r,call));this.observe(r,call.name,result,"completed");
             await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.tool_completed","screenshot_contact_task",id,
@@ -692,6 +701,12 @@ export class ScreenshotContactTaskRunner {
         objective:row.input_manifest.objective,images,...(row.input_manifest.text?{text:row.input_manifest.text}:{}),systemPrompt:row.state.prompts!.contact.text,
         state:{response:row.state.response,selected:row.state.selected,current_state:currentToolState(row),observations:row.state.observations.slice(-12)},
         assertCurrent:current,
+        readImage:(operation,executionSignal)=>serial(async()=>{
+          await this.checkpoint(auth,id,epoch,async()=>{executionSignal.throwIfAborted();});
+          const result=await operation();
+          await this.checkpoint(auth,id,epoch,async()=>{executionSignal.throwIfAborted();});
+          return result;
+        }),
         recordUnderstanding:(raw,executionSignal)=>serial(()=>this.checkpoint(auth,id,epoch,async(client,r)=>{
           executionSignal.throwIfAborted();
           if(r.state.response.capture_id||r.state.searches.length)deny("CONTACT_UNDERSTANDING_ALREADY_USED");
@@ -711,7 +726,7 @@ export class ScreenshotContactTaskRunner {
             return {status:r.state.response.status,contact_draft:profile.draft,question:r.state.response.question};
           }
           const merged=r.input_manifest.text&&parts.length===1?{extraction:parts[0]!,question:null as string|null,identityConflict:false}:mergeContactExtractions(parts);
-          if(!r.input_manifest.text&&parts.every(part=>part.conversation_kind==="not_chat"))merged.question="无法把这些资料截图核对为同一平台的同一联系人，请按联系人和平台分别发送。";
+          if(!r.input_manifest.text&&parts.every(part=>["profile","not_chat"].includes(part.conversation_kind)))merged.question="无法把这些资料截图核对为同一平台的同一联系人，请按联系人和平台分别发送。";
           r.state.extraction_parts=parts;r.state.response.extraction=merged.extraction;
           if(merged.question){r.state.response.status="waiting_for_user";r.state.response.question=merged.question;r.state.batch_conflict=merged.identityConflict;}
           this.observe(r,"record_screenshot_understanding",{status:"unconfirmed",image_count:images.length},"completed");
@@ -728,7 +743,7 @@ export class ScreenshotContactTaskRunner {
               if(r.state.turns>=24)deny("CONTACT_TASK_BUDGET_EXHAUSTED");
               r.state.turns++;
             });
-            if(name==="search_contact_public"||name==="fetch_contact_source"){
+            if(name==="search_contact_public"||name==="fetch_contact_source"||name==="browse_contact_source"){
               await this.research(auth,id,epoch,call,AbortSignal.any([signal,executionSignal]));
               return (await rowFor(this.pool,auth,id)).state.observations.at(-1)?.result;
             }
@@ -742,7 +757,9 @@ export class ScreenshotContactTaskRunner {
           }catch(error){
             if(signal.aborted||executionSignal.aborted||codeOf(error)==="CONTACT_TASK_LEASE_LOST")throw error;
             const state=await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,name,{error:codeOf(error)},"denied");return currentToolState(r);});
-            return {error:codeOf(error),current_state:state,instruction:codeOf(error)==="CONTACT_SUMMARY_ESCAPED_TEXT"
+            return {error:codeOf(error),current_state:state,instruction:codeOf(error)==="CONTACT_QUESTION_ESCAPED_TEXT"
+              ? "Write one concise identity/source question using ordinary prose and actual line breaks, never literal backslash-n/backslash-r text. Previously completed work is unchanged; retry only ask_contact_clarification."
+              : codeOf(error)==="CONTACT_SUMMARY_ESCAPED_TEXT"
               ? "Write ordinary prose with actual line breaks, not literal backslash-n/backslash-r escape text. Retry only the rejected finish call."
               : codeOf(error)==="CONTACT_SOURCE_STATEMENT_REQUIRES_LITERAL_VALUE"
               ? "A source_statement field value must copy a contiguous part of its exact cited excerpt. Keep only the supported source wording, or explicitly label a justified, qualified interpretation as inference. Discussing a topic does not prove work experience; separated dated roles do not establish a direct job transfer. Correct this update only; prior filing remains complete."
@@ -786,7 +803,7 @@ export class ScreenshotContactTaskRunner {
       }else{
         const args=CONTACT_INTAKE_TOOLS.fetch_contact_source.schema.parse(call.arguments);
         const source=row.state.response.public_sources.find(s=>s.source_id===canonicalSourceRef(row,args.source_id));if(!source)deny("CONTACT_SOURCE_NOT_DISCOVERED");
-        operation={operation:"fetch" as const,source};
+        operation={operation:call.name==="browse_contact_source" ? "browse" as const : "fetch" as const,source};
       }
       row.state.pending_research=call.name;
       return {contract_version:CONTACT_RESEARCH_CONTRACT,task_id:id,call_id:randomUUID(),anchors,input:operation};

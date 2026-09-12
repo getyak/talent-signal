@@ -608,6 +608,8 @@ struct AgentEvidenceReviewOperation: Codable, Equatable, Identifiable {
     var state: State
     var statusMessage: String?
     var updatedAt: Date
+    var pendingAskSessionID: UUID? = nil
+    var pendingAskKey: String? = nil
 
     var id: String { idempotencyKey }
 }
@@ -1962,13 +1964,23 @@ final class AgentSessionStore: ObservableObject {
         relationshipContextDisplayName: String,
         expectedReviewStatus: String,
         decision: String,
-        reason: String
+        reason: String,
+        pendingAskSessionID: UUID? = nil,
+        pendingAskKey: String? = nil
     ) throws -> AgentEvidenceReviewOperation {
         _ = pruneExpiredState()
         if let existing = storedEvidenceReviews.first(where: {
             $0.idempotencyKey == idempotencyKey
         }) {
             return existing
+        }
+        if pendingAskSessionID != nil || pendingAskKey != nil {
+            guard let pendingAskSessionID, let pendingAskKey,
+                  let session = storedSessions.first(where: { $0.id == pendingAskSessionID }),
+                  session.pendingScopedAskIdempotencyKey == pendingAskKey,
+                  session.scope.matches(personID: citation.personID ?? "", relationshipContextID: citation.relationshipContextID ?? "") else {
+                throw AgentSessionPersistenceError.evidenceReviewRecoveryUnavailable
+            }
         }
         let operation = AgentEvidenceReviewOperation(
             idempotencyKey: idempotencyKey,
@@ -1988,7 +2000,9 @@ final class AgentSessionStore: ObservableObject {
             canonicalDecidedAt: nil,
             state: .pending,
             statusMessage: nil,
-            updatedAt: now()
+            updatedAt: now(),
+            pendingAskSessionID: pendingAskSessionID,
+            pendingAskKey: pendingAskKey
         )
         storedEvidenceReviews.append(operation)
         guard persist() else {
@@ -2067,12 +2081,33 @@ final class AgentSessionStore: ObservableObject {
         _ idempotencyKey: String,
         result: PursuitEvidenceReviewResult
     ) -> Bool {
-        updateEvidenceReview(idempotencyKey) {
-            $0.state = .applied
-            $0.statusMessage = nil
-            $0.resultingReviewID = result.reviewID
-            $0.canonicalDecidedAt = result.decidedAt
+        _ = pruneExpiredState()
+        guard let index = storedEvidenceReviews.firstIndex(where: { $0.idempotencyKey == idempotencyKey }),
+              storedEvidenceReviews[index].state != .superseded,
+              !transientSupersededEvidenceReviewKeys.contains(idempotencyKey) else { return false }
+        let priorReviews = storedEvidenceReviews, priorSessions = storedSessions
+        storedEvidenceReviews[index].state = .applied
+        storedEvidenceReviews[index].statusMessage = nil
+        storedEvidenceReviews[index].resultingReviewID = result.reviewID
+        storedEvidenceReviews[index].canonicalDecidedAt = result.decidedAt
+        storedEvidenceReviews[index].updatedAt = now()
+        let operation = storedEvidenceReviews[index]
+        if let sessionID = operation.pendingAskSessionID, let key = operation.pendingAskKey,
+           let sessionIndex = storedSessions.firstIndex(where: { $0.id == sessionID }),
+           storedSessions[sessionIndex].pendingScopedAskIdempotencyKey == key,
+           storedSessions[sessionIndex].scope.matches(personID: operation.personID, relationshipContextID: operation.relationshipContextID) {
+            // One durable transaction records the canonical review and retires
+            // only its former request identity. The draft still requires Send.
+            storedSessions[sessionIndex].pendingScopedAskIdempotencyKey = nil
+            storedSessions[sessionIndex].pendingScopedAskRequestIdentity = nil
+            storedSessions[sessionIndex].updatedAt = now()
         }
+        guard persist() else {
+            storedEvidenceReviews = priorReviews; storedSessions = priorSessions
+            scheduleNextExpiration()
+            return false
+        }
+        return true
     }
 
     @discardableResult

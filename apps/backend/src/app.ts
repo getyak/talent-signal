@@ -1,3 +1,5 @@
+import {RunArtifactSchema} from "@talent-signal/contracts";
+import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessRunFiles.js";
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
@@ -2652,6 +2654,19 @@ export async function buildApp(
         .send(result.body);
     },
   );
+
+  app.get<{Params:{id:string}}>("/v1/chat/tasks/:id/artifacts",{
+    preHandler:authenticate,schema:{tags:["chat"],security,params:IdParamsSchema,
+      response:{200:Type.Array(RunArtifactSchema,{maxItems:3}),"4xx":ErrorResponseSchema}},
+  },async request=>listHarnessRunArtifacts(pool,request.auth,request.params.id));
+  app.get<{Params:{id:string;artifactID:string}}>("/v1/chat/tasks/:id/artifacts/:artifactID",{
+    preHandler:authenticate,schema:{tags:["chat"],security,
+      params:Type.Object({id:Type.String({format:"uuid"}),artifactID:Type.String({format:"uuid"})},{additionalProperties:false})},
+  },async(request,reply)=>{
+    const file=await readHarnessRunArtifact(pool,request.auth,request.params.id,request.params.artifactID);
+    return reply.header("Cache-Control","no-store").header("X-Content-Type-Options","nosniff")
+      .header("Content-Disposition",`attachment; filename="${file.name}"`).type(file.media_type+"; charset=utf-8").send(Buffer.from(file.content,"utf8"));
+  });
 
   app.get<{ Params: { id: string } }>(
     "/v1/chat/tasks/:id/readback",

@@ -68,8 +68,8 @@ describe.skipIf(!pool)("SDK Session database lifecycle", () => {
     const provider = new ClaudeChatProvider(claudeHarnessConfiguration({ ANTHROPIC_API_KEY: "synthetic", TALENT_SIGNAL_AGENT_MODEL: "synthetic" }),
       async (_configuration, request, signal) => {
         await request.assertCurrent();
-        const result = await request.tools[0]!.execute({ operation: "search", query: label, maximum_results: 5 }, signal);
-        const payload = JSON.parse(result.content[0]!.text as string);
+        const result = await request.tools.find(tool=>tool.name==="contact_workspace_search")!.execute({ query: label, maximum_results: 5 }, signal);
+        const payload = JSON.parse(result.content.filter(block => block.type === "text")[0]!.text as string);
         readPerson = payload.data.results.some((row: { person_id: string }) => row.person_id === person);
         // The real shared harness does this before releasing every tool result.
         await request.assertCurrent();

@@ -6,6 +6,7 @@ import {
   AgentSafeWebFetchError,
   fetchDiscoveredPublicPage,
   isBlockedWebAddress,
+  fetchBrowserResource,
 } from "./safeWebFetch.js";
 import type {
   AgentPublicResearchScope,
@@ -46,6 +47,62 @@ describe("local safe web fetch", () => {
     expect(isBlockedWebAddress("10.0.0.1")).toBe(true);
     expect(isBlockedWebAddress("::1")).toBe(true);
     expect(isBlockedWebAddress("93.184.216.34")).toBe(false);
+    for (const address of ["::ffff:127.0.0.1", "64:ff9b::7f00:1", "2001:0db8::1", "2002:7f00:1::1", "3fff::1", "192.88.99.1", "2::1"]) {
+      expect(isBlockedWebAddress(address)).toBe(true);
+    }
+    expect(isBlockedWebAddress("2001:4860:4860::8888")).toBe(false);
+    expect(isBlockedWebAddress("2606:4700:4700::1111")).toBe(false);
+  });
+
+  it("brokers only same-origin public resources without cookies or credential headers", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
+      .mockResolvedValueOnce(new Response("window.loaded=true", { headers: { "content-type": "text/javascript", "set-cookie": "secret=1" } }));
+    const result = await fetchBrowserResource("https://example.com/app.js", "https://example.com", new AbortController().signal,
+      { fetcher, lookup: publicLookup });
+    expect(result.body.toString()).toBe("window.loaded=true");
+    expect(result.headers).not.toHaveProperty("set-cookie");
+    expect(fetcher.mock.calls.at(-1)?.[1]).toMatchObject({ method: "GET", redirect: "manual" });
+    const headers = fetcher.mock.calls.at(-1)?.[1]?.headers;
+    expect(headers).not.toHaveProperty("cookie"); expect(headers).not.toHaveProperty("authorization");
+    const count = fetcher.mock.calls.length;
+    for (const url of ["http://example.com/", "https://example.com:444/", "https://private.example/", "https://me:secret@example.com/"]) {
+      await expect(fetchBrowserResource(url, "https://example.com", new AbortController().signal,
+        { fetcher, lookup: publicLookup })).rejects.toThrow("Only this discovered HTTPS origin");
+    }
+    expect(fetcher.mock.calls.length).toBe(count);
+  });
+
+  it("does not follow robots redirects onto a different port", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "https://example.com:8443/private" } }))
+      .mockResolvedValueOnce(new Response("<h1>Public</h1>", { headers: { "content-type": "text/html" } }));
+    await fetchBrowserResource("https://example.com/page", "https://example.com", new AbortController().signal,
+      { fetcher, lookup: publicLookup });
+    expect(fetcher.mock.calls.map(call => String(call[0]))).toEqual(["https://example.com/robots.txt", "https://example.com/page"]);
+  });
+
+  it("counts robots in the shared HTTP budget and stops before another dispatch", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response("missing", { status: 404 }));
+    const budget = { requests: 79, bytes: 0 };
+    await expect(fetchBrowserResource("https://example.com/page", "https://example.com", new AbortController().signal,
+      { fetcher, lookup: publicLookup, budget })).rejects.toThrow("BROWSER_HTTP_LIMIT");
+    expect(fetcher).toHaveBeenCalledOnce(); expect(budget.requests).toBe(80);
+  });
+
+  it("cancels a stalled DNS lookup without dispatching a later request", async () => {
+    let release!: (value: unknown) => void;
+    const lookup = (() => new Promise(resolve => { release = resolve; })) as unknown as typeof dns.lookup;
+    const fetcher = vi.fn<typeof fetch>();
+    const controller = new AbortController();
+    const pending = fetchBrowserResource("https://example.com/page", "https://example.com", controller.signal, { lookup, fetcher });
+    await Promise.resolve(); await Promise.resolve();
+    controller.abort(new Error("SYNTHETIC_DNS_CANCEL"));
+    await expect(pending).rejects.toThrow();
+    expect(fetcher).not.toHaveBeenCalled();
+    release([{ address: "93.184.216.34", family: 4 }]);
+    await Promise.resolve(); await Promise.resolve();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("fetches one discovered page with a content identity", async () => {

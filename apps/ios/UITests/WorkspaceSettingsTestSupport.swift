@@ -2,6 +2,17 @@ import XCTest
 
 @MainActor
 extension XCUIApplication {
+    func assertEffectiveAccessibility5(file: StaticString = #filePath, line: UInt = #line) {
+        let probe = descendants(matching: .any).matching(identifier: "lab-effective-display")
+        let display = probe.element
+        XCTAssertTrue(display.waitForExistence(timeout: 8), file: file, line: line)
+        XCTAssertEqual(probe.count, 1, "The effective display probe must be unambiguous.", file: file, line: line)
+        let value = display.value as? String
+        XCTAssertTrue(value?.contains("|accessibility5|") == true,
+                      "AX5 must be active in the rendered environment: \(String(describing: value))",
+                      file: file, line: line)
+    }
+
     func revealLoginLabMenu() {
         let brand = staticTexts["welcome-brand"]
         XCTAssertTrue(brand.waitForExistence(timeout: 15))

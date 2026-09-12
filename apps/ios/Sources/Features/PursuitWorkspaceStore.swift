@@ -428,6 +428,11 @@ final class PursuitWorkspaceStore: ObservableObject {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
         return try await service.createScreenshotContactTask(body)
     }
+    func refreshReviewRequirement(_ requirement: AskCitationReviewRequirement, personID: String, contextID: String) async throws -> AskCitationReviewRequirement {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.refreshReviewRequirement(requirement, personID: personID, relationshipContextID: contextID)
+    }
+
     func loadReplyPreference() async throws -> AgentReplyPreference {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
         return try await service.loadReplyPreference()
@@ -435,6 +440,14 @@ final class PursuitWorkspaceStore: ObservableObject {
     func saveReplyPreference(_ body: AgentReplyPreferenceMutation) async throws -> AgentReplyPreference {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
         return try await service.saveReplyPreference(body)
+    }
+    func listRunArtifacts(taskID: String) async throws -> [RunArtifact] {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.listRunArtifacts(taskID: taskID)
+    }
+    func loadRunArtifact(taskID: String, artifact: RunArtifact) async throws -> Data {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.loadRunArtifact(taskID: taskID, artifact: artifact)
     }
     func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }

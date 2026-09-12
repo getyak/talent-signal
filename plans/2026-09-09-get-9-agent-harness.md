@@ -17,6 +17,43 @@ compatibility with synthetic inputs before admitting private evidence.
 
 ## Baseline and findings
 
+### Requirement completeness correction — 2026-09-10
+
+PR #172 merged as `65afe690`; its tree matches the deployed `cc1220`.
+An independent review against the original issue found missing scope despite
+passing PR gates. Follow-up branch `codex/get-9-harness-completeness` starts
+from that merged main. GET-9 remains In Progress.
+
+1. **Implemented; Web acceptance passed, native/extension pending:** provide bounded original-image region reads and clear long-image
+   tiles with coordinates/hash provenance, running-task authority and no new
+   image retention; verify profile, direct/group/forward and comments classes.
+2. **File/computation and browser implemented; browser verification active:** admit scoped capabilities.
+   Screenshot source-review delegation is implemented and independently verified
+   through the real product SDK path; file/computation has live product and Web
+   and native saving proof. Browser has actual SDK/HTTP/socket/Chromium/PG proof;
+   dedicated-daemon boundary/recovery passes; production admission remains open. Verify
+   invoked capabilities, delegation isolation, budgets and recovery rather
+   than counting configurable interfaces as delivery.
+3. **Implemented; Web acceptance passed, native/extension pending:** durable Memory-to-original-image
+   traversal passes a real fresh-session HTTP/SDK/PG scenario and revoked-source
+   denial. Independent quality 4/4/4; recovery not exercised. See the
+   [Memory-image review](../docs/evaluations/get9-harness/completeness-memory-image-review.md).
+4. **Pending:** independent review, new-head CI, merge, deployment and exact
+   VALID TestFlight release/readback. Preserve the pending installed-Chrome
+   permission boundary and previously reviewed README correction.
+
+Apply the original-requirement completeness check in [REVIEW.md](../REVIEW.md).
+The dated [image capability evidence](../docs/evaluations/get9-harness/completeness-image-review.md)
+retains failed attempts and the distinction between unit, real SDK and full
+product acceptance. Prior failures remain evidence; no threshold relaxation or
+guessed completion is permitted.
+
+Image implementation references: [sharp constructor limits](https://sharp.pixelplumbing.com/api-constructor/),
+[extract coordinates](https://sharp.pixelplumbing.com/api-resize/#extract),
+[MCP image content](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
+Use pinned sharp `0.35.4`, already present transitively, as a declared dependency.
+SDK subagent reference: [scoped SDK agents](https://code.claude.com/docs/en/agent-sdk/subagents).
+
 - Isolated worktree: `/Users/cubxxw/data/talent-signal-get9`.
 - Branch: `codex/get-9-harness`; initial upstream baseline: `56292d3c`.
 - `apps/agent` pins Claude Agent SDK `0.3.260`. `claudeProvider.ts` disables
@@ -65,7 +102,7 @@ writes retain exact-effect human authorization.
 4. **Active — evaluation and independent review:** execute synthetic adversarial
    and real-model cases, fix failures, review consequential boundaries and close
    all confirmed P0/P1 findings with reviewer readback.
-5. **Active — delivery:** draft PR172 linked to GET-9, latest-head CI and repository
+5. **Pending final acceptance — delivery:** draft PR178 linked to GET-9, latest-head CI and repository
    gates, merge/readback, local TestFlight backend deployment and applicable
    post-merge proof, then Linear completion/readback.
 
@@ -970,3 +1007,511 @@ checks, PR/CI/merge, required TestFlight-local deploy and Linear acceptance.
   and latest-head CI. First actual TestFlight deployment421c02d6 is healthy;
   final revisions are not yet in its containers. Chrome manual installation,
   final Web proof, PR merge and post-merge iOS release remain pending.
+
+### 2026-09-10 09:15 — original-image follow-up verified
+
+- Current image slice: agent 169 pass / one explicit skip, PostgreSQL 29 pass,
+  agent typecheck and full backend build pass. Seventh real SDK/HTTP/PG/storage
+  trial passes all 16 execution checks; independent quality is task 4, grounding
+  3, naturalness 3, recovery not exercised. Preserve six earlier attempts and
+  their documented failures; no general or installed-client acceptance implied.
+- Main CI 34420817264 and Security 34420817212 succeeded for baseline 65afe690.
+  TestFlight release 34423962903 has archived/uploaded and is waiting for exact
+  build validity. It does not contain this follow-up; do not count it as final.
+- Open: scoped general capabilities, Memory-original trace, client proof, final
+  delivery and release. GET-9 remains In Progress.
+
+### 2026-09-10 09:38 — Memory-original traversal reviewed
+
+- Image slice committed as 01239571. Current uncommitted Memory slice passes
+  independent code review (all confirmed P1/P2 closed), focused independent36/36,
+  Agent177pass1skip, PG21/21, typecheck and backend build. Second actual
+  HTTP/SDK/PG/storage trial passes13checks in17.263s and independent4/4/4;
+  recovery not exercised. Preserve first failed fixture and its distinct causes.
+- Baseline TestFlight34423962903 succeeded. Exact receipt verifies version0.1.71,
+  build20260910010517, commit65afe690ea4c6588289b84fc289177a5d1f70562,
+  processed2026-09-10T01:25:36Z. GitHub prereleasev0.1.71 exists. It excludes
+  both follow-up slices and does not satisfy final follow-up delivery.
+- Open: usable scoped file/code/browser tools, installed-client proof, current
+  branch CI/review/delivery/deployment/release. GET-9 remains In Progress.
+
+### 2026-09-10 10:36 — scoped computation and file artifacts reviewed
+
+- Memory-original slice committed as 8b10c396; canonical budget fix d5809eb0.
+  File/computation slice is implemented but uncommitted. Independent review has
+  closed QuickJS P2s, artifact parent/replay P1s and Web late-download P1.
+- Fourth real HTTP/SDK/QuickJS/PG/CSV trial passes15checks in16.858s; independent
+  task4/grounding4/naturalness3/recovery3. It proves actual VM addition and repair
+  of a denied filename. Earlier failures and weaker third-trial arithmetic proof
+  remain in the evaluation review. No quality threshold or gate was lowered.
+- Agent195pass1skip; PG24/24 (latest file/session23/23); Web7/7 plus lint/types;
+  iOS focused7/7; backend build passes. Web real save acceptance is in progress;
+  first older-contact attempt shows failure recovery, with no file. Independent
+  reviewed synthetic work-log fixture is now open for focused UI acceptance.
+- Latest coordinated baseline release is v0.1.72/build20260910015226 at ba16cf5f
+  (GET23). It excludes all current follow-up code. Browser capability, client
+  acceptance and follow-up CI/merge/deployment/release remain open; GET-9 stays
+  In Progress. Chrome installation still requires the previously stated approval.
+
+### 2026-09-10 10:55 — file slice committed; native recovery defect found
+
+- File/computation slice committed as829b5248. Actual Web task and click saved
+  a71-byte CSV in Downloads; rows5/12/17 and hash match canonical artifact.
+  Independent reviewer separately read the downloaded file and confirmed it.
+- Native unit-test binary had no signing entitlement and failed Keychain recovery;
+  signed Debug rebuild restored normal login. No application guard was bypassed.
+  The same synthetic account now reaches its real contacts and scoped chat.
+- Native readback correctly requires a last_review_id; the authored fixture's
+  reviewed flag alone is insufficient. Actual UI then exposed a P2: the source
+  review sheet immediately dismisses because failed replies are not saved turns.
+- Uncommitted fix retains a temporary validation response and exact citation,
+  binds the original account/user/Session/scope, and refreshes canonical readback
+  before display/submission and periodically. It does not create a successful
+  turn or bypass source/review CAS. Independent review caught a remote-login P1
+  omission and same-Session scope-change P2; both repaired, re-review pending.
+- First focused native run9/9 passes; second expands to remote-zero-request and
+  actual Session-scope/retention regression. Native source review and system file
+  save acceptance remain active. Browser/delivery/Chrome permission stay open.
+
+### 2026-09-10 11:17 — native review recovery and system save verified
+
+- Native full recovery regression107/107 passes. Independent review closes all
+  confirmed P1/P2: temporary source-review authority is refreshed and owner-bound;
+  applied review plus matching old ask-key retirement persists atomically across
+  retries/restarts. Draft remains and user explicitly Sends again.
+- Actual signed Simulator completes review→Send→Chinese17h answer. Generated
+  artifact remains available, but its UI entry was absent. Grouping answer and
+  file view in one lazy item plus visible list loading/retry restores the entry.
+  Actual system exporter saves66bytes with5/12/17 and canonical SHA256 match;
+  independent reviewer separately reads the file. Layout test8/8 passes.
+- Reviewer found local proposals would show a futile Retry. Entry admission now
+  requires canonical task and manifest UUIDs, with proposal/unbound/preview
+  exclusion tests. Re-review closes P2; latest9/9 passes, and docs:check passes.
+- Durable native receipt preserves failures and limits. Restored Session still
+  shows needs-refresh; do not count the file receipt as cross-device sync proof.
+  Browser capability, original-image client proof, Chrome permission and final
+  delivery/release remain open. GET-9 is still In Progress.
+
+### 2026-09-10 11:54 — isolated browser implementation under acceptance
+
+- Native recovery and actual system-save slice committed463c6b59. Browser is
+  now implemented, uncommitted and not admitted to production: shared SDK tool
+  accepts a source discovered by this task after capture/public-research consent.
+  The Unix-socket agent host creates a fresh immutable-image Chromium container
+  with no network/host mounts/credentials. Host-brokered public GETs recheck
+  same-origin and pinned public DNS; returned sources preserve browser provenance.
+- Independent review found and closed robots alternate-port and stalled-DNS P1s.
+  Added owner/process-instance labels, automatic removal, verified cleanup and
+  startup orphan sweep; inspect-disappearance P2 is fixed with a regression,
+  re-review pending. Host46/46, Agent195pass1skip, scoped PG2/2 pass; backend builds.
+- Preserve all four actual Docker suite reports. First run failed cleanup and
+  blocked later admission. Second exposed a trailing-space fixture assertion
+  plus real redirect and cleanup failures. Third kept redirect failure. Fourth
+  passes JS/resource rendering, no prior storage, cross-origin/private/POST/WS
+  refusal, cancellation and actual public HTTPS example.com; redirect fails
+  because Chromium's error-page commit interrupts the next navigation.
+- The corrected worker closes the old page before navigating each host-admitted
+  redirect target. Fifth actual suite is active. Product-level SDK/HTTP/Unix-
+  socket/browser/PG evaluation is prepared; it uses controlled search discovery
+  and real example.com browser fetch. No Exa network or installed-client claim.
+- Runtime limits and configuration live in agent-host/browser/README.md. HTTP
+  count/byte budget includes robots; startup and cleanup are outside execution
+  timers. Browser admission, client image proof, Chrome permission and final
+  delivery/release remain open. GET-9 stays In Progress.
+
+### 2026-09-12 16:35 — browser product proof and current-state revalidation
+
+- Previous turn made progress: worker request exhaustion now closes Chromium
+  before reporting failure. The actual second recovery suite passes4/4 with
+  fresh runs after both runaway JavaScript and request flooding. Independent
+  review closes the change with no new P0/P1/P2.
+- First actual product run passes12checks and independent quality4/4/3/3.
+  The evaluator now requires no profile fields at all, closing a source-alias
+  blind spot; historical receipt remains unchanged and satisfies the stronger
+  offline check. Empty-account state is not existing-state preservation proof.
+- Today’s seventh boundary and second product runs fail during browser lifecycle.
+  Eighth single suite is6/7 with a late-resource timeout. Third product run
+  passes12/12 in64.673s. All attempts are retained; shared Colima reports44
+  running containers on4CPU/6GB with delayed inventory and high VM CPU. No
+  unrelated containers were changed. Shutdown-order review remains active.
+- Host46/46 and docs:check pass. Browser remains uncommitted while final review
+  closes. Origin/main is now87ee93fa, including Chrome pipeline PR175 and native
+  Keychain PR177. Commit this isolated slice, merge current main, then complete
+  client image acceptance and exact-head delivery checks. GET-9 remains open.
+
+### 2026-09-12 17:08 — merged baseline and actual Web image proof
+
+- Browser slice committed254fc2f1; main87ee93fa merged asbe7b2075, preserving
+  Chrome PR175 and Keychain PR177. Independent conflict review has no P0/P1/P2.
+  Agent199pass1skip, PG screenshot28/28, Web411pass1skip, extension41/41,
+  backend build, agent types and docs:check pass on the merged tree.
+- Current uncommitted browser diagnostics and shutdown corrections reviewed
+  with no new P0/P1/P2. Dedicated Colima context preserves the default daemon;
+  latest immutable image83b1d943 passes boundaries8/8 and recovery4/4.
+  Product fourth passes12/12 in42.776s; quality4/3/3, recovery not exercised.
+  Old failures retained; daemon contention is not a proven sole root cause.
+- Actual Web file upload→main/child original regions→identity question passes
+  10checks, quality4/3/3. Actual Web Memory→overview→tile6→citation passes
+  11checks, quality4/4/3. Source setup for the latter is scripted synthetic
+  ingestion plus actual review, while chat uses real SDK. Both have screenshots
+  and authenticated readback; neither claims native/installed-extension proof.
+- Simulator control recovered. Signed merged-head native build is active,
+  scoped to the owned device and using the machine build lock. Native image
+  acceptance, current-head PR/CI/merge/deployment/TestFlight and Linear closure
+  remain open. The prior Chrome installation rejection has not been bypassed.
+
+### 2026-09-12 — native quality regression and deployment gap
+
+- Follow-up PR178 is draft at ce6e7fd5. Browser lifecycle evidence and Web
+  image proof are committed. Native localization catalog, source-lifecycle
+  test mocks/cleanup-failure coverage, and a schema-only Web import with lazy
+  QuickJS resolution fix the subsequent CI failures. Current Backend, Web,
+  Security and both actual Vercel deployments pass; iOS smoke remains pending.
+- Native Memory→overview→tile→citation passes12checks, independent4/4/3.
+  Citation sheet opens the reviewed excerpt. An earlier wrong-input attempt
+  and SwiftUI stall remain failures; restarting the owned app is not a fix.
+- Active milestone: native original-image quality. Execution10/10 but
+  independent3/2/3: the main Agent records its resolved reading error as a
+  source ambiguity. Preserve the failed receipt, repair the persistence
+  boundary without concealing genuine ambiguity, then run a new native trial
+  and independent review. Existing prompt-only guidance was insufficient.
+- Deployment inspection found the real Compose research sidecar has neither
+  a Docker CLI nor a browser executor route. Host-only browser tests therefore
+  do not complete deployment. A narrow authenticated executor outside the
+  credentialed sidecar must retain public-fetch mediation, scoped operations,
+  bounded lifecycle and verified cleanup. Do not mount the primary Docker
+  socket or expose model/DB credentials to the executor. The transport and
+  actual Compose acceptance remain to be implemented and reviewed.
+- GET-9 remains In Progress. Native quality/stall, actual executor deployment,
+  installed Chrome acceptance and current-head merge/deployment/exact
+  TestFlight proof remain open. No old or skipped check substitutes for them.
+
+### 2026-09-12 18:00 — native source quality repaired; iOS CI next
+
+- Source-review correction independently passes after P1 cross-field and P2
+  denied-delegation fixes. Current-Run/reader receipts, neutral child selectors,
+  structured uncertainty and post-child rereads reject resolved-reading/source
+  contradictions before persistence. Model visual correctness still requires
+  evaluation. Agent211pass/one skip, focused46/46, independent35/35, types/build
+  pass. Canonical documentation remains inside its320-line budget.
+- Eighth real SDK trial failed on an actual MCP-array hook shape, exhausting the
+  unchanged token budget without recording. Ninth uses that observed shape,
+  passes15/15 in43.247s, quality4/4/3/3. Failed evidence remains unchanged.
+- Second actual native Photos→Send trial passes14/14, quality4/4/3/3. Original
+  DOCIOS-e82012c6/62,723bytes preserved. Two actual validation errors recover
+  through original-pixel reread and corrected understanding; no false uncertainty,
+  contact or external effect remains. Signed clientbe7b2075, reviewed backend
+  dist hashes recorded. Earlier native failure and SwiftUI stall remain history;
+  the stall itself has not been diagnosed or fixed.
+- Active milestone: current PR iOS CI failure. ce6e7fd5 Backend/Web/Security and
+  both Vercel deployments pass, but iOS smoke fails one hosted feedback-source
+  load test and the AX5 dark-mode contrast audit. Inspect the actual failing
+  surface and repair before release; do not suppress the audit or extend waits
+  without evidence. Executor deployment, installed Chrome acceptance, remaining
+  native recovery and final merge/deployment/exact TestFlight remain open.
+
+### 2026-09-12 — actual AX5 and executor transport investigation
+
+- HEAD204bccfa passed Backend/Web/Security and both Vercel builds; its iOS
+  job later failed only the old AX5 audit (557 unit tests passed). The old CI34685890291 artifact was downloaded in
+  verified ranges after two slow downloads, ZIP CRC-checked and inspected.
+  Its contrast crop contains the clipped upper half of the review heading.
+- The feedback render test now explicitly mounts and lays out its hosting view
+  in a foreground-active scene, retaining the real `.task` and10-second source
+  assertion. Independent review passes; local AnswerFeedbackTests10/10 passes,
+  render0.724s. The preceding XCTest bootstrap timeout remains an infrastructure
+  failure, not a repaired product lifecycle defect.
+- A live display probe exposed a false premise: the old AX5 launch string
+  rendered `large`. UIKit's typed raw value renders `accessibility5`. True AX5
+  cannot keep source and review sections in one viewport. Work in progress uses
+  actual clipping geometry and separate audited views; failed trials remain in
+  `/tmp/get9-ios-ax5-*`. Eleven other uses of the invalid AX5 string were corrected with actual
+  display-probe assertions; their earlier results do not prove AX5 coverage. Do not close
+  the accessibility milestone before full text/result coverage and review pass.
+- Executor transport feasibility: a temporary HTTP listener bound only to Mac
+  127.0.0.1 returned the expected nonce from the existing TestFlight research
+  sidecar through192.168.5.2, resolved independently in the default Lima guest.
+  `host.lima.internal` and `host.docker.internal` are absent in that container.
+  This is connectivity proof only; the deployed sidecar image has changed to
+  `opik-20260912-v2` through other work and must be preserved/reconciled.
+- Reviewed executor direction: a private authenticated browse-only RPC to a
+  trusted Mac process with no model/DB environment, using the dedicated Docker
+  socket and pinned daemon/image identity for run/inspect/rm/health. Fail closed
+  without configuration; never fall back to the default context. Bound identity,
+  request/response bytes, deadline, concurrency, deduplication and ledger TTL;
+  premature response close cancels and verifies cleanup before capacity returns.
+  Keep source/lease checks before and after RPC and before persistence. Enforce
+  one executor instance, sweep abandoned containers on startup, and prove the
+  actual Compose path including cancellation, revocation and daemon recovery.
+  Empty environment is not Mac filesystem isolation. No implementation or
+  deployment acceptance is claimed yet.
+
+
+### 2026-09-12 19:18 — executor transport delivered; actual AX5 remains open
+
+- Independent commit `f72ac347` adds the production browse-only RPC, clean Mac
+  executor, authenticated readiness, pinned Docker socket/daemon/image, bounded
+  identity/deadline/bytes, shared concurrent calls and verified cancellation.
+  No confirmed P0/P1/P2 remains after independent review. Agent-host57/57 passed
+  before the final health-race correction; the correction's focused3/3 and
+  typecheck pass. `pnpm docs:check` passes. See
+  [executor evidence](../docs/evaluations/get9-harness/completeness-executor-review.md).
+- Existing TestFlight sidecar transport reached real Chromium through the
+  private host route in5.150seconds;401/ready200 verified. Live cancellation and
+  deduplication10/10 included an observed running worker, one worker for duplicate
+  calls,409 conflicts, disappearance after abort, successful fresh call, and
+  zero final workers. Wrong daemon/image/socket reject; the daemon was not
+  stopped, and its actual outage/restart acceptance remains open. The deployed
+  sidecar application/configuration remains unchanged, preserving parallel Opik
+  work. The task-owned executor currently listens on loopback4319 with a0600
+  token file outside the repository; this is not final managed deployment.
+- Actual AX5 trial10:5/12 pass,7 fail. Trial11:Today now passes after removing
+  unsafe coordinate fallback from `tapWhenVisible`; three other cases fail.
+  The helper previously clicked the fixed composer instead of the covered
+  target; the capture journey also swiped an above-screen target farther away.
+  Bidirectional scrolling and real hittability now replace that fallback.
+  Other helper methods have not all been audited and are not claimed repaired.
+- Audio's added state readback finds Toggle value0 after a nominal tap. Video
+  shows only the top of its multi-screen label while its actual switch is still
+  below the viewport. Trial12 centers that control before clicking and reads its
+  value; it is pending. AgentStudio trial11 never acquired the display probe
+  and showed a default English/normal-size preview, so that failure is not AX5
+  product evidence. Trial12 explicitly terminates the prior app in test setup
+  before launching the requested fixture; its cause/recovery remain unproven.
+- Core audit trials10/11 fail with XCTest accessibilityAudit-56, including the
+  allowed one retry. Do not suppress the error, delete contrast checks or claim
+  AX5 completion. Trial12 is running with source/heading/name/message/action
+  viewports preserved; the seventh remaining acceptance failures still need
+  diagnosis and verification. Failed artifacts and summaries remain in
+  [actual AX5 trials](../docs/evaluations/get9-harness/completeness-ios-actual-ax5-trials.json).
+- No merge, new production backend release, TestFlight release or Linear closure
+  has occurred; these partial proofs do not satisfy the remaining gates. Continue all original GET-9 acceptance,
+  including deployed RPC revocation/recovery, installed Chrome, native recovery,
+  current-head CI and exact processed build/internal-group receipt.
+
+### 2026-09-12 — recovery proven; actual AX5 diagnostics continue
+
+- Rebuilt `f72ac347` executor passes real recovery14/14: actual paused-worker
+  orphan survives executor SIGKILL, restart removes it before admission; an
+  idle dedicated daemon outage rejects readiness/browse, restart restores a
+  successful fresh browse in the same executor, final inventory empty. Trial1
+  failed an incorrect503 expectation (actual protocol502), retained separately.
+  Active-cleanup daemon loss and managed deployment are not covered.
+- Real RPC source revocation passes9/9 with deterministic model/search:
+  Chromium returns public HTTPS evidence, then the source receipt is revoked
+  before the backend checkpoint. The result is fenced, task is deleted and
+  persisted state/input erased. This is boundary proof, not model quality or
+  production deployment. See the updated executor evidence report.
+- AX5 trial12: AgentStudio31.289s and Audio33.725s pass; core226.555s fails at
+  final Dynamic Type audit. Its pre-audit result is fully visible; the reported
+  `PROPOSED FACTS` heading was elsewhere, then clipped in the audit-generated
+  screenshot. No Dynamic Type exception was added. Trial15 adds fully visible
+  heading/deadline audits; the heading passes, remaining stages are running.
+- AX5 trial13: original contact Session recovery79.375s and canonical workspace
+ 88.976s pass. Relationship capture134.184s failed the obsolete Close-button
+  assertion; current navigation uses Session BackButton. Trial14 reaches the BackButton query but fails old flattened query order;
+  its post-failure return is unverified (see the correction below).
+  Two exported fixed AX trees retain scope-before-composer-before-send. The
+  helper also matches a zero-size Other with the composer's ID. Independent
+  review recommends one immutable hierarchy with exact control types; this
+  correction is pending verification, not an established VoiceOver focus test.
+- Trial14 core12.920s never acquired the effective display probe, matching an
+  earlier first-test startup anomaly. Trial15 uses test-without-building and
+  reaches actual AX5 audits, but this does not prove the startup cause fixed.
+- Independent review found no confirmed P0/P1/P2 in the prior incremental
+  corrections. Snapshot changes, new evaluation script and current-head CI still
+  require review/verification. PR178 remains draft; no release/Linear closure.
+- Follow-up review required an explicit no-result-exposed assertion in the RPC
+  revocation evaluation. Trial2 passes10/10 including `CONTACT_TASK_LEASE_LOST`
+  and absent model result; corresponding P2s are independently closed.
+- AX5 trial15 passes the fully visible proposed-facts heading, then fails
+  contrast at the deadline-heading audit249.782s. Its audit failure screenshot
+  is blank and has no resolvable issue element; do not classify it as a proven
+  product color issue or suppress it. Trial16 catches a compile error from a
+  non-public snapshot property; the attachment now uses public index/type/id/
+  frame attributes. Trial17 compiles and is running the corrected snapshot
+  code. No Dynamic Type/contrast gate has been removed.
+- Real SDK through the production RPC client passes12/12 in73.652s; independent
+  quality4/3/3/not_exercised. The reviewer flags overbroad negative-search
+  phrasing and verbosity; no career fact was inferred. Recovery/delegation are
+  not scored on this successful path. The new Infisical URL/token were absent,
+  then migrated only to staging:/agent-host and exact readback passed2/2; the
+  existing sidecar remains unchanged. Manifest validation passes.
+- AX5 trial17: fixed hierarchy-order check passed; Back return after failure
+  is unverified, and the
+  relationship journey145.292s fails Dynamic Type on the person's label child.
+  The existing button had full label/value/hint but did not explicitly ignore
+  redundant children. Trial20 adds that single-button semantic boundary and
+  removes the old child-text Dynamic Type exception; visual text still requires
+  screenshot review. Core trial19 passed eight regions before an offscreen,
+  previously audited instruction was reported clipped during confirmation.
+- Trial20 scopes duplicate Dynamic Type coverage to unchanged UI stages and
+  exact identity/value/configuration/dimensions; confirmation clears coverage
+  and reaudits the source/proposal context. Every audit type repositions and
+  freezes a fresh snapshot. This is pending independent review and device
+  verification. Trial18's availability compile error was corrected before19.
+- Latest remote main is `ab20fb9b` (PR179: private product observation defaults).
+  PR178 currently reports conflicts against it. Preserve and reconcile that
+  parallel work before final CI/deployment; current live RPC proofs precede
+  that merge. Trial20 core116.428s fails an unfiltered captured-time contrast
+  finding after confirmation; the failure is retained, not an AX5 pass.
+
+### 2026-09-12 20:20 — main reconciled, managed executor verified, AX5 still open
+
+- `6d11a17a` merges main `ab20fb9b` without losing the new product observation
+  outbox, deployment policy or original-image return path. Agent217pass/1skip,
+  focused reconciliation54/54, new backend projection/probe6/6 after rebuilding
+  shared contracts, and full agent-host58/58 pass. Independent reconciliation
+  review found no P0/P1/P2. PR178 is now mergeable; Web/backend/security checks
+  passed on this exact head while iOS CI remained running at the last readback.
+- Active-daemon-loss evidence11/11 now proves the in-flight RPC rejects,
+  unverified cleanup keeps admission closed across daemon restart, and executor
+  restart verifies inventory before new successful work. Managed launch-agent
+  evidence18/18 binds a separate pinned6d11 checkout to the exact daemon/image,
+  persistent token, PID replacement77070→77120, authenticated readiness,
+  Chromium and zero workers. Main-release rollout and the new production
+  caller remain pending; the prior Opik sidecar image was not replaced.
+- Actual AX5 trial21 retains core50.146s timeout and relationship147.972s failure
+  from an invalid no-StaticText-descendants assertion. Public AX snapshots do
+  not establish VoiceOver focus stops; that assertion was removed. Eight
+  unfinished contrast analysis threads were observed in the owned simulator's
+  testmanagerd sample. The in-process timeout retry was removed; after that
+  test ended, only the task-owned simulator was shut down and booted. This is
+  test-environment recovery, not product lifecycle or a confirmed Apple root cause.
+- Fresh trial22 core26.203s failed a duplicate timestamp AX identity after three
+  anchors passed all four audit types. Hiding the decorative clock and removing
+  its one-text parent's combine resolves that duplicate. Trial23 then audits
+  complete time successfully in both states, but core222.517s still fails on the
+  original-message child at the deadline audit. Trial24 directly audits an
+  independently identified original Text instead of inheriting parent coverage.
+- Relationship trial23 verifies unique button/order, full name/context, unsent
+  value before audit, but141.156s still fails unfiltered Dynamic Type on the
+  visible person's name. Screenshot shows no visible truncation. Trial24 uses
+  explicit caption-relative scaling, matching the existing context-label
+  mechanism; verification is pending. No audit error is ignored to pass it.
+- The same full screenshot reveals draft text squeezed into a narrow column by
+  three adjacent controls. An accessibility-layout-only change gives the draft
+  its full line width and moves controls below it, preserving the editable value
+  and Send/Voice actions. This later increment is not in trial24's binary and
+  needs its own review, real viewport checks and interaction regression pass.
+- Keep GET-9 In Progress. Native lifecycle recovery, installed Chrome, current
+  final-head review/CI, main deployment/Opik readback and exact processed
+  TestFlight/internal-group receipt remain required. No overall completion.
+
+### 2026-09-12 — audit evidence correction and focused continuation
+
+- Retract partial keyboard/Back success claims made from failed relationship
+  trials. XCTest continues logging queries after an accessibility failure while
+  suppressing UI events; trial25's keyboard screenshot is blank and its later
+  taps have no event synthesis. These logs prove no keyboard or navigation
+  action. Complete PASS contact/workspace cases retain their separate scope.
+- Trial24's explicit name scaling and trial25's single attributed scope Text
+  both retain the unfiltered Dynamic Type failure. The latter screenshot shows
+  the full-width composer improvement, but real editing remains unverified.
+  The isolated nine-case calibration reproduces the two-label pattern outside
+  the product; it establishes recurrence only and grants no audit exemption.
+- Core trial25 fails223.948s at an offscreen source-label value mismatch.
+  Trial26 fails33.305s with audit timeout -56; a continuing contrast thread was
+  sampled after completion, then only the owned simulator was restarted.
+  Trial27 fails226.765s on offscreen original-message value mismatch after its
+  own four-type audits passed. String bridging normalization alone did not
+  resolve every mismatch. The failure is retained and no coverage is broadened.
+- Trial27 confirms first-audit-failure short circuit: immediate teardown, no
+  later UI action. Independent review found remaining ordinary-assertion
+  short-circuit gaps; these will also become terminating guards. Trial28 tests
+  natural Button labels and performs keyboard/long-draft checks before audit.
+- PR178 exact4ffcee34 Web/backend/security are green; iOS CI is still running.
+  GET-9 remains In Progress with the previously listed delivery gates open.
+
+- Follow-up independent review closes the ordinary-assertion guard gaps and
+  confirms snapshot-to-snapshot value comparison preserves the strict coverage
+  boundary; live values are checked separately. Trial29 fails34.108s at an
+  earlier contrast timeout, so it cannot verify the later mismatch repair.
+- Trial28 relationship fails138.193s at the same unfiltered Dynamic Type finding
+  with natural Button semantics. Real pre-audit editing/Send/restore events and
+  screenshots now establish those limited actions. The full application image
+  after chooser dismissal has no visible status bar, Session title or Back;
+  keyboard-open context is partly clipped behind the composer. These remain
+  incomplete viewport evidence, not accepted navigation or a known root cause.
+- Trial30 runs the reviewed snapshot comparison and a single semantic-caption
+  AX scope label, preserving full name/context and natural Button semantics.
+  Navigation must be visible/hittable/in-window after keyboard dismissal before
+  audit. If this label still fails, stop swapping text representations and
+  inspect actual scale/input evidence. The owned simulator was recovered only
+  after trial29 ended and its continuing contrast thread was sampled.
+
+### 2026-09-12 — separate interaction evidence from unresolved tool audits
+
+- Trial30 core244.220s reaches the final confirmed result: snapshot values now
+  match and deadline passes all four audit types. Final Dynamic Type reports
+  unsupported text with no element; the audit-generated image is blank while
+  the pre-audit result is visible. Relationship139.751s still fails partial
+  Dynamic Type with ordinary caption text. No more blind font replacements.
+- Trial30's awaited Back geometry and pre-audit image show the complete status
+  bar, Session navigation, name/context and composer after keyboard dismissal.
+  Trial28's missing-navigation application image remains a transient observation
+  without a confirmed root cause. Full-screen/control geometry witnesses were
+  added for the next independent interaction run.
+- The original AX5 test still executes every unfiltered scoped audit. A separate
+  AX5 interaction test shares its complete journey but does not run that audit;
+  its outcome cannot close the raw audit failure. Independent review approved
+  the split and closed all first-failure/Back guard gaps.
+- Review found two remaining old value-only scope assertions. Their migration
+  retains the exact same selector, full person/context requirements and reads
+  both native label and explicit value. Focused entry/restore checks follow.
+- Trial31 was a compile failure in the new diagnostic closure, corrected with
+  explicit self. Trial32 People26.338s and Calendar13.638s pass; AX interaction
+ 132.422s fails exact draft replacement after a synthesized Cmd-A. It does not
+  prove Back or restoration. Trial33 uses the visible system Select All action
+  and repeats identity/restore checks; exact draft expectations are unchanged.
+
+
+### 2026-09-12 — actual SDK input boundary and CI failure
+
+- Trial33 preferred-context entry passes23.737s. Contact fails54.197s before
+  proposal, with real SDK trace `dc886b9e-c29d-4a04-954d-0d94814f3653` under
+  `/tmp/get9-ui-harness-traces`: MCP rejects omitted `maximum_results`; a later
+  source quote becomes `DesignUntrusted`, then the existing token budget stops
+  the run. This is a new Harness defect, not a scope-label assertion failure.
+- Pinned SDK0.3.260 reconstructs its tool input object and rejects omitted
+  Zod4.5.4 default fields. A direct SDK tools/call probe reproduces this;
+  removing the transport default and exposing an optional input succeeds.
+  Canonical host schema and raw model-argument authorization remain intact,
+  applying the same default and rejecting invalid bounds/extra authority fields.
+  Contact JSON Schema now describes input requiredness explicitly. Adjacent
+  objective/context text blocks get a two-newline separator so the context
+  heading cannot adjoin the final exact source word. Budget is unchanged.
+- Trial33 AX interaction fails135.176s at the system Select All menu. The
+  full-screen attachment and AX tree show a visible Forward overflow button.
+  Trial34 follows that observed action with at most three menu pages, retaining
+  exact draft replacement/restoration checks and first-failure termination.
+- Visible AX5 fact headings previously broke short words beside their status.
+  Accessibility sizes now place the full heading above its full status; normal
+  sizes retain the existing horizontal row. This fixes visible compression,
+  and is not claimed as a repair for the unresolved nil-element audit finding.
+- Exact4ffcee34 CI completed: Web/backend/security pass, iOS smoke8/9 with core
+  audit failure. Run34694013507 records both -56 timeout and contrast failure
+  across its isolated attempts; artifact10299140764 is retained. GET-9 remains
+  In Progress, PR178 remains draft, no merge/deployment/TestFlight completion.
+
+
+### 2026-09-12 — user-requested handoff; stop further execution
+
+- User requested a quick wrap-up and concise unfinished-work summary in GET-9.
+  No further implementation or test reruns are scheduled by this handoff.
+- Latest local checks: Agent219 passed/1 pre-existing skip; typecheck and backend
+  build passed; docs check passed. Independent reviewer ran41 focused tests and
+  found no confirmed P0/P1/P2 in the latest SDK/default/context and AX layout
+  increment. Real-device/client acceptance is not implied by those checks.
+- Trial34 failed its initial reviewed-OCR visibility assertion before reaching
+  the modified edit menu. The owned xcodebuild was interrupted on user wrap-up;
+  preserve the interrupted xcresult and do not count later logged UI actions.
+- Remaining: (1) iOS raw AX5 audits, exact draft/Back interaction and native
+  Memory stall/lifecycle recovery; (2) same-budget real SDK contact flow on the
+  rebuilt API (the still-running3345 process has the older loaded source);
+  (3) installed Chrome extension and required file access; (4) final-head review,
+  full applicable CI and merge; (5) production caller/executor and Opik readback,
+  processed VALID TestFlight build and internal-group receipt.
+- Keep GET-9 In Progress and PR178 draft. No release or completed-evaluation
+  claim. Local synthetic services and managed executor remain available for
+  later continuation; only this owned test run was stopped.

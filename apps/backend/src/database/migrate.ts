@@ -74,6 +74,9 @@ const MIGRATIONS = [
   "063_product_run_source_binding",
   "064_product_run_rebind_purge",
   "065_screenshot_directory_authority",
+  "066_harness_run_artifacts",
+  "067_harness_artifact_parent_authority",
+  "068_harness_artifact_reply_retirement",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

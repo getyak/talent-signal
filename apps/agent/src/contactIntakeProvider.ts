@@ -29,6 +29,8 @@ export interface ContactAgentModel {
     systemPrompt: string;
     state: unknown;
     assertCurrent(): Promise<void>;
+    /** Serialized running-task admission; checks revocation before and after pixels are processed. */
+    readImage<T>(operation: () => Promise<T>, signal: AbortSignal): Promise<T>;
     recordUnderstanding(extractions: ContactChatExtraction[], signal: AbortSignal): Promise<unknown>;
     invoke(name: ContactIntakeToolName, input: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
   }, signal: AbortSignal) => Promise<{ providerRequestID: string; model: string; inputTokens: number; outputTokens: number }>;
