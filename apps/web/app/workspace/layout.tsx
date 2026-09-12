@@ -11,6 +11,11 @@ import {
   WorkspaceShellNav,
 } from "@/components/workspace-shell-nav";
 import styles from "@/components/workspace-shell.module.css";
+import { loadAccountSettings } from "@/lib/server/accountBackend";
+import { readPrimaryBackendSessionClaims } from "@/lib/server/backendAuth";
+import { testWorkspaceSession } from "@/lib/server/testWorkspaceSession";
+import { leaveTestWorkspace } from "@/app/workspace/settings/testing/actions";
+import accountStyles from "@/components/account-settings.module.css";
 
 function initials(value: string): string {
   return (
@@ -32,9 +37,15 @@ function AccountControls({
 }) {
   return (
     <>
-      <span aria-hidden="true" className={styles.avatar}>
-        {initials(accountName)}
-      </span>
+      <details className={styles.accountMenu}>
+        <summary aria-label="账号与空间" title="账号与空间" className={styles.avatar}>{initials(accountName)}</summary>
+        <div className={styles.accountPopover}>
+          <strong>{accountName}</strong>
+          <Link href="/workspace/settings">账号与安全</Link>
+          <Link href="/workspace/settings?section=workspace">工作空间管理</Link>
+          <Link href="/workspace/settings/testing">测试空间</Link>
+        </div>
+      </details>
       {fixtureWorkspace ? (
         <span
           className={styles.environmentBadge}
@@ -66,7 +77,14 @@ export default async function WorkspaceLayout({
     return children;
   }
 
-  const accountName = session.user.name ?? session.user.email ?? "招聘顾问";
+  let settings: Awaited<ReturnType<typeof loadAccountSettings>> | null = null;
+  let testName: string | null = null;
+  try {
+    const primary = await readPrimaryBackendSessionClaims();
+    if (primary) testName = (await testWorkspaceSession(primary))?.name ?? null;
+  } catch { testName = "测试会话已过期"; }
+  try { settings = await loadAccountSettings(); } catch { /* Keep navigation available during account service failure. */ }
+  const accountName = settings?.user.display_name ?? session.user.name ?? session.user.email ?? "招聘顾问";
   const backendAccount = (
     session as typeof session & {
       account?: { name: string; slug: string };
@@ -74,11 +92,11 @@ export default async function WorkspaceLayout({
   ).account;
   const fixtureFallback =
     !backendAccount && process.env.TALENT_SIGNAL_INTEGRATION_MODE === "true";
-  const fixtureWorkspace =
-    backendAccount?.slug.startsWith("fixture-") ?? fixtureFallback;
+  const fixtureWorkspace = Boolean(testName) || (settings?.workspace.is_test ?? backendAccount?.slug.startsWith("fixture-") ?? fixtureFallback);
+  const workspaceName = settings?.workspace.name ?? backendAccount?.name;
   const accountTitle = fixtureWorkspace
-    ? `${accountName} · ${backendAccount?.name ?? "Alpha 寻访测试"} · 合成测试工作台`
-    : `${accountName} · ${backendAccount?.name ?? "账号专属工作台"}`;
+    ? `${accountName} · ${workspaceName ?? "Alpha 寻访测试"} · 合成测试工作台`
+    : `${accountName} · ${workspaceName ?? "账号专属工作台"}`;
 
   return (
     <div className={styles.shell}>
@@ -118,7 +136,8 @@ export default async function WorkspaceLayout({
 
       {/* Lab loads independently after hydration; it must not hold up product HTML. */}
       <TalentSignalLabShell initialManifest={null}>
-        <div className={styles.stage} id="workspace-content">
+        <div className={styles.stage} id="workspace-content" data-workspace-scope={settings?.workspace.id} key={settings?.workspace.id}>
+          {testName && <div className={accountStyles.banner} role="status"><span>测试空间 · {testName}</span><form action={leaveTestWorkspace}><button type="submit">返回我的空间</button></form></div>}
           {children}
         </div>
       </TalentSignalLabShell>

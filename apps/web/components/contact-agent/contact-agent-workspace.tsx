@@ -1,5 +1,7 @@
 "use client";
 
+import { workspaceSessionFetch } from "@/components/workspace-session-request";
+
 import Link from "next/link";
 import { ProductFeedback } from "@/components/product-feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,7 +18,7 @@ const failureCopy=(item:Task)=>item.limitations.includes("CONTACT_AGENT_PROVIDER
 const fields:Record<string,string>={headline:"一句话背景",company:"公司",job_title:"职位",location:"地点",professional_background:"职业背景",professional_topics:"职业议题",public_profile:"公开主页"};
 const tools:Record<string,string>={extract_chat_screenshot:"读取截图",extract_web_text:"读取网页文字",search_contacts:"查找已有联系人",read_contact:"读取联系人",create_contact:"创建联系人并保存消息",save_contact_chat:"保存聊天消息",search_contact_public:"搜索公开资料",fetch_contact_source:"读取公开来源",update_contact:"更新有来源的档案",finish_contact_task:"整理分析",ask_contact_clarification:"等待身份确认"};
 async function request<T>(path:string,body?:unknown):Promise<T>{
-  const response=await fetch(`/api/contact-agent/${path}`,{method:body?"POST":"GET",cache:"no-store",headers:{"content-type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
+  const response=await workspaceSessionFetch(`/api/contact-agent/${path}`,{method:body?"POST":"GET",cache:"no-store",headers:{"content-type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
   const value=await response.json();if(!response.ok)throw new Error(value.message??value.error?.message??"暂时无法完成，请重试。");return value as T;
 }
 async function imageInput(file:File):Promise<ScreenshotContactTaskRequest["image"]>{

@@ -65,6 +65,7 @@ const MIGRATIONS = [
   "056_agent_session_chat_lifecycle",
   "057_feedback_learning",
   "058_product_run_monitor",
+  "058_account_management",
   "059_lab_account_cleanup",
   "058_claude_harness_sessions",
   "059_harness_identity_lifecycle",

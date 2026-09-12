@@ -1,6 +1,7 @@
 import {RunArtifactSchema} from "@talent-signal/contracts";
 import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessRunFiles.js";
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
+import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
@@ -793,6 +794,7 @@ export async function buildApp(
   registerGoogleAuth(app, pool, config);
   const authenticate = createAuthGuard(pool, deploymentExposure?.workspaceIds);
   registerProductRunMonitoring(app, pool, authenticate);
+  registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
   registerAgentSessionRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];

@@ -21,6 +21,12 @@ const configuredEnvironment = {
 };
 
 describe("default account configuration", () => {
+  it("never enables configured fixture credentials in production", () => {
+    const account = getDefaultAccount({ ...configuredEnvironment, NODE_ENV: "production" });
+    expect(account.enabled).toBe(false);
+    expect(account.quickLoginEnabled).toBe(false);
+    expect(account.emailPasswordEnabled).toBe(false);
+  });
   it("enables configured email and quick-login paths", () => {
     const account = getDefaultAccount(configuredEnvironment);
 
