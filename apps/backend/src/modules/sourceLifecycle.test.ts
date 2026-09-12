@@ -7,6 +7,7 @@ const lifecycleMocks = vi.hoisted(() => ({
   sweepAuthorizations: vi.fn(),
   sweepIdentityHandles: vi.fn(),
   sweepRetention: vi.fn(),
+  purgeArtifacts: vi.fn(),
 }));
 
 vi.mock("./sourceAuthorization.js", () => ({
@@ -25,6 +26,10 @@ vi.mock("./sourceRetention.js", () => ({
   sweepDueSourceRetention: lifecycleMocks.sweepRetention,
 }));
 
+vi.mock("./harnessRunFiles.js", () => ({
+  purgeUnavailableRunArtifacts: lifecycleMocks.purgeArtifacts,
+}));
+
 import { runSourceLifecycleSweep } from "./sourceLifecycle.js";
 
 const completedCompilationJobs = {
@@ -40,7 +45,8 @@ const completedResearchJobs = {
 
 describe("source lifecycle sweep coordination", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    lifecycleMocks.purgeArtifacts.mockResolvedValue(undefined);
     lifecycleMocks.sweepAuthorizations.mockResolvedValue([]);
     lifecycleMocks.sweepIdentityHandles.mockResolvedValue([]);
     lifecycleMocks.compileAuthorizations.mockResolvedValue(
@@ -69,6 +75,7 @@ describe("source lifecycle sweep coordination", () => {
       expect.objectContaining({ raw_sources_purged: 2 }),
     ]);
 
+    expect(lifecycleMocks.purgeArtifacts).toHaveBeenCalledExactlyOnceWith(pool);
     lifecycleMocks.sweepRetention.mockResolvedValue(0);
     await runSourceLifecycleSweep(pool);
     expect(lifecycleMocks.sweepRetention).toHaveBeenCalledTimes(2);
@@ -87,5 +94,21 @@ describe("source lifecycle sweep coordination", () => {
       expect.objectContaining({ raw_sources_purged: 1 }),
     );
     expect(lifecycleMocks.sweepRetention).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases the pool after artifact cleanup fails", async () => {
+    const pool = {} as Pool;
+    lifecycleMocks.sweepRetention.mockResolvedValue(0);
+    lifecycleMocks.purgeArtifacts
+      .mockRejectedValueOnce(new Error("synthetic artifact cleanup failure"))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(runSourceLifecycleSweep(pool)).rejects.toThrow(
+      "synthetic artifact cleanup failure",
+    );
+    await expect(runSourceLifecycleSweep(pool)).resolves.toEqual(
+      expect.objectContaining({ raw_sources_purged: 0 }),
+    );
+    expect(lifecycleMocks.purgeArtifacts).toHaveBeenCalledTimes(2);
   });
 });
