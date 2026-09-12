@@ -26,13 +26,34 @@ describe("Claude natural chat product adapter", () => {
     const answer = await new ClaudeChatProvider(configuration, execute).answer({
       objective: "请比较这两版外联话术",
       mode: "unscoped_conversation",
+      session_title_requested: true,
       prompt_snapshot: bundledPrompt("assistant/conversation"),
       context_blocks: [],
       allowed_citation_ids: [],
     });
     expect(execute).toHaveBeenCalledOnce();
-    expect(answer.title).toBe("比较两版外联话术");
+    expect(answer.title).toBe("回复");
+    expect(answer.session_title).toBe("比较两版外联话术");
     expect(answer.body).toBe("这里是比较结果。");
+  });
+
+  it("does not return Session metadata when the host closes the first-result gate", async () => {
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      expect(JSON.parse(request.context!).session_title_requested).toBe(false);
+      return { ...outcome, text: "<session_title>不应采用</session_title>\n\n后续回复" };
+    });
+    const answer = await new ClaudeChatProvider(configuration, execute).answer({
+      objective: "继续比较",
+      mode: "unscoped_conversation",
+      session_title_requested: false,
+      conversation_history: [{ message_id: "prior", role: "assistant", text: "先前回复" }],
+      prompt_snapshot: bundledPrompt("assistant/conversation"),
+      context_blocks: [],
+      allowed_citation_ids: [],
+    });
+    expect(answer.title).toBe("回复");
+    expect(answer.session_title).toBeUndefined();
+    expect(answer.body).toBe("后续回复");
   });
 
   it("falls back to a bounded objective and strips an unexpected envelope", () => {

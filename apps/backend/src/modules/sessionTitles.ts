@@ -7,8 +7,10 @@
  * pass the title already produced by the current answer model call.
  */
 
-/** Maximum Unicode characters allowed in a stored Session title. */
+/** Maximum user-perceived characters allowed in a stored Session title. */
 export const SESSION_TITLE_MAX_CHARACTERS = 32;
+/** Secondary transport guard; never split a grapheme to reach it. */
+export const SESSION_TITLE_MAX_CODE_POINTS = 256;
 
 /**
  * Labels that carry no retrieval value on their own. Compared after
@@ -38,6 +40,30 @@ const GENERIC_SESSION_TITLES = new Set([
 /** Control characters must never reach a persisted one-line label. */
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/gu;
 
+function boundedGraphemeTitle(value: string): string {
+  let segments: string[];
+  try {
+    segments = Array.from(
+      new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value),
+      (part) => part.segment,
+    );
+  } catch {
+    segments = Array.from(value);
+  }
+  let codePoints = 0;
+  const accepted: string[] = [];
+  for (const segment of segments) {
+    const segmentCodePoints = Array.from(segment).length;
+    if (
+      accepted.length >= SESSION_TITLE_MAX_CHARACTERS
+      || codePoints + segmentCodePoints > SESSION_TITLE_MAX_CODE_POINTS
+    ) break;
+    accepted.push(segment);
+    codePoints += segmentCodePoints;
+  }
+  return accepted.join("").trim();
+}
+
 /** One line, collapsed internal whitespace, no surrounding whitespace. */
 export function canonicalizeToOneLine(value: string): string {
   return value
@@ -62,10 +88,7 @@ export function canonicalizeSessionTitle(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const oneLine = canonicalizeToOneLine(value);
   if (!oneLine || isGenericLabel(oneLine)) return null;
-  const bounded = Array.from(oneLine)
-    .slice(0, SESSION_TITLE_MAX_CHARACTERS)
-    .join("")
-    .trim();
+  const bounded = boundedGraphemeTitle(oneLine);
   if (!bounded || isGenericLabel(bounded)) return null;
   return bounded;
 }
@@ -78,10 +101,7 @@ export function canonicalizeSessionTitle(value: unknown): string | null {
 export function boundedObjectiveTitle(objective: string): string {
   const oneLine = canonicalizeToOneLine(objective);
   if (!oneLine) return "";
-  const bounded = Array.from(oneLine)
-    .slice(0, SESSION_TITLE_MAX_CHARACTERS)
-    .join("")
-    .trim();
+  const bounded = boundedGraphemeTitle(oneLine);
   return bounded;
 }
 

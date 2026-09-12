@@ -8,7 +8,8 @@ describe("bundled product prompts", () => {
     for (const name of ["assistant/conversation", "assistant/relationship", "assistant/workspace"] as const) {
       expect(PROMPT_DEFINITIONS[name].text).toContain("person scanning Sessions weeks later");
       expect(PROMPT_DEFINITIONS[name].text).toContain("at most 32");
-      expect(PROMPT_DEFINITIONS[name].text).toContain("not a summary of this reply");
+      expect(PROMPT_DEFINITIONS[name].text).toContain('Keep "title" as a short heading for this reply');
+      expect(PROMPT_DEFINITIONS[name].text).toContain('"session_title":string');
     }
   });
 

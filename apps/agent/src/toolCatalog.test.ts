@@ -134,7 +134,8 @@ describe("provider-neutral Agent capability catalog", () => {
         outcome: "reply",
         title: "Hello",
         body: "How can I help?",
+        session_title: "Compare outreach drafts",
       }),
-    ).toMatchObject({ outcome: "reply" });
+    ).toMatchObject({ outcome: "reply", session_title: "Compare outreach drafts" });
   });
 });

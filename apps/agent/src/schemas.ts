@@ -214,11 +214,13 @@ export const WorkspaceConversationFinalOutputSchema = z.discriminatedUnion(
       outcome: z.literal("reply"),
       title: z.string().trim().min(1).max(160),
       body: z.string().trim().min(1).max(4_000),
+      session_title: z.string().trim().min(1).max(256).optional(),
     }),
     z.strictObject({
       outcome: z.literal("clarification"),
       title: z.string().trim().min(1).max(160),
       body: z.string().trim().min(1).max(1_000),
+      session_title: z.string().trim().min(1).max(256).optional(),
     }),
     z.strictObject({
       outcome: z.literal("use_contact"),

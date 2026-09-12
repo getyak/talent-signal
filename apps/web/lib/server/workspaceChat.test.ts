@@ -49,8 +49,12 @@ describe("Web workspace conversation", () => {
   const f=fixture();await expect(askWorkspaceChat(f.client,{...input,request_id:"invalid"})).rejects.toMatchObject({status:400});expect(f.getAgentSession).not.toHaveBeenCalled();
  });
  it("keeps local titles single-line, useful, and within the shared budget",()=>{
-  expect(workspaceSessionTitle("  比较 Maya\n两版外联话术  ")).toBe("比较 Maya 两版外联话术");
+ expect(workspaceSessionTitle("  比较 Maya\n两版外联话术  ")).toBe("比较 Maya 两版外联话术");
   expect(Array.from(workspaceSessionTitle("梳理"+"🧭".repeat(40)))).toHaveLength(32);
+  const family="👨‍👩‍👧‍👦",compound=workspaceSessionTitle("梳理"+family.repeat(40));
+  expect(Array.from(new Intl.Segmenter(undefined,{granularity:"grapheme"}).segment(compound))).toHaveLength(32);
+  expect(compound.endsWith(family)).toBe(true);
   expect(workspaceSessionTitle("你好")).toBe("简单聊两句");
+  expect(workspaceSessionTitle("Response")).toBe("Quick hello");
  });
 });

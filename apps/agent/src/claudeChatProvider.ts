@@ -33,7 +33,15 @@ export function boundedTitleFallback(objective: string): string {
   } catch {
     segmented = Array.from(oneLine);
   }
-  return segmented.slice(0, 32).join("").trim() || (/\p{Script=Han}/u.test(objective) ? "回复" : "Reply");
+  let codePoints = 0;
+  const accepted: string[] = [];
+  for (const segment of segmented) {
+    const size = Array.from(segment).length;
+    if (accepted.length >= 32 || codePoints + size > 256) break;
+    accepted.push(segment);
+    codePoints += size;
+  }
+  return accepted.join("").trim() || (/\p{Script=Han}/u.test(objective) ? "回复" : "Reply");
 }
 
 export function splitFirstTurnSessionTitle(text: string, objective: string): { title: string; body: string } {
@@ -84,7 +92,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     if (request.images?.length && !this.supportsImageInput) throw new Error("CLAUDE_CHAT_IMAGE_NOT_ADMITTED");
     const snapshot = request.prompt_snapshot ?? await resolveProductPrompt(request.mode === "unscoped_conversation" ? "assistant/conversation" : "assistant/relationship");
     const prompt = configuredClaudeChatPrompt(snapshot.text, request.prompt_preset);
-    const firstTurn = (request.conversation_history?.length ?? 0) === 0;
+    const sessionTitleRequested = request.session_title_requested === true;
     const allowed = new Set(request.allowed_citation_ids);
     let citations: string[] = [];
     const tools: HarnessTool[] = allowed.size ? [{
@@ -127,7 +135,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       imageToolResults: Boolean(sourceImageTools.length),
       objective: request.objective, systemPrompt: [prompt.text, calendar.instructions, files.tools.length ? "For a requested calculation or file export, lead with the result and artifact name, and attribute the inputs to the record once. Read source review status from evidence_review; a proposed relationship block does not make the reviewed source excerpt unreviewed. Do not expose internal status words such as proposed or repeat an uncertainty caveat after already attributing the result to recorded data. Preserve any actual ambiguity that affects the calculation." : ""].filter(Boolean).join("\n\n"), tools, images,
       context: JSON.stringify({ calendar_clock: calendar.clock, reference_time: request.reference_time, conversation: boundedConversationHistory(request.conversation_history),
-        session_title_requested: firstTurn,
+        session_title_requested: sessionTitleRequested,
         run_files: files.inventory,
         memory_inventory: request.context_blocks.map(block => ({ type: block.type, status: block.status })),
         allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference) }),
@@ -139,7 +147,8 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     if (!body || body.length > 16_000) throw new Error("CLAUDE_CHAT_ANSWER_INVALID");
     // No citation receipt means the host cannot label prose as a grounded answer.
     const kind = request.mode !== "unscoped_conversation" && allowed.size > 0 && !citations.length ? "clarification" : "answer";
-    return { kind, title: firstTurn ? parsedOutput.title : (/\p{Script=Han}/u.test(request.objective) ? "回复" : "Reply"), body,
+    return { kind, title: /\p{Script=Han}/u.test(request.objective) ? "回复" : "Reply", body,
+      ...(sessionTitleRequested ? { session_title: parsedOutput.title } : {}),
       ...(calendar.draft() ? { calendarDraft: calendar.draft()! } : {}),
       citation_ids: citations, provider_id: this.providerId, model: this.model, provider_request_id: result.sessionID,
       input_tokens: result.inputTokens, output_tokens: result.outputTokens, usage_reported: true,
@@ -174,7 +183,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     preset: ChatPromptPreset, observed?: (receipt: ClaudeHarnessResult) => void): Promise<AgentProviderResult> {
     if (request.scopeSummary.kind !== "workspace_conversation") throw new Error("CLAUDE_CHAT_SCOPE_UNSUPPORTED");
     let receipt: Record<string, unknown> | null = null;
-    const firstTurn = (request.conversationHistory?.length ?? 0) === 0;
+    const sessionTitleRequested = request.sessionTitleRequested === true;
     const calendar = calendarDraftCapability(request.calendarContext, request.objective);
     let searched = false;
     const tools: HarnessTool[] = request.toolManifest.flatMap((name): HarnessTool[] => {
@@ -215,7 +224,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     const outcome = await this.execute(this.configuration, { ...(request.continuation ? { continuation: request.continuation } : {}), ...(trusted ? { observation: trusted } : {}), objective: request.objective,
       systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions].filter(Boolean).join("\n\n"), tools,
       context: JSON.stringify({ calendar_clock: calendar.clock, scope: request.scopeSummary, conversation: boundedConversationHistory(request.conversationHistory),
-        session_title_requested: firstTurn,
+        session_title_requested: sessionTitleRequested,
         response_preference_available: Boolean(request.responsePreference) }),
       effort: "medium", budget: request.budget, assertCurrent: async () => { signal.throwIfAborted(); await request.assertCurrent?.(); },
     }, signal);
@@ -224,9 +233,9 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     const body = parsedOutput.body;
     if (!receipt && !body) throw new Error("CLAUDE_CHAT_ANSWER_INVALID");
     return { ...(calendar.draft() ? { calendarDraft: calendar.draft()! } : {}),
-      ...(firstTurn ? { sessionTitle: parsedOutput.title } : {}),
+      ...(sessionTitleRequested ? { sessionTitle: parsedOutput.title } : {}),
       structuredOutput: receipt ?? { outcome: searched ? "clarification" : "reply",
-      title: firstTurn ? parsedOutput.title : (/\p{Script=Han}/u.test(request.objective) ? "回复" : "Reply"), body },
+      title: /\p{Script=Han}/u.test(request.objective) ? "回复" : "Reply", body },
       inputTokens: outcome.inputTokens, outputTokens: outcome.outputTokens, estimatedUsd: outcome.estimatedUsd,
       turns: outcome.turns, permissionDenials: outcome.permissionDenials, sessionID: outcome.sessionID, terminalReason: outcome.terminalReason };
   }

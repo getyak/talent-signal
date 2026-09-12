@@ -20,6 +20,14 @@ describe("Session title canonicalization", () => {
     expect(Array.from(title ?? "")).toHaveLength(32);
   });
 
+  it("never splits a compound grapheme at the visible title boundary", () => {
+    const family = "👨‍👩‍👧‍👦";
+    const title = canonicalizeSessionTitle(`整理${family.repeat(40)}`) ?? "";
+    expect(Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(title))).toHaveLength(32);
+    expect(title.endsWith(family)).toBe(true);
+    expect(Array.from(title).length).toBeLessThanOrEqual(256);
+  });
+
   it.each(["Reply", " Answer: ", "你好。", "工作台对话"])(
     "rejects generic model title %s and uses the objective",
     (proposed) => {

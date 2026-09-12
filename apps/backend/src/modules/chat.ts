@@ -879,8 +879,10 @@ export async function createChatTask(
           personId: request.person_id,
           relationshipContextId: request.relationship_context_id,
         })
-      : { messages: [] };
+      : { hasRecordedTurns: false, messages: [] };
     const conversationHistory = boundedConversationHistory(sessionConversation.messages, request.message_id);
+    const sessionTitleRequested = !sessionConversation.hasRecordedTurns
+      && !sessionConversation.sources?.length;
     if (request.previous_task_id && !request.session_id) {
       const prior = (await client.query<{ id:string; expires_at:Date; objective:string; output:{blocks:Array<{body:string}>} }>(
         `SELECT id,expires_at,objective,output FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3
@@ -1063,6 +1065,7 @@ export async function createChatTask(
           ...(responsePreference ? { responsePreference } : {}),
           ...(assertCurrent ? { assertCurrent } : {}),
           objective: request.objective,
+          session_title_requested: sessionTitleRequested,
           reference_time: createdAt.toISOString(),
           ...(calendarContext ? { calendarContext } : {}),
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
@@ -1156,8 +1159,8 @@ export async function createChatTask(
     const action = blocks.find((item) => item.kind === "action_proposal");
     const noAction = blocks.find((item) => item.kind === "no_action");
     const clarification = blocks.find((item) => item.kind === "clarification");
-    const sessionTitle = conversationHistory.length === 0 && !sessionConversation.sources?.length
-      ? firstTurnSessionTitle(request.objective, remoteChatResult?.title)
+    const sessionTitle = sessionTitleRequested
+      ? firstTurnSessionTitle(request.objective, remoteChatResult?.session_title)
       : null;
     const response: ChatTaskResponse = {
       contract_version: CONTRACT_VERSION,

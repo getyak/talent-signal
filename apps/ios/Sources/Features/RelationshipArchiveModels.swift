@@ -2508,14 +2508,31 @@ final class AgentSessionStore: ObservableObject {
     }
 
     private static func canonicalSessionTitle(from value: String) -> String? {
-        let separators = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
-        let oneLine = value.components(separatedBy: separators)
-            .filter { !$0.isEmpty }
+        let controlSafe = value.unicodeScalars.reduce(into: "") { result, scalar in
+            let isC0OrC1Control = scalar.value <= 0x1F
+                || (0x7F...0x9F).contains(scalar.value)
+            if CharacterSet.whitespacesAndNewlines.contains(scalar) || isC0OrC1Control {
+                result.append(" ")
+            } else {
+                // Preserve format scalars such as zero-width joiners because
+                // they are part of one user-perceived emoji grapheme.
+                result.append(contentsOf: String(scalar))
+            }
+        }
+        let oneLine = controlSafe.split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let bounded = String(oneLine.prefix(32)).trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+        var bounded = ""
+        var codePointCount = 0
+        for character in oneLine {
+            let characterCodePoints = String(character).unicodeScalars.count
+            guard bounded.count < 32,
+                  codePointCount + characterCodePoints <= 256 else { break }
+            bounded.append(character)
+            codePointCount += characterCodePoints
+        }
+        bounded = bounded.trimmingCharacters(in: .whitespacesAndNewlines)
         let comparable = bounded.lowercased().trimmingCharacters(
             in: CharacterSet.whitespacesAndNewlines
                 .union(.punctuationCharacters)

@@ -4,10 +4,24 @@ export type WorkspaceChatInput = { request_id: string; session_id: string; objec
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const genericSessionTitles = new Set(["reply", "answer", "hello", "hi", "chat", "conversation", "response", "greeting", "回复", "回答", "你好", "您好", "嗨", "工作台对话", "对话", "聊天", "会话"]);
 
+function boundedSessionTitle(value: string): string {
+  let segments: string[];
+  try { segments = Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value), part => part.segment); }
+  catch { segments = Array.from(value); }
+  let codePoints = 0;
+  const accepted: string[] = [];
+  for (const segment of segments) {
+    const size = Array.from(segment).length;
+    if (accepted.length >= 32 || codePoints + size > 256) break;
+    accepted.push(segment); codePoints += size;
+  }
+  return accepted.join("").trim();
+}
+
 /** Local first-paint fallback; the canonical API title replaces it only once. */
 export function workspaceSessionTitle(value: string): string {
   const oneLine = value.replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ").replace(/\s+/gu, " ").trim();
-  const bounded = Array.from(oneLine).slice(0, 32).join("").trim();
+  const bounded = boundedSessionTitle(oneLine);
   const comparable = bounded.toLowerCase().replace(/^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu, "");
   if (!bounded || genericSessionTitles.has(comparable)) return /\p{Script=Han}/u.test(value) ? "简单聊两句" : "Quick hello";
   return bounded;

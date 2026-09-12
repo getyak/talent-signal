@@ -29,7 +29,7 @@ describe("unscoped Agent conversation", () => {
 
   it("loads canonical same-scope dialogue before answering a follow-up", async () => {
     const messages = [{ message_id: "previous", role: "assistant" as const, text: "1. Call. 2. Draft an email." }];
-    vi.mocked(readAgentSessionConversation).mockResolvedValueOnce({ messages });
+    vi.mocked(readAgentSessionConversation).mockResolvedValueOnce({ hasRecordedTurns: true, messages });
     const answer = vi.fn(async () => ({ kind: "answer" as const, title: "Email", body: "A suggested draft.", citation_ids: [],
       provider_id: "zhipu-chat-completions" as const, model: "glm-5.3", provider_request_id: null, input_tokens: 0, output_tokens: 0 }));
     const database = { query: vi.fn(async (sql: string) => ({ rows: sql.includes("FROM agent_sessions")
@@ -39,8 +39,31 @@ describe("unscoped Agent conversation", () => {
       provider: { providerId: "zhipu-chat-completions", model: "glm-5.3", supportsImageInput: false, answer },
     });
     expect(readAgentSessionConversation).toHaveBeenLastCalledWith(database, auth, "session", { personId: null, relationshipContextId: null });
-    expect(answer).toHaveBeenCalledWith(expect.objectContaining({ conversation_history: messages, allowed_citation_ids: [], context_blocks: [] }));
+    expect(answer).toHaveBeenCalledWith(expect.objectContaining({
+      session_title_requested: false,
+      conversation_history: messages,
+      allowed_citation_ids: [],
+      context_blocks: [],
+    }));
     expect(execution.body.session_title).toBeUndefined();
+  });
+
+  it("does not rename a Session whose recorded history is no longer admissible", async () => {
+    vi.mocked(readAgentSessionConversation).mockResolvedValueOnce({ hasRecordedTurns: true, messages: [] });
+    const answer = vi.fn(async () => ({ kind: "answer" as const, title: "Current reply", session_title: "Wrong rename",
+      body: "A current answer.", citation_ids: [], provider_id: "zhipu-chat-completions" as const,
+      model: "glm-5.3", provider_request_id: null, input_tokens: 0, output_tokens: 0 }));
+    const database = { query: vi.fn(async (sql: string) => ({ rows: sql.includes("FROM agent_sessions")
+      ? [{ expires_at: new Date(Date.now() + 86_400_000) }] : [] })) } as unknown as DatabaseClient;
+    const execution = await executeUnscopedChatTask({
+      request: { ...request, session_id: "session", message_id: "current", objective: "Try again." },
+      database,
+      auth,
+      provider: { providerId: "zhipu-chat-completions", model: "glm-5.3", supportsImageInput: false, answer },
+    });
+    expect(answer).toHaveBeenCalledWith(expect.objectContaining({ session_title_requested: false }));
+    expect(execution.body.session_title).toBeUndefined();
+    expect(execution.body.blocks[0]?.title).toBe("Current reply");
   });
 
   it("does not turn invalid Session scope into an unrestricted provider fallback", async () => {
@@ -55,7 +78,8 @@ describe("unscoped Agent conversation", () => {
   it("sends only the submitted text and returns no evidence or effects", async () => {
     const answer = vi.fn(async () => ({
       kind: "answer" as const,
-      title: "你好",
+      title: "问候回复",
+      session_title: "简单聊两句",
       body: "你好，我在。你想聊什么？",
       citation_ids: [],
       provider_id: "zhipu-chat-completions" as const,
@@ -80,6 +104,7 @@ describe("unscoped Agent conversation", () => {
     expect(answer).toHaveBeenCalledWith({
       mode: "unscoped_conversation",
       objective: "你好",
+      session_title_requested: true,
       context_blocks: [],
       allowed_citation_ids: [],
       images: [],
@@ -93,6 +118,7 @@ describe("unscoped Agent conversation", () => {
         blocks: [
           {
             kind: "answer",
+            title: "问候回复",
             body: "你好，我在。你想聊什么？",
             citation_dependency_ids: [],
             requires_user_decision: false,

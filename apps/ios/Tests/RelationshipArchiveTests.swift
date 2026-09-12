@@ -1161,6 +1161,19 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testObjectiveTitleKeepsCompoundCharactersWhole() throws {
+        let store = AgentSessionStore()
+        let family = "👨‍👩‍👧‍👦"
+        let sessionID = try XCTUnwrap(
+            store.beginUnscopedSession(objective: "整理" + String(repeating: family, count: 40))
+        )
+        let title = try XCTUnwrap(store.session(id: sessionID)?.title)
+        XCTAssertEqual(title.count, 32)
+        XCTAssertTrue(title.hasSuffix(family))
+        XCTAssertLessThanOrEqual(title.unicodeScalars.count, 256)
+    }
+
+    @MainActor
     func testSingleSessionDeletionRollsBackOnSaveFailureAndKeepsDrafts() throws {
         let persistence = ToggleSaveAgentSessionPersistence()
         let previewSessions = AgentSessionStore.preview(snapshot: .preview).sessions

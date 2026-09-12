@@ -47,6 +47,8 @@ export interface RemoteChatAnswerRequest {
   prompt_preset?: ChatPromptPreset;
   mode?: "relationship" | "unscoped_conversation";
   objective: string;
+  /** Host-owned first-result gate for optional Session display metadata. */
+  session_title_requested?: boolean;
   /** Canonical Session dialogue, validated for the current account and scope. */
   conversation_history?: readonly ConversationMessage[];
   /** Internal canonical-source admission, never accepted from public Chat input. */
@@ -70,6 +72,8 @@ export interface RemoteChatImageInput {
 
 export interface RemoteChatAnswerResult {
   calendarDraft?: import("@talent-signal/contracts").CalendarDraft;
+  /** First-result display metadata only; never a response-block heading. */
+  session_title?: string;
   kind: RemoteChatBlockKind;
   title: string;
   body: string;
@@ -415,7 +419,7 @@ function parseProviderAnswer(
   value: Record<string, unknown>,
   allowedCitationIds: readonly string[],
   permitsAttachmentOnlyAnswer = false,
-): Pick<RemoteChatAnswerResult, "kind" | "title" | "body" | "citation_ids"> {
+): Pick<RemoteChatAnswerResult, "kind" | "title" | "body" | "citation_ids" | "session_title"> {
   const kind = requiredString(value.kind, "kind", 40);
   if (!new Set<RemoteChatBlockKind>([
     "answer",
@@ -426,6 +430,9 @@ function parseProviderAnswer(
   }
   const title = requiredString(value.title, "title", 160);
   const body = requiredString(value.body, "body", 4_000);
+  const sessionTitle = value.session_title === undefined
+    ? undefined
+    : requiredString(value.session_title, "session_title", 256);
   if (!Array.isArray(value.citation_ids)) {
     throw new Error("Zhipu Chat citation_ids must be an array.");
   }
@@ -454,6 +461,7 @@ function parseProviderAnswer(
     title,
     body,
     citation_ids: citationIds,
+    ...(sessionTitle ? { session_title: sessionTitle } : {}),
   };
 }
 
@@ -557,6 +565,7 @@ export class ZhipuChatAnswerProvider
     const contextPayload = JSON.stringify({
       mode,
       objective,
+      session_title_requested: request.session_title_requested === true,
       ...(request.reference_time === undefined ? {} : { frozen_reference_time: request.reference_time }),
       previous_dialogue: conversationContext(request.conversation_history),
       ...(request.permits_unconfirmed_session_context_answer ? { answer_boundary: "You may answer conversationally from the labeled unconfirmed screenshot interpretation without citations. Attribute it as an unconfirmed prior interpretation; do not promote it to reviewed facts or action authority. Cite only current allowed evidence when making relationship fact claims. Do not add participants, shared intent, agreement, dates, or time zones. For missing timing ask the specific date/time-zone question or suggest reviewing the existing capture; do not default to uploading the same screenshot again." } : {}),
@@ -786,6 +795,7 @@ export class ZhipuChatAnswerProvider
         role: "user",
         content: JSON.stringify({
           objective: request.objective,
+          session_title_requested: request.sessionTitleRequested === true,
           previous_dialogue: conversationContext(request.conversationHistory),
           immutable_scope: request.scopeSummary,
         }),

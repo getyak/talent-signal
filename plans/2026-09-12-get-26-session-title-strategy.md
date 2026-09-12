@@ -14,11 +14,13 @@ must not add a second model request or silently rename an established Session.
 - Formal conversation prompts define a good title as one concrete, single-line
   phrase in the user's language, preferably verb plus object, with at most 32
   user-perceived characters and no generic reply/greeting labels.
-- Structured providers reuse the title already returned with the answer.
-  Claude natural output carries a leading `session_title` metadata envelope in
-  that same final response; the adapter removes it before displaying the body.
-- Backend responses expose optional `session_title` only for a first result
-  with no prior dialogue or carried screenshot context. The backend collapses
+- Structured providers return an independent optional `session_title`, keeping
+  the answer block's `title` as the heading for that specific reply. Claude
+  natural output carries a leading `session_title` metadata envelope in that
+  same final response; the adapter removes it before displaying the body.
+- Backend responses expose optional `session_title` only when the persisted
+  Session has no recorded turn or carried screenshot context. This remains
+  false even if prior answer text later becomes unavailable. The backend collapses
   whitespace, rejects generic labels, applies the shared 32-character limit,
   and falls back to the user's objective.
 - Web and iOS create an immediate bounded objective-derived label, replace it

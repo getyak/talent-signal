@@ -378,6 +378,8 @@ export interface AgentProviderRequest {
   responsePreference?: import("./responsePreference.js").ResponsePreference;
   runID: string;
   objective: string;
+  /** Host-owned first-result gate for optional Session display metadata. */
+  sessionTitleRequested?: boolean;
   conversationHistory?: readonly ConversationMessage[];
   systemPrompt: string;
   scopeSummary:
