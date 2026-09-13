@@ -609,7 +609,7 @@ final class AgentSessionContinuityTests: XCTestCase {
         )
     }
 
-    func testPersistedShareClassificationDoesNotLaunderPendingCalendarOrActionAnswers() throws {
+    func testPersistedShareClassificationDoesNotLaunderPendingOrProposedAnswers() throws {
         let safe = RelationshipAskResponse.Block(
             id: "safe",
             kind: "answer",
@@ -650,6 +650,16 @@ final class AgentSessionContinuityTests: XCTestCase {
             requiresUserDecision: true,
             targetRef: .init(type: "action", pursuitID: "pursuit-private", actionID: "action-private")
         )
+        let proposedInterpretation = RelationshipAskResponse.Block(
+            id: "proposed-interpretation",
+            kind: "answer",
+            title: "Unconfirmed screenshot interpretation",
+            body: "Private proposed screenshot interpretation must remain inside the Session.",
+            status: "proposed",
+            citationDependencyIDs: [],
+            requiresUserDecision: false,
+            allowsStaticShare: true
+        )
         let session = AgentSession(
             id: UUID(),
             scope: .unresolvedIntent,
@@ -657,7 +667,10 @@ final class AgentSessionContinuityTests: XCTestCase {
             turns: [AgentSessionTurn(
                 id: UUID(),
                 objective: "Review the proposals.",
-                response: sessionShareResponse("persisted", blocks: [safe, calendar, action]),
+                response: sessionShareResponse(
+                    "persisted",
+                    blocks: [safe, calendar, action, proposedInterpretation]
+                ),
                 createdAt: Date(),
                 requiresRefresh: false
             )],
@@ -670,7 +683,7 @@ final class AgentSessionContinuityTests: XCTestCase {
         let payload = try JSONDecoder.agentSession.decode(PersistedAgentSession.self, from: data)
         let restored = try payload.value()
         let restoredBlocks = try XCTUnwrap(restored.turns.first?.response.blocks)
-        XCTAssertEqual(restoredBlocks.map(\.allowsStaticShare), [true, false, false])
+        XCTAssertEqual(restoredBlocks.map(\.allowsStaticShare), [true, false, false, false])
 
         let snapshot = try XCTUnwrap(
             AgentSessionSharePolicy.availability(
@@ -683,6 +696,7 @@ final class AgentSessionContinuityTests: XCTestCase {
         XCTAssertTrue(sharedText.contains("Only this reviewed answer"))
         XCTAssertFalse(sharedText.contains("Private calendar proposal"))
         XCTAssertFalse(sharedText.contains("Private action proposal"))
+        XCTAssertFalse(sharedText.contains("Private proposed screenshot interpretation"))
         XCTAssertFalse(sharedText.contains("pursuit-private"))
 
         let secondData = try JSONEncoder.agentSession.encode(PersistedAgentSession(restored))
@@ -690,7 +704,7 @@ final class AgentSessionContinuityTests: XCTestCase {
         let secondRestore = try secondPayload.value()
         XCTAssertEqual(
             secondRestore.turns.first?.response.blocks.map(\.allowsStaticShare),
-            [true, false, false]
+            [true, false, false, false]
         )
     }
 

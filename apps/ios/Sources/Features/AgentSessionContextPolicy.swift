@@ -6,12 +6,7 @@ enum AgentSessionContextPolicy {
         _ block: RelationshipAskResponse.Block,
         requireExistingShareClassification: Bool = false
     ) -> RelationshipAskResponse.Block {
-        let isStructurallySafeToShare = block.kind == "answer"
-            && !block.requiresUserDecision
-            && block.targetRef == nil
-            && block.calendarDraft == nil
-        let allowsStaticShare = isStructurallySafeToShare
-            && block.allowsStaticShare != false
+        let allowsStaticShare = AgentSessionSharePolicy.isSafeAnswerBlock(block)
             && (!requireExistingShareClassification || block.allowsStaticShare == true)
         return .init(id: block.id, kind: block.kind, title: block.title, body: block.body, status: block.status,
               citationDependencyIDs: [], requiresUserDecision: false, targetRef: nil,
@@ -115,14 +110,16 @@ enum AgentSessionSharePolicy {
     /// Kinds that may appear in a shared copy. Anything projected as a live
     /// action, proposal, processing state, or research result is excluded.
     static let safeBlockKind = "answer"
+    static let safeBlockStatuses: Set<String> = ["informational", "ready"]
 
-    /// The only block shape that may be copied: a plain answer that asks for no
-    /// decision and points at no external target.
+    /// The only block shape that may be copied: a completed informational
+    /// answer that asks for no decision and points at no external target.
     static func isSafeAnswerBlock(
         _ block: RelationshipAskResponse.Block,
         requiresPersistedClassification: Bool = false
     ) -> Bool {
         block.kind == safeBlockKind
+            && safeBlockStatuses.contains(block.status)
             && !block.requiresUserDecision
             && block.targetRef == nil
             && block.calendarDraft == nil
