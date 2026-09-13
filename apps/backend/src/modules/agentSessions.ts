@@ -97,6 +97,65 @@ function normalizeSessionIdentifiers(
   }
   return payload;
 }
+
+type AgentSessionDisplayBlock = NonNullable<
+  AgentSessionPayload["turns"][number]["response"]["savedBlocks"]
+>[number];
+const displayBlockCollections = [
+  "savedBlocks",
+  "unboundPersonResearchBlocks",
+  "unboundConversationBlocks",
+] as const;
+
+function shareClassificationComparable(block: AgentSessionDisplayBlock) {
+  const copy = structuredClone(block);
+  delete copy.allows_static_share;
+  return copy;
+}
+
+/**
+ * Old clients decode and re-encode a Session without the GET-27 share field.
+ * Preserve the server's prior decision only for the exact same immutable turn
+ * and display block. Any changed or newly introduced block stays unclassified
+ * so current clients fail closed instead of inheriting stale share authority.
+ */
+function preserveExistingShareClassifications(
+  payload: AgentSessionPayload,
+  previous: AgentSessionPayload | null,
+): void {
+  if (!previous) return;
+  for (const turn of payload.turns) {
+    const before = previous.turns.find(
+      (candidate) =>
+        sameID(candidate.id, turn.id) &&
+        candidate.objective === turn.objective &&
+        candidate.createdAt === turn.createdAt &&
+        sameID(candidate.response.taskID, turn.response.taskID) &&
+        sameID(
+          candidate.response.contextManifestID,
+          turn.response.contextManifestID,
+        ),
+    );
+    if (!before) continue;
+    for (const collection of displayBlockCollections) {
+      const currentBlocks = turn.response[collection] ?? [];
+      const previousBlocks = before.response[collection] ?? [];
+      for (const block of currentBlocks) {
+        if (block.allows_static_share !== undefined) continue;
+        const previousBlock = previousBlocks.find(
+          (candidate) => sameID(candidate.id, block.id),
+        );
+        if (
+          previousBlock?.allows_static_share !== undefined &&
+          digestValue(shareClassificationComparable(previousBlock)) ===
+            digestValue(shareClassificationComparable(block))
+        ) {
+          block.allows_static_share = previousBlock.allows_static_share;
+        }
+      }
+    }
+  }
+}
 interface Row {
   id: string;
   created_by_user_id: string;
@@ -663,6 +722,10 @@ export async function mutateAgentSession(
       if (!deleted) {
         payload = structuredClone(
           (request as AgentSessionMutationRequest).payload,
+        );
+        preserveExistingShareClassifications(
+          payload,
+          existing?.payload ?? null,
         );
         await lockAgentSessionSources(client, auth, payload);
         await validatePayload(

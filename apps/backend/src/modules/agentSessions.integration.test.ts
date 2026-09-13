@@ -2567,6 +2567,47 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
           .allows_static_share,
       ).toBe(true);
 
+      const oldClientUpdate = structuredClone(value);
+      delete (
+        oldClientUpdate.turns[0]!.response.savedBlocks![0] as {
+          allows_static_share?: boolean;
+        }
+      ).allows_static_share;
+      oldClientUpdate.contextDisplayLabel = "Conversation renamed by old client";
+      oldClientUpdate.updatedAt = now();
+      const savedByOldClient = await app.inject({
+        method: "PUT",
+        url: `/v1/agent-sessions/${value.id}`,
+        payload: mutation(oldClientUpdate, 1),
+      });
+      expect(savedByOldClient.statusCode, savedByOldClient.body).toBe(200);
+      const readAfterOldClient = await app.inject({
+        method: "GET",
+        url: `/v1/agent-sessions/${value.id}`,
+      });
+      expect(
+        readAfterOldClient.json().session.payload.turns[0].response
+          .savedBlocks[0].allows_static_share,
+      ).toBe(true);
+
+      oldClientUpdate.turns[0]!.response.savedBlocks![0]!.body =
+        "A changed answer from an old client.";
+      oldClientUpdate.updatedAt = now();
+      const changedByOldClient = await app.inject({
+        method: "PUT",
+        url: `/v1/agent-sessions/${value.id}`,
+        payload: mutation(oldClientUpdate, 2),
+      });
+      expect(changedByOldClient.statusCode, changedByOldClient.body).toBe(200);
+      const readAfterChangedBlock = await app.inject({
+        method: "GET",
+        url: `/v1/agent-sessions/${value.id}`,
+      });
+      expect(
+        readAfterChangedBlock.json().session.payload.turns[0].response
+          .savedBlocks[0].allows_static_share,
+      ).toBeUndefined();
+
       const legacy = payload();
       delete (
         legacy.turns[0]!.response.savedBlocks![0] as {

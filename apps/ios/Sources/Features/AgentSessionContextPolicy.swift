@@ -163,19 +163,30 @@ enum AgentSessionSharePolicy {
         scope: AgentSessionShareScope,
         language: AppLanguage
     ) -> AgentSessionShareSnapshot {
+        let title = safeTitle(for: session, language: language)
+        let contextLabel = safeContextLabel(for: session, language: language)
+        let updatedLabel = updatedLabel(for: session, language: language)
+        let statusLabel = statusLabel(for: session, language: language)
         let answer = session.isIdentityReview
             ? language.text("Identity is still unresolved. Conversation details are not included.")
             : latestSafeAnswer(in: session) ?? ""
         let conversation = scope == .conversation
-            ? boundedConversation(for: session)
+            ? boundedConversation(
+                for: session,
+                title: title,
+                contextLabel: contextLabel,
+                updatedLabel: updatedLabel,
+                statusLabel: statusLabel,
+                language: language
+            )
             : (lines: [], wasTruncated: false)
         return AgentSessionShareSnapshot(
             scope: scope,
-            title: safeTitle(for: session, language: language),
-            contextLabel: safeContextLabel(for: session, language: language),
+            title: title,
+            contextLabel: contextLabel,
             excerpt: cardExcerpt(answer),
-            updatedLabel: updatedLabel(for: session, language: language),
-            statusLabel: statusLabel(for: session, language: language),
+            updatedLabel: updatedLabel,
+            statusLabel: statusLabel,
             conversationLines: conversation.lines,
             conversationWasTruncated: conversation.wasTruncated
         )
@@ -197,20 +208,44 @@ enum AgentSessionSharePolicy {
                 "\(snapshot.updatedLabel) · \(snapshot.statusLabel)"
             ]
         } else {
-            lines += [
-                language.text("Static copy — sources, pending decisions, and action authority are omitted."),
-                "",
-            ]
-            lines += snapshot.conversationLines.map { line in
-                line.isObjective
-                    ? "\(language.text("You")): \(line.text)"
-                    : "\(language.text("Agent")): \(line.text)"
-            }
-            if snapshot.conversationWasTruncated {
-                lines += ["", conversationLimitLabel(language: language)]
-            }
-            lines += ["", snapshot.updatedLabel, snapshot.statusLabel]
+            return conversationAlternateText(
+                title: snapshot.title,
+                contextLabel: snapshot.contextLabel,
+                conversationLines: snapshot.conversationLines,
+                conversationWasTruncated: snapshot.conversationWasTruncated,
+                updatedLabel: snapshot.updatedLabel,
+                statusLabel: snapshot.statusLabel,
+                language: language
+            )
         }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func conversationAlternateText(
+        title: String,
+        contextLabel: String,
+        conversationLines: [AgentSessionShareConversationLine],
+        conversationWasTruncated: Bool,
+        updatedLabel: String,
+        statusLabel: String,
+        language: AppLanguage
+    ) -> String {
+        var lines = [
+            title,
+            contextLabel,
+            "",
+            language.text("Static copy — sources, pending decisions, and action authority are omitted."),
+            "",
+        ]
+        lines += conversationLines.map { line in
+            line.isObjective
+                ? "\(language.text("You")): \(line.text)"
+                : "\(language.text("Agent")): \(line.text)"
+        }
+        if conversationWasTruncated {
+            lines += ["", conversationLimitLabel(language: language)]
+        }
+        lines += ["", updatedLabel, statusLabel]
         return lines.joined(separator: "\n")
     }
 
@@ -266,7 +301,12 @@ enum AgentSessionSharePolicy {
     /// Chronological user objectives plus only safe answer bodies, bounded so
     /// the complete exported scope can be inspected in the review sheet.
     private static func boundedConversation(
-        for session: AgentSession
+        for session: AgentSession,
+        title: String,
+        contextLabel: String,
+        updatedLabel: String,
+        statusLabel: String,
+        language: AppLanguage
     ) -> (lines: [AgentSessionShareConversationLine], wasTruncated: Bool) {
         var candidates: [AgentSessionShareConversationLine] = []
         for (index, turn) in chronologicalTurns(session).enumerated() {
@@ -288,35 +328,54 @@ enum AgentSessionSharePolicy {
             }
         }
 
-        var lines: [AgentSessionShareConversationLine] = []
-        var characterCount = 0
-        var wasTruncated = false
-        for candidate in candidates {
-            guard lines.count < conversationLineLimit else {
-                wasTruncated = true
-                break
-            }
-            let remaining = conversationCharacterLimit - characterCount
-            guard remaining > 1 else {
-                wasTruncated = true
-                break
-            }
-            if candidate.text.count > remaining {
-                let end = candidate.text.index(candidate.text.startIndex, offsetBy: remaining - 1)
-                lines.append(.init(
-                    id: candidate.id,
-                    isObjective: candidate.isObjective,
-                    text: String(candidate.text[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
-                ))
-                characterCount = conversationCharacterLimit
-                wasTruncated = true
-                break
-            }
-            lines.append(candidate)
-            characterCount += candidate.text.count
-        }
+        var lines = Array(candidates.prefix(conversationLineLimit))
+        var wasTruncated = candidates.count > lines.count
         if wasTruncated, lines.last?.isObjective == true {
             lines.removeLast()
+        }
+
+        func export(_ candidateLines: [AgentSessionShareConversationLine], truncated: Bool) -> String {
+            conversationAlternateText(
+                title: title,
+                contextLabel: contextLabel,
+                conversationLines: candidateLines,
+                conversationWasTruncated: truncated,
+                updatedLabel: updatedLabel,
+                statusLabel: statusLabel,
+                language: language
+            )
+        }
+
+        while export(lines, truncated: wasTruncated).count > conversationCharacterLimit,
+              let last = lines.last {
+            wasTruncated = true
+            if last.isObjective {
+                lines.removeLast()
+                continue
+            }
+
+            var emptyLast = lines
+            emptyLast[emptyLast.count - 1] = .init(
+                id: last.id,
+                isObjective: false,
+                text: ""
+            )
+            let fixedCharacterCount = export(emptyLast, truncated: true).count
+            let availableCharacters = conversationCharacterLimit - fixedCharacterCount
+            if availableCharacters > 1 {
+                let prefix = last.text.prefix(availableCharacters - 1)
+                lines[lines.count - 1] = .init(
+                    id: last.id,
+                    isObjective: false,
+                    text: String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+                )
+                break
+            }
+
+            lines.removeLast()
+            if lines.last?.isObjective == true {
+                lines.removeLast()
+            }
         }
         return (lines, wasTruncated)
     }

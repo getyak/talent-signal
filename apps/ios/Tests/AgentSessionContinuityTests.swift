@@ -780,6 +780,10 @@ final class AgentSessionContinuityTests: XCTestCase {
         )
         XCTAssertTrue(snapshot.conversationLines.last?.text.hasSuffix("…") == true)
         let sharedText = AgentSessionSharePolicy.alternateText(snapshot, language: .english)
+        XCTAssertLessThanOrEqual(
+            sharedText.count,
+            AgentSessionSharePolicy.conversationCharacterLimit
+        )
         XCTAssertTrue(sharedText.contains(
             AgentSessionSharePolicy.conversationLimitLabel(language: .english)
         ))
