@@ -1,6 +1,256 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "TALENT SIGNAL": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TALENT SIGNAL"
+          }
+        }
+      }
+    },
+    "Agent Session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 会话"
+          }
+        }
+      }
+    },
+    "Export limited to the first %d safe messages and %d characters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出限于前 %d 条安全消息和 %d 个字符。"
+          }
+        }
+      }
+    },
+    "Forked copy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分叉副本"
+          }
+        }
+      }
+    },
+    "Forked copy · sources may need refresh": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分叉副本 · 来源可能需要刷新"
+          }
+        }
+      }
+    },
+    "Identity is still unresolved. Conversation details are not included.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份仍未确认，未包含对话详情。"
+          }
+        }
+      }
+    },
+    "Identity review session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份审阅会话"
+          }
+        }
+      }
+    },
+    "Identity-review Sessions cannot share the conversation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份审阅会话不能分享完整对话。"
+          }
+        }
+      }
+    },
+    "Not available for identity review.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份审阅会话不可用。"
+          }
+        }
+      }
+    },
+    "PREVIEW": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览"
+          }
+        }
+      }
+    },
+    "Readable conversation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可读对话"
+          }
+        }
+      }
+    },
+    "Review before sharing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享前检查"
+          }
+        }
+      }
+    },
+    "Saved copy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存副本"
+          }
+        }
+      }
+    },
+    "Saved copy · sources may need refresh": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存副本 · 来源可能需要刷新"
+          }
+        }
+      }
+    },
+    "Scope, latest saved answer, and status.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "范围、最近保存的回答与状态。"
+          }
+        }
+      }
+    },
+    "Share readable conversation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享可读对话"
+          }
+        }
+      }
+    },
+    "Share summary card": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享摘要卡片"
+          }
+        }
+      }
+    },
+    "Static copy · sources, pending decisions, and action authority omitted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静态副本 · 已省略来源、待定决策与行动权限。"
+          }
+        }
+      }
+    },
+    "Static copy — sources, pending decisions, and action authority are omitted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静态副本 — 已省略来源、待定决策与行动权限。"
+          }
+        }
+      }
+    },
+    "This is a static copy. Sources, pending decisions, and action authority are omitted, and nothing here can continue the Session.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这是静态副本。已省略来源、待定决策与行动权限，且此副本无法继续该会话。"
+          }
+        }
+      }
+    },
+    "This Session has no saved answer to share yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此会话还没有可分享的已保存回答。"
+          }
+        }
+      }
+    },
+    "This Session is no longer available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此会话已不可用。"
+          }
+        }
+      }
+    },
+    "Visual summary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视觉摘要"
+          }
+        }
+      }
+    },
+    "WHAT TO SHARE": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享内容"
+          }
+        }
+      }
+    },
+    "Your objectives and safe answers only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅包含你的目标与安全回答。"
+          }
+        }
+      }
+    },
     "Manage test workspace": {
       "extractionState": "manual",
       "localizations": {

@@ -1,5 +1,6 @@
 import {
   AgentRunResponseSchema,
+  AgentSessionMutationRequestSchema,
   AgentTaskResponseSchema,
   CreatePursuitAgentTaskRequestSchema,
   CreatePursuitAgentRunRequestSchema,
@@ -32,6 +33,64 @@ beforeAll(() => {
 });
 
 describe("shared HTTP contract", () => {
+  it("round-trips Session static-share classification and accepts legacy unclassified copies", () => {
+    const request = {
+      expected_revision: 0,
+      idempotency_key: "11111111-1111-4111-8111-111111111111",
+      payload: {
+        id: "22222222-2222-4222-8222-222222222222",
+        scopeKind: "unresolved_intent",
+        personDisplayLabel: "New session",
+        contextDisplayLabel: "Conversation",
+        title: "Synthetic conversation",
+        turns: [
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            objective: "Review the saved answer.",
+            response: {
+              contractVersion: "2026-08-24.10",
+              taskID: "task-1",
+              contextManifestID: "none-unbound-conversation",
+              knowledgeSnapshotID: "none-unbound-conversation",
+              disposition: "answered",
+              savedBlocks: [
+                {
+                  id: "block-1",
+                  kind: "answer",
+                  title: "Saved answer",
+                  body: "A reviewed static copy.",
+                  status: "ready",
+                  citation_dependency_ids: [],
+                  requires_user_decision: false,
+                  allows_static_share: true,
+                },
+              ],
+              createdAt: "2026-09-13T00:00:00.000Z",
+            },
+            createdAt: "2026-09-13T00:00:00.000Z",
+          },
+        ],
+        updatedAt: "2026-09-13T00:00:00.000Z",
+        isUnread: false,
+      },
+    };
+    expect(Value.Check(AgentSessionMutationRequestSchema, request)).toBe(true);
+
+    const legacy = structuredClone(request);
+    delete (
+      legacy.payload.turns[0]!.response.savedBlocks[0] as {
+        allows_static_share?: boolean;
+      }
+    ).allows_static_share;
+    expect(Value.Check(AgentSessionMutationRequestSchema, legacy)).toBe(true);
+
+    const invalid = structuredClone(request) as unknown as {
+      payload: { turns: Array<{ response: { savedBlocks: Array<Record<string, unknown>> } }> };
+    };
+    invalid.payload.turns[0]!.response.savedBlocks[0]!.allows_static_share = "yes";
+    expect(Value.Check(AgentSessionMutationRequestSchema, invalid)).toBe(false);
+  });
+
   it("keeps governed Task authority bounded and projects only non-canonical briefing output", () => {
     const request = {
       idempotency_key: "task-1",

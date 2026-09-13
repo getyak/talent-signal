@@ -456,6 +456,654 @@ final class AgentSessionContinuityTests: XCTestCase {
         XCTAssertNil(store.session(id: id))
         XCTAssertTrue(service.puts.isEmpty)
     }
+
+    func testSharePolicyDefaultsToBoundedCardAndOmitsPendingAuthority() throws {
+        let includedAnswerDate = Date(timeIntervalSince1970: 1_789_000_000)
+        let omittedActivityDate = Date(timeIntervalSince1970: 1_789_000_100)
+        let safe = RelationshipAskResponse.Block(
+            id: "safe-block-id",
+            kind: "answer",
+            title: "Relationship update",
+            body: "The last exchange clarified the role scope. Confirm the interview window next.",
+            status: "ready",
+            citationDependencyIDs: ["private-citation-id"],
+            requiresUserDecision: false
+        )
+        let action = RelationshipAskResponse.Block(
+            id: "private-action-block-id",
+            kind: "answer",
+            title: "Send message",
+            body: "Send the private-action-id now.",
+            status: "ready",
+            citationDependencyIDs: [],
+            requiresUserDecision: true,
+            targetRef: .init(
+                type: "action",
+                pursuitID: "private-pursuit-id",
+                actionID: "private-action-id"
+            )
+        )
+        let session = AgentSession(
+            id: UUID(),
+            scope: .relationship(
+                personID: "person-1",
+                relationshipContextID: "context-1",
+                personDisplayLabel: "Maya Chen",
+                contextDisplayLabel: "CPO search"
+            ),
+            title: "Clarify CPO interview window",
+            turns: [
+                AgentSessionTurn(
+                    id: UUID(),
+                    objective: "Review the latest exchange.",
+                    response: sessionShareResponse("safe", blocks: [safe]),
+                    createdAt: includedAnswerDate,
+                    requiresRefresh: false
+                ),
+                AgentSessionTurn(
+                    id: UUID(),
+                    objective: "Execute the private action.",
+                    response: sessionShareResponse("action", blocks: [action]),
+                    createdAt: omittedActivityDate,
+                    requiresRefresh: true
+                ),
+            ],
+            contactReceipts: [],
+            pendingObjective: "pending-token",
+            updatedAt: Date(timeIntervalSince1970: 1_789_000_200),
+            isUnread: false
+        )
+
+        let summary = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .summary,
+                language: .english
+            ).snapshot
+        )
+        XCTAssertEqual(summary.title, "Clarify CPO interview window")
+        XCTAssertEqual(summary.contextLabel, "Maya Chen · CPO search")
+        XCTAssertEqual(
+            summary.excerpt,
+            "The last exchange clarified the role scope. Confirm the interview window next."
+        )
+        XCTAssertTrue(summary.conversationLines.isEmpty)
+        let formatter = DateFormatter()
+        formatter.locale = AppLanguage.english.locale
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.setLocalizedDateFormatFromTemplate("yMMMdjm")
+        XCTAssertEqual(
+            summary.updatedLabel,
+            "Updated \(formatter.string(from: includedAnswerDate))"
+        )
+        XCTAssertNotEqual(
+            summary.updatedLabel,
+            "Updated \(formatter.string(from: omittedActivityDate))"
+        )
+        XCTAssertEqual(summary.statusLabel, "Saved copy")
+
+        let conversation = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .conversation,
+                language: .english
+            ).snapshot
+        )
+        XCTAssertEqual(
+            conversation.conversationLines.map(\.text),
+            [
+                "Review the latest exchange.",
+                "The last exchange clarified the role scope. Confirm the interview window next.",
+            ]
+        )
+        XCTAssertEqual(conversation.statusLabel, "Saved copy")
+        let sharedText = AgentSessionSharePolicy.alternateText(
+            conversation,
+            language: .english
+        )
+        for privateValue in [
+            "pending-token", "private-action-id", "private-pursuit-id",
+            "private-citation-id", "private-action-block-id",
+        ] {
+            XCTAssertFalse(sharedText.contains(privateValue))
+        }
+        XCTAssertTrue(sharedText.contains("Static copy"))
+        XCTAssertTrue(sharedText.contains("action authority are omitted"))
+    }
+
+    func testSummaryExportsTheCompleteReviewedExcerptShownByTheCard() throws {
+        let reviewedExcerpt = String(
+            repeating: "界",
+            count: AgentSessionSharePolicy.excerptLimit
+        )
+        let answer = RelationshipAskResponse.Block(
+            id: "long-cjk-answer",
+            kind: "answer",
+            title: "Reviewed answer",
+            body: reviewedExcerpt,
+            status: "informational",
+            citationDependencyIDs: [],
+            requiresUserDecision: false
+        )
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: "Reviewed summary",
+            turns: [AgentSessionTurn(
+                id: UUID(),
+                objective: "Review the bounded summary.",
+                response: sessionShareResponse("long-cjk", blocks: [answer]),
+                createdAt: Date(timeIntervalSince1970: 1_789_000_000),
+                requiresRefresh: false
+            )],
+            contactReceipts: [],
+            updatedAt: Date(timeIntervalSince1970: 1_789_000_100),
+            isUnread: false
+        )
+
+        let snapshot = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .summary,
+                language: .english
+            ).snapshot
+        )
+        XCTAssertEqual(snapshot.excerpt, reviewedExcerpt)
+        XCTAssertTrue(
+            AgentSessionSharePolicy.alternateText(
+                snapshot,
+                language: .english
+            ).components(separatedBy: .newlines).contains(reviewedExcerpt)
+        )
+    }
+
+    func testIdentityReviewShareIsGenericAndNeverExportsConversation() throws {
+        let answer = RelationshipAskResponse.Block(
+            id: "identity-answer",
+            kind: "answer",
+            title: "Possible match",
+            body: "Alex Rivera may be the person in this screenshot.",
+            status: "ready",
+            citationDependencyIDs: [],
+            requiresUserDecision: false
+        )
+        let session = AgentSession(
+            id: UUID(),
+            scope: .identityReview(
+                resolutionCaseID: "case-private",
+                personDisplayLabel: "Alex Rivera"
+            ),
+            title: "Review Alex Rivera identity",
+            turns: [AgentSessionTurn(
+                id: UUID(),
+                objective: "Is this Alex Rivera?",
+                response: sessionShareResponse("identity", blocks: [answer]),
+                createdAt: Date(),
+                requiresRefresh: false
+            )],
+            contactReceipts: [],
+            updatedAt: Date(),
+            isUnread: false
+        )
+
+        let summary = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .summary,
+                language: .english
+            ).snapshot
+        )
+        let sharedText = AgentSessionSharePolicy.alternateText(summary, language: .english)
+        XCTAssertEqual(summary.title, "Identity review session")
+        XCTAssertEqual(summary.contextLabel, "Identity review")
+        XCTAssertEqual(
+            summary.excerpt,
+            "Identity is still unresolved. Conversation details are not included."
+        )
+        XCTAssertFalse(sharedText.contains("Alex Rivera"))
+        XCTAssertFalse(AgentSessionSharePolicy.allowsConversation(session))
+        XCTAssertNotNil(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .conversation,
+                language: .english
+            ).unavailableReason
+        )
+    }
+
+    func testPersistedShareClassificationDoesNotLaunderPendingOrProposedAnswers() throws {
+        let safe = RelationshipAskResponse.Block(
+            id: "safe",
+            kind: "answer",
+            title: "Saved answer",
+            body: "Only this reviewed answer may leave the app.",
+            status: "ready",
+            citationDependencyIDs: [],
+            requiresUserDecision: false
+        )
+        let calendar = RelationshipAskResponse.Block(
+            id: "calendar",
+            kind: "answer",
+            title: "Calendar proposal",
+            body: "Private calendar proposal must remain inside the Session.",
+            status: "needs_review",
+            citationDependencyIDs: [],
+            requiresUserDecision: true,
+            calendarDraft: AgentCalendarDraft(
+                id: UUID().uuidString,
+                title: "Private interview",
+                startsAt: "2026-09-14T02:00:00.000Z",
+                endsAt: "2026-09-14T03:00:00.000Z",
+                timeZone: "Asia/Shanghai",
+                sourceRequestID: UUID().uuidString,
+                sourceExcerpt: "private calendar source",
+                referenceTime: "2026-09-13T00:00:00.000Z",
+                status: "needs_review",
+                externalEffect: "none"
+            )
+        )
+        let action = RelationshipAskResponse.Block(
+            id: "action",
+            kind: "answer",
+            title: "Action proposal",
+            body: "Private action proposal must remain inside the Session.",
+            status: "needs_review",
+            citationDependencyIDs: [],
+            requiresUserDecision: true,
+            targetRef: .init(type: "action", pursuitID: "pursuit-private", actionID: "action-private")
+        )
+        let proposedInterpretation = RelationshipAskResponse.Block(
+            id: "proposed-interpretation",
+            kind: "answer",
+            title: "Unconfirmed screenshot interpretation",
+            body: "Private proposed screenshot interpretation must remain inside the Session.",
+            status: "proposed",
+            citationDependencyIDs: [],
+            requiresUserDecision: false,
+            allowsStaticShare: true
+        )
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: "Persisted Session",
+            turns: [AgentSessionTurn(
+                id: UUID(),
+                objective: "Review the proposals.",
+                response: sessionShareResponse(
+                    "persisted",
+                    blocks: [safe, calendar, action, proposedInterpretation]
+                ),
+                createdAt: Date(),
+                requiresRefresh: false
+            )],
+            contactReceipts: [],
+            updatedAt: Date(),
+            isUnread: false
+        )
+
+        let data = try JSONEncoder.agentSession.encode(PersistedAgentSession(session))
+        let payload = try JSONDecoder.agentSession.decode(PersistedAgentSession.self, from: data)
+        let restored = try payload.value()
+        let restoredBlocks = try XCTUnwrap(restored.turns.first?.response.blocks)
+        XCTAssertEqual(restoredBlocks.map(\.allowsStaticShare), [true, false, false, false])
+
+        let snapshot = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: restored,
+                scope: .conversation,
+                language: .english
+            ).snapshot
+        )
+        let sharedText = AgentSessionSharePolicy.alternateText(snapshot, language: .english)
+        XCTAssertTrue(sharedText.contains("Only this reviewed answer"))
+        XCTAssertFalse(sharedText.contains("Private calendar proposal"))
+        XCTAssertFalse(sharedText.contains("Private action proposal"))
+        XCTAssertFalse(sharedText.contains("Private proposed screenshot interpretation"))
+        XCTAssertFalse(sharedText.contains("pursuit-private"))
+
+        let secondData = try JSONEncoder.agentSession.encode(PersistedAgentSession(restored))
+        let secondPayload = try JSONDecoder.agentSession.decode(PersistedAgentSession.self, from: secondData)
+        let secondRestore = try secondPayload.value()
+        XCTAssertEqual(
+            secondRestore.turns.first?.response.blocks.map(\.allowsStaticShare),
+            [true, false, false, false]
+        )
+    }
+
+    func testSharePolicyOnlyAcceptsCompletedInformationalAnswerStatuses() {
+        for status in ["informational", "ready"] {
+            let block = RelationshipAskResponse.Block(
+                id: "safe-\(status)",
+                kind: "answer",
+                title: "Reviewed answer",
+                body: "This completed answer may be shared.",
+                status: status,
+                citationDependencyIDs: [],
+                requiresUserDecision: false,
+                allowsStaticShare: true
+            )
+            XCTAssertTrue(
+                AgentSessionSharePolicy.isSafeAnswerBlock(
+                    block,
+                    requiresPersistedClassification: true
+                ),
+                "Expected \(status) to remain shareable"
+            )
+        }
+
+        for status in ["proposed", "needs_review", "confirmed", "failed", "unknown_future_status"] {
+            let block = RelationshipAskResponse.Block(
+                id: "unsafe-\(status)",
+                kind: "answer",
+                title: "Unconfirmed answer",
+                body: "This answer must remain inside the Session.",
+                status: status,
+                citationDependencyIDs: [],
+                requiresUserDecision: false,
+                allowsStaticShare: true
+            )
+            XCTAssertFalse(
+                AgentSessionSharePolicy.isSafeAnswerBlock(
+                    block,
+                    requiresPersistedClassification: true
+                ),
+                "Expected \(status) to fail closed"
+            )
+        }
+    }
+
+    @MainActor
+    func testFreshShareClassificationSurvivesStaleTransitionBeforeRelaunch() throws {
+        let persistence = SessionContinuityMemoryPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let sessionID = try XCTUnwrap(
+            store.beginUnscopedSession(objective: "Review the latest answer.")
+        )
+        let response = sessionShareResponse(
+            "safe-task",
+            blocks: [
+                .init(
+                    id: "safe-answer",
+                    kind: "answer",
+                    title: "Reviewed answer",
+                    body: "This saved answer remains a static copy after its sources become stale.",
+                    status: "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: false
+                )
+            ]
+        )
+
+        XCTAssertTrue(
+            store.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: "Review the latest answer.",
+                response: response
+            )
+        )
+        XCTAssertEqual(
+            store.session(id: sessionID)?.turns.first?.response.blocks.first?.allowsStaticShare,
+            true
+        )
+
+        store.markTaskStale("safe-task")
+        let stale = try XCTUnwrap(store.session(id: sessionID))
+        XCTAssertTrue(try XCTUnwrap(stale.turns.first).requiresRefresh)
+        XCTAssertEqual(stale.turns.first?.response.blocks.first?.allowsStaticShare, true)
+        XCTAssertNotNil(
+            AgentSessionSharePolicy.availability(
+                for: stale,
+                scope: .summary,
+                language: .english
+            ).snapshot
+        )
+
+        let restored = try XCTUnwrap(
+            AgentSessionStore(persistence: persistence).session(id: sessionID)
+        )
+        XCTAssertEqual(restored.turns.first?.response.blocks.first?.allowsStaticShare, true)
+        XCTAssertNotNil(
+            AgentSessionSharePolicy.availability(
+                for: restored,
+                scope: .summary,
+                language: .english
+            ).snapshot
+        )
+    }
+
+    func testLegacyRestoredAnswerWithoutShareClassificationStaysUnavailable() {
+        let legacy = RelationshipAskResponse.Block(
+            id: "legacy",
+            kind: "answer",
+            title: "Legacy saved answer",
+            body: "Its original decision state is unknown.",
+            status: "ready",
+            citationDependencyIDs: [],
+            requiresUserDecision: false
+        )
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: "Legacy Session",
+            turns: [AgentSessionTurn(
+                id: UUID(),
+                objective: "Review legacy state.",
+                response: sessionShareResponse("legacy", blocks: [legacy]),
+                createdAt: Date(),
+                requiresRefresh: true
+            )],
+            contactReceipts: [],
+            updatedAt: Date(),
+            isUnread: false
+        )
+
+        XCTAssertFalse(AgentSessionSharePolicy.isShareable(session))
+        XCTAssertNotNil(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .summary,
+                language: .english
+            ).unavailableReason
+        )
+    }
+
+    func testReadableConversationIsBoundedAndExportsExactlyTheReviewedLines() throws {
+        let turns = (0..<200).map { index in
+            AgentSessionTurn(
+                id: UUID(),
+                objective: "Objective \(index)",
+                response: sessionShareResponse("long-\(index)", blocks: [
+                    .init(
+                        id: "answer-\(index)",
+                        kind: "answer",
+                        title: "Answer",
+                        body: index == 0
+                            ? String(repeating: "A", count: 12 * 1_024)
+                            : "Safe answer \(index)",
+                        status: "ready",
+                        citationDependencyIDs: [],
+                        requiresUserDecision: false
+                    ),
+                ]),
+                createdAt: Date(timeIntervalSince1970: Double(index)),
+                requiresRefresh: false
+            )
+        }
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: "Large Session",
+            turns: turns,
+            contactReceipts: [],
+            updatedAt: Date(),
+            isUnread: false
+        )
+
+        let snapshot = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .conversation,
+                language: .english
+            ).snapshot
+        )
+        XCTAssertTrue(snapshot.conversationWasTruncated)
+        XCTAssertLessThanOrEqual(
+            snapshot.conversationLines.count,
+            AgentSessionSharePolicy.conversationLineLimit
+        )
+        XCTAssertLessThanOrEqual(
+            snapshot.conversationLines.map(\.text.count).reduce(0, +),
+            AgentSessionSharePolicy.conversationCharacterLimit
+        )
+        XCTAssertTrue(snapshot.conversationLines.contains { $0.text.hasSuffix("…") })
+        let sharedText = AgentSessionSharePolicy.alternateText(snapshot, language: .english)
+        XCTAssertLessThanOrEqual(
+            sharedText.count,
+            AgentSessionSharePolicy.conversationCharacterLimit
+        )
+        XCTAssertTrue(sharedText.contains(
+            AgentSessionSharePolicy.conversationLimitLabel(language: .english)
+        ))
+        XCTAssertFalse(sharedText.contains("Safe answer 199"))
+        for line in snapshot.conversationLines {
+            XCTAssertTrue(sharedText.contains(line.text))
+        }
+        let formatter = DateFormatter()
+        formatter.locale = AppLanguage.english.locale
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.setLocalizedDateFormatFromTemplate("yMMMdjm")
+        XCTAssertEqual(
+            snapshot.updatedLabel,
+            "Updated \(formatter.string(from: Date(timeIntervalSince1970: 5)))"
+        )
+    }
+
+    func testReadableConversationKeepsSafeAnswerWhenObjectiveExceedsExportBudget() throws {
+        let safeAnswer = "The reviewed answer remains visible."
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: "Large objective",
+            turns: [AgentSessionTurn(
+                id: UUID(),
+                objective: String(repeating: "O", count: 12 * 1_024),
+                response: sessionShareResponse("large-objective", blocks: [
+                    .init(
+                        id: "safe-answer",
+                        kind: "answer",
+                        title: "Answer",
+                        body: safeAnswer,
+                        status: "ready",
+                        citationDependencyIDs: [],
+                        requiresUserDecision: false
+                    ),
+                ]),
+                createdAt: Date(),
+                requiresRefresh: false
+            )],
+            contactReceipts: [],
+            updatedAt: Date(),
+            isUnread: false
+        )
+
+        let snapshot = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .conversation,
+                language: .english
+            ).snapshot
+        )
+        XCTAssertEqual(snapshot.conversationLines.count, 2)
+        XCTAssertTrue(snapshot.conversationLines[0].isObjective)
+        XCTAssertTrue(snapshot.conversationLines[0].text.hasSuffix("…"))
+        XCTAssertEqual(snapshot.conversationLines[1].text, safeAnswer)
+        XCTAssertLessThanOrEqual(
+            AgentSessionSharePolicy.alternateText(snapshot, language: .english).count,
+            AgentSessionSharePolicy.conversationCharacterLimit
+        )
+    }
+
+    func testSharePolicyRejectsEmptyOrActionOnlySessionsAndBoundsCardCopy() {
+        let action = RelationshipAskResponse.Block(
+            id: "action",
+            kind: "answer",
+            title: "Needs approval",
+            body: "Approve this write.",
+            status: "ready",
+            citationDependencyIDs: [],
+            requiresUserDecision: true
+        )
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: "Pending Session",
+            turns: [AgentSessionTurn(
+                id: UUID(),
+                objective: "Do the write.",
+                response: sessionShareResponse("pending", blocks: [action]),
+                createdAt: Date(),
+                requiresRefresh: false
+            )],
+            contactReceipts: [],
+            updatedAt: Date(),
+            isUnread: false
+        )
+
+        XCTAssertFalse(AgentSessionSharePolicy.isShareable(session))
+        XCTAssertNotNil(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .summary,
+                language: .english
+            ).unavailableReason
+        )
+        let bounded = AgentSessionSharePolicy.boundedExcerpt(
+            String(repeating: "界", count: AgentSessionSharePolicy.excerptLimit + 1)
+        )
+        XCTAssertEqual(bounded.count, AgentSessionSharePolicy.excerptLimit + 1)
+        XCTAssertTrue(bounded.hasSuffix("…"))
+        XCTAssertEqual(
+            AgentSessionSharePolicy.boundedTitle(
+                "Create a review plan from this synthetic note."
+            ),
+            "Create a review plan from this…"
+        )
+        XCTAssertEqual(
+            AgentSessionSharePolicy.cardExcerpt(
+                """
+                # Delivery plan
+
+                Keep the source beside the decision.
+
+                - [x] Preserve the exact wording
+
+                | Step | State |
+                | --- | --- |
+                | Source | Available |
+
+                ```swift
+                let privateValue = true
+                ```
+                """
+            ),
+            "Delivery plan · Keep the source beside the decision. · Preserve the exact wording"
+        )
+    }
+}
+
+private func sessionShareResponse(
+    _ task: String,
+    blocks: [RelationshipAskResponse.Block]
+) -> RelationshipAskResponse {
+    .init(
+        contractVersion: TalentSignalAPIContract.version,
+        taskID: task,
+        contextManifestID: "none-unbound-conversation",
+        knowledgeSnapshotID: "none-unbound-conversation",
+        disposition: "answered",
+        blocks: blocks,
+        createdAt: ISO8601DateFormatter().string(from: Date())
+    )
 }
 
 private func continuityResponse(_ task: String) -> RelationshipAskResponse {

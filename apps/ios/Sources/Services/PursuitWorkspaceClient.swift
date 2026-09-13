@@ -1760,6 +1760,9 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         let targetRef: TargetRef?
         let publicSources: [PublicSource]?
         let calendarDraft: AgentCalendarDraft?
+        /// Persisted export classification. `nil` means an in-memory response
+        /// has not crossed the read-only persistence boundary yet.
+        let allowsStaticShare: Bool?
 
         struct PublicSource: Codable, Equatable, Identifiable {
             let resultID: String
@@ -1815,6 +1818,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             case targetRef = "target_ref"
             case publicSources = "public_source_refs"
             case calendarDraft = "calendar_draft"
+            case allowsStaticShare = "allows_static_share"
         }
 
         init(
@@ -1827,7 +1831,8 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             requiresUserDecision: Bool,
             targetRef: TargetRef? = nil,
             publicSources: [PublicSource]? = nil,
-            calendarDraft: AgentCalendarDraft? = nil
+            calendarDraft: AgentCalendarDraft? = nil,
+            allowsStaticShare: Bool? = nil
         ) {
             self.id = id
             self.kind = kind
@@ -1839,6 +1844,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             self.targetRef = targetRef
             self.publicSources = publicSources
             self.calendarDraft = calendarDraft
+            self.allowsStaticShare = allowsStaticShare
         }
     }
 
