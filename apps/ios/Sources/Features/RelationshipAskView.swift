@@ -476,6 +476,7 @@ struct RelationshipAskView: View {
     @State private var voiceQuickControlFrame = CGRect.zero
     @State private var voiceTextInputFrame = CGRect.zero
     @State private var sessionActionError: String?
+    @State private var shareReviewSessionID: ShareReviewTarget?
     @State private var answerFeedbackSelection: AnswerFeedbackSelection?
     @State private var voiceReleasePending = false
     @State private var voiceTapSuppressed = false
@@ -555,6 +556,12 @@ struct RelationshipAskView: View {
         }
         .sheet(isPresented: $showScreenshotHistory) {
             ScreenshotContactHistoryView(workspaceStore: workspaceStore, onOpenPerson: onOpenPerson)
+        }
+        .sheet(item: $shareReviewSessionID) { target in
+            AgentSessionShareReviewSheet(
+                session: sessionStore.session(id: target.id),
+                language: appLanguage
+            )
         }
         .sheet(item: $answerFeedbackSelection) { selection in
             if let answerFeedbackClient {
@@ -2696,11 +2703,10 @@ struct RelationshipAskView: View {
 
     private var sessionMenu: some View {
         Menu {
-            if let activeSessionID,
-               let markdown = sessionStore.exportMarkdown(
-                   sessionID: activeSessionID, language: appLanguage
-               ) {
-                ShareLink(item: markdown) {
+            if let activeSessionID {
+                Button {
+                    shareReviewSessionID = ShareReviewTarget(id: activeSessionID)
+                } label: {
                     Label(appLanguage.text("Share Session"), systemImage: "square.and.arrow.up")
                 }
                 .accessibilityIdentifier("ask-share-session")
@@ -5651,6 +5657,325 @@ struct RelationshipAskView: View {
             }
         }
         if !selectedCitationIsCurrent { selectedCitation = nil }
+    }
+}
+
+private struct ShareReviewTarget: Identifiable, Equatable {
+    let id: UUID
+}
+
+private struct AgentSessionShareReviewSheet: View {
+    let session: AgentSession?
+    let language: AppLanguage
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.sizeCategory) private var sizeCategory
+    @State private var scope: AgentSessionShareScope = .summary
+    @State private var renderedCard: Image?
+
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize || sizeCategory.isAccessibilityCategory
+    }
+
+    private var availability: AgentSessionShareAvailability {
+        guard let session else {
+            return .unavailable(language.text("This Session is no longer available.", zhHans: "此会话已不可用。"))
+        }
+        return AgentSessionSharePolicy.availability(for: session, scope: scope, language: language)
+    }
+
+    private var allowsConversation: Bool {
+        session.map(AgentSessionSharePolicy.allowsConversation) ?? false
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    scopeChoice
+                    switch availability {
+                    case let .available(snapshot):
+                        previewCard(snapshot)
+                        safetyDisclosure
+                        shareControl(snapshot)
+                    case let .unavailable(reason):
+                        unavailableNotice(reason)
+                    }
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(Color.tsSurface.ignoresSafeArea())
+            .navigationTitle(language.text("Review before sharing", zhHans: "分享前检查"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(language.text("Close", zhHans: "关闭")) { dismiss() }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityIdentifier("ask-share-close")
+                }
+            }
+        }
+        .task(id: renderKey) { renderCard() }
+        .accessibilityIdentifier("ask-share-review-sheet")
+    }
+
+    private var renderKey: String {
+        "\(scope.rawValue)-\(session?.id.uuidString ?? "none")-\(language.rawValue)"
+    }
+
+    private var scopeChoice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(language.text("WHAT TO SHARE", zhHans: "分享内容"))
+                .font(.caption2.weight(.bold))
+                .tracking(1.15)
+                .foregroundStyle(Color.tsVermilion)
+            scopeButton(
+                .summary,
+                title: language.text("Visual summary", zhHans: "视觉摘要"),
+                detail: language.text("Scope, latest saved answer, and status.", zhHans: "范围、最近保存的回答与状态。"),
+                identifier: "ask-share-scope-summary"
+            )
+            scopeButton(
+                .conversation,
+                title: language.text("Readable conversation", zhHans: "可读对话"),
+                detail: allowsConversation
+                    ? language.text(
+                        "Your objectives and safe answers only.",
+                        zhHans: "仅包含你的目标与安全回答。"
+                    )
+                    : language.text(
+                        "Not available for identity review.",
+                        zhHans: "身份审阅会话不可用。"
+                    ),
+                identifier: "ask-share-scope-conversation"
+            )
+        }
+    }
+
+    private func scopeButton(
+        _ value: AgentSessionShareScope,
+        title: String,
+        detail: String,
+        identifier: String
+    ) -> some View {
+        let isEnabled = value == .summary || allowsConversation
+        let isSelected = scope == value
+        return Button {
+            scope = value
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.body)
+                    .foregroundStyle(isSelected ? Color.tsVermilion : Color.tsMutedInk)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(minHeight: 44, alignment: .leading)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(isSelected ? Color.tsVermilion : Color.tsLine, lineWidth: isSelected ? 1.5 : 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.5)
+        .accessibilityLabel("\(title). \(detail)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func previewCard(_ snapshot: AgentSessionShareSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(language.text("PREVIEW", zhHans: "预览"))
+                .font(.caption2.weight(.bold))
+                .tracking(1.15)
+                .foregroundStyle(Color.tsVermilion)
+            AgentSessionShareCardPreview(snapshot: snapshot, language: language)
+                .environment(\.colorScheme, .light)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(6)
+                .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 20))
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("ask-share-preview")
+        }
+    }
+
+    private var safetyDisclosure: some View {
+        Label(
+            language.text(
+                "This is a static copy. Sources, pending decisions, and action authority are omitted, and nothing here can continue the Session.",
+                zhHans: "这是静态副本。已省略来源、待定决策与行动权限，且此副本无法继续该会话。"
+            ),
+            systemImage: "lock.shield"
+        )
+        .font(.caption)
+        .foregroundStyle(Color.tsMutedInk)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("ask-share-safety-disclosure")
+    }
+
+    @ViewBuilder
+    private func shareControl(_ snapshot: AgentSessionShareSnapshot) -> some View {
+        if let renderedCard {
+            ShareLink(
+                item: renderedCard,
+                message: Text(AgentSessionSharePolicy.alternateText(snapshot, language: language)),
+                preview: SharePreview(
+                    snapshot.title,
+                    image: renderedCard
+                )
+            ) {
+                Label(language.text("Share static copy", zhHans: "分享静态副本"), systemImage: "square.and.arrow.up")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.tsSurface)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Color.tsInk, in: RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(language.text("Share static copy", zhHans: "分享静态副本"))
+            .accessibilityIdentifier("ask-share-link")
+        }
+    }
+
+    private func unavailableNotice(_ reason: String) -> some View {
+        Label(reason, systemImage: "exclamationmark.circle")
+            .font(.subheadline)
+            .foregroundStyle(Color.tsInk)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityIdentifier("ask-share-unavailable")
+    }
+
+    @MainActor
+    private func renderCard() {
+        guard let session,
+              let snapshot = AgentSessionSharePolicy.availability(
+                for: session, scope: scope, language: language
+              ).snapshot else {
+            renderedCard = nil
+            return
+        }
+        let renderer = ImageRenderer(
+            content: AgentSessionShareCardPreview(snapshot: snapshot, language: language)
+                .environment(\.colorScheme, .light)
+                .frame(width: 420)
+                .padding(24)
+                .background(AgentSessionShareCardPalette.canvas)
+        )
+        renderer.scale = 3
+        renderedCard = renderer.uiImage.map { Image(uiImage: $0) }
+    }
+}
+
+/// Stable light palette so the exported card never changes appearance with the
+/// device theme.
+private enum AgentSessionShareCardPalette {
+    static let canvas = Color(red: 0.949, green: 0.945, blue: 0.929)
+    static let surface = Color(red: 0.98, green: 0.976, blue: 0.961)
+    static let ink = Color(red: 0.094, green: 0.094, blue: 0.086)
+    static let mutedInk = Color(red: 0.36, green: 0.35, blue: 0.32)
+    static let vermilion = Color(red: 0.78, green: 0.22, blue: 0.15)
+    static let line = Color(red: 0.094, green: 0.094, blue: 0.086).opacity(0.14)
+}
+
+/// The exported artifact. It renders the same bounded snapshot the policy
+/// allows, never live Session state.
+private struct AgentSessionShareCardPreview: View {
+    let snapshot: AgentSessionShareSnapshot
+    let language: AppLanguage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("TALENT SIGNAL")
+                .font(.caption2.weight(.bold))
+                .tracking(1.4)
+                .foregroundStyle(AgentSessionShareCardPalette.vermilion)
+            Text(snapshot.title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(AgentSessionShareCardPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("ask-share-preview-title")
+            Text(snapshot.contextLabel)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AgentSessionShareCardPalette.mutedInk)
+                .accessibilityIdentifier("ask-share-preview-context")
+
+            if snapshot.isSummary {
+                Text(snapshot.excerpt)
+                    .font(.body)
+                    .foregroundStyle(AgentSessionShareCardPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AgentSessionShareCardPalette.surface, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(AgentSessionShareCardPalette.line, lineWidth: 1)
+                    }
+                    .accessibilityIdentifier("ask-share-preview-excerpt")
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(snapshot.conversationLines) { line in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(line.isObjective
+                                ? language.text("You", zhHans: "你")
+                                : language.text("Agent", zhHans: "Agent"))
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(AgentSessionShareCardPalette.mutedInk)
+                            Text(line.text)
+                                .font(.callout)
+                                .foregroundStyle(AgentSessionShareCardPalette.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AgentSessionShareCardPalette.surface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(AgentSessionShareCardPalette.line, lineWidth: 1)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Text(snapshot.statusLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AgentSessionShareCardPalette.mutedInk)
+                Spacer(minLength: 8)
+                Text(snapshot.updatedLabel)
+                    .font(.caption)
+                    .foregroundStyle(AgentSessionShareCardPalette.mutedInk)
+            }
+            .accessibilityIdentifier("ask-share-preview-status")
+
+            Text(language.text(
+                "Static copy · sources, pending decisions, and action authority omitted.",
+                zhHans: "静态副本 · 已省略来源、待定决策与行动权限。"
+            ))
+            .font(.caption2)
+            .foregroundStyle(AgentSessionShareCardPalette.mutedInk)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AgentSessionShareCardPalette.canvas, in: RoundedRectangle(cornerRadius: 18))
     }
 }
 
