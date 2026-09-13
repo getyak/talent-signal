@@ -750,6 +750,65 @@ final class AgentSessionContinuityTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testFreshShareClassificationSurvivesStaleTransitionBeforeRelaunch() throws {
+        let persistence = SessionContinuityMemoryPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let sessionID = try XCTUnwrap(
+            store.beginUnscopedSession(objective: "Review the latest answer.")
+        )
+        let response = sessionShareResponse(
+            "safe-task",
+            blocks: [
+                .init(
+                    id: "safe-answer",
+                    kind: "answer",
+                    title: "Reviewed answer",
+                    body: "This saved answer remains a static copy after its sources become stale.",
+                    status: "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: false
+                )
+            ]
+        )
+
+        XCTAssertTrue(
+            store.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: "Review the latest answer.",
+                response: response
+            )
+        )
+        XCTAssertEqual(
+            store.session(id: sessionID)?.turns.first?.response.blocks.first?.allowsStaticShare,
+            true
+        )
+
+        store.markTaskStale("safe-task")
+        let stale = try XCTUnwrap(store.session(id: sessionID))
+        XCTAssertTrue(try XCTUnwrap(stale.turns.first).requiresRefresh)
+        XCTAssertEqual(stale.turns.first?.response.blocks.first?.allowsStaticShare, true)
+        XCTAssertNotNil(
+            AgentSessionSharePolicy.availability(
+                for: stale,
+                scope: .summary,
+                language: .english
+            ).snapshot
+        )
+
+        let restored = try XCTUnwrap(
+            AgentSessionStore(persistence: persistence).session(id: sessionID)
+        )
+        XCTAssertEqual(restored.turns.first?.response.blocks.first?.allowsStaticShare, true)
+        XCTAssertNotNil(
+            AgentSessionSharePolicy.availability(
+                for: restored,
+                scope: .summary,
+                language: .english
+            ).snapshot
+        )
+    }
+
     func testLegacyRestoredAnswerWithoutShareClassificationStaysUnavailable() {
         let legacy = RelationshipAskResponse.Block(
             id: "legacy",

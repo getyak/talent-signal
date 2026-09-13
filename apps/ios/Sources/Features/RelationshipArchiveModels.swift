@@ -49,6 +49,27 @@ struct AgentSessionTurn: Identifiable, Equatable {
     let requiresRefresh: Bool
     var feedback: AgentSessionFeedback? = nil
     var feedbackUpdatedAt: Date? = nil
+
+    init(
+        id: UUID,
+        objective: String,
+        response: RelationshipAskResponse,
+        createdAt: Date,
+        requiresRefresh: Bool,
+        feedback: AgentSessionFeedback? = nil,
+        feedbackUpdatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.objective = objective
+        self.response = AgentSessionContextPolicy.classifiedResponse(
+            response,
+            requireExistingShareClassification: requiresRefresh
+        )
+        self.createdAt = createdAt
+        self.requiresRefresh = requiresRefresh
+        self.feedback = feedback
+        self.feedbackUpdatedAt = feedbackUpdatedAt
+    }
 }
 
 enum AgentSessionFeedback: String, Codable, Equatable {

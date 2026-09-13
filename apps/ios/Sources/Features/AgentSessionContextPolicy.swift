@@ -2,15 +2,62 @@ import Foundation
 
 /// Saved and copied messages retain readable context, never live action authority.
 enum AgentSessionContextPolicy {
-    static func readOnlyBlock(
+    static func classifiedBlock(
         _ block: RelationshipAskResponse.Block,
         requireExistingShareClassification: Bool = false
     ) -> RelationshipAskResponse.Block {
         let allowsStaticShare = AgentSessionSharePolicy.isSafeAnswerBlock(block)
             && (!requireExistingShareClassification || block.allowsStaticShare == true)
-        return .init(id: block.id, kind: block.kind, title: block.title, body: block.body, status: block.status,
+        return .init(
+            id: block.id,
+            kind: block.kind,
+            title: block.title,
+            body: block.body,
+            status: block.status,
+            citationDependencyIDs: block.citationDependencyIDs,
+            requiresUserDecision: block.requiresUserDecision,
+            targetRef: block.targetRef,
+            publicSources: block.publicSources,
+            calendarDraft: block.calendarDraft,
+            allowsStaticShare: allowsStaticShare
+        )
+    }
+
+    static func classifiedResponse(
+        _ response: RelationshipAskResponse,
+        requireExistingShareClassification: Bool = false
+    ) -> RelationshipAskResponse {
+        .init(
+            contractVersion: response.contractVersion,
+            taskID: response.taskID,
+            contextManifestID: response.contextManifestID,
+            knowledgeSnapshotID: response.knowledgeSnapshotID,
+            disposition: response.disposition,
+            blocks: response.blocks.map {
+                classifiedBlock(
+                    $0,
+                    requireExistingShareClassification: requireExistingShareClassification
+                )
+            },
+            media: response.media,
+            createdAt: response.createdAt,
+            sessionTitle: response.sessionTitle,
+            citations: response.citations,
+            labFeatureReceipt: response.labFeatureReceipt
+        )
+    }
+
+    static func readOnlyBlock(
+        _ block: RelationshipAskResponse.Block,
+        requireExistingShareClassification: Bool = false
+    ) -> RelationshipAskResponse.Block {
+        let classified = classifiedBlock(
+            block,
+            requireExistingShareClassification: requireExistingShareClassification
+        )
+        return .init(id: classified.id, kind: classified.kind, title: classified.title, body: classified.body, status: classified.status,
               citationDependencyIDs: [], requiresUserDecision: false, targetRef: nil,
-              publicSources: block.publicSources, allowsStaticShare: allowsStaticShare)
+              publicSources: classified.publicSources, allowsStaticShare: classified.allowsStaticShare)
     }
 
     static func readOnlyResponse(_ response: RelationshipAskResponse) -> RelationshipAskResponse {
