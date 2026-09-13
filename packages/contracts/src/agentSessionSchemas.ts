@@ -38,6 +38,10 @@ export const AgentSessionDisplayBlockSchema = Type.Object(
     requires_user_decision: Type.Literal(false),
     target_ref: Type.Optional(Type.Null()),
     public_source_refs: optional(Type.Array(publicSource, { maxItems: 12 })),
+    // New clients persist this decision before executable fields are stripped.
+    // Optional only for old stored payloads and old mobile clients; current
+    // clients fail closed when a restored block has no classification.
+    allows_static_share: Type.Optional(Type.Boolean()),
   },
   obj,
 );
