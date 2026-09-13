@@ -938,7 +938,10 @@ struct PersistedAgentSessionTurn: Codable {
     init(_ value: AgentSessionTurn) {
         id = value.id
         objective = value.objective
-        response = PersistedRelationshipAskResponse(value.response)
+        response = PersistedRelationshipAskResponse(
+            value.response,
+            requireExistingShareClassification: value.requiresRefresh
+        )
         createdAt = value.createdAt
         feedback = value.feedback
         feedbackUpdatedAt = value.feedbackUpdatedAt
@@ -970,7 +973,10 @@ struct PersistedRelationshipAskResponse: Codable {
     let labFeatureReceipt: LabFeatureAdoptionReceipt?
     var savedBlocks: [RelationshipAskResponse.Block]? = nil
 
-    init(_ value: RelationshipAskResponse) {
+    init(
+        _ value: RelationshipAskResponse,
+        requireExistingShareClassification: Bool = false
+    ) {
         let isRetracted = value.blocks.count == 1
             && value.blocks.first?.kind == "continuity"
             && value.blocks.first?.id == "restored-\(value.taskID)"
@@ -981,16 +987,31 @@ struct PersistedRelationshipAskResponse: Codable {
         disposition = value.disposition
         unboundPersonResearchBlocks = value.contextManifestID
             == "none-unbound-person-research" && !isRetracted
-            ? value.blocks.map(AgentSessionContextPolicy.readOnlyBlock)
+            ? value.blocks.map {
+                AgentSessionContextPolicy.readOnlyBlock(
+                    $0,
+                    requireExistingShareClassification: requireExistingShareClassification
+                )
+            }
             : nil
         unboundConversationBlocks = value.contextManifestID
             == "none-unbound-conversation" && !isRetracted
-            ? value.blocks.map(AgentSessionContextPolicy.readOnlyBlock)
+            ? value.blocks.map {
+                AgentSessionContextPolicy.readOnlyBlock(
+                    $0,
+                    requireExistingShareClassification: requireExistingShareClassification
+                )
+            }
             : nil
         media = isRetracted ? nil : value.media
         createdAt = value.createdAt
         labFeatureReceipt = value.labFeatureReceipt
-        savedBlocks = isRetracted ? nil : value.blocks.map(AgentSessionContextPolicy.readOnlyBlock)
+        savedBlocks = isRetracted ? nil : value.blocks.map {
+            AgentSessionContextPolicy.readOnlyBlock(
+                $0,
+                requireExistingShareClassification: requireExistingShareClassification
+            )
+        }
     }
 
     var value: RelationshipAskResponse {

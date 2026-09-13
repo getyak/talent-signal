@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CoreTransferable
 import AVFoundation
 import ActivityKit
 import CryptoKit
@@ -5669,7 +5670,7 @@ private struct AgentSessionShareReviewSheet: View {
     let language: AppLanguage
     @Environment(\.dismiss) private var dismiss
     @State private var scope: AgentSessionShareScope = .summary
-    @State private var renderedCard: Image?
+    @State private var renderedCard: AgentSessionRenderedShareCard?
 
     private var availability: AgentSessionShareAvailability {
         guard let session else {
@@ -5710,12 +5711,23 @@ private struct AgentSessionShareReviewSheet: View {
                 }
             }
         }
-        .task(id: renderKey) { renderCard() }
+        .task(id: renderKey) {
+            renderedCard = nil
+            renderCard(expectedKey: renderKey)
+        }
         .accessibilityIdentifier("ask-share-review-sheet")
     }
 
     private var renderKey: String {
-        "\(scope.rawValue)-\(session?.id.uuidString ?? "none")-\(language.rawValue)"
+        guard let session,
+              let snapshot = AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .summary,
+                language: language
+              ).snapshot else {
+            return "unavailable-\(session?.id.uuidString ?? "none")-\(language.rawValue)"
+        }
+        return AgentSessionSharePolicy.alternateText(snapshot, language: language)
     }
 
     private var scopeChoice: some View {
@@ -5812,10 +5824,17 @@ private struct AgentSessionShareReviewSheet: View {
     }
 
     private func conversationPreview(_ snapshot: AgentSessionShareSnapshot) -> some View {
-        let visibleLines = Array(snapshot.conversationLines.prefix(6))
-        let remaining = snapshot.conversationLines.count - visibleLines.count
         return VStack(alignment: .leading, spacing: 12) {
-            ForEach(visibleLines) { line in
+            Text(snapshot.title)
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(snapshot.contextLabel)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider()
+            ForEach(snapshot.conversationLines) { line in
                 VStack(alignment: .leading, spacing: 3) {
                     Text(line.isObjective
                         ? language.text("You", zhHans: "你")
@@ -5825,21 +5844,23 @@ private struct AgentSessionShareReviewSheet: View {
                     Text(line.text)
                         .font(.callout)
                         .foregroundStyle(Color.tsInk)
-                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            if remaining > 0 {
-                Text(String(
-                    format: language.text(
-                        "%d more messages are included in the shared copy.",
-                        zhHans: "分享副本还会包含另外 %d 条消息。"
-                    ),
-                    locale: language.locale,
-                    remaining
-                ))
+            if snapshot.conversationWasTruncated {
+                Label(
+                    AgentSessionSharePolicy.conversationLimitLabel(language: language),
+                    systemImage: "text.badge.minus"
+                )
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
             }
+            Divider()
+            Text("\(snapshot.updatedLabel) · \(snapshot.statusLabel)")
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -5868,13 +5889,12 @@ private struct AgentSessionShareReviewSheet: View {
 
     @ViewBuilder
     private func shareControl(_ snapshot: AgentSessionShareSnapshot) -> some View {
-        if let renderedCard {
+        if let renderedCard, renderedCard.key == renderKey {
             if snapshot.isSummary {
                 ShareLink(
-                    item: renderedCard,
+                    item: renderedCard.item,
                     subject: Text(snapshot.title),
-                    message: Text(AgentSessionSharePolicy.alternateText(snapshot, language: language)),
-                    preview: SharePreview(snapshot.title, image: renderedCard)
+                    preview: SharePreview(snapshot.title, image: renderedCard.image)
                 ) {
                     shareLabel(language.text("Share summary card", zhHans: "分享摘要卡片"))
                 }
@@ -5885,7 +5905,7 @@ private struct AgentSessionShareReviewSheet: View {
                 ShareLink(
                     item: AgentSessionSharePolicy.alternateText(snapshot, language: language),
                     subject: Text(snapshot.title),
-                    preview: SharePreview(snapshot.title, image: renderedCard)
+                    preview: SharePreview(snapshot.title, image: renderedCard.image)
                 ) {
                     shareLabel(language.text("Share readable conversation", zhHans: "分享可读对话"))
                 }
@@ -5917,12 +5937,11 @@ private struct AgentSessionShareReviewSheet: View {
     }
 
     @MainActor
-    private func renderCard() {
+    private func renderCard(expectedKey: String) {
         guard let session,
               let snapshot = AgentSessionSharePolicy.availability(
                 for: session, scope: .summary, language: language
               ).snapshot else {
-            renderedCard = nil
             return
         }
         let renderer = ImageRenderer(
@@ -5933,7 +5952,38 @@ private struct AgentSessionShareReviewSheet: View {
                 .background(AgentSessionShareCardPalette.canvas)
         )
         renderer.scale = 3
-        renderedCard = renderer.uiImage.map { Image(uiImage: $0) }
+        guard expectedKey == renderKey,
+              let uiImage = renderer.uiImage,
+              let pngData = uiImage.pngData() else { return }
+        renderedCard = AgentSessionRenderedShareCard(
+            key: expectedKey,
+            image: Image(uiImage: uiImage),
+            item: AgentSessionShareCardItem(
+                pngData: pngData,
+                alternateText: AgentSessionSharePolicy.alternateText(snapshot, language: language)
+            )
+        )
+    }
+}
+
+private struct AgentSessionRenderedShareCard {
+    let key: String
+    let image: Image
+    let item: AgentSessionShareCardItem
+}
+
+/// A single share item with both visual and readable representations. Targets
+/// that accept images receive the reviewed card; text-oriented targets and
+/// assistive workflows can request the exact reviewed alternate text.
+private struct AgentSessionShareCardItem: Transferable {
+    let pngData: Data
+    let alternateText: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .png) { item in
+            item.pngData
+        }
+        ProxyRepresentation { item in item.alternateText }
     }
 }
 

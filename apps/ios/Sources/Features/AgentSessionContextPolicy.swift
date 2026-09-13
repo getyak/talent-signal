@@ -2,16 +2,26 @@ import Foundation
 
 /// Saved and copied messages retain readable context, never live action authority.
 enum AgentSessionContextPolicy {
-    static func readOnlyBlock(_ block: RelationshipAskResponse.Block) -> RelationshipAskResponse.Block {
-        .init(id: block.id, kind: block.kind, title: block.title, body: block.body, status: block.status,
+    static func readOnlyBlock(
+        _ block: RelationshipAskResponse.Block,
+        requireExistingShareClassification: Bool = false
+    ) -> RelationshipAskResponse.Block {
+        let isStructurallySafeToShare = block.kind == "answer"
+            && !block.requiresUserDecision
+            && block.targetRef == nil
+            && block.calendarDraft == nil
+        let allowsStaticShare = isStructurallySafeToShare
+            && block.allowsStaticShare != false
+            && (!requireExistingShareClassification || block.allowsStaticShare == true)
+        return .init(id: block.id, kind: block.kind, title: block.title, body: block.body, status: block.status,
               citationDependencyIDs: [], requiresUserDecision: false, targetRef: nil,
-              publicSources: block.publicSources)
+              publicSources: block.publicSources, allowsStaticShare: allowsStaticShare)
     }
 
     static func readOnlyResponse(_ response: RelationshipAskResponse) -> RelationshipAskResponse {
         .init(contractVersion: response.contractVersion, taskID: response.taskID,
               contextManifestID: response.contextManifestID, knowledgeSnapshotID: response.knowledgeSnapshotID,
-              disposition: response.disposition, blocks: response.blocks.map(readOnlyBlock), media: [],
+              disposition: response.disposition, blocks: response.blocks.map { readOnlyBlock($0) }, media: [],
               createdAt: response.createdAt, sessionTitle: response.sessionTitle, citations: [])
     }
 
@@ -79,6 +89,7 @@ struct AgentSessionShareSnapshot: Equatable {
     let updatedLabel: String
     let statusLabel: String
     let conversationLines: [AgentSessionShareConversationLine]
+    let conversationWasTruncated: Bool
 
     var isSummary: Bool { scope == .summary }
 }
@@ -98,6 +109,8 @@ enum AgentSessionSharePolicy {
     /// Bounded visible excerpt so a card cannot silently carry a whole answer.
     static let excerptLimit = 280
     static let titleLimit = 30
+    static let conversationLineLimit = 12
+    static let conversationCharacterLimit = 4_000
 
     /// Kinds that may appear in a shared copy. Anything projected as a live
     /// action, proposal, processing state, or research result is excluded.
@@ -105,10 +118,16 @@ enum AgentSessionSharePolicy {
 
     /// The only block shape that may be copied: a plain answer that asks for no
     /// decision and points at no external target.
-    static func isSafeAnswerBlock(_ block: RelationshipAskResponse.Block) -> Bool {
+    static func isSafeAnswerBlock(
+        _ block: RelationshipAskResponse.Block,
+        requiresPersistedClassification: Bool = false
+    ) -> Bool {
         block.kind == safeBlockKind
             && !block.requiresUserDecision
             && block.targetRef == nil
+            && block.calendarDraft == nil
+            && block.allowsStaticShare != false
+            && (!requiresPersistedClassification || block.allowsStaticShare == true)
     }
 
     /// Identity review never discloses the person label and never offers the
@@ -156,6 +175,9 @@ enum AgentSessionSharePolicy {
                 zhHans: "身份仍未确认，未包含对话详情。"
             )
             : latestSafeAnswer(in: session) ?? ""
+        let conversation = scope == .conversation
+            ? boundedConversation(for: session)
+            : (lines: [], wasTruncated: false)
         return AgentSessionShareSnapshot(
             scope: scope,
             title: safeTitle(for: session, language: language),
@@ -163,9 +185,8 @@ enum AgentSessionSharePolicy {
             excerpt: cardExcerpt(answer),
             updatedLabel: updatedLabel(for: session, language: language),
             statusLabel: statusLabel(for: session, language: language),
-            conversationLines: scope == .conversation
-                ? conversationLines(for: session)
-                : []
+            conversationLines: conversation.lines,
+            conversationWasTruncated: conversation.wasTruncated
         )
     }
 
@@ -197,6 +218,9 @@ enum AgentSessionSharePolicy {
                 line.isObjective
                     ? "\(language.text("You")): \(line.text)"
                     : "\(language.text("Agent")): \(line.text)"
+            }
+            if snapshot.conversationWasTruncated {
+                lines += ["", conversationLimitLabel(language: language)]
             }
             lines += ["", snapshot.updatedLabel, snapshot.statusLabel]
         }
@@ -243,32 +267,86 @@ enum AgentSessionSharePolicy {
         return boundedExcerpt(lines.joined(separator: " · "))
     }
 
-    /// Chronological user objectives plus only safe answer bodies.
-    private static func conversationLines(
+    static func conversationLimitLabel(language: AppLanguage) -> String {
+        String(
+            format: language.text(
+                "Export limited to the first %d safe messages and %d characters.",
+                zhHans: "导出限于前 %d 条安全消息和 %d 个字符。"
+            ),
+            locale: language.locale,
+            conversationLineLimit,
+            conversationCharacterLimit
+        )
+    }
+
+    /// Chronological user objectives plus only safe answer bodies, bounded so
+    /// the complete exported scope can be inspected in the review sheet.
+    private static func boundedConversation(
         for session: AgentSession
-    ) -> [AgentSessionShareConversationLine] {
-        var lines: [AgentSessionShareConversationLine] = []
+    ) -> (lines: [AgentSessionShareConversationLine], wasTruncated: Bool) {
+        var candidates: [AgentSessionShareConversationLine] = []
         for (index, turn) in chronologicalTurns(session).enumerated() {
-            let safeBlocks = turn.response.blocks.filter(isSafeAnswerBlock)
+            let safeBlocks = turn.response.blocks.filter {
+                isSafeAnswerBlock(
+                    $0,
+                    requiresPersistedClassification: turn.requiresRefresh
+                )
+            }
             guard !safeBlocks.isEmpty else { continue }
             let objective = turn.objective.trimmingCharacters(in: .whitespacesAndNewlines)
             if !objective.isEmpty {
-                lines.append(.init(id: "objective-\(index)", isObjective: true, text: objective))
+                candidates.append(.init(id: "objective-\(index)", isObjective: true, text: objective))
             }
             for (blockIndex, block) in safeBlocks.enumerated() {
                 let body = block.body.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !body.isEmpty else { continue }
-                lines.append(.init(id: "answer-\(index)-\(blockIndex)", isObjective: false, text: body))
+                candidates.append(.init(id: "answer-\(index)-\(blockIndex)", isObjective: false, text: body))
             }
         }
-        return lines
+
+        var lines: [AgentSessionShareConversationLine] = []
+        var characterCount = 0
+        var wasTruncated = false
+        for candidate in candidates {
+            guard lines.count < conversationLineLimit else {
+                wasTruncated = true
+                break
+            }
+            let remaining = conversationCharacterLimit - characterCount
+            guard remaining > 1 else {
+                wasTruncated = true
+                break
+            }
+            if candidate.text.count > remaining {
+                let end = candidate.text.index(candidate.text.startIndex, offsetBy: remaining - 1)
+                lines.append(.init(
+                    id: candidate.id,
+                    isObjective: candidate.isObjective,
+                    text: String(candidate.text[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+                ))
+                characterCount = conversationCharacterLimit
+                wasTruncated = true
+                break
+            }
+            lines.append(candidate)
+            characterCount += candidate.text.count
+        }
+        if wasTruncated, lines.last?.isObjective == true {
+            lines.removeLast()
+        }
+        return (lines, wasTruncated)
     }
 
     /// Latest saved answer the user can safely stand behind.
     private static func latestSafeAnswer(in session: AgentSession) -> String? {
         for turn in chronologicalTurns(session).reversed() {
             let safeBodies = turn.response.blocks
-                .filter(isSafeAnswerBlock)
+                .filter {
+                    isSafeAnswerBlock(
+                        $0,
+                        requiresPersistedClassification: turn.requiresRefresh
+                    )
+                }
                 .map(\.body)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
