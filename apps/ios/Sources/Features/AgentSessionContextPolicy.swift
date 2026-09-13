@@ -147,18 +147,12 @@ enum AgentSessionSharePolicy {
     ) -> AgentSessionShareAvailability {
         guard isShareable(session) else {
             return .unavailable(
-                language.text(
-                    "This Session has no saved answer to share yet.",
-                    zhHans: "此会话还没有可分享的已保存回答。"
-                )
+                language.text("This Session has no saved answer to share yet.")
             )
         }
         if scope == .conversation, !allowsConversation(session) {
             return .unavailable(
-                language.text(
-                    "Identity-review Sessions cannot share the conversation.",
-                    zhHans: "身份审阅会话不能分享完整对话。"
-                )
+                language.text("Identity-review Sessions cannot share the conversation.")
             )
         }
         return .available(snapshot(for: session, scope: scope, language: language))
@@ -170,10 +164,7 @@ enum AgentSessionSharePolicy {
         language: AppLanguage
     ) -> AgentSessionShareSnapshot {
         let answer = session.isIdentityReview
-            ? language.text(
-                "Identity is still unresolved. Conversation details are not included.",
-                zhHans: "身份仍未确认，未包含对话详情。"
-            )
+            ? language.text("Identity is still unresolved. Conversation details are not included.")
             : latestSafeAnswer(in: session) ?? ""
         let conversation = scope == .conversation
             ? boundedConversation(for: session)
@@ -199,8 +190,7 @@ enum AgentSessionSharePolicy {
         var lines = [snapshot.title, snapshot.contextLabel, ""]
         if snapshot.isSummary {
             lines += [
-                language.text("Static copy — sources, pending decisions, and action authority are omitted.",
-                              zhHans: "静态副本 — 已省略来源、待定决策与行动权限。"),
+                language.text("Static copy — sources, pending decisions, and action authority are omitted."),
                 "",
                 snapshot.excerpt,
                 "",
@@ -208,10 +198,7 @@ enum AgentSessionSharePolicy {
             ]
         } else {
             lines += [
-                language.text(
-                    "Static copy — sources, pending decisions, and action authority are omitted.",
-                    zhHans: "静态副本 — 已省略来源、待定决策与行动权限。"
-                ),
+                language.text("Static copy — sources, pending decisions, and action authority are omitted."),
                 "",
             ]
             lines += snapshot.conversationLines.map { line in
@@ -269,10 +256,7 @@ enum AgentSessionSharePolicy {
 
     static func conversationLimitLabel(language: AppLanguage) -> String {
         String(
-            format: language.text(
-                "Export limited to the first %d safe messages and %d characters.",
-                zhHans: "导出限于前 %d 条安全消息和 %d 个字符。"
-            ),
+            format: language.text("Export limited to the first %d safe messages and %d characters."),
             locale: language.locale,
             conversationLineLimit,
             conversationCharacterLimit
@@ -365,11 +349,11 @@ enum AgentSessionSharePolicy {
 
     private static func safeTitle(for session: AgentSession, language: AppLanguage) -> String {
         if session.isIdentityReview {
-            return language.text("Identity review session", zhHans: "身份审阅会话")
+            return language.text("Identity review session")
         }
         let trimmed = session.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = trimmed.isEmpty
-            ? language.text("Session", zhHans: "会话")
+            ? language.text("Session")
             : trimmed
         return boundedTitle(title)
     }
@@ -382,12 +366,12 @@ enum AgentSessionSharePolicy {
 
     private static func safeContextLabel(for session: AgentSession, language: AppLanguage) -> String {
         if session.isIdentityReview {
-            return language.text("Identity review", zhHans: "身份审阅")
+            return language.text("Identity review")
         }
         if case .relationship = session.scope {
             return "\(session.personDisplayLabel) · \(session.displayContextLabel(in: language))"
         }
-        return language.text("Agent Session", zhHans: "Agent 会话")
+        return language.text("Agent Session")
     }
 
     private static func updatedLabel(for session: AgentSession, language: AppLanguage) -> String {
@@ -396,7 +380,7 @@ enum AgentSessionSharePolicy {
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.setLocalizedDateFormatFromTemplate("yMMMdjm")
         return String(
-            format: language.text("Updated %@", zhHans: "更新于 %@"),
+            format: language.text("Updated %@"),
             locale: language.locale,
             formatter.string(from: session.updatedAt)
         )
@@ -405,21 +389,15 @@ enum AgentSessionSharePolicy {
     private static func statusLabel(for session: AgentSession, language: AppLanguage) -> String {
         let needsRefresh = session.turns.contains(where: \.requiresRefresh)
         if session.originSessionID != nil, needsRefresh {
-            return language.text(
-                "Forked copy · sources may need refresh",
-                zhHans: "分叉副本 · 来源可能需要刷新"
-            )
+            return language.text("Forked copy · sources may need refresh")
         }
         if needsRefresh {
-            return language.text(
-                "Saved copy · sources may need refresh",
-                zhHans: "已保存副本 · 来源可能需要刷新"
-            )
+            return language.text("Saved copy · sources may need refresh")
         }
         if session.originSessionID != nil {
-            return language.text("Forked copy", zhHans: "分叉副本")
+            return language.text("Forked copy")
         }
-        return language.text("Saved copy", zhHans: "已保存副本")
+        return language.text("Saved copy")
     }
 }
 

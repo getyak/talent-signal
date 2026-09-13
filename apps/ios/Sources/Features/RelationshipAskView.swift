@@ -5674,7 +5674,7 @@ private struct AgentSessionShareReviewSheet: View {
 
     private var availability: AgentSessionShareAvailability {
         guard let session else {
-            return .unavailable(language.text("This Session is no longer available.", zhHans: "此会话已不可用。"))
+            return .unavailable(language.text("This Session is no longer available."))
         }
         return AgentSessionSharePolicy.availability(for: session, scope: scope, language: language)
     }
@@ -5701,11 +5701,11 @@ private struct AgentSessionShareReviewSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle(language.text("Review before sharing", zhHans: "分享前检查"))
+            .navigationTitle(language.text("Review before sharing"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(language.text("Close", zhHans: "关闭")) { dismiss() }
+                    Button(language.text("Close")) { dismiss() }
                         .frame(minWidth: 44, minHeight: 44)
                         .accessibilityIdentifier("ask-share-close")
                 }
@@ -5732,28 +5732,22 @@ private struct AgentSessionShareReviewSheet: View {
 
     private var scopeChoice: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(language.text("WHAT TO SHARE", zhHans: "分享内容"))
+            Text(language.text("WHAT TO SHARE"))
                 .font(.caption2.weight(.bold))
                 .tracking(1.15)
                 .foregroundStyle(Color.tsVermilion)
             scopeButton(
                 .summary,
-                title: language.text("Visual summary", zhHans: "视觉摘要"),
-                detail: language.text("Scope, latest saved answer, and status.", zhHans: "范围、最近保存的回答与状态。"),
+                title: language.text("Visual summary"),
+                detail: language.text("Scope, latest saved answer, and status."),
                 identifier: "ask-share-scope-summary"
             )
             scopeButton(
                 .conversation,
-                title: language.text("Readable conversation", zhHans: "可读对话"),
+                title: language.text("Readable conversation"),
                 detail: allowsConversation
-                    ? language.text(
-                        "Your objectives and safe answers only.",
-                        zhHans: "仅包含你的目标与安全回答。"
-                    )
-                    : language.text(
-                        "Not available for identity review.",
-                        zhHans: "身份审阅会话不可用。"
-                    ),
+                    ? language.text("Your objectives and safe answers only.")
+                    : language.text("Not available for identity review."),
                 identifier: "ask-share-scope-conversation"
             )
         }
@@ -5805,7 +5799,7 @@ private struct AgentSessionShareReviewSheet: View {
 
     private func previewCard(_ snapshot: AgentSessionShareSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(language.text("PREVIEW", zhHans: "预览"))
+            Text(language.text("PREVIEW"))
                 .font(.caption2.weight(.bold))
                 .tracking(1.15)
                 .foregroundStyle(Color.tsVermilion)
@@ -5837,8 +5831,8 @@ private struct AgentSessionShareReviewSheet: View {
             ForEach(snapshot.conversationLines) { line in
                 VStack(alignment: .leading, spacing: 3) {
                     Text(line.isObjective
-                        ? language.text("You", zhHans: "你")
-                        : language.text("Agent", zhHans: "Agent"))
+                        ? language.text("You")
+                        : language.text("Agent"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(Color.tsMutedInk)
                     Text(line.text)
@@ -5875,10 +5869,7 @@ private struct AgentSessionShareReviewSheet: View {
 
     private var safetyDisclosure: some View {
         Label(
-            language.text(
-                "This is a static copy. Sources, pending decisions, and action authority are omitted, and nothing here can continue the Session.",
-                zhHans: "这是静态副本。已省略来源、待定决策与行动权限，且此副本无法继续该会话。"
-            ),
+            language.text("This is a static copy. Sources, pending decisions, and action authority are omitted, and nothing here can continue the Session."),
             systemImage: "lock.shield"
         )
         .font(.caption)
@@ -5896,10 +5887,10 @@ private struct AgentSessionShareReviewSheet: View {
                     subject: Text(snapshot.title),
                     preview: SharePreview(snapshot.title, image: renderedCard.image)
                 ) {
-                    shareLabel(language.text("Share summary card", zhHans: "分享摘要卡片"))
+                    shareLabel(language.text("Share summary card"))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(language.text("Share summary card", zhHans: "分享摘要卡片"))
+                .accessibilityLabel(language.text("Share summary card"))
                 .accessibilityIdentifier("ask-share-link")
             } else {
                 ShareLink(
@@ -5907,10 +5898,10 @@ private struct AgentSessionShareReviewSheet: View {
                     subject: Text(snapshot.title),
                     preview: SharePreview(snapshot.title, image: renderedCard.image)
                 ) {
-                    shareLabel(language.text("Share readable conversation", zhHans: "分享可读对话"))
+                    shareLabel(language.text("Share readable conversation"))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(language.text("Share readable conversation", zhHans: "分享可读对话"))
+                .accessibilityLabel(language.text("Share readable conversation"))
                 .accessibilityIdentifier("ask-share-link")
             }
         }
@@ -6006,7 +5997,7 @@ private struct AgentSessionShareCardPreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("TALENT SIGNAL")
+            Text(language.text("TALENT SIGNAL"))
                 .font(.caption2.weight(.bold))
                 .tracking(1.4)
                 .foregroundStyle(AgentSessionShareCardPalette.vermilion)
@@ -6048,10 +6039,7 @@ private struct AgentSessionShareCardPreview: View {
             }
             .accessibilityIdentifier("ask-share-preview-status")
 
-            Text(language.text(
-                "Static copy · sources, pending decisions, and action authority omitted.",
-                zhHans: "静态副本 · 已省略来源、待定决策与行动权限。"
-            ))
+            Text(language.text("Static copy · sources, pending decisions, and action authority omitted."))
             .font(.caption2)
             .foregroundStyle(AgentSessionShareCardPalette.mutedInk)
             .fixedSize(horizontal: false, vertical: true)
