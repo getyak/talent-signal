@@ -4203,6 +4203,18 @@ struct RelationshipAskView: View {
         for objective: String
     ) -> RelationshipAskResponse {
 #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--fixture-get-27-long-share-summary") {
+            return RelationshipAskResponse(
+                contractVersion: "preview", taskID: UUID().uuidString.lowercased(),
+                contextManifestID: "none-unbound-conversation",
+                knowledgeSnapshotID: "none-unbound-conversation", disposition: "answer",
+                blocks: [.init(
+                    id: UUID().uuidString.lowercased(), kind: "answer", title: "Reviewed summary",
+                    body: String(repeating: "界", count: AgentSessionSharePolicy.excerptLimit),
+                    status: "informational", citationDependencyIDs: [], requiresUserDecision: false
+                )], createdAt: ISO8601DateFormatter().string(from: Date())
+            )
+        }
         if ProcessInfo.processInfo.arguments.contains("--fixture-get-5-markdown") {
             return RelationshipAskResponse(
                 contractVersion: "preview", taskID: UUID().uuidString.lowercased(),
@@ -6005,7 +6017,7 @@ private struct AgentSessionShareCardPreview: View {
                 .font(.title3.weight(.bold))
                 .foregroundStyle(AgentSessionShareCardPalette.ink)
                 .multilineTextAlignment(.leading)
-                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("ask-share-preview-title")
             Text(snapshot.contextLabel)
@@ -6017,7 +6029,7 @@ private struct AgentSessionShareCardPreview: View {
                 .font(.body)
                 .foregroundStyle(AgentSessionShareCardPalette.ink)
                 .multilineTextAlignment(.leading)
-                .lineLimit(6)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)

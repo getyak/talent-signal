@@ -93,6 +93,7 @@ final class Get5SessionUITests: XCTestCase {
     }
 
     func testShareSessionUsesReviewedSummaryCardAndExplicitConversationScope() {
+        app.launchArguments.append("--fixture-get-27-long-share-summary")
         app.launch()
         openNewComposer()
         send("Create a review plan from this synthetic note.")
@@ -105,6 +106,13 @@ final class Get5SessionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["ask-share-scope-summary"].exists)
         XCTAssertEqual(app.buttons["ask-share-scope-summary"].isSelected, true)
         XCTAssertTrue(element("ask-share-preview").exists)
+        let excerpt = element("ask-share-preview-excerpt")
+        XCTAssertTrue(excerpt.exists)
+        XCTAssertGreaterThan(
+            excerpt.frame.height,
+            200,
+            "The review card must lay out every character exported by the summary text representation."
+        )
         XCTAssertTrue(element("ask-share-safety-disclosure").exists)
         XCTAssertTrue(element("ask-share-link").waitForExistence(timeout: 3))
         capture("GET-27 reviewed summary card")

@@ -458,6 +458,8 @@ final class AgentSessionContinuityTests: XCTestCase {
     }
 
     func testSharePolicyDefaultsToBoundedCardAndOmitsPendingAuthority() throws {
+        let includedAnswerDate = Date(timeIntervalSince1970: 1_789_000_000)
+        let omittedActivityDate = Date(timeIntervalSince1970: 1_789_000_100)
         let safe = RelationshipAskResponse.Block(
             id: "safe-block-id",
             kind: "answer",
@@ -495,15 +497,15 @@ final class AgentSessionContinuityTests: XCTestCase {
                     id: UUID(),
                     objective: "Review the latest exchange.",
                     response: sessionShareResponse("safe", blocks: [safe]),
-                    createdAt: Date(timeIntervalSince1970: 1_789_000_000),
+                    createdAt: includedAnswerDate,
                     requiresRefresh: false
                 ),
                 AgentSessionTurn(
                     id: UUID(),
                     objective: "Execute the private action.",
                     response: sessionShareResponse("action", blocks: [action]),
-                    createdAt: Date(timeIntervalSince1970: 1_789_000_100),
-                    requiresRefresh: false
+                    createdAt: omittedActivityDate,
+                    requiresRefresh: true
                 ),
             ],
             contactReceipts: [],
@@ -526,6 +528,19 @@ final class AgentSessionContinuityTests: XCTestCase {
             "The last exchange clarified the role scope. Confirm the interview window next."
         )
         XCTAssertTrue(summary.conversationLines.isEmpty)
+        let formatter = DateFormatter()
+        formatter.locale = AppLanguage.english.locale
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.setLocalizedDateFormatFromTemplate("yMMMdjm")
+        XCTAssertEqual(
+            summary.updatedLabel,
+            "Updated \(formatter.string(from: includedAnswerDate))"
+        )
+        XCTAssertNotEqual(
+            summary.updatedLabel,
+            "Updated \(formatter.string(from: omittedActivityDate))"
+        )
+        XCTAssertEqual(summary.statusLabel, "Saved copy")
 
         let conversation = try XCTUnwrap(
             AgentSessionSharePolicy.availability(
@@ -541,6 +556,7 @@ final class AgentSessionContinuityTests: XCTestCase {
                 "The last exchange clarified the role scope. Confirm the interview window next.",
             ]
         )
+        XCTAssertEqual(conversation.statusLabel, "Saved copy")
         let sharedText = AgentSessionSharePolicy.alternateText(
             conversation,
             language: .english
@@ -553,6 +569,52 @@ final class AgentSessionContinuityTests: XCTestCase {
         }
         XCTAssertTrue(sharedText.contains("Static copy"))
         XCTAssertTrue(sharedText.contains("action authority are omitted"))
+    }
+
+    func testSummaryExportsTheCompleteReviewedExcerptShownByTheCard() throws {
+        let reviewedExcerpt = String(
+            repeating: "界",
+            count: AgentSessionSharePolicy.excerptLimit
+        )
+        let answer = RelationshipAskResponse.Block(
+            id: "long-cjk-answer",
+            kind: "answer",
+            title: "Reviewed answer",
+            body: reviewedExcerpt,
+            status: "informational",
+            citationDependencyIDs: [],
+            requiresUserDecision: false
+        )
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: "Reviewed summary",
+            turns: [AgentSessionTurn(
+                id: UUID(),
+                objective: "Review the bounded summary.",
+                response: sessionShareResponse("long-cjk", blocks: [answer]),
+                createdAt: Date(timeIntervalSince1970: 1_789_000_000),
+                requiresRefresh: false
+            )],
+            contactReceipts: [],
+            updatedAt: Date(timeIntervalSince1970: 1_789_000_100),
+            isUnread: false
+        )
+
+        let snapshot = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .summary,
+                language: .english
+            ).snapshot
+        )
+        XCTAssertEqual(snapshot.excerpt, reviewedExcerpt)
+        XCTAssertTrue(
+            AgentSessionSharePolicy.alternateText(
+                snapshot,
+                language: .english
+            ).components(separatedBy: .newlines).contains(reviewedExcerpt)
+        )
     }
 
     func testIdentityReviewShareIsGenericAndNeverExportsConversation() throws {
@@ -906,6 +968,14 @@ final class AgentSessionContinuityTests: XCTestCase {
         for line in snapshot.conversationLines {
             XCTAssertTrue(sharedText.contains(line.text))
         }
+        let formatter = DateFormatter()
+        formatter.locale = AppLanguage.english.locale
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.setLocalizedDateFormatFromTemplate("yMMMdjm")
+        XCTAssertEqual(
+            snapshot.updatedLabel,
+            "Updated \(formatter.string(from: Date(timeIntervalSince1970: 5)))"
+        )
     }
 
     func testReadableConversationKeepsSafeAnswerWhenObjectiveExceedsExportBudget() throws {

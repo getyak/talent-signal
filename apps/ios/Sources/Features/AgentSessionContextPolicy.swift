@@ -209,28 +209,37 @@ enum AgentSessionSharePolicy {
     ) -> AgentSessionShareSnapshot {
         let title = safeTitle(for: session, language: language)
         let contextLabel = safeContextLabel(for: session, language: language)
-        let updatedLabel = updatedLabel(for: session, language: language)
-        let statusLabel = statusLabel(for: session, language: language)
+        let safeAnswer = latestSafeAnswer(in: session)
         let answer = session.isIdentityReview
             ? language.text("Identity is still unresolved. Conversation details are not included.")
-            : latestSafeAnswer(in: session) ?? ""
+            : safeAnswer?.body ?? ""
         let conversation = scope == .conversation
             ? boundedConversation(
                 for: session,
                 title: title,
                 contextLabel: contextLabel,
-                updatedLabel: updatedLabel,
-                statusLabel: statusLabel,
                 language: language
             )
-            : (lines: [], wasTruncated: false)
+            : (
+                lines: [],
+                wasTruncated: false,
+                updatedLabel: updatedLabel(
+                    for: safeAnswer?.createdAt ?? session.updatedAt,
+                    language: language
+                ),
+                statusLabel: statusLabel(
+                    for: session,
+                    needsRefresh: safeAnswer?.requiresRefresh ?? false,
+                    language: language
+                )
+            )
         return AgentSessionShareSnapshot(
             scope: scope,
             title: title,
             contextLabel: contextLabel,
             excerpt: cardExcerpt(answer),
-            updatedLabel: updatedLabel,
-            statusLabel: statusLabel,
+            updatedLabel: conversation.updatedLabel,
+            statusLabel: conversation.statusLabel,
             conversationLines: conversation.lines,
             conversationWasTruncated: conversation.wasTruncated
         )
@@ -348,11 +357,19 @@ enum AgentSessionSharePolicy {
         for session: AgentSession,
         title: String,
         contextLabel: String,
-        updatedLabel: String,
-        statusLabel: String,
         language: AppLanguage
-    ) -> (lines: [AgentSessionShareConversationLine], wasTruncated: Bool) {
-        var candidates: [AgentSessionShareConversationLine] = []
+    ) -> (
+        lines: [AgentSessionShareConversationLine],
+        wasTruncated: Bool,
+        updatedLabel: String,
+        statusLabel: String
+    ) {
+        struct DatedLine {
+            let line: AgentSessionShareConversationLine
+            let createdAt: Date
+            let requiresRefresh: Bool
+        }
+        var candidates: [DatedLine] = []
         for (index, turn) in chronologicalTurns(session).enumerated() {
             let safeBlocks = turn.response.blocks.filter {
                 isSafeAnswerBlock(
@@ -363,29 +380,54 @@ enum AgentSessionSharePolicy {
             guard !safeBlocks.isEmpty else { continue }
             let objective = turn.objective.trimmingCharacters(in: .whitespacesAndNewlines)
             if !objective.isEmpty {
-                candidates.append(.init(id: "objective-\(index)", isObjective: true, text: objective))
+                candidates.append(.init(
+                    line: .init(id: "objective-\(index)", isObjective: true, text: objective),
+                    createdAt: turn.createdAt,
+                    requiresRefresh: turn.requiresRefresh
+                ))
             }
             for (blockIndex, block) in safeBlocks.enumerated() {
                 let body = block.body.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !body.isEmpty else { continue }
-                candidates.append(.init(id: "answer-\(index)-\(blockIndex)", isObjective: false, text: body))
+                candidates.append(.init(
+                    line: .init(
+                        id: "answer-\(index)-\(blockIndex)",
+                        isObjective: false,
+                        text: body
+                    ),
+                    createdAt: turn.createdAt,
+                    requiresRefresh: turn.requiresRefresh
+                ))
             }
         }
 
         var lines = Array(candidates.prefix(conversationLineLimit))
         var wasTruncated = candidates.count > lines.count
-        if wasTruncated, lines.last?.isObjective == true {
+        if wasTruncated, lines.last?.line.isObjective == true {
             lines.removeLast()
         }
 
-        func export(_ candidateLines: [AgentSessionShareConversationLine], truncated: Bool) -> String {
+        func includedUpdatedLabel(_ candidateLines: [DatedLine]) -> String {
+            updatedLabel(
+                for: candidateLines.last?.createdAt
+                    ?? latestSafeAnswer(in: session)?.createdAt
+                    ?? session.updatedAt,
+                language: language
+            )
+        }
+
+        func export(_ candidateLines: [DatedLine], truncated: Bool) -> String {
             conversationAlternateText(
                 title: title,
                 contextLabel: contextLabel,
-                conversationLines: candidateLines,
+                conversationLines: candidateLines.map(\.line),
                 conversationWasTruncated: truncated,
-                updatedLabel: updatedLabel,
-                statusLabel: statusLabel,
+                updatedLabel: includedUpdatedLabel(candidateLines),
+                statusLabel: statusLabel(
+                    for: session,
+                    needsRefresh: candidateLines.contains(where: \.requiresRefresh),
+                    language: language
+                ),
                 language: language
             )
         }
@@ -393,18 +435,22 @@ enum AgentSessionSharePolicy {
         var exportedText = export(lines, truncated: wasTruncated)
         while exportedText.count > conversationCharacterLimit,
               let longestIndex = lines.indices.max(by: {
-                  lines[$0].text.count < lines[$1].text.count
-              }) {
+                  lines[$0].line.text.count < lines[$1].line.text.count
+            }) {
             wasTruncated = true
             let longest = lines[longestIndex]
             let excess = exportedText.count - conversationCharacterLimit
-            if longest.text.count > 1 {
-                let prefixCount = max(0, longest.text.count - excess - 1)
+            if longest.line.text.count > 1 {
+                let prefixCount = max(0, longest.line.text.count - excess - 1)
                 lines[longestIndex] = .init(
-                    id: longest.id,
-                    isObjective: longest.isObjective,
-                    text: String(longest.text.prefix(prefixCount))
-                        .trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+                    line: .init(
+                        id: longest.line.id,
+                        isObjective: longest.line.isObjective,
+                        text: String(longest.line.text.prefix(prefixCount))
+                            .trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+                    ),
+                    createdAt: longest.createdAt,
+                    requiresRefresh: longest.requiresRefresh
                 )
             } else {
                 // The fixed envelope plus twelve one-character lines is well
@@ -414,11 +460,26 @@ enum AgentSessionSharePolicy {
             }
             exportedText = export(lines, truncated: true)
         }
-        return (lines, wasTruncated)
+        return (
+            lines.map(\.line),
+            wasTruncated,
+            includedUpdatedLabel(lines),
+            statusLabel(
+                for: session,
+                needsRefresh: lines.contains(where: \.requiresRefresh),
+                language: language
+            )
+        )
     }
 
     /// Latest saved answer the user can safely stand behind.
-    private static func latestSafeAnswer(in session: AgentSession) -> String? {
+    private struct SafeAnswer {
+        let body: String
+        let createdAt: Date
+        let requiresRefresh: Bool
+    }
+
+    private static func latestSafeAnswer(in session: AgentSession) -> SafeAnswer? {
         for turn in chronologicalTurns(session).reversed() {
             let safeBodies = turn.response.blocks
                 .filter {
@@ -430,7 +491,13 @@ enum AgentSessionSharePolicy {
                 .map(\.body)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
-            if let body = safeBodies.last { return body }
+            if let body = safeBodies.last {
+                return .init(
+                    body: body,
+                    createdAt: turn.createdAt,
+                    requiresRefresh: turn.requiresRefresh
+                )
+            }
         }
         return nil
     }
@@ -470,7 +537,7 @@ enum AgentSessionSharePolicy {
         return language.text("Agent Session")
     }
 
-    private static func updatedLabel(for session: AgentSession, language: AppLanguage) -> String {
+    private static func updatedLabel(for date: Date, language: AppLanguage) -> String {
         let formatter = DateFormatter()
         formatter.locale = language.locale
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -478,12 +545,15 @@ enum AgentSessionSharePolicy {
         return String(
             format: language.text("Updated %@"),
             locale: language.locale,
-            formatter.string(from: session.updatedAt)
+            formatter.string(from: date)
         )
     }
 
-    private static func statusLabel(for session: AgentSession, language: AppLanguage) -> String {
-        let needsRefresh = session.turns.contains(where: \.requiresRefresh)
+    private static func statusLabel(
+        for session: AgentSession,
+        needsRefresh: Bool,
+        language: AppLanguage
+    ) -> String {
         if session.originSessionID != nil, needsRefresh {
             return language.text("Forked copy · sources may need refresh")
         }
