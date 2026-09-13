@@ -708,6 +708,48 @@ final class AgentSessionContinuityTests: XCTestCase {
         )
     }
 
+    func testSharePolicyOnlyAcceptsCompletedInformationalAnswerStatuses() {
+        for status in ["informational", "ready"] {
+            let block = RelationshipAskResponse.Block(
+                id: "safe-\(status)",
+                kind: "answer",
+                title: "Reviewed answer",
+                body: "This completed answer may be shared.",
+                status: status,
+                citationDependencyIDs: [],
+                requiresUserDecision: false,
+                allowsStaticShare: true
+            )
+            XCTAssertTrue(
+                AgentSessionSharePolicy.isSafeAnswerBlock(
+                    block,
+                    requiresPersistedClassification: true
+                ),
+                "Expected \(status) to remain shareable"
+            )
+        }
+
+        for status in ["proposed", "needs_review", "confirmed", "failed", "unknown_future_status"] {
+            let block = RelationshipAskResponse.Block(
+                id: "unsafe-\(status)",
+                kind: "answer",
+                title: "Unconfirmed answer",
+                body: "This answer must remain inside the Session.",
+                status: status,
+                citationDependencyIDs: [],
+                requiresUserDecision: false,
+                allowsStaticShare: true
+            )
+            XCTAssertFalse(
+                AgentSessionSharePolicy.isSafeAnswerBlock(
+                    block,
+                    requiresPersistedClassification: true
+                ),
+                "Expected \(status) to fail closed"
+            )
+        }
+    }
+
     func testLegacyRestoredAnswerWithoutShareClassificationStaysUnavailable() {
         let legacy = RelationshipAskResponse.Block(
             id: "legacy",
