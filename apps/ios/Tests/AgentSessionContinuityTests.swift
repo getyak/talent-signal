@@ -778,7 +778,7 @@ final class AgentSessionContinuityTests: XCTestCase {
             snapshot.conversationLines.map(\.text.count).reduce(0, +),
             AgentSessionSharePolicy.conversationCharacterLimit
         )
-        XCTAssertTrue(snapshot.conversationLines.last?.text.hasSuffix("…") == true)
+        XCTAssertTrue(snapshot.conversationLines.contains { $0.text.hasSuffix("…") })
         let sharedText = AgentSessionSharePolicy.alternateText(snapshot, language: .english)
         XCTAssertLessThanOrEqual(
             sharedText.count,
@@ -791,6 +791,51 @@ final class AgentSessionContinuityTests: XCTestCase {
         for line in snapshot.conversationLines {
             XCTAssertTrue(sharedText.contains(line.text))
         }
+    }
+
+    func testReadableConversationKeepsSafeAnswerWhenObjectiveExceedsExportBudget() throws {
+        let safeAnswer = "The reviewed answer remains visible."
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: "Large objective",
+            turns: [AgentSessionTurn(
+                id: UUID(),
+                objective: String(repeating: "O", count: 12 * 1_024),
+                response: sessionShareResponse("large-objective", blocks: [
+                    .init(
+                        id: "safe-answer",
+                        kind: "answer",
+                        title: "Answer",
+                        body: safeAnswer,
+                        status: "ready",
+                        citationDependencyIDs: [],
+                        requiresUserDecision: false
+                    ),
+                ]),
+                createdAt: Date(),
+                requiresRefresh: false
+            )],
+            contactReceipts: [],
+            updatedAt: Date(),
+            isUnread: false
+        )
+
+        let snapshot = try XCTUnwrap(
+            AgentSessionSharePolicy.availability(
+                for: session,
+                scope: .conversation,
+                language: .english
+            ).snapshot
+        )
+        XCTAssertEqual(snapshot.conversationLines.count, 2)
+        XCTAssertTrue(snapshot.conversationLines[0].isObjective)
+        XCTAssertTrue(snapshot.conversationLines[0].text.hasSuffix("…"))
+        XCTAssertEqual(snapshot.conversationLines[1].text, safeAnswer)
+        XCTAssertLessThanOrEqual(
+            AgentSessionSharePolicy.alternateText(snapshot, language: .english).count,
+            AgentSessionSharePolicy.conversationCharacterLimit
+        )
     }
 
     func testSharePolicyRejectsEmptyOrActionOnlySessionsAndBoundsCardCopy() {

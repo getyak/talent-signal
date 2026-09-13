@@ -346,36 +346,29 @@ enum AgentSessionSharePolicy {
             )
         }
 
-        while export(lines, truncated: wasTruncated).count > conversationCharacterLimit,
-              let last = lines.last {
+        var exportedText = export(lines, truncated: wasTruncated)
+        while exportedText.count > conversationCharacterLimit,
+              let longestIndex = lines.indices.max(by: {
+                  lines[$0].text.count < lines[$1].text.count
+              }) {
             wasTruncated = true
-            if last.isObjective {
-                lines.removeLast()
-                continue
-            }
-
-            var emptyLast = lines
-            emptyLast[emptyLast.count - 1] = .init(
-                id: last.id,
-                isObjective: false,
-                text: ""
-            )
-            let fixedCharacterCount = export(emptyLast, truncated: true).count
-            let availableCharacters = conversationCharacterLimit - fixedCharacterCount
-            if availableCharacters > 1 {
-                let prefix = last.text.prefix(availableCharacters - 1)
-                lines[lines.count - 1] = .init(
-                    id: last.id,
-                    isObjective: false,
-                    text: String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+            let longest = lines[longestIndex]
+            let excess = exportedText.count - conversationCharacterLimit
+            if longest.text.count > 1 {
+                let prefixCount = max(0, longest.text.count - excess - 1)
+                lines[longestIndex] = .init(
+                    id: longest.id,
+                    isObjective: longest.isObjective,
+                    text: String(longest.text.prefix(prefixCount))
+                        .trimmingCharacters(in: .whitespacesAndNewlines) + "…"
                 )
-                break
-            }
-
-            lines.removeLast()
-            if lines.last?.isObjective == true {
+            } else {
+                // The fixed envelope plus twelve one-character lines is well
+                // below the cap. This fallback only protects future copy from
+                // turning an unexpected localization expansion into a loop.
                 lines.removeLast()
             }
+            exportedText = export(lines, truncated: true)
         }
         return (lines, wasTruncated)
     }
