@@ -92,6 +92,32 @@ final class Get5SessionUITests: XCTestCase {
         capture("GET-5 original and fork in Sessions")
     }
 
+    func testShareSessionUsesReviewedSummaryCardAndExplicitConversationScope() {
+        app.launch()
+        openNewComposer()
+        send("Create a review plan from this synthetic note.")
+        _ = waitForNewResponseBlock(excluding: [])
+
+        app.buttons["ask-session-menu"].tap()
+        XCTAssertTrue(app.buttons["ask-share-session"].waitForExistence(timeout: 3))
+        app.buttons["ask-share-session"].tap()
+        XCTAssertTrue(element("ask-share-review-sheet").waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["ask-share-scope-summary"].exists)
+        XCTAssertEqual(app.buttons["ask-share-scope-summary"].isSelected, true)
+        XCTAssertTrue(element("ask-share-preview").exists)
+        XCTAssertTrue(element("ask-share-safety-disclosure").exists)
+        XCTAssertTrue(element("ask-share-link").waitForExistence(timeout: 3))
+        capture("GET-27 reviewed summary card")
+
+        app.buttons["ask-share-scope-conversation"].tap()
+        XCTAssertTrue(element("ask-share-conversation-preview").waitForExistence(timeout: 3))
+        XCTAssertTrue(element("ask-share-link").exists)
+        XCTAssertTrue(element("ask-share-safety-disclosure").exists)
+        capture("GET-27 explicit readable conversation")
+        app.buttons["ask-share-close"].tap()
+        XCTAssertTrue(element("ask-share-review-sheet").waitForNonExistence(timeout: 3))
+    }
+
     func testOrdinaryEmptyEditorTapKeepsTextInputAndNeverStartsVoice() {
         app.launch()
         openNewComposer()

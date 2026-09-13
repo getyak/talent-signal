@@ -97,6 +97,7 @@ struct AgentSessionShareConversationLine: Equatable, Identifiable {
 enum AgentSessionSharePolicy {
     /// Bounded visible excerpt so a card cannot silently carry a whole answer.
     static let excerptLimit = 280
+    static let titleLimit = 30
 
     /// Kinds that may appear in a shared copy. Anything projected as a live
     /// action, proposal, processing state, or research result is excluded.
@@ -149,12 +150,17 @@ enum AgentSessionSharePolicy {
         scope: AgentSessionShareScope,
         language: AppLanguage
     ) -> AgentSessionShareSnapshot {
-        let answer = latestSafeAnswer(in: session) ?? ""
+        let answer = session.isIdentityReview
+            ? language.text(
+                "Identity is still unresolved. Conversation details are not included.",
+                zhHans: "身份仍未确认，未包含对话详情。"
+            )
+            : latestSafeAnswer(in: session) ?? ""
         return AgentSessionShareSnapshot(
             scope: scope,
             title: safeTitle(for: session, language: language),
             contextLabel: safeContextLabel(for: session, language: language),
-            excerpt: boundedExcerpt(answer),
+            excerpt: cardExcerpt(answer),
             updatedLabel: updatedLabel(for: session, language: language),
             statusLabel: statusLabel(for: session, language: language),
             conversationLines: scope == .conversation
@@ -180,6 +186,13 @@ enum AgentSessionSharePolicy {
                 "\(snapshot.updatedLabel) · \(snapshot.statusLabel)"
             ]
         } else {
+            lines += [
+                language.text(
+                    "Static copy — sources, pending decisions, and action authority are omitted.",
+                    zhHans: "静态副本 — 已省略来源、待定决策与行动权限。"
+                ),
+                "",
+            ]
             lines += snapshot.conversationLines.map { line in
                 line.isObjective
                     ? "\(language.text("You")): \(line.text)"
@@ -199,18 +212,50 @@ enum AgentSessionSharePolicy {
         return String(collapsed[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
     }
 
+    /// Turn structured Markdown into a glanceable card sentence without
+    /// copying tables or code. The readable-conversation option retains the
+    /// original safe answer for people who explicitly choose it.
+    static func cardExcerpt(_ body: String) -> String {
+        var isInsideCodeFence = false
+        var lines: [String] = []
+        for rawLine in body.components(separatedBy: .newlines) {
+            var line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            if line.hasPrefix("```") {
+                isInsideCodeFence.toggle()
+                continue
+            }
+            guard !isInsideCodeFence, !line.isEmpty, !line.contains("|") else {
+                continue
+            }
+            while line.hasPrefix("#") {
+                line.removeFirst()
+                line = line.trimmingCharacters(in: .whitespaces)
+            }
+            for prefix in ["- [x] ", "- [X] ", "- [ ] ", "- ", "* ", "+ "]
+            where line.hasPrefix(prefix) {
+                line.removeFirst(prefix.count)
+                break
+            }
+            guard !line.isEmpty else { continue }
+            lines.append(line)
+            if lines.count == 3 { break }
+        }
+        return boundedExcerpt(lines.joined(separator: " · "))
+    }
+
     /// Chronological user objectives plus only safe answer bodies.
     private static func conversationLines(
         for session: AgentSession
     ) -> [AgentSessionShareConversationLine] {
         var lines: [AgentSessionShareConversationLine] = []
         for (index, turn) in chronologicalTurns(session).enumerated() {
+            let safeBlocks = turn.response.blocks.filter(isSafeAnswerBlock)
+            guard !safeBlocks.isEmpty else { continue }
             let objective = turn.objective.trimmingCharacters(in: .whitespacesAndNewlines)
             if !objective.isEmpty {
                 lines.append(.init(id: "objective-\(index)", isObjective: true, text: objective))
             }
-            for (blockIndex, block) in turn.response.blocks.enumerated()
-            where isSafeAnswerBlock(block) {
+            for (blockIndex, block) in safeBlocks.enumerated() {
                 let body = block.body.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !body.isEmpty else { continue }
                 lines.append(.init(id: "answer-\(index)-\(blockIndex)", isObjective: false, text: body))
@@ -245,16 +290,26 @@ enum AgentSessionSharePolicy {
             return language.text("Identity review session", zhHans: "身份审阅会话")
         }
         let trimmed = session.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty
+        let title = trimmed.isEmpty
             ? language.text("Session", zhHans: "会话")
             : trimmed
+        return boundedTitle(title)
+    }
+
+    static func boundedTitle(_ title: String) -> String {
+        guard title.count > titleLimit else { return title }
+        let end = title.index(title.startIndex, offsetBy: titleLimit)
+        return String(title[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
     }
 
     private static func safeContextLabel(for session: AgentSession, language: AppLanguage) -> String {
         if session.isIdentityReview {
             return language.text("Identity review", zhHans: "身份审阅")
         }
-        return session.displayContextLabel(in: language)
+        if case .relationship = session.scope {
+            return "\(session.personDisplayLabel) · \(session.displayContextLabel(in: language))"
+        }
+        return language.text("Agent Session", zhHans: "Agent 会话")
     }
 
     private static func updatedLabel(for session: AgentSession, language: AppLanguage) -> String {
@@ -270,7 +325,14 @@ enum AgentSessionSharePolicy {
     }
 
     private static func statusLabel(for session: AgentSession, language: AppLanguage) -> String {
-        if session.turns.contains(where: \.requiresRefresh) {
+        let needsRefresh = session.turns.contains(where: \.requiresRefresh)
+        if session.originSessionID != nil, needsRefresh {
+            return language.text(
+                "Forked copy · sources may need refresh",
+                zhHans: "分叉副本 · 来源可能需要刷新"
+            )
+        }
+        if needsRefresh {
             return language.text(
                 "Saved copy · sources may need refresh",
                 zhHans: "已保存副本 · 来源可能需要刷新"

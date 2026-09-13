@@ -5668,14 +5668,8 @@ private struct AgentSessionShareReviewSheet: View {
     let session: AgentSession?
     let language: AppLanguage
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.sizeCategory) private var sizeCategory
     @State private var scope: AgentSessionShareScope = .summary
     @State private var renderedCard: Image?
-
-    private var usesAccessibilityLayout: Bool {
-        dynamicTypeSize.isAccessibilitySize || sizeCategory.isAccessibilityCategory
-    }
 
     private var availability: AgentSessionShareAvailability {
         guard let session else {
@@ -5803,14 +5797,59 @@ private struct AgentSessionShareReviewSheet: View {
                 .font(.caption2.weight(.bold))
                 .tracking(1.15)
                 .foregroundStyle(Color.tsVermilion)
-            AgentSessionShareCardPreview(snapshot: snapshot, language: language)
-                .environment(\.colorScheme, .light)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(6)
-                .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 20))
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("ask-share-preview")
+            if snapshot.isSummary {
+                AgentSessionShareCardPreview(snapshot: snapshot, language: language)
+                    .environment(\.colorScheme, .light)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
+                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 20))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("ask-share-preview")
+            } else {
+                conversationPreview(snapshot)
+            }
         }
+    }
+
+    private func conversationPreview(_ snapshot: AgentSessionShareSnapshot) -> some View {
+        let visibleLines = Array(snapshot.conversationLines.prefix(6))
+        let remaining = snapshot.conversationLines.count - visibleLines.count
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(visibleLines) { line in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(line.isObjective
+                        ? language.text("You", zhHans: "你")
+                        : language.text("Agent", zhHans: "Agent"))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.tsMutedInk)
+                    Text(line.text)
+                        .font(.callout)
+                        .foregroundStyle(Color.tsInk)
+                        .lineLimit(4)
+                }
+            }
+            if remaining > 0 {
+                Text(String(
+                    format: language.text(
+                        "%d more messages are included in the shared copy.",
+                        zhHans: "分享副本还会包含另外 %d 条消息。"
+                    ),
+                    locale: language.locale,
+                    remaining
+                ))
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-share-conversation-preview")
     }
 
     private var safetyDisclosure: some View {
@@ -5830,25 +5869,40 @@ private struct AgentSessionShareReviewSheet: View {
     @ViewBuilder
     private func shareControl(_ snapshot: AgentSessionShareSnapshot) -> some View {
         if let renderedCard {
-            ShareLink(
-                item: renderedCard,
-                message: Text(AgentSessionSharePolicy.alternateText(snapshot, language: language)),
-                preview: SharePreview(
-                    snapshot.title,
-                    image: renderedCard
-                )
-            ) {
-                Label(language.text("Share static copy", zhHans: "分享静态副本"), systemImage: "square.and.arrow.up")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color.tsSurface)
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(Color.tsInk, in: RoundedRectangle(cornerRadius: 16))
+            if snapshot.isSummary {
+                ShareLink(
+                    item: renderedCard,
+                    subject: Text(snapshot.title),
+                    message: Text(AgentSessionSharePolicy.alternateText(snapshot, language: language)),
+                    preview: SharePreview(snapshot.title, image: renderedCard)
+                ) {
+                    shareLabel(language.text("Share summary card", zhHans: "分享摘要卡片"))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(language.text("Share summary card", zhHans: "分享摘要卡片"))
+                .accessibilityIdentifier("ask-share-link")
+            } else {
+                ShareLink(
+                    item: AgentSessionSharePolicy.alternateText(snapshot, language: language),
+                    subject: Text(snapshot.title),
+                    preview: SharePreview(snapshot.title, image: renderedCard)
+                ) {
+                    shareLabel(language.text("Share readable conversation", zhHans: "分享可读对话"))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(language.text("Share readable conversation", zhHans: "分享可读对话"))
+                .accessibilityIdentifier("ask-share-link")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(language.text("Share static copy", zhHans: "分享静态副本"))
-            .accessibilityIdentifier("ask-share-link")
         }
+    }
+
+    private func shareLabel(_ title: String) -> some View {
+        Label(title, systemImage: "square.and.arrow.up")
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(Color.tsSurface)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(Color.tsInk, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func unavailableNotice(_ reason: String) -> some View {
@@ -5866,7 +5920,7 @@ private struct AgentSessionShareReviewSheet: View {
     private func renderCard() {
         guard let session,
               let snapshot = AgentSessionSharePolicy.availability(
-                for: session, scope: scope, language: language
+                for: session, scope: .summary, language: language
               ).snapshot else {
             renderedCard = nil
             return
@@ -5909,42 +5963,21 @@ private struct AgentSessionShareCardPreview: View {
             Text(snapshot.title)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(AgentSessionShareCardPalette.ink)
-                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("ask-share-preview-title")
             Text(snapshot.contextLabel)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AgentSessionShareCardPalette.mutedInk)
                 .accessibilityIdentifier("ask-share-preview-context")
 
-            if snapshot.isSummary {
-                Text(snapshot.excerpt)
-                    .font(.body)
-                    .foregroundStyle(AgentSessionShareCardPalette.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AgentSessionShareCardPalette.surface, in: RoundedRectangle(cornerRadius: 14))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(AgentSessionShareCardPalette.line, lineWidth: 1)
-                    }
-                    .accessibilityIdentifier("ask-share-preview-excerpt")
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(snapshot.conversationLines) { line in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(line.isObjective
-                                ? language.text("You", zhHans: "你")
-                                : language.text("Agent", zhHans: "Agent"))
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(AgentSessionShareCardPalette.mutedInk)
-                            Text(line.text)
-                                .font(.callout)
-                                .foregroundStyle(AgentSessionShareCardPalette.ink)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
+            Text(snapshot.excerpt)
+                .font(.body)
+                .foregroundStyle(AgentSessionShareCardPalette.ink)
+                .multilineTextAlignment(.leading)
+                .lineLimit(6)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(AgentSessionShareCardPalette.surface, in: RoundedRectangle(cornerRadius: 14))
@@ -5952,7 +5985,7 @@ private struct AgentSessionShareCardPreview: View {
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(AgentSessionShareCardPalette.line, lineWidth: 1)
                 }
-            }
+                .accessibilityIdentifier("ask-share-preview-excerpt")
 
             HStack(spacing: 8) {
                 Text(snapshot.statusLabel)
