@@ -2,6 +2,7 @@ import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } fro
 import type { AccountSettings, AccountMutation } from "./accountSchemas.js";
 import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
 import type { AgentPreferenceMutation, AgentPreferenceResponse } from "./agentPreferenceSchemas.js";
+import type { SystemHealthResponse } from "./systemHealthSchemas.js";
 import type {
   AnalysisProposalResponse,
   AppleLoginChallengeRequest,
@@ -254,6 +255,13 @@ export class TalentSignalClient {
 
   accountSettings(): Promise<AccountSettings> {
     return this.request<AccountSettings>("/v1/account/settings", { method: "GET" });
+  }
+
+  systemHealth(signal?: AbortSignal): Promise<SystemHealthResponse> {
+    return this.request<SystemHealthResponse>("/v1/system/health", {
+      method: "GET",
+      signal,
+    });
   }
 
   updateAccountSettings(input: AccountMutation): Promise<AccountSettings> {
@@ -1062,6 +1070,7 @@ export class TalentSignalClient {
       method: "DELETE" | "GET" | "POST" | "PUT";
       body?: unknown;
       authenticated?: boolean;
+      signal?: AbortSignal;
     },
   ): Promise<T> {
     const response = await this.rawRequest(path, {
@@ -1075,6 +1084,7 @@ export class TalentSignalClient {
       body:
         options.body === undefined ? undefined : JSON.stringify(options.body),
       authenticated: options.authenticated,
+      signal: options.signal,
     });
 
     const payload = (await response.json()) as T | ErrorEnvelope;
@@ -1097,6 +1107,7 @@ export class TalentSignalClient {
       body?: BodyInit;
       headers?: Record<string, string>;
       authenticated?: boolean;
+      signal?: AbortSignal;
     },
   ): Promise<Response> {
     const authenticated = options.authenticated ?? true;
@@ -1113,6 +1124,7 @@ export class TalentSignalClient {
           : {}),
       },
       body: options.body,
+      signal: options.signal,
     });
     if (!response.ok) {
       let envelope: ErrorEnvelope = {};

@@ -23,6 +23,7 @@ import {
 import { backendSessionIsExpired } from "@/lib/backend-session";
 import { leaveTestWorkspace } from "@/app/workspace/settings/testing/actions";
 import accountStyles from "@/components/account-settings.module.css";
+import { SystemHealthProvider } from "@/components/system-health-provider";
 
 function initials(value: string): string {
   return (
@@ -51,6 +52,7 @@ function AccountControls({
           <Link href="/workspace/settings">账号与安全</Link>
           <Link href="/workspace/settings?section=workspace">工作空间管理</Link>
           <Link href="/workspace/settings/testing">测试空间</Link>
+          <Link href="/workspace/settings/diagnostics">系统检测</Link>
         </div>
       </details>
       {fixtureWorkspace ? (
@@ -157,8 +159,10 @@ export default async function WorkspaceLayout({
       {/* Lab loads independently after hydration; it must not hold up product HTML. */}
       <TalentSignalLabShell initialManifest={null}>
         <div className={styles.stage} id="workspace-content" data-workspace-scope={scope} key={scope}>
-          {testName && <div className={accountStyles.banner} role="status"><span>测试空间 · {testName}</span><form action={leaveTestWorkspace}><button type="submit">返回我的空间</button></form></div>}
-          {children}
+          <SystemHealthProvider>
+            {testName && <div className={accountStyles.banner} role="status"><span>测试空间 · {testName}</span><form action={leaveTestWorkspace}><button type="submit">返回我的空间</button></form></div>}
+            {children}
+          </SystemHealthProvider>
         </div>
       </TalentSignalLabShell>
     </div>

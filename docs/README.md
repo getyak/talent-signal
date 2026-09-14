@@ -82,6 +82,8 @@ updated.
 - [`operations/`](operations/) contains recurring operational expectations.
 - [Production backend operations](operations/backend-production.md) defines the
   no-seed PostgreSQL, migration, API, and HTTPS deployment boundary.
+- [System health diagnostics](operations/system-health.md) defines liveness,
+  readiness, authenticated component observations, and the Web diagnostics boundary.
 - [Account and workspace access](operations/account-access.md) explains personal
   ownership, Web settings, fixture credentials, sessions, and isolated test access.
 - [Secret delivery](operations/secrets.md) defines Infisical ownership, local
