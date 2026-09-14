@@ -45,9 +45,12 @@ independent KPI cards; treating a missing migration as a database outage.
    production build passed. A browser run verified healthy, unavailable/unknown,
    retry, and recovery states against a temporary migrated database; the database
    and all local test artifacts were removed afterward.
-5. **Active** — independent review passed with P0=0/P1=0 after its findings were
-   fixed and re-reviewed. Create the PR, verify current-head CI, merge, then read
-   back Linear and update the existing Notion operations page.
+5. **Complete** — independent review passed with P0=0/P1=0 after its findings
+   were fixed and re-reviewed. PR #189 passed all applicable checks at
+   `7934b623f88f9b85e548b99611d673649ffa2429` and merged as
+   `1a898c96b4a73d2de5cf3ba9ec5700c01520b09c`. Linear readback shows GET-28
+   Done, and the existing Notion operations page contains the decision,
+   boundaries, verification evidence, and delivery links.
 
 Independent review found two P1 lifecycle gaps: a 401 could retain an older
 healthy observation, and stalled browser or server requests had no deadline. The
@@ -64,5 +67,6 @@ P0=0 and P1=0.
 - A real authenticated diagnostics page renders the four required components and
   manual retry; abnormal state remains actionable without exposing raw errors.
 - Independent review has no unresolved P0/P1 findings.
-- The GET-28 PR is merged at a verified SHA, Linear reflects the merged delivery,
-  and the existing Notion operations page contains the concise decision and links.
+- [PR #189](https://github.com/getyak/talent-signal/pull/189) is merged at
+  `1a898c96b4a73d2de5cf3ba9ec5700c01520b09c`; Linear GET-28 is Done, and the
+  existing Notion operations page has been updated and read back successfully.
