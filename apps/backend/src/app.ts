@@ -4,6 +4,7 @@ import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
+import { registerSystemHealthRoutes } from "./modules/systemHealth.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
@@ -800,6 +801,7 @@ export async function buildApp(
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
   registerAgentPreferenceRoutes(app, pool, authenticate, remoteChatProvider?.providerId === "claude-agent-sdk");
+  registerSystemHealthRoutes(app, pool, authenticate);
   registerRuntimeManifest(app, config);
   registerLoadedRuntimeConfiguration(app, config, authenticate, remoteChatProvider?.loadedTaskConfiguration, deploymentExposure);
   registerLabWorkspaceRoutes(app,new LabWorkspaceService(pool,chatMediaStorage,config.sessionTtlSeconds),authenticate,config.internalLabEnabled===true);
