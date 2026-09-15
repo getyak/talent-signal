@@ -3612,11 +3612,12 @@ struct RelationshipAskView: View {
             revision: 1, status: "completed", contact: nil, captureID: nil,
             sourceResourceID: nil, messageCount: 2,
             extraction: .init(messages: [
-                .init(messageID: "synthetic-message-1", text: "Could we review the draft on Friday?",
-                      speakerSide: "left", timeText: nil, sourceImageIndex: nil),
-                .init(messageID: "synthetic-message-2", text: "I will check and reply.",
-                      speakerSide: "right", timeText: nil, sourceImageIndex: nil)
+                .init(messageID: "synthetic-message-1", sequence: 0, text: "Could we review the draft on Friday?",
+                      speakerSide: "left", speakerLabel: nil, timeText: nil, sourceImageIndex: nil),
+                .init(messageID: "synthetic-message-2", sequence: 1, text: "I will check and reply.",
+                      speakerSide: "right", speakerLabel: nil, timeText: nil, sourceImageIndex: nil)
             ], uncertainties: ["Friday has no confirmed date or time zone."]),
+            preprocessing: nil,
             summary: "The source proposes reviewing a draft on Friday. **No action has been taken.**",
             findings: [], profileFields: [], publicSources: [], question: nil,
             candidates: [], limitations: ["Synthetic preview. No contact, source, or calendar was changed."],

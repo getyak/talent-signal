@@ -265,16 +265,21 @@ export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:str
   const captureID=await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);
     if(row.status==="deleted")return row.capture_id;
-    if(row.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
-    // Fence in-flight model work before removing governed evidence. A partial
-    // failure leaves this same task cancelled and allows a fresh delete retry.
-    row.state.deletion_requested=true;row.state.response.status="cancelled";row.state.response.limitations.push("CONTACT_SOURCE_DELETION_PENDING");await save(client,row);
-    await client.query("UPDATE screenshot_contact_tasks SET lease_epoch=lease_epoch+1,lease_until=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
+    if(!row.state.deletion_requested){
+      if(row.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
+      // Fence in-flight model work before removing governed evidence. Once the
+      // intent commits, the same user may continue deletion with the original
+      // revision after a later phase fails; the intent itself is irreversible.
+      row.state.deletion_requested=true;row.state.response.status="cancelled";
+      row.state.response.limitations.push("CONTACT_SOURCE_DELETION_PENDING");await save(client,row);
+      await client.query("UPDATE screenshot_contact_tasks SET lease_epoch=lease_epoch+1,lease_until=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
+    }
     return row.capture_id;
   });
   if(captureID)await deleteCapture(pool,auth,captureID,{idempotency_key:`delete-contact-source:${id}`,reason:"User deleted this captured source and its derived analysis."});
   await inTransaction(pool,async client=>{
-    await rowFor(client,auth,id,true);
+    const row=await rowFor(client,auth,id,true);
+    if(row.status==="deleted")return;
     await client.query("DELETE FROM contact_profile_observations WHERE account_id=$1 AND task_id=$2",[auth.accountId,id]);
     await client.query(`UPDATE screenshot_contact_tasks SET state='{}'::jsonb,input_manifest='{}'::jsonb,status='deleted',
       revision=revision+1,lease_epoch=lease_epoch+1,lease_until=NULL,updated_at=now() WHERE account_id=$1 AND id=$2 AND status<>'deleted'`,[auth.accountId,id]);

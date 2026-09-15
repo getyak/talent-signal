@@ -60,6 +60,11 @@ final class RelationshipCaptureStore: ObservableObject {
         let date = formatter.date(from: text)
         draft.messageTimestamp = date.flatMap { formatter.string(from: $0) == text ? $0 : nil }
     }
+    func updatePreprocessedMessageText(id: String, text: String) {
+        guard let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?[index].text = text
+        draft.reviewedText = draft.preprocessedMessages?.map(\.text).joined(separator: "\n") ?? draft.reviewedText
+    }
     var canCreatePerson: Bool {
         identityCase?.hasCurrentCandidate != true && draft.displayNameHint.nonEmpty != nil &&
         draft.relationshipLabel.nonEmpty != nil && draft.relationshipPurpose.nonEmpty != nil
@@ -218,7 +223,13 @@ final class RelationshipCaptureStore: ObservableObject {
     func discard() async -> Bool {
         guard !isBusy, recovery.pendingClaim == nil, recovery.pendingSpeaker == nil else { return false }
         draftTask?.cancel()
-        do { try await inbox.remove(id: seed.id); originalAvailable = false; removedFromInbox = true; return true }
+        do {
+            try await deletePreprocessingOriginalIfNeeded()
+            try await inbox.remove(id: seed.id)
+            originalAvailable = false
+            removedFromInbox = true
+            return true
+        }
         catch { fail(error.localizedDescription, at: .recognition); return false }
     }
     func refreshChanges() {
@@ -315,7 +326,12 @@ final class RelationshipCaptureStore: ObservableObject {
             try Task.checkCancellation()
             let completion = self.completion(capture: capture, wiki: wiki)
             if completion.needsReview { try await self.saveRecovery() }
-            else { try await self.inbox.remove(id: self.seed.id); self.originalAvailable = false; self.removedFromInbox = true }
+            else {
+                try await self.deletePreprocessingOriginalIfNeeded()
+                try await self.inbox.remove(id: self.seed.id)
+                self.originalAvailable = false
+                self.removedFromInbox = true
+            }
             self.stage = .completed(completion)
         }
     }
@@ -401,6 +417,15 @@ final class RelationshipCaptureStore: ObservableObject {
         recovery.claimEdits = claimEdits
         try await inbox.saveReview(seed: seed, draft: draft, recovery: recovery, scope: service.runtimeScope)
         if draft.keepOriginalForReview == false || Date().timeIntervalSince(seed.createdAt) >= 7 * 86_400 { originalAvailable = false }
+    }
+    private func deletePreprocessingOriginalIfNeeded() async throws {
+        let source = recovery.submittedDraft ?? draft
+        guard let taskID = source.preprocessingTaskID,
+              let revision = source.preprocessingTaskRevision else { return }
+        try await service.deleteScreenshotPreprocessing(
+            taskID: taskID,
+            expectedRevision: revision
+        )
     }
     func checkLocalRetention() async {
         guard !removedFromInbox else { return }

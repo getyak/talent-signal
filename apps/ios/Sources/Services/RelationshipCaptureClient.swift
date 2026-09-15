@@ -13,6 +13,7 @@ protocol RelationshipCaptureServing {
 
     func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
     func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
+    func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws
 
     func createProposedCapture(
         seed: PendingCaptureSeed,
@@ -52,6 +53,10 @@ extension RelationshipCaptureServing {
 
     func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
         try await preprocessScreenshot(seed: seed)
+    }
+
+    func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
+        throw ConversationRecognitionError.sharedPreprocessingUnavailable
     }
 }
 
@@ -97,6 +102,19 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         try await preprocessScreenshot(seed: seed, resumeFailedTask: true)
     }
 
+    func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
+        let deleted: ScreenshotContactTask = try await request(
+            path: "v1/contact-agent/tasks/\(taskID)/delete",
+            method: "POST",
+            body: ScreenshotContactDeleteBody(expectedRevision: expectedRevision)
+        )
+        guard deleted.taskID == taskID,
+              deleted.status == "deleted",
+              deleted.revision >= expectedRevision else {
+            throw RelationshipCaptureClientError.invalidResponse
+        }
+    }
+
     private func preprocessScreenshot(
         seed: PendingCaptureSeed,
         resumeFailedTask: Bool
@@ -139,7 +157,18 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
               let extraction = task.extraction else {
             throw ConversationRecognitionError.sharedPreprocessingFailed
         }
-        let text = extraction.messages.map(\.text).joined(separator: "\n")
+        let messages = extraction.messages.map {
+            PreprocessedCaptureMessage(
+                messageID: $0.messageID,
+                sequence: $0.sequence,
+                text: $0.text,
+                speakerSide: $0.speakerSide,
+                speakerLabel: $0.speakerLabel,
+                timeText: $0.timeText,
+                sourceImageIndex: $0.sourceImageIndex ?? 0
+            )
+        }
+        let text = messages.map(\.text).joined(separator: "\n")
         let fallbackText = extraction.identityClues?.map(\.sourceExcerpt).joined(separator: "\n") ?? ""
         var draft = CaptureDraftBuilder.makeDraft(from: text.isEmpty ? fallbackText : text)
         draft.displayNameHint = extraction.contactName ?? draft.displayNameHint
@@ -151,9 +180,13 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         }
         draft.sourceParserName = "shared-screenshot-preprocess"
         draft.sourceParserVersion = "screenshot-preprocess.v1"
-        draft.preprocessingUncertainties = extraction.uncertainties.isEmpty
+        let preprocessingIssues = Self.preprocessingIssues(task: task, extraction: extraction)
+        draft.preprocessingUncertainties = preprocessingIssues.isEmpty
             ? nil
-            : extraction.uncertainties
+            : preprocessingIssues
+        draft.preprocessingTaskID = task.taskID
+        draft.preprocessingTaskRevision = task.revision
+        draft.preprocessedMessages = messages.isEmpty ? nil : messages
         return draft
     }
 
@@ -182,6 +215,65 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         let clientResourceID = "ios-share:\(seed.id.uuidString.lowercased())"
         let reviewedSpeaker = draft.speaker ?? .unknown
         let sharedPreprocessing = draft.sourceParserName == "shared-screenshot-preprocess"
+        let fragments: [ResourceCaptureBody.Fragment]
+        if let messages = draft.preprocessedMessages, !messages.isEmpty {
+            fragments = messages.enumerated().map { index, message in
+                .init(
+                    clientResourceID: clientResourceID,
+                    kind: "message",
+                    sequence: index,
+                    text: message.text,
+                    locator: .init(
+                        kind: "message",
+                        sourceMessageID: message.messageID,
+                        sequence: message.sequence,
+                        speakerSide: message.speakerSide,
+                        speakerLabel: message.speakerLabel,
+                        visibleTimeText: message.timeText,
+                        sourceImageIndex: message.sourceImageIndex,
+                        messageTimestamp: nil
+                    ),
+                    attribution: .init(actorKind: "unknown", status: "proposed"),
+                    reviewStatus: reviewStatus,
+                    parser: .init(
+                        name: draft.sourceParserName ?? "shared-screenshot-preprocess",
+                        version: draft.sourceParserVersion ?? "screenshot-preprocess.v1"
+                    )
+                )
+            }
+        } else {
+            fragments = [
+                .init(
+                    clientResourceID: clientResourceID,
+                    kind: "message",
+                    sequence: 0,
+                    text: draft.reviewedText,
+                    locator: .init(
+                        kind: "message",
+                        sourceMessageID: sharedPreprocessing && reviewStatus == "proposed"
+                            ? "shared-preprocess-proposed-1"
+                            : sharedPreprocessing ? "shared-preprocess-reviewed-1" : "legacy-reviewed-draft-1",
+                        sequence: 0,
+                        speakerSide: "unknown",
+                        speakerLabel: nil,
+                        visibleTimeText: nil,
+                        sourceImageIndex: nil,
+                        messageTimestamp: draft.messageTimestamp.map(Self.timestamp)
+                    ),
+                    attribution: .init(
+                        actorKind: reviewedSpeaker.rawValue,
+                        status: reviewStatus == "proposed" || draft.speaker == nil
+                            ? "proposed"
+                            : reviewedSpeaker.attributionStatus
+                    ),
+                    reviewStatus: reviewStatus,
+                    parser: .init(
+                        name: draft.sourceParserName ?? "legacy-reviewed-screenshot-draft",
+                        version: draft.sourceParserVersion ?? "1"
+                    )
+                )
+            ]
+        }
         let body = ResourceCaptureBody(
             contractVersion: TalentSignalAPIContract.version,
             idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):capture",
@@ -218,34 +310,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                     sourceScope: sourceScope
                 )
             ),
-            fragments: [
-                .init(
-                    clientResourceID: clientResourceID,
-                    kind: "message",
-                    sequence: 0,
-                    text: draft.reviewedText,
-                    locator: .init(
-                        kind: "message",
-                        sourceMessageID: sharedPreprocessing && reviewStatus == "proposed"
-                            ? "shared-preprocess-proposed-1"
-                            : sharedPreprocessing ? "shared-preprocess-reviewed-1" : "legacy-reviewed-draft-1",
-                        sequence: 0,
-                        speakerSide: "unknown",
-                        messageTimestamp: draft.messageTimestamp.map(Self.timestamp)
-                    ),
-                    attribution: .init(
-                        actorKind: reviewedSpeaker.rawValue,
-                        status: reviewStatus == "proposed" || draft.speaker == nil
-                            ? "proposed"
-                            : reviewedSpeaker.attributionStatus
-                    ),
-                    reviewStatus: reviewStatus,
-                    parser: .init(
-                        name: draft.sourceParserName ?? "legacy-reviewed-screenshot-draft",
-                        version: draft.sourceParserVersion ?? "1"
-                    )
-                )
-            ]
+            fragments: fragments
         )
         return try await request(
             path: "v1/resource-captures",
@@ -401,6 +466,34 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         // to a retry after decoding the protected recovery record.
         ISO8601DateFormatter.captureFormatter.string(from: Date(timeIntervalSince1970: floor(date.timeIntervalSince1970)))
     }
+
+    private static func preprocessingIssues(
+        task: ScreenshotContactTask,
+        extraction: ScreenshotContactTask.Extraction
+    ) -> [String] {
+        var issues = extraction.uncertainties
+        if task.status == "waiting_for_user", let question = task.question?.nonEmpty {
+            issues.append(question)
+        }
+        if task.status == "waiting_for_user" {
+            for source in task.preprocessing?.sources ?? [] {
+                for followUp in source.followUpRegions {
+                    issues.append(
+                        "Source image \(source.sourceImageIndex + 1) needs a \(followUp.field) check for \(followUp.reason) at region (\(followUp.region.left), \(followUp.region.top), \(followUp.region.width), \(followUp.region.height))."
+                    )
+                }
+                if source.followUpRequired && source.followUpRegions.isEmpty {
+                    issues.append("Source image \(source.sourceImageIndex + 1) still requires an original-pixel check.")
+                }
+            }
+        }
+        if task.status == "waiting_for_user" && issues.isEmpty {
+            issues.append("Shared preprocessing is waiting for an unresolved original-image check.")
+        }
+        return issues.reduce(into: []) { unique, issue in
+            if !unique.contains(issue) { unique.append(issue) }
+        }
+    }
 }
 
 enum RelationshipCaptureClientError: LocalizedError, Equatable {
@@ -427,6 +520,11 @@ enum RelationshipCaptureClientError: LocalizedError, Equatable {
 }
 
 private struct EmptyBody: Encodable {}
+
+private struct ScreenshotContactDeleteBody: Encodable {
+    let expectedRevision: Int
+    enum CodingKeys: String, CodingKey { case expectedRevision = "expected_revision" }
+}
 
 private struct ClaimDecisionBody: Encodable {
     let idempotency_key: String
@@ -615,6 +713,9 @@ private struct ResourceCaptureBody: Encodable {
         let sourceMessageID: String
         let sequence: Int
         let speakerSide: String
+        let speakerLabel: String?
+        let visibleTimeText: String?
+        let sourceImageIndex: Int?
         let messageTimestamp: String?
 
         enum CodingKeys: String, CodingKey {
@@ -622,6 +723,9 @@ private struct ResourceCaptureBody: Encodable {
             case sourceMessageID = "source_message_id"
             case sequence
             case speakerSide = "speaker_side"
+            case speakerLabel = "speaker_label"
+            case visibleTimeText = "visible_time_text"
+            case sourceImageIndex = "source_image_index"
             case messageTimestamp = "message_timestamp"
         }
     }

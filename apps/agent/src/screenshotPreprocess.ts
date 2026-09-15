@@ -8,6 +8,7 @@ export const SCREENSHOT_PREPROCESS_SCHEMA_VERSION = "screenshot-preprocess-schem
 /** Pinned mainland-China Volcano Ark model. Opaque `latest` aliases are rejected. */
 export const ARK_SCREENSHOT_PREPROCESS_MODEL = "doubao-seed-2-0-lite-260215" as const;
 export const ARK_SCREENSHOT_PREPROCESS_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/chat/completions" as const;
+export const SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT = 24 as const;
 
 const Text = z.string().min(1);
 const Short = z.string().min(1).max(600);
@@ -90,6 +91,18 @@ export const ScreenshotPreprocessPacketSchema = z.strictObject({
     output_tokens: z.number().int().nonnegative(),
   }),
   sources: z.array(ScreenshotPreprocessSourceSchema).min(1).max(10),
+}).superRefine((packet, context) => {
+  const regionCount = packet.sources.reduce(
+    (count, source) => count + source.follow_up_regions.length,
+    0,
+  );
+  if (regionCount > SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT) {
+    context.addIssue({
+      code: "custom",
+      path: ["sources"],
+      message: `At most ${SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT} follow-up regions are allowed across the packet.`,
+    });
+  }
 });
 
 export type ScreenshotPreprocessRegion = z.infer<typeof ScreenshotPreprocessRegionSchema>;

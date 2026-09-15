@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { HarnessTool, HarnessToolObservation } from "./claudeHarness.js";
 import { ContactChatExtractionSchema, type ContactChatExtraction } from "./contactIntakeSchemas.js";
+import { SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT } from "./screenshotPreprocess.js";
 import type { screenshotImageViews } from "./screenshotImageViews.js";
 
 const Field = z.enum(["text", "speaker", "time", "identity"]);
@@ -116,7 +117,7 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
     signal.throwIfAborted();
     const data = metadata(result);
     if (!data || !result.content.some(item => item.type === "image")) return result;
-    if (receipts.size >= 24) return failure("CONTACT_IMAGE_READ_RECEIPT_LIMIT");
+    if (receipts.size >= SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT) return failure("CONTACT_IMAGE_READ_RECEIPT_LIMIT");
     const id = randomUUID();
     receipts.set(id, { id, index: Number(data.source_image_index), sourceHash: String(data.source_hash),
       region: Region.parse(data.region), order: ++order });
@@ -131,7 +132,7 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
       const reading = Reading.parse(args);
       const receipt = receipts.get(reading.read_receipt_id);
       if (!receipt?.actor || (reading.status === "clear") !== (reading.reading !== null)) return failure("CONTACT_IMAGE_REVIEW_INVALID");
-      if (pendingReviews.size >= 24) return failure("CONTACT_IMAGE_REVIEW_LIMIT");
+      if (pendingReviews.size >= SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT) return failure("CONTACT_IMAGE_REVIEW_LIMIT");
       const id = randomUUID();
       pendingReviews.set(id, { ...reading, id, receipt, order: ++order });
       return { content: [{ type: "text", text: JSON.stringify({ review_id: id, ...reading,

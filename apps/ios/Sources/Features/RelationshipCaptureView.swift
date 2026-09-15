@@ -290,7 +290,7 @@ struct RelationshipCaptureView: View {
                 Task { if await store.keepForLater() { onDismiss(.keepForLater) } }
             }
             .disabled(store.isBusy)
-            Button(appLanguage.text("Remove local copy"), role: .destructive) {
+            Button(appLanguage.text("Delete this source"), role: .destructive) {
                 Task {
                     if await store.discard() { onDismiss(.discard) }
                 }
@@ -300,7 +300,7 @@ struct RelationshipCaptureView: View {
         } message: {
             Text(
                 appLanguage.text(
-                    "Review progress stays on this device for up to 30 days. Removing the local copy does not delete an uploaded source."
+                    "Review progress stays on this device for up to 30 days. Deleting removes the governed preprocessing upload first, then this device's local copy."
                 )
             )
         }
@@ -443,29 +443,77 @@ struct RelationshipCaptureView: View {
                     .accessibilityIdentifier("preprocessing-uncertainties")
                 }
 
-                TextEditor(text: $store.draft.reviewedText)
-                    .font(.body)
-                    .foregroundStyle(Color.tsInk)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 190)
-                    .padding(12)
-                    .background(
-                        Color.tsEvidence,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.tsLine, lineWidth: 1)
+                if let messages = store.draft.preprocessedMessages, !messages.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(messages) { message in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(verbatim: [
+                                    "Message \(message.sequence + 1)",
+                                    "source \(message.sourceImageIndex + 1)",
+                                    message.speakerSide,
+                                    message.speakerLabel,
+                                    message.timeText,
+                                ].compactMap { $0 }.joined(separator: " · "))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.tsMutedInk)
+                                TextEditor(text: Binding(
+                                    get: {
+                                        store.draft.preprocessedMessages?
+                                            .first(where: { $0.id == message.id })?.text ?? message.text
+                                    },
+                                    set: { store.updatePreprocessedMessageText(id: message.id, text: $0) }
+                                ))
+                                    .font(.body)
+                                    .foregroundStyle(Color.tsInk)
+                                    .scrollContentBackground(.hidden)
+                                    .frame(minHeight: 96)
+                                    .padding(10)
+                                    .background(
+                                        Color.tsEvidence,
+                                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    )
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .stroke(Color.tsLine, lineWidth: 1)
+                                    }
+                                    .accessibilityLabel(
+                                        appLanguage.text("Reviewed conversation text")
+                                    )
+                                    .accessibilityHint(
+                                        appLanguage.text("Edit any text recognition errors before saving.")
+                                    )
+                                    .accessibilityIdentifier("reviewed-preprocessed-message-\(message.id)")
+                            }
+                        }
                     }
-                    .accessibilityLabel(
-                        appLanguage.text("Reviewed conversation text")
-                    )
-                    .accessibilityHint(
-                        appLanguage.text("Edit any text recognition errors before saving.")
-                    )
                     .accessibilityIdentifier("reviewed-preprocessed-text")
+                } else {
+                    TextEditor(text: $store.draft.reviewedText)
+                        .font(.body)
+                        .foregroundStyle(Color.tsInk)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 190)
+                        .padding(12)
+                        .background(
+                            Color.tsEvidence,
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.tsLine, lineWidth: 1)
+                        }
+                        .accessibilityLabel(
+                            appLanguage.text("Reviewed conversation text")
+                        )
+                        .accessibilityHint(
+                            appLanguage.text("Edit any text recognition errors before saving.")
+                        )
+                        .accessibilityIdentifier("reviewed-preprocessed-text")
+                }
 
-                speakerReviewControl
+                if store.draft.preprocessedMessages?.isEmpty != false {
+                    speakerReviewControl
+                }
 
                 Text(
                     appLanguage.text(

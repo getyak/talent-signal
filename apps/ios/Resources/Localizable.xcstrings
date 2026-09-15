@@ -25321,12 +25321,12 @@
         }
       }
     },
-    "Remove local copy": {
+    "Delete this source": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "移除本地副本"
+            "value": "删除此来源"
           }
         }
       }
@@ -25341,12 +25341,12 @@
         }
       }
     },
-    "Review progress stays on this device for up to 30 days. Removing the local copy does not delete an uploaded source.": {
+    "Review progress stays on this device for up to 30 days. Deleting removes the governed preprocessing upload first, then this device's local copy.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "审阅进度在本机最多保留 30 天。移除本地副本不会删除已上传的来源。"
+            "value": "审阅进度在本机最多保留 30 天。删除时会先移除受管的预处理上传，再移除本机副本。"
           }
         }
       }

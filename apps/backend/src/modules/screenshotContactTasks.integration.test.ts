@@ -417,6 +417,30 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
     const done=await loadScreenshotContactTask(pool!,auth,task.body.task_id);expect(done.status).toBe("completed");expect(done.contact).toBeNull();expect(done.capture_id).toBeNull();
     expect((await deleteContactCaptureTask(pool!,auth,done.task_id,done.revision)).status).toBe("deleted");
   });
+  it("continues an exact-revision deletion after its final scrub temporarily fails",async()=>{
+    const created=await createScreenshotContactTask(pool!,auth,input());
+    const originalRevision=created.body.revision;
+    const suffix=randomUUID().replaceAll("-","");
+    const trigger=`fail_contact_task_delete_${suffix}`;
+    const fn=`fail_contact_task_delete_fn_${suffix}`;
+    await pool!.query(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'SYNTHETIC_FINAL_DELETE_FAILURE'; END $$`);
+    await pool!.query(`CREATE TRIGGER ${trigger} BEFORE UPDATE ON screenshot_contact_tasks
+      FOR EACH ROW WHEN (NEW.id = '${created.body.task_id}'::uuid AND NEW.status = 'deleted') EXECUTE FUNCTION ${fn}()`);
+    try {
+      await expect(deleteContactCaptureTask(pool!,auth,created.body.task_id,originalRevision))
+        .rejects.toThrow("SYNTHETIC_FINAL_DELETE_FAILURE");
+      const pending=(await pool!.query<{status:string;revision:number;state:{deletion_requested?:boolean}}>(
+        "SELECT status,revision,state FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id])).rows[0]!;
+      expect(pending).toMatchObject({status:"cancelled",revision:originalRevision+1,state:{deletion_requested:true}});
+    } finally {
+      await pool!.query(`DROP TRIGGER IF EXISTS ${trigger} ON screenshot_contact_tasks`);
+      await pool!.query(`DROP FUNCTION IF EXISTS ${fn}()`);
+    }
+    const deleted=await deleteContactCaptureTask(pool!,auth,created.body.task_id,originalRevision);
+    expect(deleted.status).toBe("deleted");
+    expect((await pool!.query("SELECT state,input_manifest FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id])).rows)
+      .toEqual([{state:{},input_manifest:{}}]);
+  });
   it("creates one contact and exact unreviewed IM, reuses it on a second import, and does not replay writes",async()=>{
     const name=`Contact proof ${randomUUID().slice(0,8)}`;const request=input();
     const runner=new ScreenshotContactTaskRunner(pool!,{model:model(name),research:null});

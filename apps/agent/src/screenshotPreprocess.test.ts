@@ -4,7 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 import { ArkScreenshotPreprocessor } from "./arkScreenshotPreprocessor.js";
 import { prepareScreenshotViews } from "./screenshotPreparedViews.js";
 import { extractionFromPreprocess } from "./screenshotPreprocessExtraction.js";
-import { ARK_SCREENSHOT_PREPROCESS_MODEL } from "./screenshotPreprocess.js";
+import {
+  ARK_SCREENSHOT_PREPROCESS_MODEL,
+  SCREENSHOT_PREPROCESS_CONTRACT,
+  SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT,
+  SCREENSHOT_PREPROCESS_PROMPT_VERSION,
+  SCREENSHOT_PREPROCESS_SCHEMA_VERSION,
+  ScreenshotPreprocessPacketSchema,
+} from "./screenshotPreprocess.js";
 
 async function image(width = 120, height = 240) {
   const bytes=await sharp({create:{width,height,channels:3,background:"white"}}).png().toBuffer();
@@ -62,5 +69,44 @@ describe("screenshot-preprocess.v1",()=>{
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       follow_up_regions:[{reason:"illegible_text",field:"text",left:0,top:0,width:120,height:1401}]})})
       .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+  });
+
+  it("rejects aggregate follow-up regions beyond the global receipt budget", () => {
+    const sources = Array.from({ length: 2 }, (_, sourceImageIndex) => ({
+      source_image_index: sourceImageIndex,
+      source_hash: String(sourceImageIndex + 1).repeat(64),
+      ...modelOutput,
+      follow_up_required: true,
+      follow_up_regions: Array.from(
+        { length: SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1 },
+        (_, left) => ({
+          reason: "illegible_text" as const,
+          field: "text" as const,
+          region: { left, top: 0, width: 10, height: 10 },
+        }),
+      ),
+      width: 120,
+      height: 240,
+      prepared_view: {
+        transform: "auto-orient/native/webp92-v1",
+        content_hash: "a".repeat(64),
+        tile_count: 0,
+      },
+    }));
+    expect(ScreenshotPreprocessPacketSchema.safeParse({
+      contract_version: SCREENSHOT_PREPROCESS_CONTRACT,
+      schema_version: SCREENSHOT_PREPROCESS_SCHEMA_VERSION,
+      prompt_version: SCREENSHOT_PREPROCESS_PROMPT_VERSION,
+      provider: "volcano_ark",
+      model: ARK_SCREENSHOT_PREPROCESS_MODEL,
+      request_receipts: sources.map((source) => ({
+        source_image_index: source.source_image_index,
+        request_id: `request-${source.source_image_index}`,
+        input_tokens: 1,
+        output_tokens: 1,
+      })),
+      usage: { input_tokens: 2, output_tokens: 2 },
+      sources,
+    }).success).toBe(false);
   });
 });

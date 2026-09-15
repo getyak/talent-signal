@@ -196,8 +196,16 @@ The recruiter-reviewed iOS capture remains a separate manual filing workflow,
 but its initial draft now comes from the same private preprocessing task in
 `preprocess_only` mode. That mode archives the governed original and returns
 unconfirmed structured evidence without creating a contact, capture, or public
-research request. The recruiter can correct the draft before the manual save.
-The former Vision OCR implementation is no longer an active source path.
+research request. Each editable message retains its preprocessing message ID,
+source-image index, visible speaker label and side, and visible time text when
+the reviewed capture is saved; none of those locators confirms a real-world
+actor or timestamp. The recruiter can correct the draft before the manual save.
+Discarding or completing that reviewed capture deletes the preprocessing task
+at its exact revision before removing the local inbox source. Once the server
+accepts that deletion intent, a retry can finish a temporarily failed scrub with
+the original requested revision; the local source remains available until that
+readback succeeds. The former Vision OCR implementation is no longer an active
+source path.
 
 ### Web
 

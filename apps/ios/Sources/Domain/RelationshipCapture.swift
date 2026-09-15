@@ -92,6 +92,18 @@ enum IdentityHandleType: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+struct PreprocessedCaptureMessage: Identifiable, Codable, Equatable {
+    let messageID: String
+    let sequence: Int
+    var text: String
+    let speakerSide: String
+    let speakerLabel: String?
+    let timeText: String?
+    let sourceImageIndex: Int
+
+    var id: String { "\(sourceImageIndex):\(messageID)" }
+}
+
 struct RecognizedCaptureDraft: Codable, Equatable {
     var reviewedText: String
     var speaker: TextSignalSpeaker?
@@ -109,6 +121,9 @@ struct RecognizedCaptureDraft: Codable, Equatable {
     var sourceParserName: String? = nil
     var sourceParserVersion: String? = nil
     var preprocessingUncertainties: [String]? = nil
+    var preprocessingTaskID: String? = nil
+    var preprocessingTaskRevision: Int? = nil
+    var preprocessedMessages: [PreprocessedCaptureMessage]? = nil
 
     static let empty = RecognizedCaptureDraft(
         reviewedText: "",
@@ -125,6 +140,9 @@ struct RecognizedCaptureDraft: Codable, Equatable {
         !reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && reviewedText.count <= 20_000
             && (messageTimestampInput == nil || messageTimestamp != nil)
+            && (preprocessedMessages?.allSatisfy {
+                !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            } ?? true)
     }
 }
 

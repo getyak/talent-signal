@@ -386,6 +386,67 @@ describe("multichannel relationship-resource contracts", () => {
     expect(Value.Check(ResourceCaptureRequestSchema, request)).toBe(true);
   });
 
+  it("preserves screenshot message image, speaker, and visible-time provenance", () => {
+    const request = {
+      contract_version: CONTRACT_VERSION,
+      idempotency_key: "resource-screenshot-message-provenance-1",
+      channel: "ios_share",
+      purpose: "Preserve reviewed screenshot messages",
+      captured_at: "2026-09-15T09:00:00.000Z",
+      source_timezone: "Asia/Shanghai",
+      person_scope: {
+        status: "unresolved",
+        display_name_hint: "Alex Chen",
+        handles: [],
+        reason: "The recruiter must explicitly resolve identity.",
+      },
+      resource: {
+        client_resource_id: "ios-share-source-1",
+        kind: "conversation_screenshot",
+        display_name: "conversation.png",
+        media_type: "image/png",
+        observed_at: "2026-09-15T09:00:00.000Z",
+        source_timezone: "Asia/Shanghai",
+        byte_size: 123,
+        source_locator: "ios-share:photosPicker",
+        retention: {
+          requested_mode: "ephemeral",
+          source_scope: "reviewed_extracted_text",
+        },
+      },
+      fragments: [{
+        client_resource_id: "ios-share-source-1",
+        kind: "message",
+        sequence: 0,
+        text: "Available next Tuesday",
+        locator: {
+          kind: "message",
+          source_message_id: "m1",
+          sequence: 0,
+          speaker_side: "left",
+          source_image_index: 1,
+          speaker_label: "Alex Chen",
+          visible_time_text: "09:30",
+        },
+        attribution: { actor_kind: "unknown", status: "proposed" },
+        review_status: "reviewed",
+        parser: { name: "shared-screenshot-preprocess", version: "screenshot-preprocess.v1" },
+      }],
+    };
+
+    expect([...Value.Errors(ResourceCaptureRequestSchema, request)].map(error => ({
+      path: error.path,
+      message: error.message,
+    }))).toEqual([]);
+    expect(Value.Check(ResourceCaptureRequestSchema, {
+      ...request,
+      fragments: [{
+        ...request.fragments[0],
+        locator: { ...request.fragments[0]!.locator, source_image_index: 10 },
+      }],
+    })).toBe(false);
+  });
+
   it("keeps parsed resume text proposed and page-addressable", () => {
     const request = {
       contract_version: CONTRACT_VERSION,

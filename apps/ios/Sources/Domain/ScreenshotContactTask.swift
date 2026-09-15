@@ -11,12 +11,14 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
     }
     struct Message: Decodable, Equatable, Identifiable {
         let messageID: String
+        let sequence: Int
         let text: String
         let speakerSide: String
+        let speakerLabel: String?
         let timeText: String?
         let sourceImageIndex: Int?
         var id: String { messageID }
-        enum CodingKeys: String, CodingKey { case messageID = "message_id", text, speakerSide = "speaker_side", timeText = "time_text", sourceImageIndex = "source_image_index" }
+        enum CodingKeys: String, CodingKey { case messageID = "message_id", sequence, text, speakerSide = "speaker_side", speakerLabel = "speaker_label", timeText = "time_text", sourceImageIndex = "source_image_index" }
     }
     struct IdentityClue: Decodable, Equatable {
         let kind: String; let value: String; let sourceExcerpt: String; let sourceImageIndex: Int?
@@ -63,6 +65,25 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
         let imageIndex: Int
         enum CodingKeys: String, CodingKey { case imageIndex = "image_index" }
     }
+    struct Preprocessing: Decodable, Equatable {
+        struct Source: Decodable, Equatable {
+            struct FollowUp: Decodable, Equatable {
+                struct Region: Decodable, Equatable {
+                    let left: Int; let top: Int; let width: Int; let height: Int
+                }
+                let reason: String; let field: String; let region: Region
+            }
+            let sourceImageIndex: Int
+            let followUpRequired: Bool
+            let followUpRegions: [FollowUp]
+            enum CodingKeys: String, CodingKey {
+                case sourceImageIndex = "source_image_index"
+                case followUpRequired = "follow_up_required"
+                case followUpRegions = "follow_up_regions"
+            }
+        }
+        let sources: [Source]
+    }
     let sourceImages: [SourceImage]?
     let taskID: String
     let revision: Int
@@ -72,6 +93,7 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
     let sourceResourceID: String?
     let messageCount: Int
     let extraction: Extraction?
+    let preprocessing: Preprocessing?
     var contactDraft: ProfileDraft? = nil
     var reviewedProfile: ProfileDraft? = nil
     let summary: String
@@ -85,7 +107,7 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
     var id: String { taskID }
     enum CodingKeys: String, CodingKey {
         case sourceImages = "source_images", taskID = "task_id", revision, status, contact, captureID = "capture_id", sourceResourceID = "source_resource_id", messageCount = "message_count"
-        case extraction, contactDraft = "contact_draft", reviewedProfile = "reviewed_profile", summary, findings, profileFields = "profile_fields", publicSources = "public_sources", question, candidates, limitations, events
+        case extraction, preprocessing, contactDraft = "contact_draft", reviewedProfile = "reviewed_profile", summary, findings, profileFields = "profile_fields", publicSources = "public_sources", question, candidates, limitations, events
     }
 }
 

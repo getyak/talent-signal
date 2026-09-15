@@ -81,7 +81,15 @@ keeping the recruiter's review boundary intact.
    preprocessing baseline before filing tools unlock. Unknown provider
    responses require an explicit audited resume before a retry. Providers that
    cannot issue these region receipts keep the baseline unchanged and pause for
-   human review without receiving the original again.
+   human review without receiving the original again. One packet can declare at
+   most 24 follow-up regions across all source images, matching the global
+   current-run receipt budget.
+5. The iOS review draft keeps each preprocessing message and its source-image,
+   visible speaker and visible-time locators. Saving emits one proposed-attribution
+   fragment per message. Discard and terminal completion delete the preprocessing
+   task at its exact revision before removing the local inbox source. The server
+   records deletion intent before scrubbing, so a retry with the original
+   requested revision can continue a temporarily failed final phase.
 
 ## Milestones
 
@@ -95,6 +103,9 @@ keeping the recruiter's review boundary intact.
 - [x] iOS reviewed capture and shortcut inbox migrated to `preprocess_only`;
       Vision OCR implementation removed.
 - [x] Canonical docs + evaluation README with requirement-to-evidence mapping.
+- [x] Review remediation preserves message-level iOS provenance, exposes waiting
+      questions/regions, aligns the 24-region budget, and couples local removal
+      to exact-revision server deletion.
 
 ## Completion evidence
 
@@ -108,11 +119,17 @@ keeping the recruiter's review boundary intact.
   receipt, token usage, two ordered messages, and no follow-up region; see the
   acceptance evidence directory. No private screenshot or extracted text was
   retained in that receipt.
-- PostgreSQL integration: 32/32, including selected-source correction,
+- PostgreSQL integration: 33/33, including selected-source correction,
   ambiguous abstention, and explicit unknown-response retry authorization.
-- iOS `RelationshipCaptureTests`: 35/35, including the shared non-filing
+  The additional deletion recovery case injects a failure after intent commit
+  and proves the original revision can resume the final scrub.
+- iOS `RelationshipCaptureTests`: 39/39, including the shared non-filing
   preprocessing request, explicit user Retry/resume, unresolved-source display,
-  and reviewed-source parser provenance.
+  per-message source provenance, server cleanup before local source removal,
+  and local-source preservation across a temporary cleanup failure.
+- iOS generic-simulator Release build passed after the review remediation.
+- iOS localization boundary passed with 2,692 catalog keys, 174 transitional
+  inline bilingual calls, and 210 raw SwiftUI literals.
 - iOS `StandaloneOnboardingTests`: 53/53, including the regression that ignores
   legacy OCR text for shared images while preserving recruiter notes.
 
