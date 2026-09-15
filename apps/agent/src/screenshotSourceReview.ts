@@ -312,7 +312,7 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
         }
         const resolved=new Set<number>();
         for(const item of correction.resolved_uncertainties){
-          if(resolved.has(item.uncertainty_index)||!baseline.uncertainties[item.uncertainty_index]||
+          if(item.target.kind==="source"||resolved.has(item.uncertainty_index)||!baseline.uncertainties[item.uncertainty_index]||
             !supported(item.read_receipt_id,item.field,undefined,item.target,item.uncertainty_index))return {error:"CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID"};
           resolved.add(item.uncertainty_index);
         }

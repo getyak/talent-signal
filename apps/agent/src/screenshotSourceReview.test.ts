@@ -245,4 +245,21 @@ describe("current-Run screenshot source reviews", () => {
       pixel_readings: [speakerReading, undeclaredReading], uncertainties: [] }] }))
       .toEqual({ error: "CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING" });
   });
+
+  it("keeps a source-level omitted-item uncertainty until insertion is supported", async () => {
+    const baseline = { platform: "WeChat", conversation_kind: "direct" as const, contact_name: null,
+      identity_clues: [], messages: [], uncertainties: ["A source item may be omitted."] };
+    const { subject, read } = await setup(400, {
+      required: [{ source_image_index: 0, region, field: "text", uncertainty_index: 0,
+        target: { kind: "source" } }],
+      baselines: [{ source_image_index: 0, extraction: baseline }],
+    });
+    const own = await read();
+    expect(subject.validate({ images: [{ source_image_index: 0,
+      message_corrections: [], identity_clue_corrections: [],
+      resolved_uncertainties: [{ uncertainty_index: 0, read_receipt_id: own.id, field: "text",
+        target: { kind: "source" } }],
+      pixel_readings: [textReading(own.id)], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+  });
 });
