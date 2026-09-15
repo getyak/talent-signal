@@ -592,7 +592,9 @@ final class CaptureHandoffStore: ObservableObject {
 
         await refreshInbox()
         for item in inboxItems where
-            item.processingState == .queued || item.processingState == .processing {
+            item.processingState == .queued
+                || item.processingState == .processing
+                || item.processingState == .failed {
             guard generation == self.generation else { return }
             await process(
                 item,
@@ -633,6 +635,7 @@ final class CaptureHandoffStore: ObservableObject {
                 if needsDecision {
                     sessionStore.markUnread(sessionID)
                 } else {
+                    sessionStore.markRead(sessionID)
                     try await removeCompletedCapture(id: item.id)
                 }
                 return
@@ -747,6 +750,26 @@ final class CaptureHandoffStore: ObservableObject {
                         }
                     }
                 }
+                if capture.identity.status == "bound" {
+                    var linkedDraft = recovery.submittedDraft ?? draft
+                    if let taskID = linkedDraft.preprocessingTaskID,
+                       let revision = linkedDraft.preprocessingTaskRevision {
+                        linkedDraft.preprocessingTaskRevision = try await service.linkScreenshotPreprocessing(
+                            taskID: taskID,
+                            expectedRevision: revision,
+                            captureID: capture.captureID,
+                            sourceResourceID: capture.resource.id
+                        )
+                        recovery.submittedDraft = linkedDraft
+                        recovery.capture = capture
+                        try await inbox.saveReview(
+                            seed: seed,
+                            draft: linkedDraft,
+                            recovery: recovery,
+                            scope: runtimeScope
+                        )
+                    }
+                }
                 blockers = CaptureSessionDecisionPolicy.blockers(
                     for: capture,
                     identityCase: identityCase
@@ -778,6 +801,7 @@ final class CaptureHandoffStore: ObservableObject {
             if needsDecision {
                 sessionStore.markUnread(sessionID)
             } else {
+                sessionStore.markRead(sessionID)
                 try await removeCompletedCapture(id: item.id)
             }
         } catch is CancellationError {
@@ -802,6 +826,7 @@ final class CaptureHandoffStore: ObservableObject {
                     if needsDecision {
                         sessionStore.markUnread(sessionID)
                     } else {
+                        sessionStore.markRead(sessionID)
                         try await removeCompletedCapture(id: item.id)
                     }
                 } catch {
@@ -833,7 +858,7 @@ final class CaptureHandoffStore: ObservableObject {
     ) -> AgentSessionTurn? {
         let taskID = "capture-\(captureID.uuidString.lowercased())"
         return sessionStore.session(id: sessionID)?.turns.first(where: {
-            $0.response.taskID == taskID || $0.response.taskID == "\(taskID)-failed"
+            $0.response.taskID == taskID
         })
     }
 

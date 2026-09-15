@@ -148,7 +148,13 @@ struct ScreenshotContactTaskBody: Encodable {
         selectedPersonID = personID; selectedRelationshipContextID = contextID; self.allowPublicResearch = allowPublicResearch
         self.preprocessOnly = preprocessOnly ? true : nil
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        self.capturedAt = formatter.string(from: capturedAt)
+        // PendingCaptureInbox persists ISO-8601 dates at second precision. Use
+        // the same precision on the first request so a retry after an app
+        // restart keeps the idempotency request hash identical.
+        let stableCapturedAt = Date(
+            timeIntervalSince1970: floor(capturedAt.timeIntervalSince1970)
+        )
+        self.capturedAt = formatter.string(from: stableCapturedAt)
     }
     enum CodingKeys: String, CodingKey {
         case idempotencyKey = "idempotency_key", objective, image, additionalImages = "additional_images", selectedPersonID = "selected_person_id", selectedRelationshipContextID = "selected_relationship_context_id", allowPublicResearch = "allow_public_research", preprocessOnly = "preprocess_only", capturedAt = "captured_at"

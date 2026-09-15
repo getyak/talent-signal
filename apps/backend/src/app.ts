@@ -246,10 +246,11 @@ import {
   type PersonResearchAgentProviding,
 } from "./modules/personResearchAgentClient.js";
 import { createPersonResearchTask } from "./modules/personResearchTasks.js";
-import { deleteContactCaptureTask, loadBrowserCaptureTask, createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask, confirmScreenshotContactProfile,
+import { deleteContactCaptureTask, linkScreenshotContactTaskCapture, loadBrowserCaptureTask, createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask, confirmScreenshotContactProfile,
   cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, lookupScreenshotContactReceipt, loadScreenshotContactImage,
   environmentScreenshotContactDependencies, ScreenshotContactTaskRunner,
   type ScreenshotContactDependencies } from "./modules/screenshotContactTasks.js";
+import { purgeContactImagesForCapture } from "./modules/contactTaskImages.js";
 import { type ScreenshotContactTaskRequest } from "@talent-signal/agent";
 import { executeGrantedContactArchive, restoreContactArchive } from "./modules/contactArchive.js";
 import {
@@ -2582,6 +2583,10 @@ export async function buildApp(
   app.post<{Params:{id:string};Body:{expected_revision:number}}>("/v1/contact-agent/tasks/:id/delete",{
     preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1})},{additionalProperties:false})}
   },async request=>deleteContactCaptureTask(pool,request.auth,request.params.id,request.body.expected_revision,chatMediaStorage));
+  app.post<{Params:{id:string};Body:{expected_revision:number;capture_id:string;source_resource_id:string}}>("/v1/contact-agent/tasks/:id/capture-link",{
+    preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),
+      body:Type.Object({expected_revision:Type.Integer({minimum:1}),capture_id:Type.String({format:"uuid"}),source_resource_id:Type.String({format:"uuid"})},{additionalProperties:false})}
+  },async request=>linkScreenshotContactTaskCapture(pool,request.auth,request.params.id,request.body));
   app.get<{Params:{requestId:string}}>("/v1/contact-agent/browser-captures/:requestId", {
     preHandler:authenticate,schema:{security,params:Type.Object({requestId:Type.String({pattern:"^[a-zA-Z0-9-]{8,80}$"})})}
   }, async request=>loadBrowserCaptureTask(pool,request.auth,request.params.requestId));
@@ -3137,6 +3142,12 @@ export async function buildApp(
         request.auth,
         request.params.id,
         request.body,
+      );
+      await purgeContactImagesForCapture(
+        pool,
+        request.auth.accountId,
+        request.params.id,
+        chatMediaStorage,
       );
       return reply
         .header("idempotent-replayed", result.replayed)

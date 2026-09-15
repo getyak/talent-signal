@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 protocol RelationshipCaptureServing {
     var runtimeScope: String? { get }
@@ -14,6 +15,12 @@ protocol RelationshipCaptureServing {
     func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
     func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
     func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws
+    func linkScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        captureID: String,
+        sourceResourceID: String
+    ) async throws -> Int
 
     func createProposedCapture(
         seed: PendingCaptureSeed,
@@ -57,6 +64,69 @@ extension RelationshipCaptureServing {
 
     func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
         throw ConversationRecognitionError.sharedPreprocessingUnavailable
+    }
+
+    func linkScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        captureID: String,
+        sourceResourceID: String
+    ) async throws -> Int {
+        throw ConversationRecognitionError.sharedPreprocessingUnavailable
+    }
+}
+
+enum ScreenshotPreprocessingUploadNormalizer {
+    static let maximumByteCount = 10_000_000
+    private static let maximumPixelDimension: CGFloat = 4_096
+    private static let supportedMediaTypes = Set(["image/png", "image/jpeg", "image/webp"])
+
+    static func normalize(data: Data, mediaType: String) throws -> (data: Data, mediaType: String) {
+        if supportedMediaTypes.contains(mediaType), data.count <= maximumByteCount {
+            return (data, mediaType)
+        }
+        guard let image = UIImage(data: data) else {
+            throw ConversationRecognitionError.unreadableImage
+        }
+
+        var rendered = render(image, maximumDimension: maximumPixelDimension)
+        for quality in [CGFloat(0.92), 0.82, 0.70, 0.55] {
+            guard let jpeg = rendered.jpegData(compressionQuality: quality) else { continue }
+            if jpeg.count <= maximumByteCount { return (jpeg, "image/jpeg") }
+        }
+
+        for _ in 0..<4 {
+            let prior = rendered.jpegData(compressionQuality: 0.70)?.count ?? (maximumByteCount * 2)
+            let ratio = min(0.85, sqrt(CGFloat(maximumByteCount) / CGFloat(prior)) * 0.92)
+            rendered = render(
+                rendered,
+                maximumDimension: max(640, max(rendered.size.width, rendered.size.height) * ratio)
+            )
+            if let jpeg = rendered.jpegData(compressionQuality: 0.70),
+               jpeg.count <= maximumByteCount {
+                return (jpeg, "image/jpeg")
+            }
+        }
+        throw ConversationRecognitionError.sharedPreprocessingFailed
+    }
+
+    private static func render(_ image: UIImage, maximumDimension: CGFloat) -> UIImage {
+        // UIImage.size is already orientation-aware; cgImage dimensions are not.
+        let sourceWidth = max(1, image.size.width * image.scale)
+        let sourceHeight = max(1, image.size.height * image.scale)
+        let scale = min(1, maximumDimension / max(sourceWidth, sourceHeight))
+        let size = CGSize(
+            width: max(1, floor(sourceWidth * scale)),
+            height: max(1, floor(sourceHeight * scale))
+        )
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
     }
 }
 
@@ -115,15 +185,43 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         }
     }
 
+    func linkScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        captureID: String,
+        sourceResourceID: String
+    ) async throws -> Int {
+        let linked: ScreenshotContactCaptureLink = try await request(
+            path: "v1/contact-agent/tasks/\(taskID)/capture-link",
+            method: "POST",
+            body: ScreenshotContactCaptureLinkBody(
+                expectedRevision: expectedRevision,
+                captureID: captureID,
+                sourceResourceID: sourceResourceID
+            )
+        )
+        guard linked.taskID == taskID,
+              linked.captureID == captureID,
+              linked.sourceResourceID == sourceResourceID,
+              linked.revision >= expectedRevision else {
+            throw RelationshipCaptureClientError.invalidResponse
+        }
+        return linked.revision
+    }
+
     private func preprocessScreenshot(
         seed: PendingCaptureSeed,
         resumeFailedTask: Bool
     ) async throws -> RecognizedCaptureDraft {
+        let upload = try ScreenshotPreprocessingUploadNormalizer.normalize(
+            data: seed.imageData,
+            mediaType: seed.mediaType
+        )
         let body = ScreenshotContactTaskBody(
             idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):preprocess-v1",
             objective: "Preprocess this recruiter-selected screenshot into reviewable, unconfirmed source evidence.",
-            data: seed.imageData,
-            mediaType: seed.mediaType,
+            data: upload.data,
+            mediaType: upload.mediaType,
             personID: nil,
             contextID: nil,
             capturedAt: seed.createdAt,
@@ -524,6 +622,30 @@ private struct EmptyBody: Encodable {}
 private struct ScreenshotContactDeleteBody: Encodable {
     let expectedRevision: Int
     enum CodingKeys: String, CodingKey { case expectedRevision = "expected_revision" }
+}
+
+private struct ScreenshotContactCaptureLinkBody: Encodable {
+    let expectedRevision: Int
+    let captureID: String
+    let sourceResourceID: String
+    enum CodingKeys: String, CodingKey {
+        case expectedRevision = "expected_revision"
+        case captureID = "capture_id"
+        case sourceResourceID = "source_resource_id"
+    }
+}
+
+private struct ScreenshotContactCaptureLink: Decodable {
+    let taskID: String
+    let revision: Int
+    let captureID: String
+    let sourceResourceID: String
+    enum CodingKeys: String, CodingKey {
+        case taskID = "task_id"
+        case revision
+        case captureID = "capture_id"
+        case sourceResourceID = "source_resource_id"
+    }
 }
 
 private struct ClaimDecisionBody: Encodable {

@@ -28,7 +28,7 @@ import type { AuthContext } from "./auth.js";
 import { searchPeople, getRelationshipScope } from "./people.js";
 import { createResourceCaptureInTransaction } from "./resourceIntake.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
-import { contactImages, validateContactImage, reserveContactImages, persistContactImages, readContactImage, purgeExpiredContactImages, type ContactImageManifest } from "./contactTaskImages.js";
+import { contactImages, validateContactImage, reserveContactImages, persistContactImages, readContactImage, purgeExpiredContactImages, purgeContactImagesForTask, type ContactImageManifest } from "./contactTaskImages.js";
 import { mergeContactExtractions } from "./mergeContactExtractions.js";
 import { profileUnderstanding, saveReviewedContactProfile } from "./contactProfileDraft.js";
 import { LocalContactResearchClient, type ContactResearchClient } from "./contactResearchClient.js";
@@ -56,10 +56,10 @@ interface TaskState {
   user_contact_label?: string;
 }
 interface Row {
-  id: string; account_id: string; created_by_user_id: string; request_hash: string;
+  id: string; account_id: string; created_by_user_id: string; idempotency_key: string; request_hash: string;
   input_manifest: Manifest; state: TaskState; status: Response["status"];
   revision: number; lease_epoch: number; expires_at: Date;
-  capture_id: string | null; subject_id: string | null;
+  capture_id: string | null; source_resource_id: string | null; subject_id: string | null; assignment_id: string | null;
   created_at: Date; updated_at: Date;
 }
 export interface ScreenshotContactDependencies {
@@ -93,6 +93,20 @@ async function assertSourceCurrent(client: Pool | PoolClient, row: Row): Promise
   const directory=(await client.query<{available:boolean}>("SELECT contact_task_directory_available($1,$2::jsonb) AS available",[row.account_id,JSON.stringify(row.state)])).rows[0];
   if(!directory?.available)deny("CONTACT_DIRECTORY_CHANGED_SEARCH_AGAIN");
   if (!row.capture_id) return;
+  if(row.input_manifest.preprocess_only===true){
+    const linked=await client.query(`SELECT 1 FROM captures c
+      JOIN subjects s ON s.account_id=c.account_id AND s.id=c.subject_id
+      JOIN assignments a ON a.account_id=c.account_id AND a.id=c.assignment_id AND a.subject_id=c.subject_id
+      JOIN source_resources r ON r.account_id=c.account_id AND r.capture_id=c.id
+      JOIN source_retention_receipts sr ON sr.account_id=c.account_id AND sr.capture_id=c.id
+      WHERE c.account_id=$1 AND c.id=$2 AND c.status='active' AND s.status='active' AND c.subject_id=$3
+        AND c.assignment_id=$4 AND a.status='active' AND r.id=$5 AND r.processing_state<>'deleted'
+        AND sr.authorization_state='authorized'
+        AND (sr.authorization_expires_at IS NULL OR sr.authorization_expires_at>statement_timestamp())`,
+      [row.account_id,row.capture_id,row.subject_id,row.assignment_id,row.source_resource_id]);
+    if(!linked.rowCount)deny("CONTACT_TASK_SOURCE_UNAVAILABLE");
+    return;
+  }
   const found = await client.query(`SELECT 1 FROM captures c JOIN subjects s ON s.account_id=c.account_id AND s.id=c.subject_id
     JOIN source_retention_receipts r ON r.account_id=c.account_id AND r.capture_id=c.id
     WHERE c.account_id=$1 AND c.id=$2 AND c.status='active' AND s.status='active'
@@ -104,18 +118,25 @@ async function assertSourceCurrent(client: Pool | PoolClient, row: Row): Promise
 
 async function save(client: PoolClient, row: Row) {
   const response = row.state.response;
+  const linkedPreprocessing = row.input_manifest.preprocess_only===true && row.capture_id!==null;
+  const subjectID=linkedPreprocessing?row.subject_id:response.contact?.person_id??null;
+  const assignmentID=linkedPreprocessing?row.assignment_id:response.contact?.relationship_context_id??null;
+  const captureID=linkedPreprocessing?row.capture_id:response.capture_id;
+  const sourceResourceID=linkedPreprocessing?row.source_resource_id:response.source_resource_id;
   response.limitations=response.limitations.slice(-20);
   const result = await client.query<{revision:number;updated_at:Date}>(`UPDATE screenshot_contact_tasks
     SET state=$3::jsonb,status=$4,revision=revision+1,subject_id=$5,assignment_id=$6,capture_id=$7,source_resource_id=$8,
       updated_at=now(),lease_until=CASE WHEN $4='running' THEN now()+interval '90 seconds' ELSE NULL END
     WHERE account_id=$1 AND id=$2 AND status <> 'deleted' AND lease_epoch=$9
     RETURNING revision,updated_at`,[row.account_id,row.id,JSON.stringify(row.state),response.status,
-      response.contact?.person_id??null,response.contact?.relationship_context_id??null,response.capture_id,response.source_resource_id,row.lease_epoch]);
+      subjectID,assignmentID,captureID,sourceResourceID,row.lease_epoch]);
   if (!result.rows[0]) deny("CONTACT_TASK_LEASE_LOST");
   row.revision=result.rows[0].revision;
   row.status=response.status;
-  row.capture_id=response.capture_id;
-  row.subject_id=response.contact?.person_id??null;
+  row.capture_id=captureID;
+  row.source_resource_id=sourceResourceID;
+  row.subject_id=subjectID;
+  row.assignment_id=assignmentID;
   response.revision=row.revision;response.updated_at=result.rows[0].updated_at.toISOString();
   await saveProductRunOutput(client,{accountID:row.account_id,taskID:row.id},response as unknown as Record<string,unknown>,response.status);
 }
@@ -285,8 +306,49 @@ export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:str
       revision=revision+1,lease_epoch=lease_epoch+1,lease_until=NULL,updated_at=now() WHERE account_id=$1 AND id=$2 AND status<>'deleted'`,[auth.accountId,id]);
     await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.deleted","screenshot_contact_task",id,{});
   });
-  if(storage)await purgeExpiredContactImages(pool,storage);
+  if(storage)await purgeContactImagesForTask(pool,auth.accountId,id,storage);
   return loadScreenshotContactTask(pool,auth,id);
+}
+
+export async function linkScreenshotContactTaskCapture(pool:Pool,auth:AuthContext,id:string,input:{
+  expected_revision:number;capture_id:string;source_resource_id:string;
+}){
+  return inTransaction(pool,async client=>{
+    const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
+    if(row.input_manifest.preprocess_only!==true)deny("CONTACT_PREPROCESS_LINK_REQUIRED");
+    if(row.capture_id){
+      if(row.capture_id!==input.capture_id||row.source_resource_id!==input.source_resource_id)
+        deny("CONTACT_PREPROCESS_CAPTURE_CONFLICT");
+      return {task_id:id,revision:row.revision,capture_id:row.capture_id,source_resource_id:input.source_resource_id};
+    }
+    if(row.revision!==input.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
+    if(!["completed","waiting_for_user"].includes(row.status))deny("CONTACT_PREPROCESS_NOT_LINKABLE");
+    const seed=/^ios:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):preprocess-v1$/u.exec(row.idempotency_key)?.[1];
+    if(!seed)deny("CONTACT_PREPROCESS_SOURCE_MISMATCH");
+    const capture=await client.query<{subject_id:string;assignment_id:string}>(`SELECT c.subject_id,c.assignment_id
+      FROM captures c JOIN source_resources r ON r.account_id=c.account_id AND r.capture_id=c.id
+      JOIN subjects s ON s.account_id=c.account_id AND s.id=c.subject_id
+      JOIN assignments a ON a.account_id=c.account_id AND a.id=c.assignment_id AND a.subject_id=c.subject_id
+      JOIN source_retention_receipts sr ON sr.account_id=c.account_id AND sr.capture_id=c.id
+      JOIN idempotency_records k ON k.account_id=c.account_id AND k.actor_user_id=c.created_by_user_id
+      WHERE c.account_id=$1 AND c.id=$2 AND c.created_by_user_id=$3 AND c.status='active'
+        AND r.id=$4 AND r.processing_state<>'deleted' AND c.source_kind='conversation_screenshot'
+        AND r.resource_kind='conversation_screenshot' AND r.input_channel='ios_share' AND r.client_resource_id=$5
+        AND k.operation_scope='create_resource_capture' AND k.idempotency_key=$6 AND k.status='completed'
+        AND k.response_body->>'capture_id'=c.id::text AND s.status='active' AND a.status='active'
+        AND sr.authorization_state='authorized'
+        AND (sr.authorization_expires_at IS NULL OR sr.authorization_expires_at>statement_timestamp())
+      FOR UPDATE OF c,r,s,a,sr,k`,[auth.accountId,input.capture_id,auth.userId,input.source_resource_id,`ios-share:${seed}`,`ios:${seed}:capture`]);
+    if(!capture.rows[0])deny("CONTACT_PREPROCESS_SOURCE_MISMATCH");
+    const linked=await client.query<{revision:number}>(`UPDATE screenshot_contact_tasks SET capture_id=$4,source_resource_id=$5,
+      subject_id=$6,assignment_id=$7,revision=revision+1,updated_at=now()
+      WHERE account_id=$1 AND id=$2 AND created_by_user_id=$3 AND status<>'deleted' RETURNING revision`,
+      [auth.accountId,id,auth.userId,input.capture_id,input.source_resource_id,capture.rows[0].subject_id,capture.rows[0].assignment_id]);
+    const revision=linked.rows[0]!.revision;
+    await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.capture_linked","screenshot_contact_task",id,
+      {capture_id:input.capture_id,source_resource_id:input.source_resource_id});
+    return {task_id:id,revision,capture_id:input.capture_id,source_resource_id:input.source_resource_id};
+  });
 }
 
 export async function loadBrowserCaptureTask(pool: Pool, auth: AuthContext, requestID: string) {
@@ -895,8 +957,13 @@ export class ScreenshotContactTaskRunner {
             const mergedParts=[...(r.state.extraction_parts??[])];
             parts.forEach((part,slot)=>{const sourceIndex=imageSourceIndices[slot];if(sourceIndex===undefined)deny("CONTACT_IMAGE_REFERENCE_INVALID");mergedParts[sourceIndex]=normalizeRefinedExtraction(part,sourceIndex);});
             r.state.extraction_parts=mergedParts;
-            r.state.preprocessing_refinement_unresolved=Boolean(r.state.preprocessing_refinement_unresolved||parts.some(part=>part.uncertainties.length));
-            r.state.preprocessing_refined_indices=[...new Set([...(r.state.preprocessing_refined_indices??[]),...imageSourceIndices])].sort((a,b)=>a-b);
+            const unresolvedIndices=imageSourceIndices.filter((_,slot)=>Boolean(parts[slot]?.uncertainties.length));
+            const unresolved=new Set(unresolvedIndices);
+            r.state.preprocessing_refinement_unresolved=unresolved.size>0;
+            r.state.preprocessing_refined_indices=[...new Set([
+              ...(r.state.preprocessing_refined_indices??[]).filter(index=>!unresolved.has(index)),
+              ...imageSourceIndices.filter(index=>!unresolved.has(index)),
+            ])].sort((a,b)=>a-b);
             await summarizeExtractionParts(client,auth,r);
             if(r.input_manifest.preprocess_only){
               if(r.state.response.status==="running"){

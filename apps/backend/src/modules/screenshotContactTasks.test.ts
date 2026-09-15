@@ -7,7 +7,7 @@ import { ARK_SCREENSHOT_PREPROCESS_MODEL } from "@talent-signal/agent";
 const row = {
   id: "synthetic-task", status: "completed", revision: 1,
   expires_at: new Date("2099-01-01"), created_at: new Date(), updated_at: new Date(),
-  capture_id: "synthetic-capture", state: { response: {} },
+  capture_id: "synthetic-capture", input_manifest: {}, state: { response: {} },
 };
 const auth = { accountId: "synthetic-account", userId: "synthetic-owner" } as AuthContext;
 describe("capture availability readback", () => {
