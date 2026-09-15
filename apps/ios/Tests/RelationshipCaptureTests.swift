@@ -914,6 +914,10 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertEqual(links.first?.expectedRevision, 4)
         XCTAssertEqual(links.first?.captureID, "99999999-9999-4999-8999-999999999999")
         XCTAssertEqual(links.first?.sourceResourceID, Self.oneCurrentOwnerCase().source.resourceID)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.count, 1)
+        XCTAssertEqual(deletes.first?.taskID, "99999999-9999-4999-8999-999999999998")
+        XCTAssertEqual(deletes.first?.revision, 5)
 
         await handoff.processPendingCaptures(
             sessionStore: sessions,
@@ -974,6 +978,110 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertTrue(sessions.session(id: sessionID)?.turns.contains(where: {
             $0.response.taskID == "capture-\(seed.id.uuidString.lowercased())"
         }) == true)
+        XCTAssertFalse(sessions.session(id: sessionID)?.isUnread ?? true)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.count, 1)
+        XCTAssertEqual(deletes.first?.revision, 5)
+    }
+
+    @MainActor
+    func testCaptureProcessingBlocksReadableDraftWithPreprocessingUncertainty() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-readable-preprocess-blocker-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "readable-but-unresolved.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        var draft = CaptureDraftBuilder.makeDraft(from: "Readable proposed message")
+        draft.preprocessingTaskID = "99999999-9999-4999-8999-999999999988"
+        draft.preprocessingTaskRevision = 3
+        draft.preprocessingRetryRequired = false
+        draft.preprocessingUncertainties = ["The speaker for message m1 still needs an original-pixel check."]
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.oneCurrentOwnerCase(),
+            decisionResult: .init(
+                decision: "bind_existing", identityStatus: "bound",
+                personID: Self.currentPersonID,
+                relationshipContextID: Self.currentContextID,
+                resourceProcessingState: "needs_fact_review"
+            ),
+            wiki: Self.goldWiki(),
+            captureCandidatePersonIDs: [Self.currentPersonID],
+            preprocessedDraftOverride: draft
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+
+        let item = try XCTUnwrap(handoff.inboxItems.first)
+        XCTAssertEqual(item.id, seed.id)
+        XCTAssertEqual(item.processingState, .needsDecision)
+        let itemSessionID = try XCTUnwrap(item.sessionID)
+        XCTAssertTrue(sessions.session(id: itemSessionID)?.isUnread == true)
+        let createCount = await service.createCount
+        let links = await service.preprocessingLinks
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(createCount, 0)
+        XCTAssertTrue(links.isEmpty)
+        XCTAssertTrue(deletes.isEmpty)
+    }
+
+    @MainActor
+    func testCaptureProcessingRetriesPreprocessingCleanupBeforeLocalRemoval() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-background-preprocess-delete-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "cleanup-retry.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        let summaries = try await inbox.summaries(scope: nil)
+        let sessionID = try XCTUnwrap(summaries.first?.sessionID)
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.oneCurrentOwnerCase(),
+            decisionResult: .init(
+                decision: "bind_existing", identityStatus: "bound",
+                personID: Self.currentPersonID,
+                relationshipContextID: Self.currentContextID,
+                resourceProcessingState: "needs_fact_review"
+            ),
+            wiki: Self.goldWiki(),
+            captureCandidatePersonIDs: [Self.currentPersonID],
+            preprocessingDeleteFailuresBeforeSuccess: 2,
+            preprocessingTaskID: "99999999-9999-4999-8999-999999999987",
+            preprocessingTaskRevision: 6
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        XCTAssertEqual(handoff.inboxItems.first?.processingState, .processing)
+        let retainedSeed = try await inbox.load(id: seed.id, scope: nil)
+        XCTAssertNotNil(retainedSeed)
+        let firstCreateCount = await service.createCount
+        let firstLinks = await service.preprocessingLinks
+        let firstDeletes = await service.preprocessingDeletes
+        XCTAssertEqual(firstCreateCount, 1)
+        XCTAssertEqual(firstLinks.count, 1)
+        XCTAssertEqual(firstDeletes.map(\.revision), [7, 7])
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        XCTAssertTrue(handoff.inboxItems.isEmpty)
+        let removedSeed = try await inbox.load(id: seed.id, scope: nil)
+        XCTAssertNil(removedSeed)
+        let finalCreateCount = await service.createCount
+        let finalLinks = await service.preprocessingLinks
+        let finalDeletes = await service.preprocessingDeletes
+        XCTAssertEqual(finalCreateCount, 1)
+        XCTAssertEqual(finalLinks.count, 1)
+        XCTAssertEqual(finalDeletes.map(\.revision), [7, 7, 7])
+        XCTAssertEqual(sessions.session(id: sessionID)?.turns.filter {
+            $0.response.taskID == "capture-\(seed.id.uuidString.lowercased())"
+        }.count, 1)
         XCTAssertFalse(sessions.session(id: sessionID)?.isUnread ?? true)
     }
 

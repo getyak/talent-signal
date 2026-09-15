@@ -625,6 +625,12 @@ final class CaptureHandoffStore: ObservableObject {
                 sessionStore: sessionStore
             ) {
                 let needsDecision = existingTurn.response.blocks.contains(where: \.requiresUserDecision)
+                if !needsDecision {
+                    try await deletePreprocessingSourceIfNeeded(
+                        captureID: item.id,
+                        service: service
+                    )
+                }
                 try await inbox.updateSessionProcessing(
                     id: item.id,
                     sessionID: sessionID,
@@ -663,9 +669,13 @@ final class CaptureHandoffStore: ObservableObject {
                 try await inbox.saveDraft(draft, for: item.id, scope: runtimeScope)
             }
             let blockers: [String]
-            if !draft.canSubmit {
-                blockers = draft.preprocessingUncertainties
-                    ?? ["The protected screenshot needs review before any evidence can be saved."]
+            let preprocessingBlockers = draft.preprocessingUncertainties ?? []
+            if draft.preprocessingRetryRequired == true
+                || !preprocessingBlockers.isEmpty
+                || !draft.canSubmit {
+                blockers = preprocessingBlockers.isEmpty
+                    ? ["The protected screenshot needs review before any evidence can be saved."]
+                    : preprocessingBlockers
             } else if let service {
                 var recovery = try await inbox.loadRecovery(
                     for: item.id,
@@ -792,6 +802,12 @@ final class CaptureHandoffStore: ObservableObject {
                 throw CaptureSessionProcessingError.sessionPersistenceUnavailable
             }
             let needsDecision = !blockers.isEmpty
+            if !needsDecision {
+                try await deletePreprocessingSourceIfNeeded(
+                    captureID: item.id,
+                    service: service
+                )
+            }
             try await inbox.updateSessionProcessing(
                 id: item.id,
                 sessionID: sessionID,
@@ -819,6 +835,12 @@ final class CaptureHandoffStore: ObservableObject {
                     where: \.requiresUserDecision
                 )
                 do {
+                    if !needsDecision {
+                        try await deletePreprocessingSourceIfNeeded(
+                            captureID: item.id,
+                            service: service
+                        )
+                    }
                     try await inbox.updateSessionProcessing(
                         id: item.id,
                         sessionID: sessionID,
@@ -852,6 +874,34 @@ final class CaptureHandoffStore: ObservableObject {
                 scope: runtimeScope
             )
         }
+    }
+
+    private func deletePreprocessingSourceIfNeeded(
+        captureID: UUID,
+        service: RelationshipCaptureServing?
+    ) async throws {
+        let recovery = try await inbox.loadRecovery(
+            for: captureID,
+            scope: runtimeScope
+        )
+        let source: RecognizedCaptureDraft?
+        if let submittedDraft = recovery?.submittedDraft {
+            source = submittedDraft
+        } else {
+            source = try await inbox.loadDraft(
+                for: captureID,
+                scope: runtimeScope
+            )
+        }
+        guard let taskID = source?.preprocessingTaskID,
+              let revision = source?.preprocessingTaskRevision else { return }
+        guard let service else {
+            throw ConversationRecognitionError.sharedPreprocessingUnavailable
+        }
+        try await service.deleteScreenshotPreprocessing(
+            taskID: taskID,
+            expectedRevision: revision
+        )
     }
 
     private func processingTurn(
