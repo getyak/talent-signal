@@ -29,8 +29,15 @@ as `not_run`.
   fact-decision receipt readback, and return to the exact Session. TS-006,
   TS-011, and TS-024 are `passed`; unpromoted exceptional cases remain
   `not_run` in the matrix even where unit or route tests exist.
-- M2–M4: not yet delivered. Their implementation continues from this plan; the
-  native SwiftUI app remains the rollback host.
+- M2: the Meetings/Plugs implementation slice is delivered and independently
+  reviewed: canonical MeetingDraft persistence, exact-intent recovery,
+  conflict/revocation handling, ICS-only handoff, truthful capability state,
+  and responsive/dark evidence are versioned. Full M2 remains open for the
+  remaining route, density, 1024 px, 200% text, Chinese IME, and complete
+  TS-014/020/021/023/030 boundary matrix.
+- M3–M4: implementation continues from this plan. Rust/Xcode prerequisites are
+  available, and the native SwiftUI app remains the rollback host while the
+  isolated Tauri shell is built and measured.
 
 ## Boundaries
 

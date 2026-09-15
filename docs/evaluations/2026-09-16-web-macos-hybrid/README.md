@@ -93,6 +93,19 @@ the isolated public synthetic fixture. The versioned observation, database
 readback, limitations, screenshots, and hashes are recorded in
 [`web/2026-09-16-session-boundary.md`](web/2026-09-16-session-boundary.md).
 
-This result does not promote TS-011 or the complete M1 loop: explicit Person
-selection, evidence inspection, change review/receipt readback, and return to
-the same Session still need browser proof.
+The same M1 boundary document records explicit Person selection, evidence
+inspection, change review/receipt readback, and return to the same Session.
+TS-011 is `passed`; the remaining exceptional cases stay at their individually
+observed status.
+
+### M2 Meetings, Plugs, and exceptional-state slice
+
+The versioned local observation for MeetingDraft persistence, exact-intent
+recovery, ICS-only handoff, source revocation, truthful Plug state, account
+menu, responsive/dark render evidence, fresh PostgreSQL constraints, and final
+independent review is recorded in
+[`web/2026-09-16-meeting-and-plugs-boundary.md`](web/2026-09-16-meeting-and-plugs-boundary.md).
+
+This is a verified M2 slice, not full M2 acceptance. TS-014, TS-020, TS-021,
+TS-023, and TS-030 remain `not_run` because their complete required boundaries
+were not executed.
