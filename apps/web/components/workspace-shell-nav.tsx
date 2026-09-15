@@ -3,6 +3,7 @@
 import {
   ChatCircleDots,
   ChartLine,
+  ClockCounterClockwise,
   House,
   Sparkle,
   UserCircle,
@@ -19,6 +20,12 @@ const items = [
     icon: ChatCircleDots,
     label: "采集",
     matches: (pathname: string) => pathname.startsWith("/workspace/captures"),
+  },
+  {
+    href: "/workspace/sessions",
+    icon: ClockCounterClockwise,
+    label: "会话",
+    matches: (pathname: string) => pathname.startsWith("/workspace/sessions"),
   },
   {
     href: "/workspace/today",
