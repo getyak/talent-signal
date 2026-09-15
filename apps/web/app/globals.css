@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@talent-signal/workspace-ui/theme.css";
 
 :root {
   --background: #f4f3ef;

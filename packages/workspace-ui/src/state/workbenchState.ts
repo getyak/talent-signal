@@ -219,6 +219,6 @@ export function capabilityBlockReason(
     case "denied":
       return "权限被拒绝；不会回退到其他采集或云端处理。";
     default:
-      return "当前主机不提供该原生能力。";
+      return "当前主机不提供该原生能力（不可用）。";
   }
 }

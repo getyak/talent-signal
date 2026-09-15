@@ -142,7 +142,10 @@ export function NativeCapabilityWorkbench({
         controller.signal,
       );
       if (mounted.current) {
-        dispatch({ type: "capture/settled", result });
+        dispatch({
+          type: "capture/settled",
+          result: controller.signal.aborted ? { status: "cancelled" } : result,
+        });
       }
     } catch {
       if (mounted.current) {
@@ -246,7 +249,7 @@ export function NativeCapabilityWorkbench({
       );
       return;
     }
-    setSubmitNote("已作为本机草稿暂存；不会写入外部系统，也不代表任何确认。");
+    setSubmitNote("文本只保留在当前窗口；关闭或刷新可能丢失，也不会写入外部系统。");
   }, [state]);
 
   const provisionalNote = composerProvisionalNote(state);
@@ -387,10 +390,10 @@ export function NativeCapabilityWorkbench({
         ) : null}
         <div style={{ alignItems: "center", display: "flex", gap: "var(--ts-space-md)", marginTop: "var(--ts-space-md)" }}>
           <button className="ts-btn" disabled={!submitAllowed} onClick={submit} type="button">
-            暂存本机草稿
+            保留在当前窗口
           </button>
           <span style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)" }}>
-            仅本机草稿；无外部执行权限。
+            当前窗口内的暂定文本；没有持久化或外部执行权限。
           </span>
         </div>
         {submitNote ? (
@@ -410,15 +413,20 @@ export function NativeCapabilityWorkbench({
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--ts-space-sm)" }}>
           <button
             className="ts-btn"
-            disabled={captureAvailability !== "available"}
+            disabled={
+              captureAvailability !== "available" &&
+              captureAvailability !== "permission_required"
+            }
             onClick={requestCapture}
             type="button"
           >
-            选择窗口并采集
+            {captureAvailability === "permission_required"
+              ? "请求权限并选择窗口"
+              : "选择窗口并采集"}
           </button>
           <button
             className="ts-btn"
-            disabled={state.capture.kind !== "pending" && state.capture.kind !== "captured"}
+            disabled={state.capture.kind !== "pending"}
             onClick={cancelCapture}
             type="button"
           >

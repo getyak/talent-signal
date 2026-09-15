@@ -10,6 +10,7 @@ import type { WorkspaceConnection } from "@/lib/workspace-plugs";
 import Link from "next/link";
 
 import styles from "./workspace-plugs.module.css";
+import { WorkspaceNativeBoundary } from "./workspace-native-boundary";
 
 const icons = {
   "account-sign-in": Key,
@@ -84,6 +85,10 @@ export function WorkspacePlugs({
           当前没有可用的日历授权入口。Talent Signal 不会把 Google 登录当成日历许可，也不会让远程 Web 内容获得原生采集能力。
         </p>
       </aside>
+
+      <div className={styles.nativeBoundary}>
+        <WorkspaceNativeBoundary />
+      </div>
     </main>
   );
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   PLATFORM_CAPABILITIES,
+  type CapabilityReport,
   availabilityFor,
   availabilityLabel,
   createUnavailablePlatformAdapter,
@@ -59,10 +60,21 @@ describe("availabilityFor", () => {
     expect(availabilityFor(null, "window_capture")).toBe("unavailable");
     expect(availabilityFor(undefined, "local_ocr")).toBe("unavailable");
     expect(
-      availabilityFor({ window_capture: "available" as never }, "local_ocr"),
+      availabilityFor(
+        { window_capture: "available" } as unknown as CapabilityReport,
+        "local_ocr",
+      ),
     ).toBe("unavailable");
     expect(
-      availabilityFor({ local_ocr: "maybe" as never }, "local_ocr"),
+      availabilityFor(
+        {
+          window_capture: "unavailable",
+          local_ocr: "maybe",
+          quick_panel: "unavailable",
+          notification: "unavailable",
+        } as unknown as CapabilityReport,
+        "local_ocr",
+      ),
     ).toBe("unavailable");
   });
 

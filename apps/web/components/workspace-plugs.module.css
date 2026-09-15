@@ -149,6 +149,21 @@
   padding: 15px 16px;
 }
 
+.nativeBoundary {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 26px;
+}
+
+.nativeBoundary :global(.ts-workspace-surface) {
+  --ts-accent: var(--accent);
+  --ts-chrome-muted: var(--muted);
+  --ts-content-surface: var(--surface);
+  --ts-divider: var(--line-soft);
+  --ts-ink: var(--ink);
+  --ts-panel-surface: var(--surface);
+  --ts-type-title: 1rem;
+}
+
 .boundary {
   background: var(--surface-muted);
   color: var(--muted-strong);

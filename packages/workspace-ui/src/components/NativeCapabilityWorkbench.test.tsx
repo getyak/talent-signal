@@ -38,7 +38,7 @@ describe("NativeCapabilityWorkbench initial render", () => {
 
   it("states that drafts are local and external writes are not performed", () => {
     const html = render("web");
-    expect(html).toContain("无外部执行权限");
+    expect(html).toContain("没有持久化或外部执行权限");
     expect(html).toContain("不创建规范数据");
     expect(html).toContain("没有云端回退");
   });

@@ -5,6 +5,11 @@ export {
 } from "./components/NativeCapabilityWorkbench.js";
 
 export {
+  NativeCapabilityStatus,
+  type NativeCapabilityStatusProps,
+} from "./components/NativeCapabilityStatus.js";
+
+export {
   PLATFORM_CAPABILITIES,
   availabilityFor,
   availabilityLabel,

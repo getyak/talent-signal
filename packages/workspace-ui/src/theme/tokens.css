@@ -103,6 +103,55 @@
   gap: var(--ts-space-xs);
 }
 
+.ts-workspace-surface .ts-kicker {
+  color: var(--ts-chrome-muted);
+  font-size: var(--ts-type-meta);
+  letter-spacing: 0.09em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.ts-workspace-surface .ts-heading {
+  font-size: var(--ts-type-title);
+  font-weight: 580;
+  letter-spacing: -0.025em;
+  margin: var(--ts-space-xs) 0 0;
+}
+
+.ts-workspace-surface .ts-description {
+  color: var(--ts-chrome-muted);
+  line-height: 1.65;
+  margin: var(--ts-space-sm) 0 0;
+  max-width: 66ch;
+}
+
+.ts-workspace-surface .ts-capability-list {
+  border-top: 1px solid var(--ts-divider);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ts-workspace-surface .ts-capability-row {
+  align-items: baseline;
+  border-bottom: 1px solid var(--ts-divider);
+  display: flex;
+  gap: var(--ts-space-md);
+  justify-content: space-between;
+  padding: var(--ts-space-lg) 0;
+}
+
+.ts-workspace-surface .ts-capability-row strong {
+  font-weight: 620;
+}
+
+.ts-workspace-surface .ts-capability-row p {
+  color: var(--ts-chrome-muted);
+  font-size: var(--ts-type-meta);
+  line-height: 1.5;
+  margin: var(--ts-space-xs) 0 0;
+}
+
 .ts-workspace-surface .ts-status[data-state="available"] {
   color: color-mix(in srgb, var(--ts-ink) 84%, var(--ts-chrome-muted));
 }
