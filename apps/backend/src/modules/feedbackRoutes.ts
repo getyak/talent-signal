@@ -6,6 +6,7 @@ import {
 } from "@talent-signal/contracts";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import type { Pool } from "pg";
+import { registerRecurringJob } from "../lib/recurringJob.js";
 import { FeedbackService } from "./feedback.js";
 
 export function registerFeedbackRoutes(app: FastifyInstance, pool: Pool, authenticate: preHandlerHookHandler): void {
@@ -38,7 +39,9 @@ export function registerFeedbackRoutes(app: FastifyInstance, pool: Pool, authent
     preHandler, schema: { security, params: Type.Object({ id, observationID: id }, { additionalProperties: false }),
       response: { 200: FeedbackObservationResponseSchema, "4xx": ErrorResponseSchema } },
   }, async (request) => ({ contract_version: CONTRACT_VERSION, observation: await service.readObservation(request.auth, request.params.id, request.params.observationID) }));
-  const timer = setInterval(() => { void service.sweep().catch(() => {}); }, 60_000);
-  timer.unref();
-  app.addHook("onClose", async () => clearInterval(timer));
+  registerRecurringJob(app, {
+    name: "feedback-retention-sweep",
+    intervalMs: 60_000,
+    run: () => service.sweep(),
+  });
 }
