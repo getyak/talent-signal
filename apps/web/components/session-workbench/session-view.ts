@@ -223,7 +223,7 @@ export function sessionScopeView(input: SessionScopeInput): SessionScopeView {
     return {
       label: "身份核对",
       returnLabel: "继续处理身份核对",
-      returnHref: "/workspace/people",
+      returnHref: `/workspace/people?session=${encodeURIComponent(input.sessionId)}`,
       note: "这条对话属于身份核对，未绑定联系人或关系情境。请在联系人目录中处理。",
       claimsScopeChange: false,
     };
@@ -231,7 +231,7 @@ export function sessionScopeView(input: SessionScopeInput): SessionScopeView {
   return {
     label: "未绑定范围",
     returnLabel: "在联系人目录中选择身份",
-    returnHref: "/workspace/people",
+    returnHref: `/workspace/people?session=${encodeURIComponent(input.sessionId)}`,
     note: "这条对话还没有绑定联系人或关系情境。请到联系人目录中显式选择，选择本身不会自动改变这条对话的范围。",
     claimsScopeChange: false,
   };

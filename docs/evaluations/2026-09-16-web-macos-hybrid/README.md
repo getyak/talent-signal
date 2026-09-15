@@ -30,12 +30,12 @@ and its seven Node checks are mock evidence only.
 | TS-003 | revise | interaction | session.participants | not_run | not_reviewed |
 | TS-004 | revise | interaction | navigation.hover | not_run | not_reviewed |
 | TS-005 | revise | visual | person.current_dependency | not_run | not_reviewed |
-| TS-006 | agree | contract | session.unscoped | not_run | not_reviewed |
+| TS-006 | agree | contract | session.unscoped | passed | not_reviewed |
 | TS-007 | revise | interaction | composer.mentions | not_run | not_reviewed |
 | TS-008 | revise | contract | composer.time | not_run | not_reviewed |
 | TS-009 | revise | interaction | session.tabs | not_run | not_reviewed |
 | TS-010 | agree | native | voice.final_draft | not_run | not_reviewed |
-| TS-011 | pending | interaction | session.navigation_recovery | not_run | not_reviewed |
+| TS-011 | pending | interaction | session.navigation_recovery | passed | not_reviewed |
 | TS-012 | revise | scope | group.deferred | not_run | not_reviewed |
 | TS-013 | revise | contract | memory.relationship_scope | not_run | not_reviewed |
 | TS-014 | revise | interaction | meeting.prepare | not_run | not_reviewed |
@@ -48,7 +48,7 @@ and its seven Node checks are mock evidence only.
 | TS-021 | pending | interaction | account.menu | not_run | not_reviewed |
 | TS-022 | pending | security | account.isolation | not_run | not_reviewed |
 | TS-023 | pending | contract | operation.idempotency | not_run | not_reviewed |
-| TS-024 | pending | contract | draft.conflict | not_run | not_reviewed |
+| TS-024 | pending | contract | draft.conflict | passed | not_reviewed |
 | TS-025 | pending | security | approval.separation | not_run | not_reviewed |
 | TS-026 | pending | native | capture.cancel | not_run | not_reviewed |
 | TS-027 | pending | native | ocr.no_cloud_fallback | not_run | not_reviewed |
@@ -85,3 +85,14 @@ scaled challenger and the human acceptance result remains `not_reviewed`.
 This record proves only rendered hierarchy and responsive composition. It does
 not prove backend truth, authorization, model behavior, native behavior, or
 production effectiveness; no TS case changes status from `not_run` here.
+
+### M1 Web Session create, recovery, and conflict
+
+The real local Web/backend/PostgreSQL boundary passed TS-006 and TS-024 using
+the isolated public synthetic fixture. The versioned observation, database
+readback, limitations, screenshots, and hashes are recorded in
+[`web/2026-09-16-session-boundary.md`](web/2026-09-16-session-boundary.md).
+
+This result does not promote TS-011 or the complete M1 loop: explicit Person
+selection, evidence inspection, change review/receipt readback, and return to
+the same Session still need browser proof.

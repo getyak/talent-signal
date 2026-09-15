@@ -43,10 +43,22 @@ describe("Session workbench display decisions", () => {
     expect(result.claimsScopeChange).toBe(false);
   });
 
+  it("preserves an unscoped Session while asking for an explicit identity choice", () => {
+    const result = sessionScopeView({
+      contextLabel: "",
+      personLabel: "",
+      scopeKind: "unresolved_intent",
+      sessionId: "10000000-0000-4000-8000-000000000001",
+    });
+    expect(result.returnHref).toBe(
+      "/workspace/people?session=10000000-0000-4000-8000-000000000001",
+    );
+    expect(result.note).toContain("不会自动改变");
+  });
+
   it("shows expiry only when decision relevant", () => {
     const now = new Date("2026-09-16T00:00:00.000Z");
     expect(sessionExpiryNotice("2026-09-26T00:00:00.000Z", now)).toBeNull();
     expect(sessionExpiryNotice("2026-09-18T00:00:00.000Z", now)).toContain("2 天");
   });
 });
-

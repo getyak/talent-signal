@@ -19,6 +19,19 @@ is input to this work, not an accepted product specification. Its human labels
 remain exactly `12 revise / 2 agree / 16 pending`; all production results begin
 as `not_run`.
 
+## Execution status — 2026-09-16
+
+- M0: comparable Direction A/B evidence delivered; Direction A is the
+  implementation champion and human acceptance remains `not_reviewed`.
+- M1: the primary real boundary is implemented and browser-verified for
+  unscoped create, canonical draft recovery, conflict preservation, explicit
+  Person selection, message-level evidence, stale-review rejection, current
+  fact-decision receipt readback, and return to the exact Session. TS-006,
+  TS-011, and TS-024 are `passed`; unpromoted exceptional cases remain
+  `not_run` in the matrix even where unit or route tests exist.
+- M2–M4: not yet delivered. Their implementation continues from this plan; the
+  native SwiftUI app remains the rollback host.
+
 ## Boundaries
 
 In scope:
