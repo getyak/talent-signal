@@ -165,6 +165,28 @@ pnpm install --frozen-lockfile
 python3 scripts/deploy/install-web-launch-agent.py "$PWD"
 ```
 
+Keep a clean, detached backend/Opik deployment checkout in a directory shared with Colima,
+such as `~/data/talent-signal-runtime-releases/<revision>`. Web builds run on
+the host, but Opik's ClickHouse and nginx configuration use Docker bind mounts.
+A host-readable `~/Library` release is not necessarily readable inside Colima;
+an empty bind mount can fail initialization after an existing container has
+already been recreated. Before running Compose, resolve the checkout with
+`pwd -P` and verify its bind-mounted files from inside Colima. Do not expand VM
+filesystem sharing or restart unrelated containers to make a release readable.
+
+The backend keeper should resolve its own deployed checkout through
+`~/Library/Application Support/Talent Signal/backend/current` with `pwd -P`,
+independently of `web/current`. Advance that backend pointer only after the
+prepared image passes deployment probes and its image/revision pair is saved.
+Before any recovery deployment, the keeper must compare the resolved checkout's
+HEAD with the revision injected by Infisical and fail closed on a mismatch.
+This check covers interruption between saving the image/revision and advancing
+the checkout pointer; never combine an old Compose definition with a new image.
+Keep the prior checkout available for recovery. Before building or deploying,
+require `git status --porcelain` to be empty, require detached HEAD, and verify
+HEAD matches the intended approved revision. Never build or deploy from a dirty
+checkout: the backend revision records HEAD, while Docker builds the working tree.
+
 The build writes a revision/build-ID receipt from clean source. The installer
 checks that receipt and the listener process ownership, replaces the
 `web/current` symlink, and registers `com.talentsignal.web` with `RunAtLoad`
