@@ -165,7 +165,7 @@ pnpm install --frozen-lockfile
 python3 scripts/deploy/install-web-launch-agent.py "$PWD"
 ```
 
-Keep the backend/Opik deployment checkout in a directory shared with Colima,
+Keep a clean, detached backend/Opik deployment checkout in a directory shared with Colima,
 such as `~/data/talent-signal-runtime-releases/<revision>`. Web builds run on
 the host, but Opik's ClickHouse and nginx configuration use Docker bind mounts.
 A host-readable `~/Library` release is not necessarily readable inside Colima;
@@ -178,8 +178,10 @@ The backend keeper should resolve its own deployed checkout through
 `~/Library/Application Support/Talent Signal/backend/current` with `pwd -P`,
 independently of `web/current`. Advance that backend pointer only after the
 prepared image passes deployment probes and its image/revision pair is saved.
-Keep the prior checkout available for recovery; never run deployment scripts
-from an unrelated dirty working tree.
+Keep the prior checkout available for recovery. Before building or deploying,
+require `git status --porcelain` to be empty, require detached HEAD, and verify
+HEAD matches the intended approved revision. Never build or deploy from a dirty
+checkout: the backend revision records HEAD, while Docker builds the working tree.
 
 The build writes a revision/build-ID receipt from clean source. The installer
 checks that receipt and the listener process ownership, replaces the
