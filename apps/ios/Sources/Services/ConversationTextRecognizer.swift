@@ -6,6 +6,7 @@ enum ConversationRecognitionError: LocalizedError, Equatable {
     case noConversationEvidence
     case sharedPreprocessingUnavailable
     case sharedPreprocessingFailed
+    case preprocessingCleanupReceiptUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ enum ConversationRecognitionError: LocalizedError, Equatable {
             return "Shared screenshot preprocessing is unavailable. Reconnect to Talent Signal and retry."
         case .sharedPreprocessingFailed:
             return "Shared screenshot preprocessing did not produce reviewable evidence. Retry with the original screenshot."
+        case .preprocessingCleanupReceiptUnavailable:
+            return "The preprocessing cleanup receipt has not been recovered. Retry processing before removing this capture."
         }
     }
 }

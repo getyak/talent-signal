@@ -26787,12 +26787,12 @@
         }
       }
     },
-    "This removes the protected local screenshot and Session processing recovery. It does not delete proposed source text already accepted by the backend.": {
+    "This removes the protected local screenshot, its retained preprocessing copy, and Session processing recovery. It does not delete proposed source text already accepted by the backend.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这会移除本地受保护的截图和会话处理恢复数据，但不会删除后端已接收的候选来源文本。"
+            "value": "这会移除本地受保护的截图、保留的预处理副本和会话处理恢复数据，但不会删除后端已接收的候选来源文本。"
           }
         }
       }

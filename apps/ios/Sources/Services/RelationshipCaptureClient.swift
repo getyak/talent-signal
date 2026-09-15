@@ -1,6 +1,16 @@
 import Foundation
 import UIKit
 
+struct ScreenshotPreprocessingTaskReceipt: Equatable, Sendable {
+    let taskID: String
+    let revision: Int
+}
+
+typealias ScreenshotPreprocessingReceiptHandler = @MainActor @Sendable (
+    ScreenshotPreprocessingTaskReceipt
+) async throws -> Void
+typealias ScreenshotPreprocessingRequestHandler = @MainActor @Sendable () async throws -> Void
+
 protocol RelationshipCaptureServing {
     var runtimeScope: String? { get }
     func loadCapture(id: String) async throws -> ResourceCaptureResult
@@ -14,6 +24,24 @@ protocol RelationshipCaptureServing {
 
     func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
     func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
     func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws
     func linkScreenshotPreprocessing(
         taskID: String,
@@ -60,6 +88,36 @@ extension RelationshipCaptureServing {
 
     func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
         try await preprocessScreenshot(seed: seed)
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(seed: seed)
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await resumeScreenshotPreprocessing(seed: seed)
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(seed: seed, onTaskReceipt: onTaskReceipt)
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await resumeScreenshotPreprocessing(seed: seed, onTaskReceipt: onTaskReceipt)
     }
 
     func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
@@ -169,11 +227,71 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
     }
 
     func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
-        try await preprocessScreenshot(seed: seed, resumeFailedTask: false)
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: false,
+            onRemoteRequestStarted: {},
+            onTaskReceipt: { _ in }
+        )
     }
 
     func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
-        try await preprocessScreenshot(seed: seed, resumeFailedTask: true)
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: true,
+            onRemoteRequestStarted: {},
+            onTaskReceipt: { _ in }
+        )
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: false,
+            onRemoteRequestStarted: {},
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: true,
+            onRemoteRequestStarted: {},
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: false,
+            onRemoteRequestStarted: onRemoteRequestStarted,
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: true,
+            onRemoteRequestStarted: onRemoteRequestStarted,
+            onTaskReceipt: onTaskReceipt
+        )
     }
 
     func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
@@ -215,7 +333,9 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
 
     private func preprocessScreenshot(
         seed: PendingCaptureSeed,
-        resumeFailedTask: Bool
+        resumeFailedTask: Bool,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
     ) async throws -> RecognizedCaptureDraft {
         let upload = try ScreenshotPreprocessingUploadNormalizer.normalize(
             data: seed.imageData,
@@ -232,11 +352,13 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
             preprocessOnly: true,
             allowPublicResearch: false
         )
+        try await onRemoteRequestStarted()
         var task: ScreenshotContactTask = try await request(
             path: "v1/contact-agent/tasks",
             method: "POST",
             body: body
         )
+        try await onTaskReceipt(.init(taskID: task.taskID, revision: task.revision))
         // A repeated create is the durable lookup for this source. Only the
         // explicit resume entry point, called from the recruiter's Retry
         // action, may authorize another provider attempt at this revision.
@@ -246,6 +368,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                 method: "POST",
                 body: ScreenshotContactResumeBody(expectedRevision: task.revision)
             )
+            try await onTaskReceipt(.init(taskID: task.taskID, revision: task.revision))
         }
         for _ in 0..<240 where task.status == "running" {
             try await Task.sleep(nanoseconds: 500_000_000)
@@ -254,6 +377,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                 method: "GET",
                 body: Optional<EmptyBody>.none
             )
+            try await onTaskReceipt(.init(taskID: task.taskID, revision: task.revision))
         }
         guard task.status == "completed" || task.status == "waiting_for_user",
               let extraction = task.extraction else {

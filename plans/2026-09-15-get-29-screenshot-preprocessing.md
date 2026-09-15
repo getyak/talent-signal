@@ -124,11 +124,13 @@ keeping the recruiter's review boundary intact.
   ambiguous abstention, and explicit unknown-response retry authorization.
   The additional deletion recovery case injects a failure after intent commit
   and proves the original revision can resume the final scrub.
-- iOS `RelationshipCaptureTests`: 49/49, including the shared non-filing
+- iOS `RelationshipCaptureTests`: 55/55, including the shared non-filing
   preprocessing request, explicit user Retry/resume, unresolved-source display,
-  readable-draft background blocking, per-message source provenance, foreground
-  and background server cleanup before local source removal, and local-source
-  preservation across a temporary cleanup failure.
+  receipt persistence before polling failure, readable-draft background blocking,
+  per-message source provenance, foreground and background server cleanup before
+  local source removal, response-loss recovery before deletion, local-only
+  preflight deletion, active-request serialization, runtime-scope isolation, and
+  local-source preservation across a temporary cleanup failure.
 - iOS generic-simulator Release build passed after the review remediation.
 - iOS localization boundary passed with 2,692 catalog keys, 174 transitional
   inline bilingual calls, and 210 raw SwiftUI literals.

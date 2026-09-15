@@ -586,7 +586,9 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
       retention:{requested_mode:"evidence_crop",source_scope:"proposed_extracted_text",requested_retention_until:row.expires_at.toISOString()}},
     fragments:extraction.messages.map(m=>({client_resource_id:clientResourceID,kind:extraction.conversation_kind==="not_chat"?"document_text":"message",sequence:m.sequence,text:m.text,
       locator:extraction.conversation_kind==="not_chat"?{kind:"document_text",paragraph:documentBlocks?.[m.sequence]?.paragraph??m.sequence+1,
-        ...(documentBlocks?.[m.sequence]?{section_label:`UTF-16 [${documentBlocks[m.sequence]!.start},${documentBlocks[m.sequence]!.end})`}:{})}:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side},
+        ...(documentBlocks?.[m.sequence]?{section_label:`UTF-16 [${documentBlocks[m.sequence]!.start},${documentBlocks[m.sequence]!.end})`}:{})}:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side,
+          ...(m.source_image_index===undefined?{}:{source_image_index:m.source_image_index}),
+          ...(m.speaker_label?{speaker_label:m.speaker_label}:{}),...(m.time_text?{visible_time_text:m.time_text}:{})},
       attribution:{actor_kind:"unknown",status:"unknown"},review_status:"proposed",parser:{name:"screenshot-contact-agent",version:"1"}})),
   };
   const result=await createResourceCaptureInTransaction(client,auth,request);

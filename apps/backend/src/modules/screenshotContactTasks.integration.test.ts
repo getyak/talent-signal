@@ -352,10 +352,10 @@ async function createIOSCapture(seed:string,personID:string,contextID:string,dis
       parser:{name:"shared-screenshot-preprocess",version:"screenshot-preprocess.v2"}}],
   });
 }
-function model(name:string,options:{badQuote?:boolean;badStatement?:boolean;group?:boolean}={}):ContactAgentModel{
+function model(name:string,options:{badQuote?:boolean;badStatement?:boolean;group?:boolean;timeText?:string}={}):ContactAgentModel{
   let attemptedBad=false;
   const extraction:ContactChatExtraction={platform:"Synthetic IM",conversation_kind:options.group?"group":"direct",contact_name:name,
-    identity_clues:[{kind:"name",value:name,source_excerpt:name}],messages:[{message_id:"m1",sequence:0,text:"I work at Example Labs. I can talk next Tuesday.",speaker_side:"left",speaker_label:null,time_text:null}],uncertainties:["Message date and speaker role are unknown."]};
+    identity_clues:[{kind:"name",value:name,source_excerpt:name}],messages:[{message_id:"m1",sequence:0,text:"I work at Example Labs. I can talk next Tuesday.",speaker_side:"left",speaker_label:name,time_text:options.timeText??null}],uncertainties:["Message date and speaker role are unknown."]};
   return {extract:async()=>({extraction,model:"fixture-vision",providerRequestID:randomUUID(),inputTokens:10,outputTokens:10}),next:async({state,observations})=>{
     const s=state as {contact:{person_id:string;relationship_context_id:string}|null;capture_id:string|null;profile_fields:unknown[]};
     let call:{name:string;arguments:unknown};
@@ -464,12 +464,13 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
   });
   it("creates one contact and exact unreviewed IM, reuses it on a second import, and does not replay writes",async()=>{
     const name=`Contact proof ${randomUUID().slice(0,8)}`;const request=input();
-    const runner=new ScreenshotContactTaskRunner(pool!,{model:model(name),research:null});
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:model(name,{timeText:"next Tuesday"}),research:null});
     const first=await createScreenshotContactTask(pool!,auth,request);await runner.start(auth,first.body.task_id,request.image);
     const result=await loadScreenshotContactTask(pool!,auth,first.body.task_id);
     expect(result.status,JSON.stringify(result)).toBe("completed");expect(result.contact?.disposition).toBe("created");expect(result.message_count).toBe(1);
-    const fragments=await pool!.query("SELECT text_content,review_status,attributed_actor,attribution_status FROM evidence_fragments WHERE capture_id=$1",[result.capture_id]);
-    expect(fragments.rows).toEqual([{text_content:"I work at Example Labs. I can talk next Tuesday.",review_status:"proposed",attributed_actor:"unknown",attribution_status:"unknown"}]);
+    const fragments=await pool!.query("SELECT text_content,review_status,attributed_actor,attribution_status,locator FROM evidence_fragments WHERE capture_id=$1",[result.capture_id]);
+    expect(fragments.rows).toEqual([{text_content:"I work at Example Labs. I can talk next Tuesday.",review_status:"proposed",attributed_actor:"unknown",attribution_status:"unknown",
+      locator:{kind:"message",source_message_id:"m1",sequence:0,speaker_side:"left",speaker_label:name,visible_time_text:"next Tuesday"}}]);
     const retention=await pool!.query("SELECT source_scope FROM source_retention_receipts WHERE capture_id=$1",[result.capture_id]);
     expect(retention.rows).toEqual([{source_scope:"proposed_extracted_text"}]);
     const retry=await createScreenshotContactTask(pool!,auth,request);expect(retry.replayed).toBe(true);expect(retry.body.contact?.person_id).toBe(result.contact?.person_id);
@@ -955,7 +956,8 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     expect(created.replayed).toBe(true);expect(storage.puts).toBe(3);expect(storage.objects.size).toBe(2);
     const repeated=await createScreenshotContactTask(pool!,auth,request,storage);
     expect(repeated.body.task_id).toBe(created.body.task_id);expect(storage.puts).toBe(3);
-    const base=model(`Batch proof ${randomUUID().slice(0,8)}`);let calls=0;
+    const batchName=`Batch proof ${randomUUID().slice(0,8)}`;
+    const base=model(batchName,{timeText:"next Tuesday"});let calls=0;
     const flaky:ContactAgentModel={...base,extract:async(...args)=>{if(++calls===2)throw new Error("TEST_VISION_INTERRUPTED");return base.extract(...args);}};
     const runner=new ScreenshotContactTaskRunner(pool!,{model:flaky,research:null},storage);
     await runner.start(auth,created.body.task_id);
@@ -971,6 +973,12 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     expect(await loadScreenshotContactImage(pool!,auth,result.task_id,1,storage)).toEqual(request.additional_images[0]);
     const fragments=(await pool!.query<{id:string;locator:{source_message_id:string}}>(
       "SELECT id,locator FROM evidence_fragments WHERE capture_id=$1 ORDER BY sequence",[result.capture_id])).rows;
+    expect(fragments.map(fragment=>fragment.locator)).toEqual([
+      {kind:"message",source_message_id:"image1:m1",sequence:0,speaker_side:"left",speaker_label:batchName,
+        visible_time_text:"next Tuesday",source_image_index:0},
+      {kind:"message",source_message_id:"image2:m2",sequence:1,speaker_side:"left",speaker_label:batchName,
+        visible_time_text:"next Tuesday",source_image_index:1},
+    ]);
     const read=createHarnessEvidenceImageReader(pool!,auth,result.contact!.person_id,result.contact!.relationship_context_id,
       fragments.map(fragment=>fragment.id),storage,async()=>{});
     const original=await read(fragments[1]!.id,new AbortController().signal);

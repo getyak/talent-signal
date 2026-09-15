@@ -112,9 +112,45 @@ final class RelationshipCaptureStore: ObservableObject {
                         self.fail("The original image is no longer available. Import it again to recognize text.", at: .recognition)
                         return
                     }
+                    let persistReceipt: ScreenshotPreprocessingReceiptHandler = { receipt in
+                        var checkpoint = self.draft
+                        checkpoint.sourceParserName = "shared-screenshot-preprocess"
+                        checkpoint.sourceParserVersion = "screenshot-preprocess.v2"
+                        checkpoint.preprocessingTaskID = receipt.taskID
+                        checkpoint.preprocessingTaskRevision = receipt.revision
+                        checkpoint.preprocessingRetryRequired = true
+                        checkpoint.preprocessingUncertainties = checkpoint.preprocessingUncertainties ?? [
+                            "Shared screenshot preprocessing has not completed. Retry preserves its task receipt."
+                        ]
+                        self.draft = checkpoint
+                        try await self.inbox.saveReview(
+                            seed: self.seed,
+                            draft: checkpoint,
+                            recovery: self.recovery,
+                            scope: self.service.runtimeScope
+                        )
+                    }
                     self.draft = try await (resumeFailedPreprocessing
-                        ? self.service.resumeScreenshotPreprocessing(seed: self.seed)
-                        : self.service.preprocessScreenshot(seed: self.seed))
+                        ? self.service.resumeScreenshotPreprocessing(
+                            seed: self.seed,
+                            onRemoteRequestStarted: {
+                                try await self.inbox.markPreprocessingRemoteRequestMayExist(
+                                    id: self.seed.id,
+                                    scope: self.service.runtimeScope
+                                )
+                            },
+                            onTaskReceipt: persistReceipt
+                        )
+                        : self.service.preprocessScreenshot(
+                            seed: self.seed,
+                            onRemoteRequestStarted: {
+                                try await self.inbox.markPreprocessingRemoteRequestMayExist(
+                                    id: self.seed.id,
+                                    scope: self.service.runtimeScope
+                                )
+                            },
+                            onTaskReceipt: persistReceipt
+                        ))
                     self.hasInitialDraft = true
                 }
                 try await self.saveRecovery()
@@ -432,12 +468,14 @@ final class RelationshipCaptureStore: ObservableObject {
         if draft.keepOriginalForReview == false || Date().timeIntervalSince(seed.createdAt) >= 7 * 86_400 { originalAvailable = false }
     }
     private func deletePreprocessingOriginalIfNeeded() async throws {
-        let source = recovery.submittedDraft ?? draft
-        guard let taskID = source.preprocessingTaskID,
-              let revision = source.preprocessingTaskRevision else { return }
+        guard let receipt = try await inbox.preprocessingDeletionReceipt(
+            for: seed.id,
+            scope: service.runtimeScope,
+            fallbackSource: recovery.submittedDraft ?? draft
+        ) else { return }
         try await service.deleteScreenshotPreprocessing(
-            taskID: taskID,
-            expectedRevision: revision
+            taskID: receipt.taskID,
+            expectedRevision: receipt.revision
         )
     }
     private func linkPreprocessingIfNeeded(to capture: ResourceCaptureResult) async throws {

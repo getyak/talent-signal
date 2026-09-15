@@ -263,14 +263,18 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
           disagreed.has(`${reading.read_receipt_id}:${reading.field}`))return false;
         return value===undefined||value===null||normalized(reading.reading)!.includes(normalized(value)!);
       };
+      const exactlySupported = (id: string, field: z.infer<typeof Field>, value: string,
+        target: z.infer<typeof CorrectionTarget>, uncertaintyIndex: number) => supported(id,field,value,target,uncertaintyIndex)&&
+        normalized(own.get(`${id}:${field}`)?.reading??null)===normalized(value);
       const supportedNull = (id: string, field: z.infer<typeof Field>, target?: z.infer<typeof CorrectionTarget>) => {
         const reading=own.get(`${id}:${field}`);
         return Boolean(reading&&isDeclaredCorrectionRead(reading,target)&&reading.status!=="clear"&&image.uncertainties.some(item=>
           item.kind!=="visible_conflict"&&item.read_receipt_id===id&&item.field===field));
       };
-      const supportedSpeakerSide = (id: string, value: "left"|"right"|"unknown", target: z.infer<typeof CorrectionTarget>) => {
+      const supportedSpeakerSide = (id: string, value: "left"|"right"|"unknown", target: z.infer<typeof CorrectionTarget>,
+        uncertaintyIndex?: number) => {
         const reading=own.get(`${id}:speaker`);
-        return Boolean(reading&&isDeclaredCorrectionRead(reading,target)&&reading.status==="clear"&&
+        return Boolean(reading&&isDeclaredCorrectionRead(reading,target,uncertaintyIndex)&&reading.status==="clear"&&
           reading.speaker_side===value&&!disagreed.has(`${reading.read_receipt_id}:${reading.field}`));
       };
       if(correctionMode){
@@ -310,10 +314,35 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
           if(patch.source_excerpt){if(!supported(patch.source_excerpt.read_receipt_id,"identity",patch.source_excerpt.value,receiptTarget))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};target.source_excerpt=patch.source_excerpt.value;}
           if(!normalized(target.source_excerpt)!.includes(normalized(target.value)!))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};
         }
+        const retainedValueSupported = (item: z.infer<typeof ScreenshotCorrectionSchema>["images"][number]["resolved_uncertainties"][number]) => {
+          const target=item.target;
+          if(!supported(item.read_receipt_id,item.field,undefined,target,item.uncertainty_index))return false;
+          if(target.kind==="contact_name")return item.field==="identity"&&Boolean(extraction.contact_name)&&
+            exactlySupported(item.read_receipt_id,item.field,extraction.contact_name!,target,item.uncertainty_index);
+          if(target.kind==="message"){
+            const message=extraction.messages.find(candidate=>candidate.message_id===target.message_id);
+            if(!message)return false;
+            if(item.field==="text")return exactlySupported(item.read_receipt_id,item.field,message.text,target,item.uncertainty_index);
+            if(item.field==="time")return Boolean(message.time_text)&&
+              exactlySupported(item.read_receipt_id,item.field,message.time_text!,target,item.uncertainty_index);
+            if(item.field==="speaker")return message.speaker_side!=="unknown"&&
+              supportedSpeakerSide(item.read_receipt_id,message.speaker_side,target,item.uncertainty_index)&&
+              Boolean(message.speaker_label)&&
+              exactlySupported(item.read_receipt_id,item.field,message.speaker_label!,target,item.uncertainty_index);
+            return false;
+          }
+          if(target.kind==="identity_clue"&&item.field==="identity"){
+            const clue=extraction.identity_clues[target.clue_index];
+            if(!clue)return false;
+            return exactlySupported(item.read_receipt_id,item.field,clue.value,target,item.uncertainty_index)&&
+              exactlySupported(item.read_receipt_id,item.field,clue.source_excerpt,target,item.uncertainty_index);
+          }
+          return false;
+        };
         const resolved=new Set<number>();
         for(const item of correction.resolved_uncertainties){
           if(item.target.kind==="source"||resolved.has(item.uncertainty_index)||!baseline.uncertainties[item.uncertainty_index]||
-            !supported(item.read_receipt_id,item.field,undefined,item.target,item.uncertainty_index))return {error:"CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID"};
+            !retainedValueSupported(item))return {error:"CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID"};
           resolved.add(item.uncertainty_index);
         }
         extraction.uncertainties=[...baseline.uncertainties.filter((_,itemIndex)=>!resolved.has(itemIndex)),...uncertainties];

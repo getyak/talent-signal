@@ -54,6 +54,7 @@ struct PendingCaptureSummary: Identifiable, Equatable {
     let sessionID: UUID?
     let processingState: CaptureSessionProcessingState
     let processingDetail: String?
+    let preprocessingRemoteRequestMayExist: Bool
 
     var needsAttention: Bool {
         processingState == .needsDecision || processingState == .failed

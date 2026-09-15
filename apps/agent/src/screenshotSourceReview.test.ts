@@ -246,6 +246,93 @@ describe("current-Run screenshot source reviews", () => {
       .toEqual({ error: "CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING" });
   });
 
+  it("does not clear an uncertainty unless the retained field matches its bound receipt", async () => {
+    const baseline = { platform: "WeChat", conversation_kind: "direct" as const, contact_name: "Alex Chen",
+      identity_clues: [], messages: [{ message_id: "m1", sequence: 0, text: "See you then",
+        speaker_side: "left" as const, speaker_label: "Alex Chen", time_text: "Tuesday", source_image_index: 0 }],
+      uncertainties: ["The visible day may be wrong."] };
+    const { subject, read } = await setup(400, {
+      required: [{ source_image_index: 0, region, field: "time", uncertainty_index: 0,
+        target: { kind: "message", message_id: "m1" } }],
+      baselines: [{ source_image_index: 0, extraction: baseline }],
+    });
+    const own = await read();
+    const reading = { read_receipt_id: own.id, field: "time" as const,
+      status: "clear" as const, reading: "Thursday, not Tuesday" };
+    const resolution = { uncertainty_index: 0, read_receipt_id: own.id, field: "time" as const,
+      target: { kind: "message" as const, message_id: "m1" } };
+    expect(subject.validate({ images: [{ source_image_index: 0, message_corrections: [],
+      identity_clue_corrections: [], resolved_uncertainties: [resolution], pixel_readings: [reading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+    expect(subject.validate({ images: [{ source_image_index: 0,
+      message_corrections: [{ message_id: "m1", time_text: { value: "Tuesday", read_receipt_id: own.id } }],
+      identity_clue_corrections: [], resolved_uncertainties: [resolution], pixel_readings: [reading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+    const exactReading = { ...reading, reading: "Thursday" };
+    expect(subject.validate({ images: [{ source_image_index: 0,
+      message_corrections: [{ message_id: "m1", time_text: { value: "Thursday", read_receipt_id: own.id } }],
+      identity_clue_corrections: [], resolved_uncertainties: [resolution], pixel_readings: [exactReading], uncertainties: [] }] }))
+      .toEqual({ images: [{ ...baseline, uncertainties: [], messages: [{ ...baseline.messages[0], time_text: "Thursday" }] }] });
+  });
+
+  it("keeps composite speaker and identity uncertainties until every retained member is supported", async () => {
+    const speakerTarget = { kind: "message" as const, message_id: "m1" };
+    const speakerRequired = [{ source_image_index: 0, region, field: "speaker" as const, uncertainty_index: 0,
+      target: speakerTarget }];
+    const wrongLabel = { platform: "WeChat", conversation_kind: "direct" as const, contact_name: null,
+      identity_clues: [], messages: [{ message_id: "m1", sequence: 0, text: "Hello", speaker_side: "left" as const,
+        speaker_label: "Wrong", time_text: null, source_image_index: 0 }], uncertainties: ["Speaker is unclear."] };
+    const first = await setup(400, { required: speakerRequired,
+      baselines: [{ source_image_index: 0, extraction: wrongLabel }] });
+    const firstReceipt = await first.read();
+    const firstReading = { read_receipt_id: firstReceipt.id, field: "speaker" as const,
+      status: "clear" as const, reading: "Correct", speaker_side: "left" as const };
+    expect(first.subject.validate({ images: [{ source_image_index: 0, message_corrections: [],
+      identity_clue_corrections: [], resolved_uncertainties: [{ uncertainty_index: 0,
+        read_receipt_id: firstReceipt.id, field: "speaker", target: speakerTarget }],
+      pixel_readings: [firstReading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+
+    const unknownSide = { ...wrongLabel, messages: [{ message_id: "m1", sequence: 0, text: "Hello",
+      speaker_side: "unknown" as const, speaker_label: "Correct", time_text: null, source_image_index: 0 }] };
+    const second = await setup(400, { required: speakerRequired,
+      baselines: [{ source_image_index: 0, extraction: unknownSide }] });
+    const secondReceipt = await second.read();
+    const secondReading = { ...firstReading, read_receipt_id: secondReceipt.id };
+    expect(second.subject.validate({ images: [{ source_image_index: 0, message_corrections: [],
+      identity_clue_corrections: [], resolved_uncertainties: [{ uncertainty_index: 0,
+        read_receipt_id: secondReceipt.id, field: "speaker", target: speakerTarget }],
+      pixel_readings: [secondReading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+
+    const missingLabel = { ...wrongLabel, messages: [{ message_id: "m1", sequence: 0, text: "Hello",
+      speaker_side: "left" as const, speaker_label: null, time_text: null, source_image_index: 0 }] };
+    const missing = await setup(400, { required: speakerRequired,
+      baselines: [{ source_image_index: 0, extraction: missingLabel }] });
+    const missingReceipt = await missing.read();
+    const missingReading = { ...firstReading, read_receipt_id: missingReceipt.id };
+    expect(missing.subject.validate({ images: [{ source_image_index: 0, message_corrections: [],
+      identity_clue_corrections: [], resolved_uncertainties: [{ uncertainty_index: 0,
+        read_receipt_id: missingReceipt.id, field: "speaker", target: speakerTarget }],
+      pixel_readings: [missingReading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+
+    const clueTarget = { kind: "identity_clue" as const, clue_index: 0 };
+    const wrongValue = { platform: "WeChat", conversation_kind: "direct" as const, contact_name: null,
+      identity_clues: [{ kind: "name" as const, value: "Wrong", source_excerpt: "Correct", source_image_index: 0 }],
+      messages: [], uncertainties: ["Identity clue is unclear."] };
+    const third = await setup(400, { required: [{ source_image_index: 0, region, field: "identity",
+      uncertainty_index: 0, target: clueTarget }], baselines: [{ source_image_index: 0, extraction: wrongValue }] });
+    const thirdReceipt = await third.read();
+    const identityReading = { read_receipt_id: thirdReceipt.id, field: "identity" as const,
+      status: "clear" as const, reading: "Correct" };
+    expect(third.subject.validate({ images: [{ source_image_index: 0, message_corrections: [],
+      identity_clue_corrections: [], resolved_uncertainties: [{ uncertainty_index: 0,
+        read_receipt_id: thirdReceipt.id, field: "identity", target: clueTarget }],
+      pixel_readings: [identityReading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+  });
+
   it("keeps a source-level omitted-item uncertainty until insertion is supported", async () => {
     const baseline = { platform: "WeChat", conversation_kind: "direct" as const, contact_name: null,
       identity_clues: [], messages: [], uncertainties: ["A source item may be omitted."] };
