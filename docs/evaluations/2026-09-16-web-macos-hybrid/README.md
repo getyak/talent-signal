@@ -109,3 +109,18 @@ independent review is recorded in
 This is a verified M2 slice, not full M2 acceptance. TS-014, TS-020, TS-021,
 TS-023, and TS-030 remain `not_run` because their complete required boundaries
 were not executed.
+
+### M3/M4 Hybrid shell and native boundary slice
+
+The versioned packaged-app observation for the local Tauri shell, exact-leaf
+pinned HTTPS loopback adapter, Keychain restart recovery, shared Web/native UI
+boundary, explicit content-free quick panel, state-only notification request
+dedupe, direct local Vision success/failure, bundle facts, and explicit release
+gaps is recorded in
+[`macos/2026-09-16-hybrid-boundary.md`](macos/2026-09-16-hybrid-boundary.md).
+
+This is a verified feasibility slice, not M3/M4 completion. TS-026 through
+TS-030 remain `not_run`: their complete permission, integration, multi-display,
+deep-link, denial, connector-ownership, and privilege-escalation boundaries
+were not executed. The observed notification result proves request submission,
+not system display. Human design acceptance remains `not_reviewed`.

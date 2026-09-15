@@ -35,9 +35,17 @@ as `not_run`.
   and responsive/dark evidence are versioned. Full M2 remains open for the
   remaining route, density, 1024 px, 200% text, Chinese IME, and complete
   TS-014/020/021/023/030 boundary matrix.
-- M3–M4: implementation continues from this plan. Rust/Xcode prerequisites are
-  available, and the native SwiftUI app remains the rollback host while the
-  isolated Tauri shell is built and measured.
+- M3–M4: a least-privilege Tauri feasibility slice is implemented and packaged.
+  Implementation `7ea86be2` verified an exact-leaf pinned HTTPS loopback
+  Session, Keychain restart recovery, shared Web/native capability UI, an
+  explicit content-free quick panel, same-process notification-request dedupe,
+  direct Vision success/failure, and bounded command/security rules. The
+  independent code review found no unresolved P0/P1. `apps/macos` remains the
+  rollback host. Full M3/M4 is still open for permission-granted capture/OCR,
+  real Chinese IME, broader WebView parity, multi-display/global-shortcut
+  behavior, OAuth/deep links, sleep/wake, state-file/helper identity hardening,
+  and signed/notarized update/rollback distribution. TS-026 through TS-030
+  remain `not_run`; OS notification display was not claimed.
 
 ## Boundaries
 
@@ -238,3 +246,24 @@ This plan is complete only when M1–M4 are implemented and verified, M5 records
 every case honestly, current Web and macOS rollback paths remain recoverable,
 and no unresolved P0/P1 safety finding remains. Design acceptance may still be
 `not_reviewed`; that is an explicit human gate, not a reason to falsify status.
+
+## Recoverable checkpoint — 2026-09-16
+
+- Delivery branch: `codex/web-macos-hybrid-handoff`; native implementation:
+  `7ea86be2e87486a60ebe5b210d50338ec4c4b53a`.
+- M1 and M2 Web slices are implemented with canonical PostgreSQL-backed
+  Session and MeetingDraft workflows, exact-intent recovery, conflict and
+  revocation states, governed receipts, ICS-only handoff, and truthful Plugs.
+- M3/M4 feasibility is packaged and exact-leaf HTTPS/Keychain restart recovery
+  is observed. Permission-granted capture/OCR and the full TS-026…TS-030 matrix
+  remain open; the native SwiftUI app is still the rollback host.
+- Final local gates passed: root `pnpm check`, 33 Rust tests plus fmt/clippy,
+  backend TLS 4 tests, TLS script test, pinned Actions, actionlint, codesign
+  integrity, documentation, and diff checks.
+- Independent review found no unresolved P0/P1. Four disclosed P2 release
+  hardening gaps remain: pre-binding terminal-receipt availability, receipt
+  generation crash recovery, same-user state-file TOCTOU, and helper identity
+  replacement between verification and execution.
+- Production deployment, real external writes, Screen Recording permission
+  changes, notarization/distribution, and human design acceptance were not
+  authorized or performed.
