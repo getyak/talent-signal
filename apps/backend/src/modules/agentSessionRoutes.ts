@@ -11,6 +11,7 @@ import {
 } from "@talent-signal/contracts";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import type { Pool } from "pg";
+import { registerRecurringJob } from "../lib/recurringJob.js";
 import {
   getAgentSession,
   listAgentSessions,
@@ -138,11 +139,9 @@ export function registerAgentSessionRoutes(
       };
     },
   );
-  const timer = setInterval(() => {
-    void sweepAgentSessions(pool).catch((error) =>
-      app.log.error({ err: error }, "Session retention sweep failed"),
-    );
-  }, 60_000);
-  timer.unref();
-  app.addHook("onClose", async () => clearInterval(timer));
+  registerRecurringJob(app, {
+    name: "agent-session-retention-sweep",
+    intervalMs: 60_000,
+    run: () => sweepAgentSessions(pool),
+  });
 }

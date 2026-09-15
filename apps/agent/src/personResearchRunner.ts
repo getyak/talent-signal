@@ -13,7 +13,8 @@ import {
   type CreatePersonResearchArtifactInput,
   type PersonResearchNoActionOutput,
 } from "./schemas.js";
-import { AGENT_BUDGET_CEILING, AgentCapabilityError } from "./runtimePolicy.js";
+import { AgentCapabilityError } from "./runtimePolicy.js";
+import { agentUsage, assertAgentBudget, exceededBudget } from "./runBudget.js";
 import { SYSTEM_AGENT_RUNTIME } from "./runtimeDependencies.js";
 import {
   PERSON_RESEARCH_AGENT_TOOL_NAMES,
@@ -27,7 +28,6 @@ import {
   type AgentProviderResult,
   type AgentPublicProfileResult,
   type AgentToolResult,
-  type AgentUsage,
 } from "./types.js";
 
 export { PERSON_RESEARCH_SYSTEM_PROMPT } from "./prompts.js";
@@ -54,16 +54,12 @@ class PersonResearchBoundaryError extends Error {
 }
 
 function assertBudget(budget: AgentBudget): void {
-  for (const [name, value] of Object.entries(budget) as Array<
-    [keyof AgentBudget, number]
-  >) {
-    if (!Number.isFinite(value) || value <= 0 || value > AGENT_BUDGET_CEILING[name]) {
-      throw new AgentPersonResearchPolicyError(
-        "AGENT_BUDGET_INVALID",
-        `${name} must be positive and no greater than the Agent ceiling.`,
-      );
-    }
-  }
+  assertAgentBudget(budget, ({ field }) => {
+    throw new AgentPersonResearchPolicyError(
+      "AGENT_BUDGET_INVALID",
+      `${field} must be positive and no greater than the Agent ceiling.`,
+    );
+  });
 }
 
 function assertImageInput(request: AgentPersonResearchRunRequest): void {
@@ -103,34 +99,6 @@ function assertImageInput(request: AgentPersonResearchRunRequest): void {
       "The configured pinned Agent model does not support image understanding.",
     );
   }
-}
-
-function usage(
-  startedAtMs: number,
-  toolCalls: number,
-  provider: AgentProviderResult | null,
-  nowMs: number,
-): AgentUsage {
-  const inputTokens = provider?.inputTokens ?? null;
-  const outputTokens = provider?.outputTokens ?? null;
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens === null || outputTokens === null ? null : inputTokens + outputTokens,
-    estimatedUsd: provider?.estimatedUsd ?? null,
-    turns: provider?.turns ?? null,
-    toolCalls,
-    durationMs: Math.max(0, nowMs - startedAtMs),
-  };
-}
-
-function exceededBudget(value: AgentUsage, budget: AgentBudget): string | null {
-  if (value.turns !== null && value.turns > budget.maxTurns) return "MAX_TURNS_EXCEEDED";
-  if (value.toolCalls > budget.maxToolCalls) return "MAX_TOOL_CALLS_EXCEEDED";
-  if (value.totalTokens !== null && value.totalTokens > budget.maxTaskTokens) return "MAX_TASK_TOKENS_EXCEEDED";
-  if (value.estimatedUsd !== null && value.estimatedUsd > budget.maxEstimatedUsd) return "MAX_COST_EXCEEDED";
-  if (value.durationMs > budget.maxDurationMs) return "MAX_DURATION_EXCEEDED";
-  return null;
 }
 
 function platformForTool(name: string): AgentPersonResearchPlatform | null {
@@ -348,7 +316,7 @@ export async function runPersonResearchAgent(
       noActionID,
       candidateFingerprint: runState.candidate?.fingerprint ?? null,
       externalEffects: [],
-      usage: usage(startedAtMs, toolCalls, providerResult, runtime.nowMs()),
+      usage: agentUsage(startedAtMs, toolCalls, providerResult, runtime.nowMs()),
       permissionDenials: [
         ...new Set([
           ...permissionDenials,
@@ -581,7 +549,7 @@ export async function runPersonResearchAgent(
       return complete("quarantined", "STRUCTURED_OUTPUT_RETRY_EXHAUSTED");
     }
     const budgetReason = exceededBudget(
-      usage(startedAtMs, toolCalls, providerResult, runtime.nowMs()),
+      agentUsage(startedAtMs, toolCalls, providerResult, runtime.nowMs()),
       request.budget,
     );
     if (budgetReason) return complete("budget_exhausted", budgetReason);

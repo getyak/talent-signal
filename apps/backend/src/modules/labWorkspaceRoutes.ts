@@ -5,6 +5,7 @@ import { CONTRACT_VERSION, ErrorResponseSchema, LabWorkspaceCreateRequestSchema,
   type LabWorkspaceCreateRequest, type LabWorkspaceEntryRequest } from "@talent-signal/contracts";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../lib/apiError.js";
+import { registerRecurringJob } from "../lib/recurringJob.js";
 import type { LabWorkspaceService } from "./labWorkspaces.js";
 
 export function registerLabWorkspaceRoutes(app:FastifyInstance,service:LabWorkspaceService,
@@ -46,8 +47,9 @@ export function registerLabWorkspaceRoutes(app:FastifyInstance,service:LabWorksp
     return {contract_version:CONTRACT_VERSION,workspace:await service.stop(request.auth,request.params.id,request.body.id)};
   });
   // Expiry/cleanup continues even if new Lab creation is administratively disabled.
-  let running:Promise<void>|undefined;
-  const timer=setInterval(()=>{if(!running)running=service.sweep().catch(()=>{}).finally(()=>{running=undefined;});},60_000);
-  timer.unref();
-  app.addHook("onClose",async()=>{clearInterval(timer);await running;});
+  registerRecurringJob(app, {
+    name: "lab-workspace-expiry-sweep",
+    intervalMs: 60_000,
+    run: () => service.sweep(),
+  });
 }
