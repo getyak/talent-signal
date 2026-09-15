@@ -75,7 +75,7 @@ protocol PursuitProposalReviewServing {
 
 actor URLPursuitProposalReviewClient: PursuitProposalReviewServing {
     private let baseURL: URL
-    private let session: URLSession
+    private let transport: TalentSignalHTTPTransport
     private var accessToken: String?
 
     init(
@@ -85,7 +85,7 @@ actor URLPursuitProposalReviewClient: PursuitProposalReviewServing {
     ) {
         self.baseURL = baseURL
         self.accessToken = accessToken
-        self.session = session
+        transport = TalentSignalHTTPTransport(session: session)
     }
 
     func loadProposal(id: String) async throws -> PursuitProposalSnapshot {
@@ -144,32 +144,32 @@ actor URLPursuitProposalReviewClient: PursuitProposalReviewServing {
             throw PursuitProposalReviewClientError.loopbackOnly
         }
         let token = try await authenticatedToken()
-        var request = URLRequest(url: baseURL.appending(path: path))
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "content-type")
-            request.httpBody = try JSONEncoder().encode(body)
-        }
-        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
-        guard let http = response as? HTTPURLResponse else {
+        let response: TalentSignalHTTPResponse
+        do {
+            response = try await transport.send(
+                baseURL: baseURL,
+                path: path,
+                method: method,
+                bearerToken: token,
+                body: body
+            )
+        } catch TalentSignalHTTPTransportError.invalidResponse {
             throw PursuitProposalReviewClientError.invalidResponse
         }
-        guard (200...299).contains(http.statusCode) else {
-            let envelope = try? JSONDecoder().decode(PursuitReviewErrorEnvelope.self, from: data)
-            if http.statusCode == 409 {
+        guard response.isSuccessful else {
+            let envelope = try? JSONDecoder().decode(PursuitReviewErrorEnvelope.self, from: response.data)
+            if response.statusCode == 409 {
                 throw PursuitProposalReviewClientError.conflict(
                     message: envelope?.error?.message ?? "The Pursuit changed before this review could apply."
                 )
             }
             throw PursuitProposalReviewClientError.backend(
-                code: envelope?.error?.code ?? "HTTP_\(http.statusCode)",
+                code: envelope?.error?.code ?? "HTTP_\(response.statusCode)",
                 message: envelope?.error?.message ?? "The backend rejected this review."
             )
         }
         do {
-            return try JSONDecoder().decode(Response.self, from: data)
+            return try JSONDecoder().decode(Response.self, from: response.data)
         } catch {
             throw PursuitProposalReviewClientError.invalidResponse
         }
@@ -177,20 +177,24 @@ actor URLPursuitProposalReviewClient: PursuitProposalReviewServing {
 
     private func authenticatedToken() async throws -> String {
         if let accessToken { return accessToken }
-        var request = URLRequest(url: baseURL.appending(path: "v1/auth/simulated-login"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try JSONEncoder().encode(
-            PursuitReviewLoginBody(
-                accountSlug: "fixture-alpha",
-                userEmail: "recruiter@alpha.local",
-                clientLabel: "ios-pursuit-proposal-review"
+        let response: TalentSignalHTTPResponse
+        do {
+            response = try await transport.send(
+                baseURL: baseURL,
+                path: "v1/auth/simulated-login",
+                method: "POST",
+                bearerToken: nil,
+                body: PursuitReviewLoginBody(
+                    accountSlug: "fixture-alpha",
+                    userEmail: "recruiter@alpha.local",
+                    clientLabel: "ios-pursuit-proposal-review"
+                )
             )
-        )
-        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode),
-              let login = try? JSONDecoder().decode(PursuitReviewLoginResponse.self, from: data) else {
+        } catch TalentSignalHTTPTransportError.invalidResponse {
+            throw PursuitProposalReviewClientError.loginFailed
+        }
+        guard response.isSuccessful,
+              let login = try? JSONDecoder().decode(PursuitReviewLoginResponse.self, from: response.data) else {
             throw PursuitProposalReviewClientError.loginFailed
         }
         accessToken = login.accessToken
