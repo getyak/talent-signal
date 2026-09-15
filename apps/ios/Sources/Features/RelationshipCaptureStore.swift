@@ -94,7 +94,7 @@ final class RelationshipCaptureStore: ObservableObject {
             try await LabClientDiagnostics.measure(.captureReviewPreparation) {
                 if let saved = try await self.inbox.loadDraft(for: self.seed.id, scope: self.service.runtimeScope) {
                     self.draft = saved
-                    self.hasInitialDraft = true
+                    self.hasInitialDraft = !(resumeFailedPreprocessing && saved.preprocessingRetryRequired == true)
                 }
                 if let saved = try await self.inbox.loadRecovery(for: self.seed.id, scope: self.service.runtimeScope) {
                     self.recovery = saved
@@ -115,8 +115,17 @@ final class RelationshipCaptureStore: ObservableObject {
                     self.draft = try await (resumeFailedPreprocessing
                         ? self.service.resumeScreenshotPreprocessing(seed: self.seed)
                         : self.service.preprocessScreenshot(seed: self.seed))
+                    self.hasInitialDraft = true
                 }
                 try await self.saveRecovery()
+                if self.draft.preprocessingRetryRequired == true {
+                    self.fail(
+                        self.draft.preprocessingUncertainties?.joined(separator: " ")
+                            ?? "The screenshot still needs a bounded original-image check. Retry preserves the task receipt.",
+                        at: .recognition
+                    )
+                    return
+                }
                 self.stage = .reviewing
             }
         }
@@ -178,6 +187,8 @@ final class RelationshipCaptureStore: ObservableObject {
             }
             try Task.checkCancellation()
             self.recovery.capture = result
+            try await self.saveRecovery()
+            try await self.linkPreprocessingIfNeeded(to: result)
             try await self.saveRecovery()
             try await self.continueAfterCapture(result)
         }
@@ -343,6 +354,8 @@ final class RelationshipCaptureStore: ObservableObject {
         }
         recovery.capture = current
         try await saveRecovery()
+        try await linkPreprocessingIfNeeded(to: current)
+        try await saveRecovery()
         try await continueAfterCapture(current)
     }
     private func continueAfterCapture(_ result: ResourceCaptureResult) async throws {
@@ -426,6 +439,19 @@ final class RelationshipCaptureStore: ObservableObject {
             taskID: taskID,
             expectedRevision: revision
         )
+    }
+    private func linkPreprocessingIfNeeded(to capture: ResourceCaptureResult) async throws {
+        let source = recovery.submittedDraft ?? draft
+        guard let taskID = source.preprocessingTaskID,
+              let revision = source.preprocessingTaskRevision else { return }
+        let linkedRevision = try await service.linkScreenshotPreprocessing(
+            taskID: taskID,
+            expectedRevision: revision,
+            captureID: capture.captureID,
+            sourceResourceID: capture.resource.id
+        )
+        recovery.submittedDraft?.preprocessingTaskRevision = linkedRevision
+        draft.preprocessingTaskRevision = linkedRevision
     }
     func checkLocalRetention() async {
         guard !removedFromInbox else { return }

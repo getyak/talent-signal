@@ -82,11 +82,15 @@ enum ScreenshotPreprocessingUploadNormalizer {
     private static let supportedMediaTypes = Set(["image/png", "image/jpeg", "image/webp"])
 
     static func normalize(data: Data, mediaType: String) throws -> (data: Data, mediaType: String) {
-        if supportedMediaTypes.contains(mediaType), data.count <= maximumByteCount {
-            return (data, mediaType)
-        }
         guard let image = UIImage(data: data) else {
             throw ConversationRecognitionError.unreadableImage
+        }
+        let sourceWidth = max(1, image.size.width * image.scale)
+        let sourceHeight = max(1, image.size.height * image.scale)
+        if supportedMediaTypes.contains(mediaType),
+           data.count <= maximumByteCount,
+           max(sourceWidth, sourceHeight) <= maximumPixelDimension {
+            return (data, mediaType)
         }
 
         var rendered = render(image, maximumDimension: maximumPixelDimension)
@@ -236,7 +240,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         // A repeated create is the durable lookup for this source. Only the
         // explicit resume entry point, called from the recruiter's Retry
         // action, may authorize another provider attempt at this revision.
-        if resumeFailedTask && (task.status == "failed" || task.status == "cancelled") {
+        if resumeFailedTask && ["waiting_for_user", "failed", "cancelled"].contains(task.status) {
             task = try await request(
                 path: "v1/contact-agent/tasks/\(task.taskID)/resume",
                 method: "POST",
@@ -266,24 +270,53 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                 sourceImageIndex: $0.sourceImageIndex ?? 0
             )
         }
-        let text = messages.map(\.text).joined(separator: "\n")
-        let fallbackText = extraction.identityClues?.map(\.sourceExcerpt).joined(separator: "\n") ?? ""
-        var draft = CaptureDraftBuilder.makeDraft(from: text.isEmpty ? fallbackText : text)
-        draft.displayNameHint = extraction.contactName ?? draft.displayNameHint
-        if let handle = extraction.identityClues?.first(where: { $0.kind == "handle" })?.value {
-            if handle.contains("@") { draft.handleType = .email }
-            else if handle.filter(\.isNumber).count >= 7 { draft.handleType = .phone }
-            else { draft.handleType = .wechat }
-            draft.handleValue = handle
+        let preprocessingIssues = Self.preprocessingIssues(task: task, extraction: extraction)
+        guard !messages.isEmpty else {
+            let isDisposableProfile = task.status == "completed"
+                && ["profile", "not_chat"].contains(extraction.conversationKind ?? "")
+                && preprocessingIssues.isEmpty
+            if !isDisposableProfile {
+                var draft = RecognizedCaptureDraft.empty
+                draft.displayNameHint = extraction.contactName ?? ""
+                draft.sourceParserName = "shared-screenshot-preprocess"
+                draft.sourceParserVersion = "screenshot-preprocess.v1"
+                draft.preprocessingUncertainties = preprocessingIssues.isEmpty
+                    ? ["No conversation messages were readable. Inspect the original before entering evidence."]
+                    : preprocessingIssues
+                draft.preprocessingTaskID = task.taskID
+                draft.preprocessingTaskRevision = task.revision
+                draft.preprocessingRetryRequired = task.status == "waiting_for_user"
+                return draft
+            }
+            // There is no reviewable conversation draft that could carry this
+            // receipt into local recovery. Delete and verify the server source
+            // before returning the fail-closed result so its original cannot
+            // outlive the rejected import.
+            try await deleteScreenshotPreprocessing(
+                taskID: task.taskID,
+                expectedRevision: task.revision
+            )
+            throw ConversationRecognitionError.noConversationEvidence
         }
+        let text = messages.map(\.text).joined(separator: "\n")
+        var draft = CaptureDraftBuilder.makeDraft(from: text)
+        draft.displayNameHint = extraction.contactName ?? draft.displayNameHint
+        let hasUntypedHandle = extraction.identityClues?.contains(where: { $0.kind == "handle" }) == true
+        if hasUntypedHandle { draft.handleValue = "" }
         draft.sourceParserName = "shared-screenshot-preprocess"
         draft.sourceParserVersion = "screenshot-preprocess.v1"
-        let preprocessingIssues = Self.preprocessingIssues(task: task, extraction: extraction)
-        draft.preprocessingUncertainties = preprocessingIssues.isEmpty
+        var draftPreprocessingIssues = preprocessingIssues
+        if hasUntypedHandle {
+            draftPreprocessingIssues.append(
+                "A visible platform handle remains untyped and must be reviewed before identity matching."
+            )
+        }
+        draft.preprocessingUncertainties = draftPreprocessingIssues.isEmpty
             ? nil
-            : preprocessingIssues
+            : draftPreprocessingIssues
         draft.preprocessingTaskID = task.taskID
         draft.preprocessingTaskRevision = task.revision
+        draft.preprocessingRetryRequired = false
         draft.preprocessedMessages = messages.isEmpty ? nil : messages
         return draft
     }

@@ -25,13 +25,14 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
         enum CodingKeys: String, CodingKey { case kind, value, sourceExcerpt = "source_excerpt", sourceImageIndex = "source_image_index" }
     }
     struct Extraction: Decodable, Equatable {
-        let platform: String?; let contactName: String?; let identityClues: [IdentityClue]?
+        let platform: String?; let conversationKind: String?; let contactName: String?; let identityClues: [IdentityClue]?
         let messages: [Message]; let uncertainties: [String]
-        init(platform: String? = nil, contactName: String? = nil, identityClues: [IdentityClue]? = nil, messages: [Message], uncertainties: [String]) {
-            self.platform = platform; self.contactName = contactName; self.identityClues = identityClues
+        init(platform: String? = nil, conversationKind: String? = nil, contactName: String? = nil, identityClues: [IdentityClue]? = nil, messages: [Message], uncertainties: [String]) {
+            self.platform = platform; self.conversationKind = conversationKind
+            self.contactName = contactName; self.identityClues = identityClues
             self.messages = messages; self.uncertainties = uncertainties
         }
-        enum CodingKeys: String, CodingKey { case platform, contactName = "contact_name", identityClues = "identity_clues", messages, uncertainties }
+        enum CodingKeys: String, CodingKey { case platform, conversationKind = "conversation_kind", contactName = "contact_name", identityClues = "identity_clues", messages, uncertainties }
     }
     struct ProfileDraft: Decodable, Equatable {
         struct Field: Decodable, Equatable, Identifiable {

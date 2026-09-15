@@ -6,7 +6,8 @@ import { ClaudeContactAgentModel } from "./claudeContactProvider.js";
 import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import type { ClaudeHarnessRequest } from "./claudeHarness.js";
 import { ARK_SCREENSHOT_PREPROCESS_MODEL, SCREENSHOT_PREPROCESS_CONTRACT,
-  SCREENSHOT_PREPROCESS_PROMPT_VERSION, SCREENSHOT_PREPROCESS_SCHEMA_VERSION } from "./screenshotPreprocess.js";
+  SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT, SCREENSHOT_PREPROCESS_PROMPT_VERSION,
+  SCREENSHOT_PREPROCESS_SCHEMA_VERSION } from "./screenshotPreprocess.js";
 
 describe("multimodal contact SDK adapter", () => {
   it("passes reviewed text to the same harness with a source-specific understanding tool",async()=>{
@@ -101,6 +102,7 @@ describe("multimodal contact SDK adapter", () => {
       expect(context.correction_baselines[0].extraction.messages.map((message:{message_id:string})=>message.message_id))
         .toEqual(["m2","m3"]);
       expect(request.tools.map(tool=>tool.name)).toContain("record_screenshot_corrections");
+      expect(request.budget.maxToolCalls).toBeGreaterThan(SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT);
       expect(request.systemPrompt).toContain("Filing tools remain unauthorized until that correction succeeds");
       const inspect=request.tools.find(tool=>tool.name==="inspect_screenshot_region")!;
       const inspectInput={source_image_index:1,region:{left:2,top:4,width:10,height:12}};

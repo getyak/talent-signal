@@ -92,7 +92,9 @@ export class ClaudeContactAgentModel implements ContactAgentModel {
       // Aggregate input includes cached context again at each model turn. E05's
       // measured 7 responses already consumed 89,360 input tokens before fetch;
       // allow the existing 18-turn workflow while retaining its cost/time caps.
-      effort: "medium", budget: { maxTurns: 18, maxToolCalls: 24, maxDurationMs: Math.max(1,300_000-(Date.now()-started)), maxTaskTokens: 240_000, maxEstimatedUsd: 2 },
+      // The packet may declare 24 bounded reads and still needs one final
+      // correction commit. Keep one tool call beyond the receipt ceiling.
+      effort: "medium", budget: { maxTurns: 18, maxToolCalls: 25, maxDurationMs: Math.max(1,300_000-(Date.now()-started)), maxTaskTokens: 240_000, maxEstimatedUsd: 2 },
       assertCurrent: input.assertCurrent,
     }, signal);
     return { providerRequestID: result.sessionID, model: this.configuration.model, inputTokens: result.inputTokens, outputTokens: result.outputTokens };

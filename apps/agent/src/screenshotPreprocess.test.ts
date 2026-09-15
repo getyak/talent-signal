@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ArkScreenshotPreprocessor } from "./arkScreenshotPreprocessor.js";
 import { prepareScreenshotViews } from "./screenshotPreparedViews.js";
 import { extractionFromPreprocess } from "./screenshotPreprocessExtraction.js";
+import { withProductRunCapture, type ProductRunSpan } from "./productRunCapture.js";
 import {
   ARK_SCREENSHOT_PREPROCESS_MODEL,
   SCREENSHOT_PREPROCESS_CONTRACT,
@@ -39,6 +40,7 @@ describe("screenshot-preprocess.v1",()=>{
 
   it("pins Ark identity, disables thinking/storage, and emits source-grounded fields",async()=>{
     const source=await image();
+    const spans:ProductRunSpan[]=[];
     const fetcher=vi.fn(async(_url:URL|string|Request,init?:RequestInit)=>{
       const body=JSON.parse(String(init?.body));
       expect(body).toMatchObject({model:ARK_SCREENSHOT_PREPROCESS_MODEL,thinking:{type:"disabled"},store:false,stream:false});
@@ -46,8 +48,9 @@ describe("screenshot-preprocess.v1",()=>{
       return new Response(JSON.stringify({id:"ark-request-1",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
         choices:[{message:{content:JSON.stringify(modelOutput)}}],usage:{prompt_tokens:12,completion_tokens:8}}));
     }) as typeof fetch;
-    const result=await new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher})
-      .preprocess(source,0,new AbortController().signal);
+    const result=await withProductRunCapture({async append(span){spans.push(span);}},()=>
+      new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher})
+        .preprocess(source,0,new AbortController().signal));
     expect(result).toMatchObject({request_id:"ark-request-1",model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:12,output_tokens:8,
       source:{source_image_index:0,source_hash:source.content_hash,platform:"WeChat",follow_up_required:false}});
     expect(extractionFromPreprocess(result.source)).toMatchObject({messages:[{message_id:"m1",sequence:0,
@@ -55,6 +58,10 @@ describe("screenshot-preprocess.v1",()=>{
     expect(extractionFromPreprocess({...result.source,source_image_index:1},3)).toMatchObject({
       messages:[{message_id:"m4",sequence:3,source_image_index:1}],
     });
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toMatchObject({status:"completed",output:{status:"complete",
+      value:{request_id:"ark-request-1",model:ARK_SCREENSHOT_PREPROCESS_MODEL}}});
+    expect(JSON.stringify(spans)).not.toContain("Exact synthetic source");
   });
 
   it("rejects provider model drift and out-of-bounds follow-up regions",async()=>{
@@ -69,6 +76,23 @@ describe("screenshot-preprocess.v1",()=>{
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       follow_up_regions:[{reason:"illegible_text",field:"text",left:0,top:0,width:120,height:1401}]})})
       .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+  });
+
+  it("fails the observed provider span before invalid private output can be retained",async()=>{
+    const source=await image();
+    const privateMarker="synthetic-private-invalid-output";
+    const fetcher=vi.fn(async()=>new Response(JSON.stringify({
+      id:"ark-request-invalid",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      choices:[{message:{content:JSON.stringify({...modelOutput,unexpected_private_field:privateMarker})}}],
+    }))) as typeof fetch;
+    const spans:ProductRunSpan[]=[];
+    await expect(withProductRunCapture({async append(span){spans.push(span);}},()=>
+      new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher})
+        .preprocess(source,0,new AbortController().signal)))
+      .rejects.toThrow();
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toMatchObject({name:"contact.screenshot.preprocess",status:"failed",error:"Operation failed"});
+    expect(JSON.stringify(spans)).not.toContain(privateMarker);
   });
 
   it("rejects aggregate follow-up regions beyond the global receipt budget", () => {

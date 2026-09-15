@@ -92,31 +92,39 @@ export class ArkScreenshotPreprocessor implements ScreenshotPreprocessor {
     } else {
       appendView(content,"NATIVE FULL VIEW",views.overview);
     }
-    const payload = await captureProductStep("contact.screenshot.preprocess", "llm",
+    let source: ScreenshotPreprocessResult["source"] | undefined;
+    const receipt = await captureProductStep("contact.screenshot.preprocess", "llm",
       { model: this.model, source_image_index: imageIndex, source_hash: image.content_hash,
         native_clarity: views.native_clarity, tile_count: views.tiles.length,
         prepared_view_hash: views.overview.content_hash,
         coordinate_space: "EXIF-oriented original pixels" },
-      () => this.request(content, signal),
+      async () => {
+        const payload = await this.request(content, signal);
+        const raw = ModelOutputSchema.parse(parseJSON(payload.choices![0]!.message!.content ?? ""));
+        const validated = ScreenshotPreprocessSourceSchema.parse({
+          source_image_index: imageIndex, source_hash: image.content_hash,
+          platform: raw.platform, conversation_kind: raw.conversation_kind, contact_name: raw.contact_name,
+          participants: raw.participants, messages: raw.messages.map((message, index) => ({ ...message, sequence: index })),
+          identity_clues: raw.identity_clues, uncertainties: raw.uncertainties,
+          follow_up_required: raw.follow_up_regions.length > 0,
+          follow_up_regions: raw.follow_up_regions.map(region => ({ reason: region.reason, field: region.field,
+            region: { left: region.left, top: region.top, width: region.width, height: region.height } })),
+          width: views.width, height: views.height,
+          prepared_view: { transform: views.overview.transform, content_hash: views.overview.content_hash, tile_count: views.tiles.length },
+        });
+        if (validated.follow_up_regions.some(region => region.region.left + region.region.width > views.width ||
+          region.region.top + region.region.height > views.height)) {
+          throw new Error("SCREENSHOT_PREPROCESS_REGION_OUT_OF_BOUNDS");
+        }
+        source = validated;
+        return {
+          request_id: payload.id!, model: payload.model!, usage: payload.usage,
+        };
+      },
       { provider: "volcano_ark", model: this.model, contract: SCREENSHOT_PREPROCESS_CONTRACT });
-    const raw = ModelOutputSchema.parse(parseJSON(payload.choices![0]!.message!.content ?? ""));
-    const source = ScreenshotPreprocessSourceSchema.parse({
-      source_image_index: imageIndex, source_hash: image.content_hash,
-      platform: raw.platform, conversation_kind: raw.conversation_kind, contact_name: raw.contact_name,
-      participants: raw.participants, messages: raw.messages.map((message, index) => ({ ...message, sequence: index })),
-      identity_clues: raw.identity_clues, uncertainties: raw.uncertainties,
-      follow_up_required: raw.follow_up_regions.length > 0,
-      follow_up_regions: raw.follow_up_regions.map(region => ({ reason: region.reason, field: region.field,
-        region: { left: region.left, top: region.top, width: region.width, height: region.height } })),
-      width: views.width, height: views.height,
-      prepared_view: { transform: views.overview.transform, content_hash: views.overview.content_hash, tile_count: views.tiles.length },
-    });
-    if (source.follow_up_regions.some(region => region.region.left + region.region.width > views.width ||
-      region.region.top + region.region.height > views.height)) {
-      throw new Error("SCREENSHOT_PREPROCESS_REGION_OUT_OF_BOUNDS");
-    }
-    return { source, request_id: payload.id!, model: payload.model!,
-      input_tokens: tokens(payload.usage?.prompt_tokens), output_tokens: tokens(payload.usage?.completion_tokens) };
+    if (!source) throw new Error("SCREENSHOT_PREPROCESS_OUTPUT_INVALID");
+    return { source, request_id: receipt.request_id, model: receipt.model,
+      input_tokens: tokens(receipt.usage?.prompt_tokens), output_tokens: tokens(receipt.usage?.completion_tokens) };
   }
 
   private async request(content: Array<Record<string, unknown>>, signal: AbortSignal): Promise<ArkPayload> {

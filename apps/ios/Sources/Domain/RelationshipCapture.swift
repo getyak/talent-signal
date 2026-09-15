@@ -123,6 +123,7 @@ struct RecognizedCaptureDraft: Codable, Equatable {
     var preprocessingUncertainties: [String]? = nil
     var preprocessingTaskID: String? = nil
     var preprocessingTaskRevision: Int? = nil
+    var preprocessingRetryRequired: Bool? = nil
     var preprocessedMessages: [PreprocessedCaptureMessage]? = nil
 
     static let empty = RecognizedCaptureDraft(

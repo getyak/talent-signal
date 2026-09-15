@@ -5,7 +5,7 @@ import type { Pool, PoolClient } from "pg";
 import {
   ARK_SCREENSHOT_PREPROCESS_MODEL, ArkScreenshotPreprocessor,
   SCREENSHOT_PREPROCESS_CONTRACT, SCREENSHOT_PREPROCESS_PROMPT_VERSION,
-  SCREENSHOT_PREPROCESS_SCHEMA_VERSION,
+  SCREENSHOT_PREPROCESS_SCHEMA_VERSION, SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT,
   CONTACT_INTAKE_TOOLS, CONTACT_RESEARCH_CONTRACT, ContactProfileFieldSchema,
   ScreenshotContactTaskRequestSchema, ScreenshotContactTaskResponseSchema, TextContactTaskRequestSchema,
   ZhipuContactAgentModel, groundContactTextExtraction, contactDocumentBlocks,
@@ -448,7 +448,8 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
 
 function currentToolState(row: Row) {
   const response=row.state.response, extraction=response.extraction;
-  return { allowed_tools:response.status!=="running" ? [] : !extraction||pendingPreprocessRefinementIndices(row).length ? ["record_screenshot_understanding"] : toolsFor(row), contact:response.contact, capture_id:response.capture_id,
+  return { allowed_tools:response.status!=="running" ? [] : !extraction ? ["record_screenshot_understanding"]
+    : pendingPreprocessRefinementIndices(row).length ? ["record_screenshot_corrections"] : toolsFor(row), contact:response.contact, capture_id:response.capture_id,
     message_count:response.message_count,
     public_query_tokens:extraction ? [extraction.contact_name,...extraction.identity_clues
       .filter(clue=>["name","handle","company","job_title"].includes(clue.kind)).map(clue=>clue.value)].filter(Boolean) : [],
@@ -719,6 +720,10 @@ export class ScreenshotContactTaskRunner {
       const output=await preprocessor.preprocess(current,index,signal);
       if(output.source.source_image_index!==index||output.source.source_hash!==current.content_hash||output.model!==preprocessor.model)
         deny("SCREENSHOT_PREPROCESS_RECEIPT_MISMATCH");
+      const committedRegionCount=(row.state.preprocessing_parts??[]).reduce(
+        (count,part)=>count+part.source.follow_up_regions.length,0);
+      if(committedRegionCount+output.source.follow_up_regions.length>SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT)
+        deny("SCREENSHOT_PREPROCESS_FOLLOW_UP_BUDGET");
       await this.checkpoint(auth,id,epoch,async(_,latest)=>{
         latest.state.preprocessing_parts??=[];
         if(!latest.state.preprocessing_parts.some(part=>part.source.source_image_index===index))latest.state.preprocessing_parts.push(output);

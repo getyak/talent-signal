@@ -663,7 +663,10 @@ final class CaptureHandoffStore: ObservableObject {
                 try await inbox.saveDraft(draft, for: item.id, scope: runtimeScope)
             }
             let blockers: [String]
-            if let service {
+            if !draft.canSubmit {
+                blockers = draft.preprocessingUncertainties
+                    ?? ["The protected screenshot needs review before any evidence can be saved."]
+            } else if let service {
                 var recovery = try await inbox.loadRecovery(
                     for: item.id,
                     scope: runtimeScope

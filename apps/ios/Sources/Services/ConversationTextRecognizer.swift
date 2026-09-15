@@ -3,6 +3,7 @@ import Foundation
 enum ConversationRecognitionError: LocalizedError, Equatable {
     case unreadableImage
     case noText
+    case noConversationEvidence
     case sharedPreprocessingUnavailable
     case sharedPreprocessingFailed
 
@@ -12,6 +13,8 @@ enum ConversationRecognitionError: LocalizedError, Equatable {
             return "The selected file is not a readable image."
         case .noText:
             return "No readable conversation text was found. Try a clearer screenshot."
+        case .noConversationEvidence:
+            return "This image contains profile details but no conversation messages, so it cannot be saved as conversation evidence."
         case .sharedPreprocessingUnavailable:
             return "Shared screenshot preprocessing is unavailable. Reconnect to Talent Signal and retry."
         case .sharedPreprocessingFailed:
