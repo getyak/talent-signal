@@ -12,11 +12,14 @@
 .primary:disabled, .secondary:disabled { cursor: default; opacity: .5; }
 .page :is(a,button,select,input):focus-visible, .review :is(button,input,summary):focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
 .preference [role="alert"], .review [role="alert"] { color: var(--error); }
-.preference [role="status"] { color: var(--success); }
+.preference [role="status"], .review [role="status"] { color: var(--success); }
 .review { display: grid; gap: 18px; padding: 22px; margin-top: 20px; border: 1px solid var(--line); border-radius: var(--card-radius); background: var(--surface); }
 .review h3 { margin: 0; color: var(--ink); font-size: 18px; font-weight: 550; }
 .review details { color: var(--muted); font-size: 14px; }
 .review summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; text-decoration: underline; text-underline-offset: 4px; }
 .review blockquote { margin: 8px 0 0; border-left: 2px solid var(--line-strong); padding-left: 14px; line-height: 1.7; overflow-wrap: anywhere; }
 .review .primary { justify-self: start; }
+.conflict { display: grid; gap: 10px; padding: 16px; border: 1px solid color-mix(in srgb, var(--error) 42%, var(--line)); border-radius: var(--input-radius); background: color-mix(in srgb, var(--error) 6%, var(--surface)); }
+.conflict strong { color: var(--ink); }
+.conflict .actions { margin-top: 4px; }
 @media (max-width: 600px) { .page { padding: 24px 20px 80px; } .back { margin-bottom: 20px; } .review { padding: 18px; } }

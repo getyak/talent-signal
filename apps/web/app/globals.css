@@ -5199,6 +5199,40 @@ p {
   font-weight: 730;
 }
 
+.context-calendar-draft-handoff {
+  align-items: start;
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface));
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  color: var(--muted-strong);
+  display: grid;
+  font-size: 0.7rem;
+  gap: 9px;
+  grid-template-columns: auto 1fr;
+  line-height: 1.55;
+  padding: 11px;
+}
+
+.context-calendar-draft-handoff strong {
+  color: var(--ink);
+  display: block;
+  font-size: 0.75rem;
+  margin-bottom: 3px;
+}
+
+.context-calendar-draft-handoff p {
+  margin: 0 0 7px;
+}
+
+.context-calendar-draft-handoff a {
+  align-items: center;
+  color: var(--accent-strong);
+  display: inline-flex;
+  font-weight: 720;
+  gap: 5px;
+  min-height: 44px;
+}
+
 .context-chat__empty {
   color: var(--muted);
   font-size: 0.7rem;

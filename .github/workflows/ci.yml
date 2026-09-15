@@ -241,11 +241,13 @@ jobs:
           DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
           CONTACT_AGENT_TEST_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
           AGENT_SESSION_TEST_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+          MEETING_DRAFT_TEST_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
         run: |
           pnpm --filter @talent-signal/backend migrate
           pnpm --filter @talent-signal/backend seed
           pnpm --filter @talent-signal/backend exec vitest run src/modules/screenshotContactTasks.integration.test.ts
           pnpm --filter @talent-signal/backend exec vitest run src/modules/agentSessions.integration.test.ts
+          pnpm --filter @talent-signal/backend exec vitest run src/modules/meetingDrafts.integration.test.ts
 
       - name: Verify account authority and isolated workspace cleanup
         env:

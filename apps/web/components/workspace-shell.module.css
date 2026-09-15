@@ -4,26 +4,30 @@
 }
 
 .rail {
-  align-items: center;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  align-items: stretch;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   border-right: 1px solid var(--line);
   bottom: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
   left: 0;
-  padding: 16px 10px 14px;
+  padding: 14px 12px;
   position: fixed;
   top: 0;
-  width: 84px;
+  transition: width 150ms ease;
+  width: 236px;
   z-index: 80;
 }
 
 .brand {
   align-items: center;
   display: inline-flex;
-  justify-content: center;
+  gap: 10px;
+  justify-content: flex-start;
   min-height: 44px;
+  padding: 4px 8px;
+  text-decoration: none;
   width: 100%;
 }
 
@@ -33,76 +37,115 @@
   border-radius: 50%;
   color: var(--background);
   display: inline-flex;
+  flex: 0 0 auto;
   font-family: var(--font-mono), monospace;
   font-size: 0.68rem;
   font-weight: 780;
-  height: 36px;
+  height: 32px;
   justify-content: center;
   letter-spacing: -0.04em;
-  width: 36px;
+  width: 32px;
 }
 
-.navigation {
+.brand > strong {
+  color: var(--ink);
+  font-size: 0.83rem;
+  font-weight: 690;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navRegion {
   display: grid;
-  gap: 7px;
-  width: 100%;
+  gap: 14px;
+  min-width: 0;
 }
 
+.railTools {
+  border-bottom: 1px solid var(--line-soft);
+  display: grid;
+  gap: 3px;
+  padding-bottom: 10px;
+}
+
+.railTools a,
+.railTools button,
 .navigation a,
 .capture {
   align-items: center;
-  border-radius: 13px;
+  border-radius: 7px;
   display: flex;
-  flex-direction: column;
+  font: inherit;
   font-size: var(--workspace-meta-size);
-  font-weight: 690;
-  gap: 4px;
-  justify-content: center;
-  letter-spacing: 0.01em;
-  min-height: 56px;
-  padding: 6px 3px;
-  transition:
-    background 160ms ease,
-    color 160ms ease,
-    transform 160ms var(--ease-out);
+  font-weight: 620;
+  gap: 10px;
+  justify-content: flex-start;
+  min-height: 40px;
+  padding: 8px 10px;
+  text-decoration: none;
+  width: 100%;
 }
 
-.navigation a {
+.railTools a,
+.railTools button {
+  background: transparent;
+  border: 0;
   color: var(--muted-strong);
+  cursor: pointer;
 }
 
+.railTools :is(a, button):hover,
 .navigation a:hover {
   background: var(--surface-muted);
   color: var(--ink);
 }
 
-.navigation a[aria-current="page"] {
-  background: var(--ink);
-  color: var(--background);
+.railTools svg,
+.navigation svg,
+.capture svg {
+  flex: 0 0 auto;
 }
 
-.capture {
-  background: var(--surface-muted);
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-  margin-top: 1px;
+.navigation {
+  display: grid;
+  gap: 3px;
   width: 100%;
 }
 
-.capture:hover {
-  background: var(--surface);
-  border-color: var(--line-strong);
+.navigation a {
+  color: var(--muted-strong);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.navigation a[aria-current="page"] {
+  background: var(--surface-muted);
+  box-shadow: inset 2px 0 var(--accent);
   color: var(--ink);
+}
+
+.capture {
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  color: var(--background);
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.capture:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--accent-ink);
 }
 
 .account {
   align-items: center;
   border-top: 1px solid var(--line-soft);
-  display: grid;
-  gap: 9px;
-  justify-items: center;
+  display: flex;
+  gap: 8px;
   margin-top: auto;
-  padding-top: 14px;
+  padding: 12px 6px 0;
   width: 100%;
 }
 
@@ -110,14 +153,14 @@
   align-items: center;
   background: var(--accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
-  border-radius: 11px;
+  border-radius: 8px;
   color: var(--accent-strong);
   display: inline-flex;
   font-size: 0.65rem;
   font-weight: 820;
-  height: 36px;
+  height: 44px;
   justify-content: center;
-  width: 36px;
+  width: 44px;
 }
 
 .environmentBadge {
@@ -132,43 +175,71 @@
 
 .accountControls {
   align-items: center;
-  display: grid;
-  gap: 6px;
-  justify-items: center;
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
 }
 
-.accountControls form button {
+.accountControls form button,
+.mobileAccount form button {
   align-items: center;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 50%;
   color: var(--muted-strong);
   display: inline-flex;
-  height: 36px;
+  height: 34px;
   justify-content: center;
   padding: 0;
-  width: 36px;
+  width: 34px;
 }
 
-.accountControls form button:hover {
+.accountControls form button:hover,
+.mobileAccount form button:hover {
   background: var(--surface-muted);
   border-color: var(--line-soft);
   color: var(--ink);
 }
 
 .stage {
-  margin-left: 84px;
+  margin-left: 236px;
   min-height: 100svh;
   min-width: 0;
+  transition: margin-left 150ms ease;
 }
 
 .mobileHeader {
   display: none;
 }
 
-/* The frozen boundary-case evaluator owns a case rail and account header of
-   its own. Keep it outside the product shell without coupling the shared
-   server layout to request-path headers. */
+.mobileSources {
+  display: none;
+}
+
+.rail:has(.navRegion[data-collapsed="true"]) {
+  padding-inline: 8px;
+  width: 56px;
+}
+
+.rail:has(.navRegion[data-collapsed="true"]) :is(.brand > strong, .railTools span, .navigation span, .capture span, .environmentBadge, .accountControls) {
+  display: none;
+}
+
+.rail:has(.navRegion[data-collapsed="true"]) :is(.brand, .railTools a, .railTools button, .navigation a, .capture) {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.rail:has(.navRegion[data-collapsed="true"]) .account {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.shell:has(.rail .navRegion[data-collapsed="true"]) .stage {
+  margin-left: 56px;
+}
+
+/* The frozen boundary evaluator owns its own rail and account header. */
 .shell:has(.stage > :global(.review-workspace)) > .rail,
 .shell:has(.stage > :global(.review-workspace)) > .mobileHeader {
   display: none;
@@ -178,18 +249,127 @@
   margin-left: 0;
 }
 
+.accountMenu {
+  position: relative;
+}
+
+.accountMenu summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.accountMenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.accountMenu summary:focus-visible,
+.rail :is(a, button):focus-visible,
+.mobileSources:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.accountPopover {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  bottom: 0;
+  box-shadow: 0 12px 40px #0002;
+  display: grid;
+  gap: 3px;
+  left: 46px;
+  max-height: calc(100dvh - 32px);
+  max-width: calc(100vw - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px;
+  position: absolute;
+  width: 220px;
+  z-index: 100;
+}
+
+.accountPopover strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  padding: 10px;
+}
+
+.accountPopover a {
+  align-items: center;
+  border-radius: 7px;
+  display: flex;
+  font-size: 13px;
+  min-height: 44px;
+  padding: 8px 10px;
+}
+
+.accountPopover a:hover,
+.accountPopover > span:hover {
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
+
+.accountPopover > span {
+  align-items: center;
+  border-radius: 7px;
+  color: var(--muted-strong);
+  display: flex;
+  font-size: 13px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 6px 10px;
+}
+
+.accountPopover > span > strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+  padding: 0;
+}
+
+.accountAppearance :global(.theme-toggle) {
+  height: 44px;
+  width: 44px;
+}
+
+.accountPopover hr {
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  margin: 5px 2px;
+}
+
+.accountPopover form button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted-strong);
+  display: flex;
+  font: inherit;
+  font-size: 13px;
+  gap: 9px;
+  min-height: 44px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.accountPopover form button:hover {
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  color: var(--ink);
+}
+
 @media (max-width: 760px) {
   .shell {
     padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
 
-  .rail {
+  .rail,
+  .rail:has(.navRegion[data-collapsed="true"]) {
     align-items: center;
     backdrop-filter: blur(24px) saturate(145%);
     -webkit-backdrop-filter: blur(24px) saturate(145%);
     background: color-mix(in srgb, var(--surface) 82%, transparent);
     border: 1px solid var(--line);
-    border-radius: 20px;
+    border-radius: 16px;
     bottom: calc(11px + env(safe-area-inset-bottom, 0px));
     box-shadow: inset 0 1px 0 var(--edge-highlight), var(--shadow-focus);
     display: grid;
@@ -203,9 +383,15 @@
     width: auto;
   }
 
-  .brand,
-  .account {
+  .rail > .brand,
+  .rail > .account,
+  .railTools,
+  .navigation a[data-mobile-secondary="true"] {
     display: none;
+  }
+
+  .navRegion {
+    display: block;
   }
 
   .navigation {
@@ -215,17 +401,23 @@
   }
 
   .navigation a,
-  .capture {
-    border-radius: 14px;
+  .capture,
+  .rail:has(.navRegion[data-collapsed="true"]) :is(.navigation a, .capture) {
+    border-radius: 10px;
+    flex-direction: column;
+    gap: 3px;
+    justify-content: center;
     min-height: 50px;
-    padding: 5px 10px;
+    padding: 5px 8px;
   }
 
   .capture {
+    margin: 0;
     min-width: 58px;
   }
 
-  .stage {
+  .stage,
+  .shell:has(.rail .navRegion[data-collapsed="true"]) .stage {
     margin-left: 0;
   }
 
@@ -246,19 +438,38 @@
 
   .mobileHeader .brand {
     display: inline-flex;
-    min-height: 38px;
+    min-height: 44px;
+    padding: 0;
     width: auto;
   }
 
   .mobileHeader .brand > span {
-    height: 32px;
-    width: 32px;
+    height: 30px;
+    width: 30px;
   }
 
   .mobileAccount {
     align-items: center;
     display: flex;
     gap: 7px;
+  }
+
+  .mobileSources {
+    align-items: center;
+    border-radius: 9px;
+    color: var(--muted-strong);
+    display: inline-flex;
+    gap: 6px;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 6px 9px;
+    text-decoration: none;
+  }
+
+  .mobileSources:hover {
+    background: var(--surface-muted);
+    color: var(--ink);
   }
 
   .mobileAccount .environmentBadge {
@@ -268,49 +479,43 @@
   }
 
   .mobileAccount .avatar {
-    height: 32px;
-    width: 32px;
+    height: 44px;
+    width: 44px;
   }
 
-  .mobileAccount form button {
-    align-items: center;
-    background: transparent;
-    border: 0;
-    border-radius: 50%;
-    color: var(--muted-strong);
-    display: inline-flex;
-    height: 38px;
-    justify-content: center;
-    padding: 0;
-    width: 38px;
+  .accountPopover {
+    bottom: auto;
+    left: auto;
+    max-height: calc(100dvh - 64px);
+    right: 0;
+    top: 42px;
   }
 }
 
 @media (max-width: 390px) {
-  .navigation a {
+  .navigation a,
+  .capture {
     font-size: 0;
     gap: 0;
   }
 
   .capture {
-    font-size: 0;
     min-width: 50px;
+  }
+
+  .mobileHeader .brand > strong {
+    display: none;
+  }
+
+  .mobileSources span {
+    font-size: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .navigation a,
-  .capture {
+  .rail,
+  .stage,
+  .navigation a {
     transition: none;
   }
 }
-
-.accountMenu { position: relative; }
-.accountMenu summary { cursor: pointer; list-style: none; }
-.accountMenu summary::-webkit-details-marker { display: none; }
-.accountMenu summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.accountPopover { position: absolute; left: 52px; bottom: 0; width: 220px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px #0002; display: grid; gap: 3px; z-index: 100; }
-.accountPopover strong { padding: 10px; font-size: 13px; overflow-wrap: anywhere; }
-.accountPopover a { padding: 12px 10px; border-radius: 8px; font-size: 14px; }
-.accountPopover a:hover { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
-@media(max-width:760px) { .accountPopover { left: auto; right: 0; bottom: auto; top: 44px; } }

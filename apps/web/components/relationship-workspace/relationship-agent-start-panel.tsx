@@ -14,7 +14,7 @@ import { useState } from "react";
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
 import type { AgentContactDraft } from "@/lib/agent-contact-intake";
-import { CalendarDraftReview } from "@/components/calendar-draft-review";
+import { MeetingDraftHandoff } from "@/components/meeting-draft-handoff";
 import type { WorkspaceChatTurn } from "./use-workspace-chat";
 import { AgentVoiceInput } from "./agent-voice-input";
 
@@ -102,7 +102,7 @@ export function RelationshipAgentStartPanel({
               <p className="context-agent-user-message">{turn.objective}</p>
               {turn.response.blocks.map(block => <div key={block.id}>
                 <p style={{ whiteSpace: "pre-wrap" }}>{block.body}</p>
-                {block.calendar_draft?.source_request_id === turn.response.task_id ? <CalendarDraftReview draft={block.calendar_draft} /> : null}
+                {block.calendar_draft?.source_request_id === turn.response.task_id ? <MeetingDraftHandoff draft={block.calendar_draft} persistence="persisted" /> : null}
               </div>)}
             </article>)}
           </div>

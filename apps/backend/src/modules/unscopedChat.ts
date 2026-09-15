@@ -32,6 +32,7 @@ import { readAgentSessionConversation } from "./agentSessions.js";
 import { firstTurnSessionTitle } from "./sessionTitles.js";
 import { productObservationContext } from "./runtimeObservationSources.js";
 import { assertSessionChatSourcesAvailable, assertSessionForChat, purgeUnavailableSessionChatSources, recordSessionChatSources, markSessionContextAnswer, type AgentSessionChatSource } from "./agentSessionSources.js";
+import { recordMeetingDraftsForTask } from "./meetingDrafts.js";
 import {
   executeWorkspaceConversationAgent,
   isWorkspaceConversationAgentProvider,
@@ -377,6 +378,14 @@ export async function createUnscopedChatTask(
       },
     );
     await recordSessionChatSources(client, auth, request.session_id, execution.body.task_id, execution.conversationSources ?? [], execution.previousTaskIDs);
+    if (request.session_id) {
+      await recordMeetingDraftsForTask(client, auth, {
+        blocks: execution.body.blocks,
+        ...(request.message_id ? { messageID: request.message_id } : {}),
+        sessionID: request.session_id,
+        taskID: execution.body.task_id,
+      });
+    }
     await completeIdempotency(client, idempotency, 201, execution.body);
     return { body: execution.body, replayed: false, status: 201,
       labProductOutcome: execution.remoteStatus === "agent_completed" || execution.remoteStatus === "completed" ? "accepted" : "fallback" };

@@ -34,6 +34,7 @@ describe("readiness rate limiting", () => {
         },
         { version: "058_account_management" },
         { version: "069_account_access_event_details" },
+        { version: "070_meeting_drafts" },
       ],
     });
     const app = await buildApp({
@@ -58,7 +59,7 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("065_screenshot_directory_authority"),
+      expect.stringContaining("070_meeting_drafts"),
     );
   }, 10_000);
 
@@ -66,6 +67,7 @@ describe("readiness rate limiting", () => {
     "065_screenshot_directory_authority",
     "058_account_management",
     "069_account_access_event_details",
+    "070_meeting_drafts",
   ])(
     "stays unavailable when required migration %s is missing",
     async missing => {
@@ -74,6 +76,7 @@ describe("readiness rate limiting", () => {
           "065_screenshot_directory_authority",
           "058_account_management",
           "069_account_access_event_details",
+          "070_meeting_drafts",
         ]
           .filter(version => version !== missing).map(version => ({ version })),
       });

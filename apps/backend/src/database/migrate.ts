@@ -79,6 +79,7 @@ const MIGRATIONS = [
   "067_harness_artifact_parent_authority",
   "068_harness_artifact_reply_retirement",
   "069_account_access_event_details",
+  "070_meeting_drafts",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

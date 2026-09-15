@@ -21,6 +21,7 @@ export * from "./agentPreferenceSchemas.js";
 export * from "./systemHealthSchemas.js";
 
 export * from "./calendarDraftSchemas.js";
+export * from "./meetingDraftSchemas.js";
 
 export * from "./productRunSchemas.js";
 export * from "./accountSchemas.js";

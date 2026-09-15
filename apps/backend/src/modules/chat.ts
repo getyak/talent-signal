@@ -37,6 +37,7 @@ import { boundedConversationHistory } from "./chatAnswerProvider.js";
 import { readAgentSessionConversation } from "./agentSessions.js";
 import { firstTurnSessionTitle } from "./sessionTitles.js";
 import { assertSessionChatSourcesAvailable, assertSessionForChat, purgeUnavailableSessionChatSources, recordSessionChatSources, markSessionContextAnswer } from "./agentSessionSources.js";
+import { recordMeetingDraftsForTask } from "./meetingDrafts.js";
 import {
   bindChatMediaToManifest,
   getChatMediaContent,
@@ -1256,6 +1257,14 @@ export async function createChatTask(
       },
     );
     await recordSessionChatSources(client, auth, request.session_id, taskId, sessionConversation.sources ?? [], conversationHistory.filter((message) => message.role === "assistant").map((message) => message.message_id));
+    if (request.session_id) {
+      await recordMeetingDraftsForTask(client, auth, {
+        blocks: response.blocks,
+        ...(request.message_id ? { messageID: request.message_id } : {}),
+        sessionID: request.session_id,
+        taskID: taskId,
+      });
+    }
     if (!await lockChatCompletionSources(client, auth, { task_id: taskId, session_id: request.session_id, manifest_id: manifestId,
       person_id: request.person_id, relationship_context_id: request.relationship_context_id }))
       throw new ApiError(409, "CHAT_COMPLETION_SOURCE_CHANGED", "The source changed while this answer was being prepared. Reload its current state before trying again.");
