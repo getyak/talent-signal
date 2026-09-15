@@ -614,6 +614,34 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     await runner.start(auth,waiting.task_id);
     expect(preprocessCalls).toBe(1);expect(sdkCalls).toBe(2);
   });
+  it("denies automatic contact lookup for ungrounded preprocessing identity",async()=>{
+    const storage=new TestImageStorage();const request=input();
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(source,index)=>({request_id:`ark-ungrounded-${index}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:3,output_tokens:2,
+        source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",conversation_kind:"direct",contact_name:"Alice",
+          participants:[],messages:[{sequence:0,text:"Visible chat text",speaker_label:null,speaker_side:"unknown",time_text:null}],
+          identity_clues:[{kind:"name",value:"Alice",source_excerpt:"Bob"},
+            {kind:"profile_url",value:"https://example.com/bob",source_excerpt:"Profile https://example.com/bob"}],
+          uncertainties:[],follow_up_required:false,follow_up_regions:[],width:100,height:200,
+          prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}})};
+    const sdk=sdkModel(async(admission,signal)=>{
+      expect(admission.preprocessing?.sources[0]).toMatchObject({contact_name:"Alice"});
+      expect(admission.preprocessing?.sources[0]?.identity_clues).toEqual([
+        {kind:"name",value:"Alice",source_excerpt:"Bob"},
+        {kind:"profile_url",value:"https://example.com/bob",source_excerpt:"Profile https://example.com/bob"},
+      ]);
+      expect(await admission.invoke("search_contacts",{query:"Alice"},signal))
+        .toMatchObject({error:"CONTACT_SEARCH_NOT_AN_IDENTITY_CLUE"});
+      await admission.invoke("ask_contact_clarification",{question:"Which visible person should own this source?"},signal);
+      return sdkReceipt();
+    });
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    await new ScreenshotContactTaskRunner(pool!,{model:sdk,preprocessor,research:null},storage).start(auth,created.body.task_id);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting).toMatchObject({status:"waiting_for_user",contact:null,capture_id:null,
+      extraction:{contact_name:"Alice",identity_clues:[{kind:"name",value:"Alice",source_excerpt:"Bob"},
+        {kind:"profile_url",value:"https://example.com/bob"}]}});
+  });
   it("exposes only the flagged source and merges its correction before any filing tool is authorized",async()=>{
     const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const,additional_images:[input().image]};
     const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,

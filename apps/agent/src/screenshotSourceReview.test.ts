@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { screenshotImageViews } from "./screenshotImageViews.js";
+import { extractionFromPreprocess } from "./screenshotPreprocessExtraction.js";
 import { screenshotSourceReview } from "./screenshotSourceReview.js";
 
 const signal = () => new AbortController().signal;
@@ -331,6 +332,39 @@ describe("current-Run screenshot source reviews", () => {
         read_receipt_id: thirdReceipt.id, field: "identity", target: clueTarget }],
       pixel_readings: [identityReading], uncertainties: [] }] }))
       .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+  });
+
+  it("keeps raw identity clue indices stable across target-bound correction", async () => {
+    const firstRegion = { left: 0, top: 0, width: 120, height: 100 };
+    const secondRegion = { left: 150, top: 0, width: 120, height: 100 };
+    const baseline = extractionFromPreprocess({ source_image_index: 0, source_hash: "a".repeat(64),
+      platform: "WeChat", conversation_kind: "direct", contact_name: "Alice", participants: [], messages: [],
+      identity_clues: [{ kind: "name", value: "Alice", source_excerpt: "Bob" },
+        { kind: "name", value: "Carol", source_excerpt: "Carol" }],
+      uncertainties: ["First identity is unclear.", "Second identity is unclear."], follow_up_required: true,
+      follow_up_regions: [], width: 300, height: 400,
+      prepared_view: { transform: "auto-orient/native/webp92-v1", content_hash: "b".repeat(64), tile_count: 0 } });
+    expect(baseline.identity_clues.map(clue => clue.value)).toEqual(["Alice", "Carol"]);
+    const { subject, read } = await setup(400, { required: [
+      { source_image_index: 0, region: firstRegion, field: "identity", uncertainty_index: 0,
+        target: { kind: "identity_clue", clue_index: 0 } },
+      { source_image_index: 0, region: secondRegion, field: "identity", uncertainty_index: 1,
+        target: { kind: "identity_clue", clue_index: 1 } },
+    ], baselines: [{ source_image_index: 0, extraction: baseline }] });
+    const first = await read(null, firstRegion);const second = await read(null, secondRegion);
+    const reading = (id:string,value:string) => ({ read_receipt_id:id, field:"identity" as const,
+      status:"clear" as const, reading:value });
+    const correction = (clueIndex:number,id:string,value:string) => ({ source_image_index:0,
+      message_corrections:[],identity_clue_corrections:[{ clue_index:clueIndex,
+        value:{ value,read_receipt_id:id },source_excerpt:{ value,read_receipt_id:id } }],
+      resolved_uncertainties:[],pixel_readings:[reading(first.id,"Alice"),reading(second.id,"Carol")],uncertainties:[] });
+    expect(subject.validate({ images:[correction(1,first.id,"Alice")] }))
+      .toEqual({ error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING" });
+    expect(subject.validate({ images:[correction(0,second.id,"Carol")] }))
+      .toEqual({ error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING" });
+    expect(subject.validate({ images:[correction(0,first.id,"Alice")] })).toMatchObject({
+      images:[{ identity_clues:[{ value:"Alice" },{ value:"Carol" }] }],
+    });
   });
 
   it("keeps a source-level omitted-item uncertainty until insertion is supported", async () => {

@@ -70,6 +70,21 @@ export interface ScreenshotContactDependencies {
 }
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const normalized = (value: string) => value.normalize("NFKC").toLocaleLowerCase().trim();
+const normalizedEvidence = (value: string) => normalized(value).replace(/\s+/gu," ");
+const searchableIdentityKinds = new Set(["name","handle","profile_url"]);
+function automaticIdentityEvidence(row:Row){
+  const extraction=row.state.response.extraction!;
+  if(!row.state.response.preprocessing)return {contactName:extraction.contact_name,clues:extraction.identity_clues};
+  // Preserve every provider clue in its original position for target-bound
+  // follow-up correction. Only project grounded values at action boundaries.
+  const clues=extraction.identity_clues.filter(clue=>{
+    const value=normalizedEvidence(clue.value),excerpt=normalizedEvidence(clue.source_excerpt);
+    return value.length>0&&excerpt.includes(value);
+  });
+  const contactName=extraction.contact_name&&clues.some(clue=>searchableIdentityKinds.has(clue.kind)&&
+    normalizedEvidence(clue.value)===normalizedEvidence(extraction.contact_name!))?extraction.contact_name:null;
+  return {contactName,clues};
+}
 function deny(code: string): never { throw new ApiError(409, code, code); }
 function codeOf(error: unknown): string {
   if (error instanceof ApiError) return error.code;
@@ -481,10 +496,11 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
 
 function currentToolState(row: Row) {
   const response=row.state.response, extraction=response.extraction;
+  const identity=extraction?automaticIdentityEvidence(row):null;
   return { allowed_tools:response.status!=="running" ? [] : !extraction ? ["record_screenshot_understanding"]
     : pendingPreprocessRefinementIndices(row).length ? ["record_screenshot_corrections"] : toolsFor(row), contact:response.contact, capture_id:response.capture_id,
     message_count:response.message_count,
-    public_query_tokens:extraction ? [extraction.contact_name,...extraction.identity_clues
+    public_query_tokens:identity ? [identity.contactName,...identity.clues
       .filter(clue=>["name","handle","company","job_title"].includes(clue.kind)).map(clue=>clue.value)].filter(Boolean) : [],
     query_rule:"Combine only these literal public identity tokens, with spaces. Do not add career keywords, translations, private messages, or contact details." };
 }
@@ -603,10 +619,11 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
 
 async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:ContactAgentToolCall):Promise<unknown> {
   const response=row.state.response;const extraction=response.extraction!;
+  const identity=automaticIdentityEvidence(row);
   switch(call.name){
     case "search_contacts":{
       const args=CONTACT_INTAKE_TOOLS.search_contacts.schema.parse(call.arguments);
-      const clues=[row.state.user_contact_label,extraction.contact_name,...extraction.identity_clues.filter(c=>["name","handle","profile_url"].includes(c.kind)).map(c=>c.value)].filter((v):v is string=>Boolean(v));
+      const clues=[row.state.user_contact_label,identity.contactName,...identity.clues.filter(c=>searchableIdentityKinds.has(c.kind)).map(c=>c.value)].filter((v):v is string=>Boolean(v));
       if(!clues.some(c=>normalized(c)===normalized(args.query)))deny("CONTACT_SEARCH_NOT_AN_IDENTITY_CLUE");
       const found=await searchPeople(client,auth,args.query);
       const candidates=found.people.flatMap(p=>p.contexts.map(c=>({person_id:p.id,display_name:p.display_label,relationship_context_id:c.id,relationship_label:c.display_label}))).slice(0,10);
@@ -632,7 +649,7 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
     case "create_contact":{
       const args=CONTACT_INTAKE_TOOLS.create_contact.schema.parse(call.arguments);
       if(row.state.selected)deny("CONTACT_SELECTED_REUSE_REQUIRED");
-      const filingName=row.state.user_contact_label??extraction.contact_name;
+      const filingName=row.state.user_contact_label??identity.contactName;
       if(!filingName||normalized(filingName)!==normalized(args.display_name))deny("CONTACT_CREATE_REQUIRES_VISIBLE_NAME");
       if(!row.state.searches.some(s=>normalized(s.query)===normalized(args.display_name)&&s.candidates.length===0))deny("CONTACT_CREATE_REQUIRES_EMPTY_SEARCH");
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`${auth.accountId}:contact:${normalized(args.display_name)}`]);
@@ -657,16 +674,16 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
         // A public name match alone does not establish that the source describes this contact.
         const publicSources=field.source_refs.map(ref=>response.public_sources.find(s=>s.source_id===ref)).filter((s):s is ContactPublicSource=>Boolean(s));
         if(field.field==="public_profile"){
-          const urls=[...publicSources.map(s=>s.url),...extraction.identity_clues.filter(c=>c.kind==="profile_url").map(c=>c.value)];
+          const urls=[...publicSources.map(s=>s.url),...identity.clues.filter(c=>c.kind==="profile_url").map(c=>c.value)];
           const suppliedURL=field.value.match(/https:\/\/[^\s<>]+/u)?.[0];
           const citedURL=suppliedURL?urls.find(url=>comparableProfileURL(url)!==null&&comparableProfileURL(url)===comparableProfileURL(suppliedURL)):undefined;
           if(!citedURL)deny("CONTACT_PROFILE_REQUIRES_EXACT_CITED_URL");
           field.value=citedURL;field.epistemic_status="source_statement";
         }
         for(const source of publicSources){
-          const visibleProfile=extraction.identity_clues.some(c=>c.kind==="profile_url"&&normalized(c.value)===normalized(source.url));
-          const corroborated=extraction.contact_name&&normalized(`${source.title} ${source.text}`).includes(normalized(extraction.contact_name))&&
-            extraction.identity_clues.some(c=>["company","handle"].includes(c.kind)&&normalized(`${source.title} ${source.text} ${source.url}`).includes(normalized(c.value)));
+          const visibleProfile=identity.clues.some(c=>c.kind==="profile_url"&&normalized(c.value)===normalized(source.url));
+          const corroborated=identity.contactName&&normalized(`${source.title} ${source.text}`).includes(normalized(identity.contactName))&&
+            identity.clues.some(c=>["company","handle"].includes(c.kind)&&normalized(`${source.title} ${source.text} ${source.url}`).includes(normalized(c.value)));
           if(!visibleProfile&&!corroborated)deny("CONTACT_PUBLIC_IDENTITY_UNCORROBORATED");
         }
         await client.query(`INSERT INTO contact_profile_observations(id,account_id,subject_id,assignment_id,task_id,capture_id,observation_hash,observation)
@@ -1092,13 +1109,13 @@ export class ScreenshotContactTaskRunner {
     if(!this.dependencies.research)deny("CONTACT_RESEARCH_NOT_CONFIGURED");
     const input=await this.checkpoint(auth,id,epoch,async(_,row)=>{
       if(!row.state.response.capture_id||!row.input_manifest.allow_public_research)deny("CONTACT_RESEARCH_NOT_AUTHORIZED");
-      const extraction=row.state.response.extraction!;
-      const anchors=[extraction.contact_name,...extraction.identity_clues.filter(c=>["name","handle","company"].includes(c.kind)).map(c=>c.value)].filter((v):v is string=>Boolean(v)).slice(0,5);
+      const identity=automaticIdentityEvidence(row);
+      const anchors=[identity.contactName,...identity.clues.filter(c=>["name","handle","company"].includes(c.kind)).map(c=>c.value)].filter((v):v is string=>Boolean(v)).slice(0,5);
       let operation;
       if(call.name==="search_contact_public"){
         const args=CONTACT_INTAKE_TOOLS.search_contact_public.schema.parse(call.arguments);
         // A query is assembled solely from visible public identity tokens; no IM sentences leave this boundary.
-        const permitted=[...anchors,...extraction.identity_clues.filter(c=>c.kind==="job_title").map(c=>c.value),"linkedin","LinkedIn","抖音","微博","douyin","tiktok","threads","weibo"];
+        const permitted=[...anchors,...identity.clues.filter(c=>c.kind==="job_title").map(c=>c.value),"linkedin","LinkedIn","抖音","微博","douyin","tiktok","threads","weibo"];
         let remaining=normalized(args.query);
         for(const token of permitted.sort((a,b)=>b.length-a.length))remaining=remaining.replaceAll(normalized(token),"");
         if(remaining.replace(/[\s,，、@|]+/gu,"").length)deny("CONTACT_PUBLIC_QUERY_NOT_IDENTITY_ONLY");

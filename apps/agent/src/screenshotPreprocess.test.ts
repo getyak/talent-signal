@@ -64,6 +64,27 @@ describe("screenshot-preprocess.v2",()=>{
     expect(JSON.stringify(spans)).not.toContain("Exact synthetic source");
   });
 
+  it("preserves provider identity positions for target-bound correction",async()=>{
+    const source=await image();
+    const output={...modelOutput,contact_name:"Alice",identity_clues:[
+      {kind:"handle",value:"@alice",source_excerpt:"Visible handle: @bob"},
+      {kind:"name",value:"Alice",source_excerpt:"Bob"},
+      {kind:"company",value:"Alice",source_excerpt:"Company: Alice"},
+      {kind:"profile_url",value:"https://example.com/alice",source_excerpt:"https://example.com/alice"},
+    ]};
+    const fetcher=vi.fn(async()=>new Response(JSON.stringify({id:"ark-identity-grounding",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      choices:[{message:{content:JSON.stringify(output)}}]}))) as typeof fetch;
+    const result=await new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher})
+      .preprocess(source,0,new AbortController().signal);
+    expect(result.source).toMatchObject({contact_name:"Alice",identity_clues:output.identity_clues});
+    expect(extractionFromPreprocess(result.source)).toMatchObject({contact_name:"Alice",identity_clues:[
+      {kind:"handle",value:"@alice",source_excerpt:"Visible handle: @bob",source_image_index:0},
+      {kind:"name",value:"Alice",source_excerpt:"Bob",source_image_index:0},
+      {kind:"company",value:"Alice",source_excerpt:"Company: Alice",source_image_index:0},
+      {kind:"profile_url",value:"https://example.com/alice",source_excerpt:"https://example.com/alice",source_image_index:0},
+    ]});
+  });
+
   it("rejects provider model drift and out-of-bounds follow-up regions",async()=>{
     const source=await image();
     const response=(output:unknown,model:string=ARK_SCREENSHOT_PREPROCESS_MODEL)=>vi.fn(async()=>new Response(JSON.stringify({

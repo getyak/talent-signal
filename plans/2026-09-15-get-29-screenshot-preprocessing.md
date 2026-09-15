@@ -53,6 +53,8 @@ keeping the recruiter's review boundary intact.
   now obtains the initial draft from a non-filing `preprocess_only` task.
 - Any candidate score, personality, protected trait, hiring probability, fact
   confirmation, identity binding, or action authority.
+- Any automatic contact lookup from an identity value absent from its cited
+  visual excerpt; `contact_name` also needs an equal grounded searchable clue.
 - A second raw-image store; existing secure task image readback and
   deletion/expiry behavior is reused.
 - Chat retention claims. Ark Responses `store:false` semantics are documented as
