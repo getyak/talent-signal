@@ -123,4 +123,95 @@ final class RelationshipAskOperationStateTests: XCTestCase {
         XCTAssertNil(state.operationID)
         XCTAssertNil(state.askOperation)
     }
+
+    func testScreenshotCancellationDoesNotReplaceAskOperation() {
+        var state = RelationshipAskOperationState()
+        state.beginSubmission(objective: "Concurrent Ask")
+        let ask = Task<Void, Never> {}
+        let askID = state.replaceOperation { _ in ask }
+        let cancellation = Task<Void, Never> {}
+        let cancellationID = state.replaceScreenshotCancellation(for: "screenshot-1") { _ in
+            cancellation
+        }
+
+        XCTAssertTrue(state.isCurrentOperation(askID))
+        XCTAssertFalse(ask.isCancelled)
+        XCTAssertTrue(
+            state.isCurrentScreenshotCancellation(cancellationID, for: "screenshot-1")
+        )
+        XCTAssertTrue(state.isCancellingScreenshot("screenshot-1"))
+
+        XCTAssertTrue(
+            state.finishScreenshotCancellationIfCurrent(cancellationID, for: "screenshot-1")
+        )
+        XCTAssertFalse(state.isCancellingScreenshot("screenshot-1"))
+        XCTAssertTrue(state.isCurrentOperation(askID))
+        XCTAssertTrue(state.isSending)
+        XCTAssertEqual(state.pendingObjective, "Concurrent Ask")
+    }
+
+    func testReplacingAskLeavesScreenshotCancellationRunning() {
+        var state = RelationshipAskOperationState()
+        let priorAsk = Task<Void, Never> {}
+        _ = state.replaceOperation { _ in priorAsk }
+        let cancellation = Task<Void, Never> {}
+        let cancellationID = state.replaceScreenshotCancellation(for: "screenshot-1") { _ in
+            cancellation
+        }
+        let replacementAsk = Task<Void, Never> {}
+        let replacementAskID = state.replaceOperation { _ in replacementAsk }
+
+        XCTAssertTrue(priorAsk.isCancelled)
+        XCTAssertFalse(replacementAsk.isCancelled)
+        XCTAssertTrue(state.isCurrentOperation(replacementAskID))
+        XCTAssertFalse(cancellation.isCancelled)
+        XCTAssertTrue(
+            state.isCurrentScreenshotCancellation(cancellationID, for: "screenshot-1")
+        )
+    }
+
+    func testScreenshotTasksOwnIndependentCancellationLanes() {
+        var state = RelationshipAskOperationState()
+        let firstID = state.replaceScreenshotCancellation(for: "screenshot-1") { _ in Task {} }
+        let secondID = state.replaceScreenshotCancellation(for: "screenshot-2") { _ in Task {} }
+
+        XCTAssertTrue(state.finishScreenshotCancellationIfCurrent(firstID, for: "screenshot-1"))
+        XCTAssertFalse(state.isCancellingScreenshot("screenshot-1"))
+        XCTAssertTrue(state.isCurrentScreenshotCancellation(secondID, for: "screenshot-2"))
+    }
+
+    func testStaleScreenshotCancellationCannotReleaseReplacement() {
+        var state = RelationshipAskOperationState()
+        let prior = Task<Void, Never> {}
+        let priorID = state.replaceScreenshotCancellation(for: "screenshot-1") { _ in prior }
+        let replacement = Task<Void, Never> {}
+        let replacementID = state.replaceScreenshotCancellation(for: "screenshot-1") { _ in replacement }
+
+        XCTAssertTrue(prior.isCancelled)
+        XCTAssertFalse(state.finishScreenshotCancellationIfCurrent(priorID, for: "screenshot-1"))
+        XCTAssertFalse(replacement.isCancelled)
+        XCTAssertTrue(
+            state.isCurrentScreenshotCancellation(replacementID, for: "screenshot-1")
+        )
+    }
+
+    func testCancelAllOperationsCancelsAskAndEveryScreenshotCancellation() {
+        var state = RelationshipAskOperationState()
+        let ask = Task<Void, Never> {}
+        _ = state.replaceOperation { _ in ask }
+        let first = Task<Void, Never> {}
+        _ = state.replaceScreenshotCancellation(for: "screenshot-1") { _ in first }
+        let second = Task<Void, Never> {}
+        _ = state.replaceScreenshotCancellation(for: "screenshot-2") { _ in second }
+
+        state.cancelAllOperations()
+
+        XCTAssertTrue(ask.isCancelled)
+        XCTAssertTrue(first.isCancelled)
+        XCTAssertTrue(second.isCancelled)
+        XCTAssertNil(state.operationID)
+        XCTAssertNil(state.askOperation)
+        XCTAssertFalse(state.isCancellingScreenshot("screenshot-1"))
+        XCTAssertFalse(state.isCancellingScreenshot("screenshot-2"))
+    }
 }

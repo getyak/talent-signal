@@ -918,7 +918,7 @@ struct RelationshipAskView: View {
             shouldSendAfterCompositionCommits = false
             voiceGestureStartedInControl = false
             flushDraftPersistence()
-            operationState.cancelOperation()
+            operationState.cancelAllOperations()
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
@@ -3631,34 +3631,36 @@ struct RelationshipAskView: View {
 
     private func cancelScreenshotContact(_ current: ScreenshotContactTask) {
         guard let ownerSessionID = activeSessionID, screenshotTasks[current.taskID] != nil,
-              sessionStore.session(id: ownerSessionID)?.readOnlyScreenshotTaskIDs.contains(current.taskID) == false else { return }
+              sessionStore.session(id: ownerSessionID)?.readOnlyScreenshotTaskIDs.contains(current.taskID) == false,
+              !operationState.isCancellingScreenshot(current.taskID) else { return }
+        let taskID = current.taskID
         let owner = AskScreenshotResponseOwner(sessionID: ownerSessionID, taskID: current.taskID)
-        operationState.replaceOperation { operationID in
+        operationState.replaceScreenshotCancellation(for: taskID) { cancellationID in
             Task {
                 defer {
-                    if operationState.finishOperationIfCurrent(operationID) {
-                        operationState.isSending = false
-                    }
+                    operationState.finishScreenshotCancellationIfCurrent(cancellationID, for: taskID)
                 }
                 do {
-                    let latest = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
+                    let latest = try await workspaceStore.loadScreenshotContactTask(id: taskID)
                     guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: latest.taskID),
                           !Task.isCancelled,
-                          operationState.isCurrentOperation(operationID) else { return }
+                          operationState.isCurrentScreenshotCancellation(cancellationID, for: taskID) else { return }
                     let cancelled = try await workspaceStore.cancelScreenshotContactTask(
-                        id: current.taskID,
+                        id: taskID,
                         revision: latest.revision
                     )
                     guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: cancelled.taskID),
                           !Task.isCancelled,
-                          operationState.isCurrentOperation(operationID) else { return }
-                    recordScreenshotResult(cancelled, expectedSessionID: ownerSessionID)
-                    operationState.pendingObjective = nil
-                    updateAskSubmissionPhase(.idle)
+                          operationState.isCurrentScreenshotCancellation(cancellationID, for: taskID) else { return }
+                    recordScreenshotResult(
+                        cancelled,
+                        expectedSessionID: ownerSessionID,
+                        updatesAskContext: false
+                    )
                 } catch {
                     guard activeSessionID == ownerSessionID, !Task.isCancelled,
-                          operationState.isCurrentOperation(operationID) else { return }
-                    presentAskFailure(error)
+                          operationState.isCurrentScreenshotCancellation(cancellationID, for: taskID) else { return }
+                    mediaNotice = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 }
             }
         }
@@ -3759,7 +3761,12 @@ struct RelationshipAskView: View {
     }
 
     @discardableResult
-    private func recordScreenshotResult(_ receivedTask: ScreenshotContactTask, expectedSessionID: UUID, admissionIdempotencyKey: String? = nil) -> Bool {
+    private func recordScreenshotResult(
+        _ receivedTask: ScreenshotContactTask,
+        expectedSessionID: UUID,
+        admissionIdempotencyKey: String? = nil,
+        updatesAskContext: Bool = true
+    ) -> Bool {
         let task = screenshotTasks[receivedTask.taskID].map {
             $0.revision > receivedTask.revision ? $0 : receivedTask
         } ?? receivedTask
@@ -3772,7 +3779,8 @@ struct RelationshipAskView: View {
         let activeSessionID = expectedSessionID
         let objective = turns.first { $0.response.taskID == task.taskID }?.objective
             ?? (admissionIdempotencyKey != nil ? sessionStore.session(id: activeSessionID)?.pendingObjective : nil)
-            ?? operationState.pendingObjective ?? appLanguage.text("Read this screenshot")
+            ?? (updatesAskContext ? operationState.pendingObjective : nil)
+            ?? appLanguage.text("Read this screenshot")
         let fallback: String
         switch task.status {
         case "running": fallback = appLanguage.text("Reading the screenshot to identify the contact and preserve source-linked context.")
@@ -3785,14 +3793,17 @@ struct RelationshipAskView: View {
         if !sessionStore.recordScreenshotTask(
             sessionID: activeSessionID, taskID: task.taskID,
             objective: objective, summary: summary, status: task.status,
-            admissionIdempotencyKey: admissionIdempotencyKey
+            admissionIdempotencyKey: admissionIdempotencyKey,
+            clearsMatchingPendingObjective: updatesAskContext
         ) {
             sourceReviewNotice = appLanguage.text("Screenshot processing is available, but Session recovery could not be saved.")
             return false
         }
-        bindScreenshotContact(task)
-        // The accepted image is now represented by its original Session message.
-        operationState.pendingObjective = nil
+        if updatesAskContext {
+            bindScreenshotContact(task)
+            // The accepted image is now represented by its original Session message.
+            operationState.pendingObjective = nil
+        }
         return true
     }
 

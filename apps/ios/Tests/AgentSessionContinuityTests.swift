@@ -191,6 +191,49 @@ final class AgentSessionContinuityTests: XCTestCase {
     }
 
     @MainActor
+    func testScreenshotCancellationUpdateCannotClearConcurrentAskWithSameObjective() throws {
+        let persistence = SessionContinuityMemoryPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let objective = "Review this screenshot"
+        let id = try XCTUnwrap(store.beginUnscopedSession(objective: objective))
+        let taskID = UUID().uuidString
+        XCTAssertTrue(
+            store.recordScreenshotTask(
+                sessionID: id,
+                taskID: taskID,
+                objective: objective,
+                summary: "Processing",
+                status: "running"
+            )
+        )
+        XCTAssertEqual(
+            store.beginUnscopedChat(
+                sessionID: id,
+                objective: objective,
+                proposedIdempotencyKey: "concurrent-ask-key"
+            ),
+            "concurrent-ask-key"
+        )
+
+        XCTAssertTrue(
+            store.recordScreenshotTask(
+                sessionID: id,
+                taskID: taskID,
+                objective: objective,
+                summary: "Stopped",
+                status: "cancelled",
+                clearsMatchingPendingObjective: false
+            )
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        let session = try XCTUnwrap(restored.session(id: id))
+        XCTAssertEqual(session.pendingObjective, objective)
+        XCTAssertEqual(session.pendingUnscopedChatIdempotencyKey, "concurrent-ask-key")
+        XCTAssertEqual(session.turns.first?.response.blocks.first?.body, "Stopped")
+    }
+
+    @MainActor
     func testInterruptedScreenshotAdmissionRequiresTheSameImagesAndNeverBecomesChat() throws {
         let persistence = SessionContinuityMemoryPersistence()
         let store = AgentSessionStore(persistence: persistence)

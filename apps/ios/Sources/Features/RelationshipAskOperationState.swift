@@ -7,6 +7,11 @@ import Foundation
 /// branches may still update individual visible values while the remaining
 /// orchestration is decomposed incrementally.
 struct RelationshipAskOperationState {
+    private struct OwnedScreenshotCancellation {
+        let id: UUID
+        let task: Task<Void, Never>
+    }
+
     /// Whether an Ask submission currently owns the composer and status bar.
     var isSending = false
     /// Objective accepted for the submission but not yet protected/recorded.
@@ -22,6 +27,10 @@ struct RelationshipAskOperationState {
     /// Identity of the operation that owns `askOperation`; a stale completion
     /// whose identity no longer matches must be ignored.
     private(set) var operationID: UUID?
+    /// Screenshot cancellation is an independent effect lane. Each backend
+    /// task owns its cancellation request so stopping one task cannot replace
+    /// an unrelated Ask submission or another screenshot cancellation.
+    private var screenshotCancellationOperations: [String: OwnedScreenshotCancellation] = [:]
 
     // MARK: - Lifecycle
 
@@ -90,6 +99,58 @@ struct RelationshipAskOperationState {
         guard operationID == candidateID else { return false }
         cancelOperation()
         return true
+    }
+
+    /// Starts or replaces the cancellation request for one screenshot task.
+    /// The Ask-operation lane remains untouched.
+    @discardableResult
+    mutating func replaceScreenshotCancellation(
+        for taskID: String,
+        with makeOperation: (UUID) -> Task<Void, Never>
+    ) -> UUID {
+        cancelScreenshotCancellation(for: taskID)
+        let replacementID = UUID()
+        screenshotCancellationOperations[taskID] = OwnedScreenshotCancellation(
+            id: replacementID,
+            task: makeOperation(replacementID)
+        )
+        return replacementID
+    }
+
+    /// Reports whether a screenshot task already owns a cancellation request.
+    func isCancellingScreenshot(_ taskID: String) -> Bool {
+        screenshotCancellationOperations[taskID] != nil
+    }
+
+    /// Reports whether `candidateID` still owns this task's cancellation.
+    func isCurrentScreenshotCancellation(_ candidateID: UUID, for taskID: String) -> Bool {
+        screenshotCancellationOperations[taskID]?.id == candidateID
+    }
+
+    /// Releases one screenshot cancellation only when its owner is current.
+    @discardableResult
+    mutating func finishScreenshotCancellationIfCurrent(
+        _ candidateID: UUID,
+        for taskID: String
+    ) -> Bool {
+        guard screenshotCancellationOperations[taskID]?.id == candidateID else { return false }
+        screenshotCancellationOperations[taskID] = nil
+        return true
+    }
+
+    /// Cancels and forgets the cancellation request for one screenshot task.
+    mutating func cancelScreenshotCancellation(for taskID: String) {
+        screenshotCancellationOperations.removeValue(forKey: taskID)?.task.cancel()
+    }
+
+    /// Cancels every owned asynchronous effect when the view leaves the tree.
+    mutating func cancelAllOperations() {
+        cancelOperation()
+        let screenshotCancellations = Array(screenshotCancellationOperations.values)
+        screenshotCancellationOperations.removeAll()
+        for cancellation in screenshotCancellations {
+            cancellation.task.cancel()
+        }
     }
 
     /// Returns the pending values, busy flag, and both visible phases to idle.
