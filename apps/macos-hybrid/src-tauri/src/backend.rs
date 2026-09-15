@@ -1,8 +1,17 @@
 use chrono::{DateTime, Utc};
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use reqwest::{Certificate, Client, ClientBuilder, Response, StatusCode, redirect::Policy};
+use reqwest::{Client, ClientBuilder, Response, StatusCode, redirect::Policy};
+use rustls::{
+    DigitallySignedStruct, RootCertStore, SignatureScheme,
+    client::{
+        WebPkiServerVerifier,
+        danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+    },
+    pki_types::{CertificateDer, ServerName, UnixTime, pem::PemObject},
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use sha2::{Digest, Sha256};
 use url::Url;
 use uuid::Uuid;
 
@@ -25,14 +34,77 @@ fn bounded_client_builder() -> ClientBuilder {
 
 pub fn build_loopback_client(server_certificate_pem: &str) -> Result<Client, String> {
     let server_certificate_pem = canonical_server_certificate_pem(server_certificate_pem)?;
-    let certificate = Certificate::from_pem(server_certificate_pem.as_bytes())
+    let certificate = CertificateDer::from_pem_slice(server_certificate_pem.as_bytes())
         .map_err(|_| "本机 TLS 服务器证书格式无效。".to_string())?;
+    let expected_sha256: [u8; 32] = Sha256::digest(certificate.as_ref()).into();
+    let mut roots = RootCertStore::empty();
+    roots
+        .add(certificate)
+        .map_err(|_| "本机 TLS 服务器证书不能作为信任锚。".to_string())?;
+    let delegate = WebPkiServerVerifier::builder(Arc::new(roots))
+        .build()
+        .map_err(|_| "无法初始化本机 TLS 证书核验器。".to_string())?;
+    let verifier = ExactServerCertificateVerifier {
+        delegate,
+        expected_sha256,
+    };
+    let tls = rustls::ClientConfig::builder()
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(verifier))
+        .with_no_client_auth();
     bounded_client_builder()
         .https_only(true)
-        .tls_built_in_root_certs(false)
-        .add_root_certificate(certificate)
+        .use_preconfigured_tls(tls)
         .build()
         .map_err(|_| "无法初始化本机后端适配器。".to_string())
+}
+
+#[derive(Debug)]
+struct ExactServerCertificateVerifier {
+    delegate: Arc<WebPkiServerVerifier>,
+    expected_sha256: [u8; 32],
+}
+
+impl ServerCertVerifier for ExactServerCertificateVerifier {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        intermediates: &[CertificateDer<'_>],
+        server_name: &ServerName<'_>,
+        ocsp_response: &[u8],
+        now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        let presented_sha256: [u8; 32] = Sha256::digest(end_entity.as_ref()).into();
+        if presented_sha256 != self.expected_sha256 {
+            return Err(rustls::Error::General(
+                "loopback TLS leaf does not match the exact configured certificate".into(),
+            ));
+        }
+        self.delegate
+            .verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now)
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.delegate.verify_tls12_signature(message, cert, dss)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.delegate.verify_tls13_signature(message, cert, dss)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.delegate.supported_verify_schemes()
+    }
 }
 
 fn canonical_server_certificate_pem(raw: &str) -> Result<String, String> {
@@ -387,6 +459,86 @@ mod tests {
         )
     }
 
+    fn create_ca_signed_leaf(directory: &std::path::Path) -> (String, std::path::PathBuf, String) {
+        let ca_certificate = directory.join("ca.pem");
+        let ca_key = directory.join("ca-key.pem");
+        let leaf_request = directory.join("leaf.csr");
+        let leaf_certificate = directory.join("leaf.pem");
+        let leaf_chain = directory.join("leaf-chain.pem");
+        let leaf_key = directory.join("leaf-key.pem");
+        let leaf_extensions = directory.join("leaf.ext");
+        fs::write(
+            &leaf_extensions,
+            "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1\n",
+        )
+        .expect("leaf extensions");
+        let ca_status = Command::new("/usr/bin/openssl")
+            .args([
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-sha256",
+                "-nodes",
+                "-days",
+                "1",
+                "-subj",
+                "/CN=Talent Signal Test CA",
+                "-addext",
+                "basicConstraints=critical,CA:TRUE",
+                "-keyout",
+            ])
+            .arg(&ca_key)
+            .arg("-out")
+            .arg(&ca_certificate)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("generate CA");
+        assert!(ca_status.success());
+        let request_status = Command::new("/usr/bin/openssl")
+            .args([
+                "req",
+                "-new",
+                "-newkey",
+                "rsa:2048",
+                "-sha256",
+                "-nodes",
+                "-subj",
+                "/CN=127.0.0.1",
+                "-keyout",
+            ])
+            .arg(&leaf_key)
+            .arg("-out")
+            .arg(&leaf_request)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("generate leaf request");
+        assert!(request_status.success());
+        let sign_status = Command::new("/usr/bin/openssl")
+            .args(["x509", "-req", "-sha256", "-days", "1", "-in"])
+            .arg(&leaf_request)
+            .arg("-CA")
+            .arg(&ca_certificate)
+            .arg("-CAkey")
+            .arg(&ca_key)
+            .arg("-CAcreateserial")
+            .arg("-extfile")
+            .arg(&leaf_extensions)
+            .arg("-out")
+            .arg(&leaf_certificate)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("sign leaf");
+        assert!(sign_status.success());
+        let ca_pem = fs::read_to_string(&ca_certificate).expect("CA PEM");
+        let leaf_pem = fs::read_to_string(&leaf_certificate).expect("leaf PEM");
+        fs::write(&leaf_chain, format!("{leaf_pem}{ca_pem}")).expect("write server chain");
+        (ca_pem, leaf_chain, leaf_key.to_string_lossy().into_owned())
+    }
+
     #[allow(clippy::zombie_processes)] // Ownership is returned; the test kills and waits it.
     fn start_https_observer(
         directory: &std::path::Path,
@@ -657,5 +809,35 @@ https.createServer({cert:fs.readFileSync(cert),key:fs.readFileSync(key)},(req,re
         assert!(requests.contains("synthetic-bearer-only-for-pinning-test"));
         assert!(!requests.contains("must-never-reach-the-server"));
         assert_eq!(requests.lines().count(), 1);
+    }
+
+    #[test]
+    fn exact_pin_rejects_a_leaf_signed_by_the_configured_ca() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let (ca_pem, leaf_chain, leaf_key) = create_ca_signed_leaf(directory.path());
+        let listener = TcpListener::bind("127.0.0.1:0").expect("reserve port");
+        let port = listener.local_addr().expect("port").port();
+        drop(listener);
+        let (mut server, log) =
+            start_https_observer(directory.path(), port, &leaf_chain, &leaf_key);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let rejected = runtime.block_on(async {
+            build_loopback_client(&ca_pem)
+                .expect("client with exact CA certificate pin")
+                .get(format!("https://127.0.0.1:{port}/sibling-leaf"))
+                .bearer_auth("must-never-reach-a-ca-signed-sibling")
+                .send()
+                .await
+        });
+        assert!(rejected.is_err());
+        thread::sleep(Duration::from_millis(100));
+        server.kill().expect("stop observer");
+        server.wait().expect("wait observer");
+        let requests = fs::read_to_string(log).unwrap_or_default();
+        assert!(!requests.contains("must-never-reach-a-ca-signed-sibling"));
+        assert!(requests.is_empty());
     }
 }

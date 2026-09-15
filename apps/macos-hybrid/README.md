@@ -57,7 +57,9 @@ token, and Agent Session UUID. Before activation, Rust verifies the live
 account and Session contract. It then stores the token in macOS Keychain and
 atomically persists a mode-`0600` non-secret binding.
 
-- Tokens never enter the WebView and are cached only in zeroizing Rust memory.
+- The token is not written to WebView storage. After submission it is cleared
+  from React state; persistent storage is Keychain and Rust caches it only in
+  zeroizing memory. Avoid treating this form as a native secure-input field.
 - An owner-only inventory records every app-owned Keychain key so a corrupt or
   missing binding cannot orphan superseded credentials.
 - A durable multi-key revocation tombstone makes partial disconnect cleanup
@@ -79,11 +81,13 @@ images stay in an owner-only app cache behind opaque UUID handles. Limits are
 12 MB per image, 48 MB total, eight artifacts, and a ten-minute raw TTL.
 
 Before the picker starts, the app durably claims a versioned intent as
-`started`. The journal is locked across processes, scoped to the exact binding
-generation, retained for 24 hours, and capped without evicting in-flight
-claims. Replays cannot open a second picker, including after renderer storage
-is lost. Terminal cleanup aggregates failures and does not report success
-while raw data or an active process remains.
+`started`. Journal writes require the exact current binding generation; stored
+receipts are scoped to account, Session, and intent, retained for 24 hours,
+and capped without evicting in-flight claims. A failed rebind preserves the
+old receipts, while a successfully committed new generation clears them.
+Replays cannot open a second picker, including after renderer storage is lost.
+Terminal cleanup aggregates failures and does not report success while raw
+data or an active process remains.
 
 If the app process crashes while the system picker is open, macOS may keep the
 picker process alive. The restarted app refuses to replay that intent and its

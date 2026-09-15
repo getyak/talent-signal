@@ -47,6 +47,7 @@ const CAPTURE_RECEIPTS_FILE: &str = "capture-intent-receipts.json";
 const CAPTURE_RECEIPTS_LOCK_FILE: &str = "capture-intent-receipts.lock";
 const CAPTURE_RECEIPT_RETENTION_HOURS: i64 = 24;
 const MAX_CAPTURE_RECEIPTS: usize = 256;
+const MAX_OWNED_KEYCHAIN_KEYS: usize = 64;
 
 static KEYCHAIN_BUSY: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 type OcrStdoutReader = thread::JoinHandle<Result<Vec<u8>, String>>;
@@ -176,7 +177,6 @@ pub async fn activate_session_binding(
     {
         let _commit = lock(&state.lifecycle_commit)?;
         invalidate_native_effects(&app, &state)?;
-        clear_capture_receipts(&app)?;
         recover_pending_revocation(&app)?;
         cleanup_pending_keychain_entries(&app)?;
     }
@@ -207,26 +207,34 @@ pub async fn activate_session_binding(
         binding: verified.clone(),
         token: Zeroizing::new(request.access_token),
     });
+    // A failed backend verification must leave the old generation's Started
+    // receipt intact. Clear it only after the new verified binding commits.
+    let mut cleanup_warnings = Vec::new();
+    if clear_capture_receipts(&app).is_err() {
+        cleanup_warnings.push(
+            "旧窗口采集回执尚未确认清理；窗口采集保持失败关闭，后续状态检查可重试。".to_string(),
+        );
+    }
     // Keep the committed key in the durable inventory. If binding metadata is
     // later corrupt or missing, disconnect can still locate and delete every
     // bearer owned by this app.
-    let cleanup_warning =
-        if let Some(old_key_id) = old_key_id.filter(|value| value != &verified.key_id) {
-            match delete_token(&old_key_id) {
-            Ok(()) => remove_pending_keychain_entry(&app, &old_key_id)
-                .err()
-                .map(|_| {
-                    "旧 Keychain 令牌已删除，但本机令牌索引尚未确认更新；后续状态检查会继续清理。"
-                        .to_string()
-                }),
-            Err(_) => Some(
+    if let Some(old_key_id) = old_key_id.filter(|value| value != &verified.key_id) {
+        match delete_token(&old_key_id) {
+            Ok(()) => {
+                if remove_pending_keychain_entry(&app, &old_key_id).is_err() {
+                    cleanup_warnings.push(
+                        "旧 Keychain 令牌已删除，但本机令牌索引尚未确认更新；后续状态检查会继续清理。"
+                            .to_string(),
+                    );
+                }
+            }
+            Err(_) => cleanup_warnings.push(
                 "旧 Keychain 令牌尚未确认删除；新连接可用，但后续状态检查会继续清理。".to_string(),
             ),
         }
-        } else {
-            None
-        };
-    Ok(verified.status_with_warning(cleanup_warning))
+    }
+    Ok(verified
+        .status_with_warning((!cleanup_warnings.is_empty()).then(|| cleanup_warnings.join(" "))))
 }
 
 #[tauri::command]
@@ -299,6 +307,7 @@ pub async fn session_binding_status(
         Err(failure) => {
             let _commit = lock(&state.lifecycle_commit)?;
             assert_epoch_and_binding(&app, &state, epoch, &persisted)?;
+            advance_epoch_after_verification_failure(&state, epoch)?;
             invalidate_native_effects(&app, &state)?;
             Ok(failure.status())
         }
@@ -1026,6 +1035,7 @@ async fn require_verified_scope(
             let message = failure.message().to_string();
             let _commit = lock(&state.lifecycle_commit)?;
             assert_epoch_and_binding(app, state, epoch, &persisted)?;
+            advance_epoch_after_verification_failure(state, epoch)?;
             invalidate_native_effects(app, state)?;
             return Err(message);
         }
@@ -1055,6 +1065,15 @@ fn assert_epoch(state: &AppState, expected: u64) -> Result<(), String> {
     if state.lifecycle_epoch.load(Ordering::SeqCst) != expected {
         return Err("本机连接已在核验期间变更；旧结果未提交。".into());
     }
+    Ok(())
+}
+
+fn advance_epoch_after_verification_failure(
+    state: &AppState,
+    verified_epoch: u64,
+) -> Result<(), String> {
+    assert_epoch(state, verified_epoch)?;
+    state.lifecycle_epoch.fetch_add(1, Ordering::SeqCst);
     Ok(())
 }
 
@@ -1231,16 +1250,14 @@ fn revocation_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn write_pending_revocation(app: &AppHandle, key_ids: &[String]) -> Result<(), String> {
-    for key_id in key_ids {
-        validate_uuid("Keychain binding", key_id)?;
-    }
+    let key_ids = normalize_owned_key_ids(key_ids.to_vec())?;
     let path = revocation_path(app)?;
     let parent = path
         .parent()
         .ok_or_else(|| "解绑恢复记录路径无效。".to_string())?;
     fs::create_dir_all(parent).map_err(|_| "无法创建 App 配置目录。".to_string())?;
     let bytes = serde_json::to_vec(&PendingRevocation {
-        key_ids: key_ids.to_vec(),
+        key_ids,
         key_id: None,
     })
     .map_err(|_| "无法编码解绑恢复记录。".to_string())?;
@@ -1249,9 +1266,18 @@ fn write_pending_revocation(app: &AppHandle, key_ids: &[String]) -> Result<(), S
 
 fn read_pending_revocation(app: &AppHandle) -> Result<Option<PendingRevocation>, String> {
     match read_private_file(&revocation_path(app)?, "解绑恢复记录")? {
-        Some(bytes) => serde_json::from_slice(&bytes)
-            .map(Some)
-            .map_err(|_| "解绑恢复记录损坏；本机连接保持关闭。".to_string()),
+        Some(bytes) => {
+            let pending = serde_json::from_slice::<PendingRevocation>(&bytes)
+                .map_err(|_| "解绑恢复记录损坏；本机连接保持关闭。".to_string())?;
+            let mut key_ids = pending.key_ids;
+            if let Some(legacy_key_id) = pending.key_id {
+                key_ids.push(legacy_key_id);
+            }
+            Ok(Some(PendingRevocation {
+                key_ids: normalize_owned_key_ids(key_ids)?,
+                key_id: None,
+            }))
+        }
         None => Ok(None),
     }
 }
@@ -1264,15 +1290,7 @@ fn recover_pending_revocation(app: &AppHandle) -> Result<(), String> {
     let Some(pending) = read_pending_revocation(app)? else {
         return Ok(());
     };
-    let mut key_ids = pending.key_ids;
-    if let Some(legacy_key_id) = pending.key_id
-        && !key_ids.contains(&legacy_key_id)
-    {
-        key_ids.push(legacy_key_id);
-    }
-    for key_id in &key_ids {
-        validate_uuid("Keychain binding", key_id)?;
-    }
+    let key_ids = pending.key_ids;
     if read_binding(app)?
         .as_ref()
         .is_some_and(|binding| !key_ids.contains(&binding.key_id))
@@ -1335,8 +1353,13 @@ where
 fn read_pending_keychain_journal(app: &AppHandle) -> Result<PendingKeychainJournal, String> {
     let path = pending_keychain_path(app)?;
     match read_private_file(&path, "Keychain 清理记录")? {
-        Some(bytes) => serde_json::from_slice(&bytes)
-            .map_err(|_| "Keychain 清理记录损坏；没有创建新的本机连接。".to_string()),
+        Some(bytes) => {
+            let journal = serde_json::from_slice::<PendingKeychainJournal>(&bytes)
+                .map_err(|_| "Keychain 清理记录损坏；没有创建新的本机连接。".to_string())?;
+            Ok(PendingKeychainJournal {
+                key_ids: normalize_owned_key_ids(journal.key_ids)?,
+            })
+        }
         None => Ok(PendingKeychainJournal::default()),
     }
 }
@@ -1345,6 +1368,9 @@ fn write_pending_keychain_journal(
     app: &AppHandle,
     journal: &PendingKeychainJournal,
 ) -> Result<(), String> {
+    let journal = PendingKeychainJournal {
+        key_ids: normalize_owned_key_ids(journal.key_ids.clone())?,
+    };
     let path = pending_keychain_path(app)?;
     if journal.key_ids.is_empty() {
         return remove_file_confirmed(&path, "Keychain 清理记录");
@@ -1354,8 +1380,25 @@ fn write_pending_keychain_journal(
         .ok_or_else(|| "Keychain 清理记录路径无效。".to_string())?;
     fs::create_dir_all(parent).map_err(|_| "无法创建 App 配置目录。".to_string())?;
     let bytes =
-        serde_json::to_vec(journal).map_err(|_| "无法编码 Keychain 清理记录。".to_string())?;
+        serde_json::to_vec(&journal).map_err(|_| "无法编码 Keychain 清理记录。".to_string())?;
     atomic_write_private_file(&path, &bytes)
+}
+
+fn normalize_owned_key_ids(key_ids: Vec<String>) -> Result<Vec<String>, String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+    for key_id in key_ids {
+        validate_uuid("Keychain binding", &key_id)?;
+        if seen.insert(key_id.clone()) {
+            normalized.push(key_id);
+            if normalized.len() > MAX_OWNED_KEYCHAIN_KEYS {
+                return Err(format!(
+                    "本机令牌索引超过 {MAX_OWNED_KEYCHAIN_KEYS} 项安全上限；原生能力保持关闭。"
+                ));
+            }
+        }
+    }
+    Ok(normalized)
 }
 
 fn add_pending_keychain_entry(app: &AppHandle, key_id: &str) -> Result<(), String> {
@@ -1656,13 +1699,20 @@ fn cancel_any_capture(app: &AppHandle, state: &AppState) -> Result<(), String> {
     terminate_child(&active.child, "系统窗口选择器")?;
     remove_file_confirmed(&active.output, "窗口采集缓存")?;
     let _ = clear_capture_marker(app);
+    let receipt_result = if read_pending_revocation(app)?.is_none() {
+        record_capture_receipt(app, &active, &CaptureResult::Cancelled)
+    } else {
+        // Disconnect owns the pending revocation and clears the whole receipt
+        // journal after native effects are confirmed stopped.
+        Ok(())
+    };
     if slot
         .as_ref()
         .is_some_and(|current| same_capture(current, &active))
     {
         *slot = None;
     }
-    Ok(())
+    receipt_result
 }
 
 fn cancel_any_ocr(state: &AppState) -> Result<(), String> {
@@ -1935,7 +1985,13 @@ fn cleanup_artifacts(state: &AppState) -> Result<(), String> {
 fn remove_file_confirmed(path: &Path, label: &str) -> Result<(), String> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_file() || metadata.file_type().is_symlink() => {
-            fs::remove_file(path).map_err(|error| format!("无法删除{label}：{error}"))
+            fs::remove_file(path).map_err(|error| format!("无法删除{label}：{error}"))?;
+            let parent = path
+                .parent()
+                .ok_or_else(|| format!("{label}路径没有可持久化的父目录。"))?;
+            fs::File::open(parent)
+                .and_then(|directory| directory.sync_all())
+                .map_err(|error| format!("已删除{label}，但无法持久化目录更新：{error}"))
         }
         Ok(_) => Err(format!("{label}不是可安全删除的文件。")),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -2796,6 +2852,18 @@ mod tests {
     }
 
     #[test]
+    fn later_verification_failure_invalidates_every_earlier_lease() {
+        let state = AppState::new().expect("state");
+        let old_lease_epoch = state.lifecycle_epoch.load(Ordering::SeqCst);
+        let _commit = state.lifecycle_commit.lock().expect("commit lock");
+
+        advance_epoch_after_verification_failure(&state, old_lease_epoch)
+            .expect("advance failed verification generation");
+
+        assert!(assert_epoch(&state, old_lease_epoch).is_err());
+    }
+
+    #[test]
     fn revocation_recovery_never_clears_durable_state_after_native_cleanup_failure() {
         let durable_recovery_called = Arc::new(AtomicBool::new(false));
         let observation = Arc::clone(&durable_recovery_called);
@@ -2807,6 +2875,20 @@ mod tests {
 
         assert!(matches!(status, BindingStatus::Revoked { .. }));
         assert!(!durable_recovery_called.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn owned_key_inventory_is_deduplicated_and_bounded_before_keychain_work() {
+        let duplicate = Uuid::new_v4().to_string();
+        assert_eq!(
+            normalize_owned_key_ids(vec![duplicate.clone(), duplicate.clone()])
+                .expect("deduplicated inventory"),
+            vec![duplicate]
+        );
+        let too_many = (0..=MAX_OWNED_KEYCHAIN_KEYS)
+            .map(|_| Uuid::new_v4().to_string())
+            .collect();
+        assert!(normalize_owned_key_ids(too_many).is_err());
     }
 
     #[test]
@@ -2916,6 +2998,46 @@ mod tests {
                 .expect_err("started receipt is non-terminal")
                 .contains("未启动新的系统选择器")
         );
+    }
+
+    #[test]
+    fn confirmed_invalidation_terminalizes_started_receipt_and_releases_scope() {
+        let account_id = Uuid::new_v4().to_string();
+        let session_id = Uuid::new_v4().to_string();
+        let intent_id = Uuid::new_v4().to_string();
+        let mut journal = CaptureReceiptJournal::default();
+        upsert_capture_receipt(
+            &mut journal,
+            &account_id,
+            &session_id,
+            &intent_id,
+            CaptureReceiptStatus::Started,
+        )
+        .expect("started receipt");
+        assert!(scope_has_started_receipt(
+            &journal,
+            &account_id,
+            &session_id
+        ));
+
+        upsert_capture_receipt(
+            &mut journal,
+            &account_id,
+            &session_id,
+            &intent_id,
+            CaptureReceiptStatus::Cancelled,
+        )
+        .expect("terminal receipt");
+
+        assert!(!scope_has_started_receipt(
+            &journal,
+            &account_id,
+            &session_id
+        ));
+        assert!(matches!(
+            replay_capture_receipt_status(journal.receipts[0].status),
+            Ok(CaptureResult::Cancelled)
+        ));
     }
 
     #[test]

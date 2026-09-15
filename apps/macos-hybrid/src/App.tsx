@@ -9,7 +9,11 @@ import {
   type ActivateBindingRequest,
   type BindingStatus,
 } from "./platform";
-import { loadCaptureIntent, saveCaptureIntent } from "./captureIntentStorage";
+import {
+  loadCaptureIntent,
+  retainCaptureIntentScope,
+  saveCaptureIntent,
+} from "./captureIntentStorage";
 
 const platform = createDesktopPlatformAdapter();
 
@@ -54,12 +58,10 @@ export function App() {
       try {
         const next = await desktopSession.status();
         if (viewEpoch.current === expectedEpoch) {
-          if (next.state === "verified") {
-            verifiedScope.current = { accountId: next.accountId, sessionId: next.sessionId };
-          } else {
-            clearPendingCaptureIntent();
-            verifiedScope.current = null;
-          }
+          // A stale, revoked, or merely unbound status is not proof that a
+          // native Started receipt was cleared. Retain the exact prior scope
+          // so a verified recovery can replay or cancel the same intent.
+          verifiedScope.current = retainCaptureIntentScope(verifiedScope.current, next);
           setBinding(next);
         }
       } catch {
@@ -73,7 +75,7 @@ export function App() {
     })();
     refreshInFlight.current = pending;
     return pending;
-  }, [clearPendingCaptureIntent]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -152,8 +154,10 @@ export function App() {
     setChecking(true);
     try {
       const next = await desktopSession.disconnect();
-      clearPendingCaptureIntent();
-      verifiedScope.current = null;
+      if (next.state === "unbound") {
+        clearPendingCaptureIntent();
+        verifiedScope.current = null;
+      }
       setBinding(next);
       setShortcutNotice(null);
     } catch (error) {

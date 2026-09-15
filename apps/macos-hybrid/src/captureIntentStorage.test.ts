@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { loadCaptureIntent, saveCaptureIntent, type SessionStorageLike } from "./captureIntentStorage";
+import {
+  loadCaptureIntent,
+  retainCaptureIntentScope,
+  saveCaptureIntent,
+  type SessionStorageLike,
+} from "./captureIntentStorage";
 
 function fixtureStorage(): SessionStorageLike & { readonly values: Map<string, string> } {
   const values = new Map<string, string>();
@@ -34,5 +39,24 @@ describe("capture intent storage", () => {
 
     expect(loadCaptureIntent(storage, key, 1_000 + 24 * 60 * 60 * 1000 + 1)).toBeNull();
     expect(storage.values.has(key)).toBe(false);
+  });
+
+  it("reuses the exact unknown intent after stale status and verified recovery", () => {
+    const storage = fixtureStorage();
+    const accountId = "72cf65bf-4b78-40aa-ae7c-21994d93ce70";
+    const sessionId = "05dc954c-e7c7-4f6c-a17c-3287e28d40b6";
+    const key = `ts.hybrid.capture.${accountId}.${sessionId}`;
+    const unknownIntent = "15f0558a-8e28-49e3-bc60-fbbc315a7f5d";
+    saveCaptureIntent(storage, key, unknownIntent, undefined, 1_000);
+
+    let scope = retainCaptureIntentScope(
+      { accountId, sessionId },
+      { state: "stale" },
+    );
+    expect(scope).toEqual({ accountId, sessionId });
+    scope = retainCaptureIntentScope(scope, { state: "verified", accountId, sessionId });
+
+    expect(scope).toEqual({ accountId, sessionId });
+    expect(loadCaptureIntent(storage, key, 2_000)).toBe(unknownIntent);
   });
 });

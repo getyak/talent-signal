@@ -9,6 +9,18 @@ type CaptureIntentRecord = {
 };
 
 export type SessionStorageLike = Pick<Storage, "getItem" | "removeItem" | "setItem">;
+export type CaptureIntentScope = { readonly accountId: string; readonly sessionId: string };
+
+export function retainCaptureIntentScope(
+  current: CaptureIntentScope | null,
+  status:
+    | { readonly state: "verified"; readonly accountId: string; readonly sessionId: string }
+    | { readonly state: "stale" | "unbound" | "revoked" },
+): CaptureIntentScope | null {
+  return status.state === "verified"
+    ? { accountId: status.accountId, sessionId: status.sessionId }
+    : current;
+}
 
 function decodeCaptureIntent(raw: string | null, now: number): CaptureIntentRecord | null {
   if (!raw) return null;
