@@ -54,6 +54,7 @@ export type CaptureOutcome =
 export type OcrOutcome =
   | IdleOutcome
   | PendingOutcome
+  | { readonly kind: "cancelled" }
   | { readonly kind: "recognized"; readonly localText: string }
   | { readonly kind: "failed" | "denied"; readonly reason: string }
   | { readonly kind: "unavailable"; readonly reason: string };
@@ -67,7 +68,7 @@ export type QuickPanelOutcome =
 
 export type NotificationOutcome =
   | IdleOutcome
-  | { readonly kind: "shown" }
+  | { readonly kind: "requested" }
   | { readonly kind: "suppressed" | "denied"; readonly reason: string }
   | { readonly kind: "unavailable"; readonly reason: string };
 
@@ -153,6 +154,8 @@ export function captureOutcome(result: CaptureResult): CaptureOutcome {
 
 export function ocrOutcome(result: OcrResult): OcrOutcome {
   switch (result.status) {
+    case "cancelled":
+      return { kind: "cancelled" };
     case "recognized":
       return { kind: "recognized", localText: result.localText };
     case "failed":
@@ -179,8 +182,8 @@ export function quickPanelOutcome(result: QuickPanelResult): QuickPanelOutcome {
 
 export function notificationOutcome(result: StateNotificationResult): NotificationOutcome {
   switch (result.status) {
-    case "shown":
-      return { kind: "shown" };
+    case "requested":
+      return { kind: "requested" };
     case "suppressed":
       return { kind: "suppressed", reason: result.reason };
     case "denied":
@@ -215,7 +218,7 @@ export function capabilityBlockReason(
     case "available":
       return null;
     case "permission_required":
-      return "需要系统权限；授予以操作系统提示为准，本界面不会假定已获得。";
+      return "系统尚未授予；请在 macOS 系统设置中确认权限，本界面无法判断能否再次弹出请求。";
     case "denied":
       return "权限被拒绝；不会回退到其他采集或云端处理。";
     default:

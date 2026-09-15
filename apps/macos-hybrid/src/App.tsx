@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { NativeCapabilityWorkbench } from "@talent-signal/workspace-ui";
 
@@ -9,12 +9,14 @@ import {
   type ActivateBindingRequest,
   type BindingStatus,
 } from "./platform";
+import { loadCaptureIntent, saveCaptureIntent } from "./captureIntentStorage";
 
 const platform = createDesktopPlatformAdapter();
 
 const EMPTY_BINDING: ActivateBindingRequest = {
   accessToken: "",
-  baseUrl: "http://127.0.0.1:4336",
+  baseUrl: "https://127.0.0.1:4443",
+  serverCertificatePem: "",
   sessionId: "",
 };
 
@@ -24,17 +26,54 @@ export function App() {
   const [form, setForm] = useState(EMPTY_BINDING);
   const [formError, setFormError] = useState<string | null>(null);
   const [shortcutNotice, setShortcutNotice] = useState<string | null>(null);
+  const viewEpoch = useRef(0);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
+  const verifiedScope = useRef<{ accountId: string; sessionId: string } | null>(null);
 
-  const refresh = useCallback(async () => {
-    setChecking(true);
+  const clearPendingCaptureIntent = useCallback(() => {
+    const scope = verifiedScope.current;
     try {
-      setBinding(await desktopSession.status());
+      if (scope) {
+        sessionStorage.removeItem(`ts.hybrid.capture.${scope.accountId}.${scope.sessionId}`);
+        return;
+      }
+      for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith("ts.hybrid.capture.")) sessionStorage.removeItem(key);
+      }
     } catch {
-      setBinding({ state: "stale", reason: "本机桥接没有返回可核验状态。" });
-    } finally {
-      setChecking(false);
+      // Storage failure never re-opens a native permission boundary.
     }
   }, []);
+
+  const refresh = useCallback(() => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const expectedEpoch = viewEpoch.current;
+    setChecking(true);
+    const pending = (async () => {
+      try {
+        const next = await desktopSession.status();
+        if (viewEpoch.current === expectedEpoch) {
+          if (next.state === "verified") {
+            verifiedScope.current = { accountId: next.accountId, sessionId: next.sessionId };
+          } else {
+            clearPendingCaptureIntent();
+            verifiedScope.current = null;
+          }
+          setBinding(next);
+        }
+      } catch {
+        if (viewEpoch.current === expectedEpoch) {
+          setBinding({ state: "stale", reason: "本机桥接没有返回可核验状态。" });
+        }
+      } finally {
+        if (viewEpoch.current === expectedEpoch) setChecking(false);
+        refreshInFlight.current = null;
+      }
+    })();
+    refreshInFlight.current = pending;
+    return pending;
+  }, [clearPendingCaptureIntent]);
 
   useEffect(() => {
     void refresh();
@@ -80,17 +119,24 @@ export function App() {
                 : "快捷面板当前不可用。",
           );
         })
-        .catch(() => setShortcutNotice("快捷面板未能打开；没有执行其他操作。"));
+        .catch(() =>
+          setShortcutNotice("未能确认快捷面板是否已经打开；请先检查当前窗口。"),
+        );
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [binding, intentId]);
 
   async function activate() {
+    viewEpoch.current += 1;
     setFormError(null);
     setChecking(true);
     try {
       const next = await desktopSession.activate(form);
+      clearPendingCaptureIntent();
+      if (next.state === "verified") {
+        verifiedScope.current = { accountId: next.accountId, sessionId: next.sessionId };
+      }
       setBinding(next);
       setForm((current) => ({ ...current, accessToken: "" }));
     } catch (error) {
@@ -102,9 +148,20 @@ export function App() {
   }
 
   async function disconnect() {
+    viewEpoch.current += 1;
     setChecking(true);
     try {
-      setBinding(await desktopSession.disconnect());
+      const next = await desktopSession.disconnect();
+      clearPendingCaptureIntent();
+      verifiedScope.current = null;
+      setBinding(next);
+      setShortcutNotice(null);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setFormError(`断开未确认：${reason}`);
+      setShortcutNotice("断开未确认；已重新读取本机权威状态，请按当前状态决定是否重试。");
+      if (refreshInFlight.current) await refreshInFlight.current;
+      await refresh();
     } finally {
       setChecking(false);
     }
@@ -161,6 +218,12 @@ export function App() {
                 <button onClick={() => void disconnect()} type="button">仅移除本机连接</button>
               </div>
             </section>
+            {binding.cleanupWarning ? (
+              <p className="shortcut-notice" role="status">
+                当前 Session 仍已核验，但旧 Keychain 令牌尚未确认清除：
+                {binding.cleanupWarning}
+              </p>
+            ) : null}
             {shortcutNotice ? <p className="shortcut-notice" role="status">{shortcutNotice}</p> : null}
 
             <div id="native" className="workbench-frame">
@@ -168,6 +231,14 @@ export function App() {
                 adapter={platform}
                 description="每次操作都会重新核验 loopback 后端中的账号与 Agent Session；令牌保存在 Keychain，不进入 WebView 存储。"
                 intentId={intentId}
+                loadPendingCaptureIntent={() => {
+                  const key = `ts.hybrid.capture.${binding.accountId}.${binding.sessionId}`;
+                  return loadCaptureIntent(sessionStorage, key);
+                }}
+                savePendingCaptureIntent={(value, expectedIntent) => {
+                  const key = `ts.hybrid.capture.${binding.accountId}.${binding.sessionId}`;
+                  saveCaptureIntent(sessionStorage, key, value, expectedIntent);
+                }}
                 scope={{ accountId: binding.accountId, sessionId: binding.sessionId }}
                 title="当前 Session 的本机能力"
               />
@@ -180,6 +251,7 @@ export function App() {
             form={form}
             onActivate={() => void activate()}
             onChange={setForm}
+            onDisconnect={() => void disconnect()}
           />
         )}
 
@@ -216,12 +288,14 @@ function BindingForm({
   form,
   onActivate,
   onChange,
+  onDisconnect,
 }: {
   checking: boolean;
   error: string | null;
   form: ActivateBindingRequest;
   onActivate: () => void;
   onChange: (value: ActivateBindingRequest) => void;
+  onDisconnect: () => void;
 }) {
   return (
     <section className="connection-card">
@@ -229,8 +303,9 @@ function BindingForm({
         <p className="eyebrow">Local authenticated adapter</p>
         <h2>连接本机 Talent Signal 后端</h2>
         <p className="lede">
-          只接受带显式端口的 <code>http://127.0.0.1</code> 或 <code>http://localhost</code>。
-          核验成功后，令牌写入 macOS Keychain 并立即从表单清除。
+          只接受带显式端口、固定服务器证书的 <code>https://127.0.0.1</code> 或
+          <code> https://localhost</code>。服务器证书会在发送令牌前完成 TLS 身份核验；
+          核验成功后令牌写入 macOS Keychain 并立即从表单清除。
         </p>
       </div>
       <form
@@ -247,6 +322,19 @@ function BindingForm({
             onChange={(event) => onChange({ ...form, baseUrl: event.target.value })}
             spellCheck={false}
             value={form.baseUrl}
+          />
+        </label>
+        <label>
+          服务器证书 PEM（公开）
+          <textarea
+            autoCapitalize="none"
+            autoCorrect="off"
+            onChange={(event) =>
+              onChange({ ...form, serverCertificatePem: event.target.value })
+            }
+            placeholder="-----BEGIN CERTIFICATE-----"
+            spellCheck={false}
+            value={form.serverCertificatePem}
           />
         </label>
         <label>
@@ -270,9 +358,22 @@ function BindingForm({
           />
         </label>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button disabled={checking || !form.accessToken || !form.sessionId} type="submit">
+        <button
+          disabled={
+            checking ||
+            !form.accessToken ||
+            !form.serverCertificatePem ||
+            !form.sessionId
+          }
+          type="submit"
+        >
           {checking ? "正在核验…" : "核验并保存在 Keychain"}
         </button>
+        {error ? (
+          <button className="secondary-action" disabled={checking} onClick={onDisconnect} type="button">
+            清除本机连接记录并重试
+          </button>
+        ) : null}
       </form>
     </section>
   );

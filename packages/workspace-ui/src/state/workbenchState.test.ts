@@ -94,10 +94,10 @@ describe("native outcomes preserve their exact terminal state", () => {
     expect(state.draftText).toBe("修改后的草稿");
   });
 
-  it("distinguishes shown, suppressed, denied, and unavailable notifications", () => {
+  it("distinguishes requested, suppressed, denied, and unavailable notifications", () => {
     const kinds = (
       [
-        { status: "shown" },
+        { status: "requested" },
         { status: "suppressed", reason: "duplicate" },
         { status: "denied", reason: "system" },
         { status: "unavailable", capability: "notification", reason: "none" },
@@ -107,7 +107,7 @@ describe("native outcomes preserve their exact terminal state", () => {
         workbenchReducer(initialWorkbenchState, { type: "notification/settled", result })
           .notification.kind,
     );
-    expect(kinds).toEqual(["shown", "suppressed", "denied", "unavailable"]);
+    expect(kinds).toEqual(["requested", "suppressed", "denied", "unavailable"]);
   });
 });
 

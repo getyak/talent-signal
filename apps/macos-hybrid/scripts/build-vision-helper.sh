@@ -14,3 +14,5 @@ xcrun --sdk macosx swiftc \
   "$app_dir/src-tauri/vision-helper/main.swift" \
   -o "$output"
 chmod 0755 "$output"
+/usr/bin/codesign --force --sign - --timestamp=none "$output"
+/usr/bin/codesign --verify --strict "$output"

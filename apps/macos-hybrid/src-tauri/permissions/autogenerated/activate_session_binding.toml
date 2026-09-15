@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-activate-session-binding"
+description = "Enables the activate_session_binding command without any pre-configured scope."
+commands.allow = ["activate_session_binding"]
+
+[[permission]]
+identifier = "deny-activate-session-binding"
+description = "Denies the activate_session_binding command without any pre-configured scope."
+commands.deny = ["activate_session_binding"]

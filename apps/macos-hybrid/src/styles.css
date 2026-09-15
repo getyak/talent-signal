@@ -29,9 +29,9 @@
 * { box-sizing: border-box; }
 html { background: var(--bg); }
 body { margin: 0; min-width: 760px; }
-button, input { font: inherit; }
+button, input, textarea { font: inherit; }
 button { cursor: pointer; }
-button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent); outline-offset: 2px; }
 
 .app-shell { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100vh; }
 .sidebar {
@@ -69,9 +69,11 @@ main#workspace { margin: 0 auto; padding: 42px clamp(36px, 5vw, 72px) 80px; widt
 .lede, .boundary-card > p:last-child { color: var(--muted); font-size: 13px; line-height: 1.75; margin: 11px 0 0; }
 .connection-card form { display: grid; gap: 15px; }
 .connection-card label { color: var(--muted); display: grid; font-size: 11px; gap: 6px; }
-.connection-card input { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); min-height: 39px; padding: 8px 10px; }
+.connection-card input, .connection-card textarea { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); min-height: 39px; padding: 8px 10px; }
+.connection-card textarea { max-height: 150px; min-height: 82px; resize: vertical; }
 .connection-card button, .summary-actions button { background: var(--ink); border: 1px solid var(--ink); border-radius: 8px; color: var(--panel); min-height: 38px; padding: 0 13px; }
 .connection-card button:disabled { cursor: not-allowed; opacity: .55; }
+.connection-card .secondary-action { background: transparent; color: var(--muted); }
 .form-error { color: var(--accent); font-size: 11px; line-height: 1.5; margin: 0; }
 
 .binding-summary { border-bottom: 1px solid var(--line); display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; padding: 24px 0; }

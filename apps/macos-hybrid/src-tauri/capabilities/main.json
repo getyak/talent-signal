@@ -1,7 +1,18 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "Main local workspace window. No shell, filesystem, URL-open, or remote Web permission.",
+  "description": "Main local workspace window. Fixed application commands only; no default core, shell, filesystem, URL-open, or remote Web permission.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "allow-activate-session-binding",
+    "allow-session-binding-status",
+    "allow-disconnect-session-binding",
+    "allow-desktop-capabilities",
+    "allow-capture-selected-window",
+    "allow-cancel-capture",
+    "allow-recognize-local-text",
+    "allow-cancel-ocr",
+    "allow-open-quick-panel",
+    "allow-notify-state"
+  ]
 }

@@ -82,6 +82,7 @@ export type OcrRequest = PlatformScope & {
  * editable draft owned by the user.
  */
 export type OcrResult =
+  | { readonly status: "cancelled" }
   | {
       readonly status: "recognized";
       readonly localText: string;
@@ -112,7 +113,7 @@ export type StateNotificationRequest = PlatformScope & {
 };
 
 export type StateNotificationResult =
-  | { readonly status: "shown" }
+  | { readonly status: "requested" }
   | { readonly status: "suppressed"; readonly reason: string }
   | { readonly status: "denied"; readonly reason: string }
   | PlatformUnavailableResult;
@@ -128,6 +129,7 @@ export type PlatformAdapter = {
     request: CaptureRequest,
     signal?: AbortSignal,
   ) => Promise<CaptureResult>;
+  readonly cancelCapture: (request: CaptureRequest) => Promise<CaptureResult>;
   readonly recognizeLocalText: (
     request: OcrRequest,
     signal?: AbortSignal,
@@ -163,6 +165,7 @@ export function createUnavailablePlatformAdapter(input: {
         notification: "unavailable",
       } satisfies CapabilityReport),
     captureSelectedWindow: async () => unavailable("window_capture"),
+    cancelCapture: async () => unavailable("window_capture"),
     recognizeLocalText: async () => unavailable("local_ocr"),
     openQuickPanel: async () => unavailable("quick_panel"),
     notifyState: async () => unavailable("notification"),
@@ -190,7 +193,7 @@ export function availabilityLabel(availability: CapabilityAvailability): string 
     case "available":
       return "可用";
     case "permission_required":
-      return "需要权限";
+      return "系统尚未授予";
     case "denied":
       return "权限被拒绝";
     case "unavailable":

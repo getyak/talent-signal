@@ -501,6 +501,9 @@ export async function buildApp(
     dependencies.chatMediaStorage ?? createChatMediaStorage(config);
   const screenshotRunner = screenshotContact ? new ScreenshotContactTaskRunner(pool,screenshotContact,chatMediaStorage) : null;
   const app = Fastify({
+    ...(config.tls
+      ? { https: { cert: config.tls.certificatePem, key: config.tls.privateKeyPem } }
+      : {}),
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
       redact: {
@@ -581,7 +584,7 @@ export async function buildApp(
           "Account-scoped localhost contract. All effects are labeled deterministic simulations.",
         version: CONTRACT_VERSION,
       },
-      servers: [{ url: `http://localhost:${config.port}` }],
+      servers: [{ url: `${config.tls ? "https" : "http"}://localhost:${config.port}` }],
       components: {
         securitySchemes: {
           bearerSession: {

@@ -25,10 +25,12 @@ export type BindingStatus =
       sessionTitle: string;
       userDisplayName: string;
       verifiedAt: string;
+      cleanupWarning: string | null;
     };
 
 export type ActivateBindingRequest = {
   baseUrl: string;
+  serverCertificatePem: string;
   accessToken: string;
   sessionId: string;
 };
@@ -37,6 +39,7 @@ const COMMANDS = {
   activateBinding: "activate_session_binding",
   bindingStatus: "session_binding_status",
   cancelCapture: "cancel_capture",
+  cancelOcr: "cancel_ocr",
   capabilities: "desktop_capabilities",
   capture: "capture_selected_window",
   disconnect: "disconnect_session_binding",
@@ -51,17 +54,32 @@ export function createDesktopPlatformAdapter(invoke: Invoke = tauriInvoke): Plat
     capabilities: () => invoke<CapabilityReport>(COMMANDS.capabilities),
     captureSelectedWindow: (request, signal) =>
       invokeWithCaptureCancellation(invoke, request, signal),
-    recognizeLocalText: (request, signal) => {
-      if (signal?.aborted) {
-        return Promise.resolve({ status: "failed", reason: "本地识别已取消。" });
-      }
-      return invoke<OcrResult>(COMMANDS.ocr, { request });
-    },
+    cancelCapture: (request) =>
+      invoke<CaptureResult>(COMMANDS.cancelCapture, { request }),
+    recognizeLocalText: (request, signal) =>
+      invokeWithOcrCancellation(invoke, request, signal),
     openQuickPanel: (request) =>
       invoke<QuickPanelResult>(COMMANDS.quickPanel, { request }),
     notifyState: (request) =>
       invoke<StateNotificationResult>(COMMANDS.notification, { request }),
   };
+}
+
+async function invokeWithOcrCancellation(
+  invoke: Invoke,
+  request: OcrRequest,
+  signal?: AbortSignal,
+): Promise<OcrResult> {
+  if (signal?.aborted) return { status: "cancelled" };
+  const onAbort = () => {
+    void invoke<OcrResult>(COMMANDS.cancelOcr, { request }).catch(() => undefined);
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    return await invoke<OcrResult>(COMMANDS.ocr, { request });
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
 }
 
 async function invokeWithCaptureCancellation(

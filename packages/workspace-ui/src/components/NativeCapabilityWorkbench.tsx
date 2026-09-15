@@ -49,6 +49,12 @@ export type NativeCapabilityWorkbenchProps = {
   readonly scope: WorkbenchScope;
   /** Session intent id used for capture idempotency. */
   readonly intentId: string;
+  /** Desktop host persistence for reconciling an unknown capture transport outcome. */
+  readonly loadPendingCaptureIntent?: () => string | null;
+  readonly savePendingCaptureIntent?: (
+    intentId: string | null,
+    expectedIntent?: string,
+  ) => void;
   /** Quiet, content-first heading. Hosts may localize. */
   readonly title?: string;
   readonly description?: string;
@@ -70,20 +76,62 @@ const CAPABILITY_LABELS: Readonly<Record<PlatformCapability, string>> = {
   notification: "状态通知",
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+export function loadValidPendingCaptureIntent(
+  load: (() => string | null) | undefined,
+  clear: ((intentId: string | null) => void) | undefined,
+): string | null {
+  if (!load) return null;
+  try {
+    const value = load();
+    if (value === null || UUID_PATTERN.test(value)) return value;
+    try { clear?.(null); } catch { /* Storage remains fail-closed. */ }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function reconcileTerminalCaptureIntent(
+  intentId: string,
+  savePendingCaptureIntent?: (intentId: string | null, expectedIntent?: string) => void,
+): { readonly retainedIntent: string | null; readonly durableClearPending: boolean } {
+  try {
+    savePendingCaptureIntent?.(null, intentId);
+    return { retainedIntent: null, durableClearPending: false };
+  } catch {
+    return { retainedIntent: intentId, durableClearPending: true };
+  }
+}
+
 export function NativeCapabilityWorkbench({
   adapter,
   scope,
   intentId,
+  loadPendingCaptureIntent,
+  savePendingCaptureIntent,
   title = "原生能力",
   description = "所有原生操作都需要你本人触发；失败时不会有云端回退，也不会写入外部系统。",
   onDraftChange,
 }: NativeCapabilityWorkbenchProps) {
   const [state, dispatch] = useReducer(workbenchReducer, initialWorkbenchState);
+  const [initialPendingCaptureIntent] = useState(() =>
+    loadValidPendingCaptureIntent(loadPendingCaptureIntent, savePendingCaptureIntent),
+  );
   const [capabilities, setCapabilities] = useState<CapabilityReport | null>(null);
   const [capabilityError, setCapabilityError] = useState<string | null>(null);
   const [submitNote, setSubmitNote] = useState<string | null>(null);
+  const [captureCancellationRequested, setCaptureCancellationRequested] = useState(false);
+  const [ocrCancellationRequested, setOcrCancellationRequested] = useState(false);
+  const [captureTransportUnknown, setCaptureTransportUnknown] = useState(
+    initialPendingCaptureIntent !== null,
+  );
+  const [capturePersistenceWarning, setCapturePersistenceWarning] = useState<string | null>(null);
+  const [captureDurableClearPending, setCaptureDurableClearPending] = useState(false);
 
   const captureAbort = useRef<AbortController | null>(null);
+  const captureIntent = useRef<string | null>(initialPendingCaptureIntent);
   const ocrAbort = useRef<AbortController | null>(null);
   const mounted = useRef(true);
 
@@ -132,35 +180,122 @@ export function NativeCapabilityWorkbench({
     state.capture.kind === "captured" ? state.capture.localHandle : null;
 
   const requestCapture = useCallback(async () => {
+    if (captureDurableClearPending && captureIntent.current) {
+      const cleanup = reconcileTerminalCaptureIntent(
+        captureIntent.current,
+        savePendingCaptureIntent,
+      );
+      captureIntent.current = cleanup.retainedIntent;
+      setCaptureDurableClearPending(cleanup.durableClearPending);
+      if (cleanup.durableClearPending) {
+        setCapturePersistenceWarning(
+          "上一次终态的恢复记录仍无法清除；为避免恢复错误操作，未启动新的采集。",
+        );
+        return;
+      }
+      setCapturePersistenceWarning(null);
+    }
     captureAbort.current?.abort();
     const controller = new AbortController();
     captureAbort.current = controller;
+    setCaptureCancellationRequested(false);
+    const requestedIntent = captureIntent.current ?? crypto.randomUUID();
+    captureIntent.current = requestedIntent;
+    try {
+      savePendingCaptureIntent?.(requestedIntent);
+      setCapturePersistenceWarning(null);
+    } catch {
+      captureIntent.current = null;
+      dispatch({
+        type: "capture/settled",
+        result: { status: "failed", reason: "无法保存采集意图；为避免未知结果，未启动采集。" },
+      });
+      setCapturePersistenceWarning("当前窗口存储不可用；未启动原生采集。");
+      return;
+    }
     dispatch({ type: "capture/pending" });
     try {
       const result = await adapter.captureSelectedWindow(
-        { accountId: scope.accountId, sessionId: scope.sessionId, intentId },
+        {
+          accountId: scope.accountId,
+          sessionId: scope.sessionId,
+          intentId: requestedIntent,
+        },
         controller.signal,
       );
+      const cleanup = reconcileTerminalCaptureIntent(requestedIntent, savePendingCaptureIntent);
+      captureIntent.current = cleanup.retainedIntent;
+      setCaptureDurableClearPending(cleanup.durableClearPending);
+      if (cleanup.durableClearPending && mounted.current) {
+        setCapturePersistenceWarning(
+          "已收到原生终态，但未能清除恢复记录；新的采集会保持关闭，直到清理成功。",
+        );
+      }
       if (mounted.current) {
-        dispatch({
-          type: "capture/settled",
-          result: controller.signal.aborted ? { status: "cancelled" } : result,
-        });
+        dispatch({ type: "capture/settled", result });
+        setCaptureTransportUnknown(false);
       }
     } catch {
       if (mounted.current) {
         dispatch({
           type: "capture/settled",
-          result: { status: "failed", reason: "采集请求异常终止；没有生成任何图像。" },
+          result: {
+            status: "failed",
+            reason: "采集传输中断，结果未知；已保留同一意图，请重试核验当前结果。",
+          },
         });
+        setCaptureTransportUnknown(true);
       }
+    } finally {
+      if (mounted.current) setCaptureCancellationRequested(false);
     }
-  }, [adapter, intentId, scope.accountId, scope.sessionId]);
+  }, [adapter, captureDurableClearPending, savePendingCaptureIntent, scope.accountId, scope.sessionId]);
 
-  const cancelCapture = useCallback(() => {
-    captureAbort.current?.abort();
-    dispatch({ type: "capture/settled", result: { status: "cancelled" } });
-  }, []);
+  const cancelCapture = useCallback(async () => {
+    setCaptureCancellationRequested(true);
+    if (state.capture.kind === "pending") {
+      captureAbort.current?.abort();
+      return;
+    }
+    const pendingIntent = captureIntent.current;
+    if (!captureTransportUnknown || !pendingIntent) {
+      setCaptureCancellationRequested(false);
+      return;
+    }
+    try {
+      const result = await adapter.cancelCapture({
+        accountId: scope.accountId,
+        sessionId: scope.sessionId,
+        intentId: pendingIntent,
+      });
+      const cleanup = reconcileTerminalCaptureIntent(pendingIntent, savePendingCaptureIntent);
+      captureIntent.current = cleanup.retainedIntent;
+      if (mounted.current) {
+        setCaptureDurableClearPending(cleanup.durableClearPending);
+        setCapturePersistenceWarning(
+          cleanup.durableClearPending
+            ? "取消已收到原生终态，但未能清除恢复记录；新的采集保持关闭。"
+            : null,
+        );
+        dispatch({ type: "capture/settled", result });
+        setCaptureTransportUnknown(false);
+      }
+    } catch {
+      if (mounted.current) {
+        setCaptureTransportUnknown(true);
+        setCapturePersistenceWarning("取消结果未知；已保留同一采集意图，请重试核验或取消。");
+      }
+    } finally {
+      if (mounted.current) setCaptureCancellationRequested(false);
+    }
+  }, [
+    adapter,
+    captureTransportUnknown,
+    savePendingCaptureIntent,
+    scope.accountId,
+    scope.sessionId,
+    state.capture.kind,
+  ]);
 
   const requestOcr = useCallback(async () => {
     if (!capturedHandle) {
@@ -169,6 +304,7 @@ export function NativeCapabilityWorkbench({
     ocrAbort.current?.abort();
     const controller = new AbortController();
     ocrAbort.current = controller;
+    setOcrCancellationRequested(false);
     dispatch({ type: "ocr/pending" });
     try {
       const result = await adapter.recognizeLocalText(
@@ -189,8 +325,15 @@ export function NativeCapabilityWorkbench({
           result: { status: "failed", reason: "本地识别异常终止；没有云端回退。" },
         });
       }
+    } finally {
+      if (mounted.current) setOcrCancellationRequested(false);
     }
   }, [adapter, capturedHandle, scope.accountId, scope.sessionId]);
+
+  const cancelOcr = useCallback(() => {
+    setOcrCancellationRequested(true);
+    ocrAbort.current?.abort();
+  }, []);
 
   const requestQuickPanel = useCallback(async () => {
     dispatch({ type: "quick-panel/pending" });
@@ -208,7 +351,7 @@ export function NativeCapabilityWorkbench({
       if (mounted.current) {
         dispatch({
           type: "quick-panel/settled",
-          result: { status: "denied", reason: "快捷面板未能打开。" },
+          result: { status: "denied", reason: "未能确认快捷面板是否已经打开；请先检查当前窗口。" },
         });
       }
     }
@@ -230,7 +373,10 @@ export function NativeCapabilityWorkbench({
         if (mounted.current) {
           dispatch({
             type: "notification/settled",
-            result: { status: "denied", reason: "通知未显示。" },
+            result: {
+              status: "denied",
+              reason: "未能确认系统是否接受通知请求；请勿据此判断通知已显示或未显示。",
+            },
           });
         }
       }
@@ -414,31 +560,49 @@ export function NativeCapabilityWorkbench({
           <button
             className="ts-btn"
             disabled={
-              captureAvailability !== "available" &&
-              captureAvailability !== "permission_required"
+              state.capture.kind === "pending" ||
+              (captureAvailability !== "available" &&
+                captureAvailability !== "permission_required")
             }
             onClick={requestCapture}
             type="button"
           >
-            {captureAvailability === "permission_required"
-              ? "请求权限并选择窗口"
-              : "选择窗口并采集"}
+            {captureTransportUnknown
+              ? "重试核验上次采集"
+              : captureAvailability === "permission_required"
+                ? "在系统设置确认后选择窗口"
+                : "选择窗口并采集"}
           </button>
           <button
             className="ts-btn"
-            disabled={state.capture.kind !== "pending"}
-            onClick={cancelCapture}
+            disabled={
+              (state.capture.kind !== "pending" && !captureTransportUnknown) ||
+              captureCancellationRequested
+            }
+            onClick={() => void cancelCapture()}
             type="button"
           >
-            取消采集
+            {captureCancellationRequested ? "正在取消…" : "取消采集"}
           </button>
           <button
             className="ts-btn"
-            disabled={!capturedHandle || ocrAvailability !== "available"}
+            disabled={
+              !capturedHandle ||
+              ocrAvailability !== "available" ||
+              state.ocr.kind === "pending"
+            }
             onClick={requestOcr}
             type="button"
           >
             本地识别文字
+          </button>
+          <button
+            className="ts-btn"
+            disabled={state.ocr.kind !== "pending" || ocrCancellationRequested}
+            onClick={cancelOcr}
+            type="button"
+          >
+            {ocrCancellationRequested ? "正在取消…" : "取消识别"}
           </button>
           <button
             className="ts-btn"
@@ -472,6 +636,11 @@ export function NativeCapabilityWorkbench({
           <OutcomeRow label="快捷面板" outcome={state.quickPanel} />
           <OutcomeRow label="通知" outcome={state.notification} />
         </dl>
+        {capturePersistenceWarning ? (
+          <p role="alert" style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)" }}>
+            {capturePersistenceWarning}
+          </p>
+        ) : null}
 
         {state.ocr.kind === "recognized" || state.draftText ? (
           <div className="ts-redline" style={{ marginTop: "var(--ts-space-lg)" }}>
@@ -520,7 +689,9 @@ function OutcomeRow({
       <div style={{ display: "flex", gap: "var(--ts-space-md)", justifyContent: "space-between" }}>
         <dt style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)" }}>{label}</dt>
         <dd
+          aria-live="polite"
           data-outcome={outcome.kind}
+          role="status"
           style={{ margin: 0, textAlign: "right" }}
         >
           {outcomeText(outcome)}
@@ -546,8 +717,8 @@ function outcomeText(
       return "已在本机识别；文本仍为暂定，需要你确认。";
     case "opened":
       return `已打开快捷面板（${outcome.panelId}）。`;
-    case "shown":
-      return "已显示状态通知（仅状态，无内容）。";
+    case "requested":
+      return "已请求系统投递状态通知；应用无法确认系统是否实际显示。";
     case "failed":
       return `失败：${outcome.reason}`;
     case "denied":

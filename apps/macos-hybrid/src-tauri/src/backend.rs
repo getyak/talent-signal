@@ -1,16 +1,18 @@
 use chrono::{DateTime, Utc};
 use std::time::Duration;
 
-use reqwest::{Client, StatusCode, redirect::Policy};
-use serde::{Deserialize, Serialize};
+use reqwest::{Certificate, Client, ClientBuilder, Response, StatusCode, redirect::Policy};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use url::Url;
 use uuid::Uuid;
 
 use crate::models::{BindingStatus, PlatformScope};
 
 const CONTRACT_VERSION: &str = "2026-08-24.10";
+const MAX_CERTIFICATE_BYTES: usize = 16_384;
+const MAX_VERIFICATION_RESPONSE_BYTES: usize = 64 * 1024;
 
-pub fn build_loopback_client() -> Result<Client, String> {
+fn bounded_client_builder() -> ClientBuilder {
     Client::builder()
         .connect_timeout(Duration::from_secs(3))
         .timeout(Duration::from_secs(8))
@@ -19,8 +21,34 @@ pub fn build_loopback_client() -> Result<Client, String> {
         // another origin. Reqwest otherwise follows redirects by default and
         // may forward the bearer credential outside the local boundary.
         .redirect(Policy::none())
+}
+
+pub fn build_loopback_client(server_certificate_pem: &str) -> Result<Client, String> {
+    let server_certificate_pem = canonical_server_certificate_pem(server_certificate_pem)?;
+    let certificate = Certificate::from_pem(server_certificate_pem.as_bytes())
+        .map_err(|_| "本机 TLS 服务器证书格式无效。".to_string())?;
+    bounded_client_builder()
+        .https_only(true)
+        .tls_built_in_root_certs(false)
+        .add_root_certificate(certificate)
         .build()
         .map_err(|_| "无法初始化本机后端适配器。".to_string())
+}
+
+fn canonical_server_certificate_pem(raw: &str) -> Result<String, String> {
+    let value = raw.trim();
+    if value.is_empty()
+        || value.len() > MAX_CERTIFICATE_BYTES
+        || value.matches("-----BEGIN CERTIFICATE-----").count() != 1
+        || value.matches("-----END CERTIFICATE-----").count() != 1
+        || !value.starts_with("-----BEGIN CERTIFICATE-----")
+        || !value.ends_with("-----END CERTIFICATE-----")
+        || value.contains("PRIVATE KEY")
+        || value.contains("-----BEGIN OPENSSH")
+    {
+        return Err("必须仅提供一张不超过 16 KB 的本机 TLS 服务器证书；不得包含私钥。".into());
+    }
+    Ok(format!("{value}\n"))
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -29,6 +57,7 @@ pub struct PersistentBinding {
     #[serde(default)]
     pub key_id: String,
     pub base_url: String,
+    pub server_certificate_pem: String,
     pub account_id: String,
     pub account_name: String,
     pub session_id: String,
@@ -39,7 +68,7 @@ pub struct PersistentBinding {
 }
 
 impl PersistentBinding {
-    pub fn status(&self) -> BindingStatus {
+    pub fn status_with_warning(&self, cleanup_warning: Option<String>) -> BindingStatus {
         BindingStatus::Verified {
             account_id: self.account_id.clone(),
             account_name: self.account_name.clone(),
@@ -47,13 +76,16 @@ impl PersistentBinding {
             session_title: self.session_title.clone(),
             user_display_name: self.user_display_name.clone(),
             verified_at: self.verified_at.to_rfc3339(),
+            cleanup_warning,
         }
     }
 
     pub fn assert_scope(&self, scope: &PlatformScope) -> Result<(), String> {
-        validate_uuid("accountId", &scope.account_id)?;
-        validate_uuid("sessionId", &scope.session_id)?;
-        if self.account_id != scope.account_id || self.session_id != scope.session_id {
+        let account_id = canonical_uuid("accountId", &scope.account_id)?;
+        let session_id = canonical_uuid("sessionId", &scope.session_id)?;
+        if canonical_uuid("bound accountId", &self.account_id)? != account_id
+            || canonical_uuid("bound sessionId", &self.session_id)? != session_id
+        {
             return Err("请求作用域与已核验的账号或 Session 不一致。".into());
         }
         Ok(())
@@ -105,8 +137,8 @@ pub fn validate_loopback_base_url(raw: &str) -> Result<Url, String> {
         return Err("本机后端地址过长。".into());
     }
     let mut url = Url::parse(raw.trim()).map_err(|_| "本机后端地址格式无效。".to_string())?;
-    if url.scheme() != "http" {
-        return Err("本机适配器只接受显式的 http loopback 地址。".into());
+    if url.scheme() != "https" {
+        return Err("本机适配器只接受带固定服务器证书的 https loopback 地址。".into());
     }
     let allowed_host = matches!(
         url.host_str(),
@@ -132,8 +164,12 @@ pub fn validate_loopback_base_url(raw: &str) -> Result<Url, String> {
 }
 
 pub fn validate_uuid(label: &str, value: &str) -> Result<(), String> {
+    canonical_uuid(label, value).map(|_| ())
+}
+
+pub fn canonical_uuid(label: &str, value: &str) -> Result<String, String> {
     Uuid::parse_str(value)
-        .map(|_| ())
+        .map(|value| value.to_string())
         .map_err(|_| format!("{label} 必须是 UUID。"))
 }
 
@@ -145,14 +181,19 @@ pub fn validate_token(token: &str) -> Result<(), String> {
 }
 
 pub async fn verify_backend(
-    client: &Client,
     base_url: &str,
+    server_certificate_pem: &str,
     token: &str,
     session_id: &str,
 ) -> Result<PersistentBinding, VerificationFailure> {
     let base = validate_loopback_base_url(base_url).map_err(VerificationFailure::Invalid)?;
     validate_token(token).map_err(VerificationFailure::Invalid)?;
-    validate_uuid("Agent Session ID", session_id).map_err(VerificationFailure::Invalid)?;
+    let session_id =
+        canonical_uuid("Agent Session ID", session_id).map_err(VerificationFailure::Invalid)?;
+    let server_certificate_pem = canonical_server_certificate_pem(server_certificate_pem)
+        .map_err(VerificationFailure::Invalid)?;
+    let client =
+        build_loopback_client(&server_certificate_pem).map_err(VerificationFailure::Invalid)?;
 
     let auth_url = base
         .join("v1/auth/session")
@@ -164,17 +205,15 @@ pub async fn verify_backend(
         .await
         .map_err(|_| VerificationFailure::Stale("本机后端当前不可达。".into()))?;
     classify_status(auth_response.status())?;
-    let auth = auth_response
-        .json::<AuthResponse>()
-        .await
-        .map_err(|_| VerificationFailure::Revoked("认证响应不符合当前数据契约。".into()))?;
+    let auth = decode_bounded_json::<AuthResponse>(auth_response, "认证").await?;
     if auth.contract_version != CONTRACT_VERSION {
         return Err(VerificationFailure::Revoked(format!(
             "后端契约版本不兼容：需要 {CONTRACT_VERSION}。"
         )));
     }
-    validate_uuid("accountId", &auth.account.id).map_err(VerificationFailure::Revoked)?;
-    validate_uuid("userId", &auth.user.id).map_err(VerificationFailure::Revoked)?;
+    let account_id =
+        canonical_uuid("accountId", &auth.account.id).map_err(VerificationFailure::Revoked)?;
+    let user_id = canonical_uuid("userId", &auth.user.id).map_err(VerificationFailure::Revoked)?;
     if auth.expires_at <= Utc::now() {
         return Err(VerificationFailure::Revoked("认证会话已过期。".into()));
     }
@@ -189,14 +228,13 @@ pub async fn verify_backend(
         .await
         .map_err(|_| VerificationFailure::Stale("核验 Agent Session 时本机后端不可达。".into()))?;
     classify_status(session_response.status())?;
-    let session = session_response
-        .json::<AgentSessionResponse>()
-        .await
-        .map_err(|_| {
-            VerificationFailure::Revoked("Agent Session 响应不符合当前数据契约。".into())
-        })?;
+    let session =
+        decode_bounded_json::<AgentSessionResponse>(session_response, "Agent Session").await?;
+    let response_session_id =
+        canonical_uuid("Agent Session response ID", &session.session.session_id)
+            .map_err(VerificationFailure::Revoked)?;
     if session.contract_version != CONTRACT_VERSION
-        || session.session.session_id != session_id
+        || response_session_id != session_id
         || session.session.deleted_at.is_some()
         || session.session.payload.is_none()
         || session.session.expires_at <= Utc::now()
@@ -210,14 +248,44 @@ pub async fn verify_backend(
     Ok(PersistentBinding {
         key_id: String::new(),
         base_url: base.as_str().trim_end_matches('/').to_string(),
-        account_id: auth.account.id,
+        server_certificate_pem,
+        account_id,
         account_name: bounded_label(auth.account.name, "当前账号"),
-        session_id: session_id.to_string(),
+        session_id,
         session_title: bounded_label(payload.title, "未命名 Session"),
-        user_id: auth.user.id,
+        user_id,
         user_display_name: bounded_label(auth.user.display_name, "当前用户"),
         verified_at: Utc::now(),
     })
+}
+
+async fn decode_bounded_json<T: DeserializeOwned>(
+    mut response: Response,
+    label: &str,
+) -> Result<T, VerificationFailure> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_VERIFICATION_RESPONSE_BYTES as u64)
+    {
+        return Err(VerificationFailure::Revoked(format!(
+            "{label}响应超过 64 KiB 上限。"
+        )));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| VerificationFailure::Stale(format!("读取{label}响应失败。")))?
+    {
+        if body.len().saturating_add(chunk.len()) > MAX_VERIFICATION_RESPONSE_BYTES {
+            return Err(VerificationFailure::Revoked(format!(
+                "{label}响应超过 64 KiB 上限。"
+            )));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    serde_json::from_slice(&body)
+        .map_err(|_| VerificationFailure::Revoked(format!("{label}响应不符合当前数据契约。")))
 }
 
 fn bounded_label(value: String, fallback: &str) -> String {
@@ -275,8 +343,10 @@ impl VerificationFailure {
 #[cfg(test)]
 mod tests {
     use std::{
+        fs,
         io::{Read, Write},
-        net::TcpListener,
+        net::{TcpListener, TcpStream},
+        process::{Child, Command, Stdio},
         sync::mpsc,
         thread,
         time::{Duration, Instant},
@@ -284,19 +354,96 @@ mod tests {
 
     use super::*;
 
+    fn create_certificate(directory: &std::path::Path, name: &str) -> (String, String) {
+        let certificate = directory.join(format!("{name}.pem"));
+        let key = directory.join(format!("{name}-key.pem"));
+        let status = Command::new("/usr/bin/openssl")
+            .args([
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-sha256",
+                "-nodes",
+                "-days",
+                "1",
+                "-subj",
+                "/CN=Talent Signal Test",
+                "-addext",
+                "subjectAltName=IP:127.0.0.1",
+                "-keyout",
+            ])
+            .arg(&key)
+            .arg("-out")
+            .arg(&certificate)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("generate test certificate");
+        assert!(status.success());
+        (
+            fs::read_to_string(certificate).expect("certificate PEM"),
+            key.to_string_lossy().into_owned(),
+        )
+    }
+
+    #[allow(clippy::zombie_processes)] // Ownership is returned; the test kills and waits it.
+    fn start_https_observer(
+        directory: &std::path::Path,
+        port: u16,
+        certificate_path: &std::path::Path,
+        key_path: &str,
+    ) -> (Child, std::path::PathBuf) {
+        let script = directory.join("observer.mjs");
+        let log = directory.join("requests.jsonl");
+        fs::write(
+            &script,
+            r#"import https from 'node:https';
+import fs from 'node:fs';
+const [cert,key,log,port] = process.argv.slice(2);
+https.createServer({cert:fs.readFileSync(cert),key:fs.readFileSync(key)},(req,res)=>{
+  fs.appendFileSync(log, JSON.stringify({authorization:req.headers.authorization ?? null,url:req.url})+'\n');
+  res.writeHead(200,{'content-type':'application/json'});res.end('{}');
+}).listen(Number(port),'127.0.0.1');
+"#,
+        )
+        .expect("write observer");
+        let child = Command::new("node")
+            .arg(&script)
+            .arg(certificate_path)
+            .arg(key_path)
+            .arg(&log)
+            .arg(port.to_string())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("start HTTPS observer");
+        for _ in 0..100 {
+            if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+                return (child, log);
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        let mut child = child;
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!("HTTPS observer did not listen");
+    }
+
     #[test]
-    fn accepts_only_explicit_loopback_http_ports() {
-        assert!(validate_loopback_base_url("http://127.0.0.1:4336").is_ok());
-        assert!(validate_loopback_base_url("http://localhost:4336").is_ok());
-        assert!(validate_loopback_base_url("http://[::1]:4336").is_ok());
+    fn accepts_only_explicit_loopback_https_ports() {
+        assert!(validate_loopback_base_url("https://127.0.0.1:4336").is_ok());
+        assert!(validate_loopback_base_url("https://localhost:4336").is_ok());
+        assert!(validate_loopback_base_url("https://[::1]:4336").is_ok());
         for rejected in [
-            "https://127.0.0.1:4336",
+            "http://127.0.0.1:4336",
             "http://127.0.0.1",
-            "http://127.0.0.1:80",
-            "http://example.com:4336",
-            "http://127.0.0.1:4336/private",
-            "http://token@127.0.0.1:4336",
-            "http://127.0.0.1:4336?next=remote",
+            "https://127.0.0.1:443",
+            "https://example.com:4336",
+            "https://127.0.0.1:4336/private",
+            "https://token@127.0.0.1:4336",
+            "https://127.0.0.1:4336?next=remote",
         ] {
             assert!(
                 validate_loopback_base_url(rejected).is_err(),
@@ -306,10 +453,21 @@ mod tests {
     }
 
     #[test]
+    fn tls_pin_rejects_a_certificate_bundle_containing_a_private_key() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let (certificate, key_path) = create_certificate(directory.path(), "combined");
+        let private_key = fs::read_to_string(key_path).expect("private key fixture");
+
+        assert!(build_loopback_client(&format!("{certificate}\n{private_key}")).is_err());
+        assert!(canonical_server_certificate_pem(&certificate).is_ok());
+    }
+
+    #[test]
     fn scope_mismatch_fails_closed() {
         let binding = PersistentBinding {
             key_id: Uuid::new_v4().to_string(),
-            base_url: "http://127.0.0.1:4336".into(),
+            base_url: "https://127.0.0.1:4336".into(),
+            server_certificate_pem: "synthetic public certificate".into(),
             account_id: Uuid::new_v4().to_string(),
             account_name: "Synthetic".into(),
             session_id: Uuid::new_v4().to_string(),
@@ -323,6 +481,72 @@ mod tests {
             session_id: binding.session_id.clone(),
         };
         assert!(binding.assert_scope(&wrong).is_err());
+    }
+
+    #[test]
+    fn uuid_scope_comparison_uses_one_canonical_representation() {
+        let account_id = Uuid::new_v4().to_string();
+        let session_id = Uuid::new_v4().to_string();
+        let binding = PersistentBinding {
+            key_id: Uuid::new_v4().to_string(),
+            base_url: "https://127.0.0.1:4336".into(),
+            server_certificate_pem: "synthetic public certificate".into(),
+            account_id: account_id.clone(),
+            account_name: "Synthetic".into(),
+            session_id: session_id.clone(),
+            session_title: "Synthetic session".into(),
+            user_id: Uuid::new_v4().to_string(),
+            user_display_name: "Synthetic user".into(),
+            verified_at: Utc::now(),
+        };
+
+        assert!(
+            binding
+                .assert_scope(&PlatformScope {
+                    account_id: account_id.to_uppercase(),
+                    session_id: session_id.to_uppercase(),
+                })
+                .is_ok()
+        );
+        assert_eq!(
+            canonical_uuid("sessionId", &session_id.to_uppercase()).expect("canonical UUID"),
+            session_id
+        );
+    }
+
+    #[test]
+    fn verification_json_reader_rejects_an_oversized_content_length() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let port = listener.local_addr().expect("listener address").port();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("request");
+            let mut request = [0_u8; 2048];
+            let _ = stream.read(&mut request);
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_VERIFICATION_RESPONSE_BYTES + 1
+            )
+            .expect("oversized response header");
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let failure = runtime.block_on(async {
+            let response = bounded_client_builder()
+                .build()
+                .expect("bounded client")
+                .get(format!("http://127.0.0.1:{port}"))
+                .send()
+                .await
+                .expect("response headers");
+            decode_bounded_json::<AuthResponse>(response, "认证")
+                .await
+                .expect_err("oversized response must fail")
+        });
+        worker.join().expect("server worker");
+        assert!(failure.message().contains("64 KiB"));
     }
 
     #[test]
@@ -369,20 +593,69 @@ mod tests {
             .expect("redirect response");
         });
 
-        let result = tauri::async_runtime::block_on(verify_backend(
-            &build_loopback_client().expect("loopback client"),
-            &format!("http://127.0.0.1:{source_port}"),
-            "synthetic-token-for-redirect-test",
-            &Uuid::new_v4().to_string(),
-        ));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let result = runtime.block_on(async {
+            bounded_client_builder()
+                .build()
+                .expect("bounded client")
+                .get(format!("http://127.0.0.1:{source_port}"))
+                .bearer_auth("synthetic-token-for-redirect-test")
+                .send()
+                .await
+        });
 
         source_worker.join().expect("source worker");
-        assert!(matches!(result, Err(VerificationFailure::Stale(_))));
+        assert!(result.expect("redirect response").status().is_redirection());
         assert!(
             !target_receiver
                 .recv_timeout(Duration::from_secs(1))
                 .expect("redirect target observation")
         );
         target_worker.join().expect("target worker");
+    }
+
+    #[test]
+    fn pinned_tls_authenticates_the_server_before_sending_bearer() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let (trusted_pem, trusted_key) = create_certificate(directory.path(), "trusted");
+        let (wrong_pem, _) = create_certificate(directory.path(), "wrong");
+        let trusted_path = directory.path().join("trusted.pem");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("reserve port");
+        let port = listener.local_addr().expect("port").port();
+        drop(listener);
+        let (mut server, log) =
+            start_https_observer(directory.path(), port, &trusted_path, &trusted_key);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        runtime.block_on(async {
+            let response = build_loopback_client(&trusted_pem)
+                .expect("trusted client")
+                .get(format!("https://127.0.0.1:{port}/trusted"))
+                .bearer_auth("synthetic-bearer-only-for-pinning-test")
+                .send()
+                .await
+                .expect("trusted TLS request");
+            assert!(response.status().is_success());
+
+            let rejected = build_loopback_client(&wrong_pem)
+                .expect("wrong pinned client")
+                .get(format!("https://127.0.0.1:{port}/wrong"))
+                .bearer_auth("must-never-reach-the-server")
+                .send()
+                .await;
+            assert!(rejected.is_err());
+        });
+        thread::sleep(Duration::from_millis(100));
+        server.kill().expect("stop observer");
+        server.wait().expect("wait observer");
+        let requests = fs::read_to_string(log).expect("request log");
+        assert!(requests.contains("synthetic-bearer-only-for-pinning-test"));
+        assert!(!requests.contains("must-never-reach-the-server"));
+        assert_eq!(requests.lines().count(), 1);
     }
 }

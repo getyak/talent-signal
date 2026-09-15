@@ -13,6 +13,7 @@ describe("desktop platform adapter", () => {
       "activate_session_binding",
       "session_binding_status",
       "cancel_capture",
+      "cancel_ocr",
       "desktop_capabilities",
       "capture_selected_window",
       "disconnect_session_binding",
@@ -52,7 +53,24 @@ describe("desktop platform adapter", () => {
     await expect(pending).resolves.toEqual({ status: "cancelled" });
   });
 
-  it("does not invent a cloud OCR fallback when local OCR is cancelled", async () => {
+  it("can cancel an exact persisted capture intent after renderer recovery", async () => {
+    const calls: string[] = [];
+    const invoke = (async (command: string) => {
+      calls.push(command);
+      return { status: "cancelled" };
+    }) as Invoke;
+
+    await expect(
+      createDesktopPlatformAdapter(invoke).cancelCapture({
+        accountId: "a",
+        sessionId: "s",
+        intentId: "i",
+      }),
+    ).resolves.toEqual({ status: "cancelled" });
+    expect(calls).toEqual(["cancel_capture"]);
+  });
+
+  it("does not start OCR when it was already cancelled", async () => {
     const calls: string[] = [];
     const mockInvoke = async (command: string): Promise<unknown> => {
       calls.push(command);
@@ -67,8 +85,30 @@ describe("desktop platform adapter", () => {
         { accountId: "a", sessionId: "s", localHandle: "h" },
         controller.signal,
       ),
-    ).resolves.toEqual({ status: "failed", reason: "本地识别已取消。" });
+    ).resolves.toEqual({ status: "cancelled" });
     expect(calls).toEqual([]);
+  });
+
+  it("propagates in-flight OCR cancellation to the native helper", async () => {
+    const calls: string[] = [];
+    let releaseOcr: ((value: unknown) => void) | undefined;
+    const invoke = (async (command: string) => {
+      calls.push(command);
+      if (command === "recognize_local_text") {
+        return await new Promise<unknown>((resolve) => { releaseOcr = resolve; });
+      }
+      return { status: "cancelled" };
+    }) as Invoke;
+    const controller = new AbortController();
+    const pending = createDesktopPlatformAdapter(invoke).recognizeLocalText(
+      { accountId: "a", sessionId: "s", localHandle: "h" },
+      controller.signal,
+    );
+    controller.abort();
+    await Promise.resolve();
+    expect(calls).toContain("cancel_ocr");
+    releaseOcr?.({ status: "cancelled" });
+    await expect(pending).resolves.toEqual({ status: "cancelled" });
   });
 
   it("recognizes only the focused macOS quick-panel shortcut", () => {

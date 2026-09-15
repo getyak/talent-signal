@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-disconnect-session-binding"
+description = "Enables the disconnect_session_binding command without any pre-configured scope."
+commands.allow = ["disconnect_session_binding"]
+
+[[permission]]
+identifier = "deny-disconnect-session-binding"
+description = "Denies the disconnect_session_binding command without any pre-configured scope."
+commands.deny = ["disconnect_session_binding"]

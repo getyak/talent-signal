@@ -401,9 +401,55 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  macos-hybrid:
+    name: macOS Hybrid boundary
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.18.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Select the declared Rust toolchain
+        run: rustup toolchain install 1.88.0 --profile minimal --component rustfmt,clippy && rustup default 1.88.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify shared UI and native boundaries
+        run: |
+          pnpm macos-hybrid:ui-check
+          pnpm macos-hybrid:native-check
+          node --test scripts/macos/configure-hybrid-tls.test.mjs
+
+      - name: Build and verify the final application bundle
+        run: |
+          pnpm --filter @talent-signal/macos-hybrid tauri:build
+          app='apps/macos-hybrid/src-tauri/target/release/bundle/macos/Talent Signal Hybrid.app'
+          helper="$app/Contents/MacOS/talent-signal-vision"
+          codesign --verify --strict --deep "$app"
+          codesign --verify --strict "$helper"
+          test -x "$helper"
+          set +e
+          helper_output="$("$helper" /path/that/does/not/exist)"
+          helper_status="$?"
+          set -e
+          test "$helper_status" = "3"
+          printf '%s\n' "$helper_output" | grep -q '"status":"failed"'
+
   required:
     name: CI required
-    needs: [changes, repository, web, backend, phase-one, ios]
+    needs: [changes, repository, web, backend, phase-one, ios, macos-hybrid]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -414,6 +460,7 @@ jobs:
       BACKEND_RESULT: ${{ needs.backend.result }}
       PHASE_ONE_RESULT: ${{ needs.phase-one.result }}
       IOS_RESULT: ${{ needs.ios.result }}
+      MACOS_HYBRID_RESULT: ${{ needs.macos-hybrid.result }}
     steps:
       - name: Enforce required job results
         run: |
@@ -423,3 +470,4 @@ jobs:
           test "$BACKEND_RESULT" = "success"
           test "$PHASE_ONE_RESULT" = "success"
           test "$IOS_RESULT" = "success" || test "$IOS_RESULT" = "skipped"
+          test "$MACOS_HYBRID_RESULT" = "success"

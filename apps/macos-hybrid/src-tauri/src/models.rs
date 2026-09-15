@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ActivateBindingRequest {
     pub base_url: String,
+    pub server_certificate_pem: String,
     pub access_token: String,
     pub session_id: String,
 }
@@ -133,6 +134,7 @@ pub enum BindingStatus {
         session_title: String,
         user_display_name: String,
         verified_at: String,
+        cleanup_warning: Option<String>,
     },
 }
 
@@ -163,6 +165,7 @@ pub enum CaptureResult {
     rename_all_fields = "camelCase"
 )]
 pub enum OcrResult {
+    Cancelled,
     Recognized {
         local_text: String,
         is_provisional: bool,
@@ -195,7 +198,7 @@ pub enum QuickPanelResult {
     rename_all_fields = "camelCase"
 )]
 pub enum NotificationResult {
-    Shown,
+    Requested,
     Suppressed { reason: String },
     Denied { reason: String },
 }

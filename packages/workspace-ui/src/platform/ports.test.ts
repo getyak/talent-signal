@@ -34,6 +34,9 @@ describe("unavailable platform adapter", () => {
     expect(capture.status).toBe("unavailable");
     expect(capture).not.toHaveProperty("localHandle");
 
+    const cancelled = await adapter.cancelCapture({ ...scope, intentId: "intent-1" });
+    expect(cancelled.status).toBe("unavailable");
+
     const ocr = await adapter.recognizeLocalText({ ...scope, localHandle: "local-1" });
     expect(ocr.status).toBe("unavailable");
     expect(ocr).not.toHaveProperty("localText");
