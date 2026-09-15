@@ -73,7 +73,9 @@ const normalized = (value: string) => value.normalize("NFKC").toLocaleLowerCase(
 const normalizedEvidence = (value: string) => normalized(value).replace(/\s+/gu," ");
 const searchableIdentityKinds = new Set(["name","handle","profile_url"]);
 function automaticIdentityEvidence(row:Row){
-  const extraction=row.state.response.extraction!;
+  const extraction=row.state.response.extraction;
+  // Clarification is intentionally available before understanding exists.
+  if(!extraction)return {contactName:null,clues:[]};
   if(!row.state.response.preprocessing)return {contactName:extraction.contact_name,clues:extraction.identity_clues};
   // Preserve every provider clue in its original position for target-bound
   // follow-up correction. Only project grounded values at action boundaries.
