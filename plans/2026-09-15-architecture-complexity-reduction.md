@@ -27,8 +27,8 @@ Rejected alternatives:
 
 ## Milestones
 
-1. [active] Extract shared Agent budget/usage policy and centralize backend recurring-job lifecycle; prove equivalent behavior with focused tests and full TypeScript checks.
-2. [pending] Split `RelationshipAskView` orchestration into focused state/coordinator units and introduce a shared iOS HTTP transport through a small set of clients; prove with storage-guarded unit and UI checks.
+1. [complete] Extract shared Agent budget/usage policy and centralize backend recurring-job lifecycle; prove equivalent behavior with focused tests and full TypeScript checks.
+2. [active] Split `RelationshipAskView` orchestration into focused state/coordinator units and introduce a shared iOS HTTP transport through a small set of clients; prove with storage-guarded unit and UI checks.
 3. [pending] Add contract-version generation/drift validation, migration-manifest integrity checks, and dependency/hotspot ratchets with explicit baselines.
 4. [pending] Run independent review, current-head repository gates, deployment checks required by affected surfaces, and merge only verified slices.
 
@@ -42,3 +42,5 @@ Rejected alternatives:
 ## Completion evidence
 
 Each merged slice must name the exact revision, tests and gates, any deployment/readback required by nested repository instructions, and remaining milestones. Local green output or a created PR is intermediate evidence, not completion.
+
+Milestone 1 implementation is on PR #194. At commit `b1a2b675`, Agent reported 243 passed and 1 skipped, Backend reported 416 passed and 130 skipped, Agent Host reported 58 passed, all three relevant typechecks/builds passed, and the PR's applicable CI, Security, CodeQL, and Vercel checks passed. Merge and backend deployment readback remain part of the slice handoff.
