@@ -428,13 +428,7 @@ struct RelationshipAskView: View {
     @State private var mediaNotice: String?
     @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
-    @State private var isSending = false
-    @State private var pendingObjective: String?
-    @State private var pendingScopedSend: String?
-    @State private var relationshipRecallPhase: RelationshipRecallPhase = .idle
-    @State private var askSubmissionPhase: AskSubmissionPhase = .idle
-    @State private var askOperation: Task<Void, Never>?
-    @State private var scopedAskInvocation: UUID?
+    @State private var operationState = RelationshipAskOperationState()
 #if DEBUG
     @State private var fixtureAskFailureConsumed = false
     @State private var fixtureContactLookupFailureConsumed = false
@@ -755,12 +749,12 @@ struct RelationshipAskView: View {
                !recoverableObjective.trimmingCharacters(
                    in: .whitespacesAndNewlines
                ).isEmpty {
-                pendingObjective = recoverableObjective
-                pendingScopedSend = recoverableObjective
+                operationState.pendingObjective = recoverableObjective
+                operationState.pendingScopedSend = recoverableObjective
                 draft = ""
-                isSending = true
+                operationState.isSending = true
                 if session.hasPendingUnscopedChat {
-                    relationshipRecallPhase = .replyingWithoutRelationship
+                    operationState.relationshipRecallPhase = .replyingWithoutRelationship
                     updateAskSubmissionPhase(.requestingWorkspaceAnswer)
                     performUnscopedChat(
                         sessionID: sessionID,
@@ -768,7 +762,7 @@ struct RelationshipAskView: View {
                         originalDraft: recoverableObjective
                     )
                 } else {
-                    relationshipRecallPhase = .replyingWithoutRelationship
+                    operationState.relationshipRecallPhase = .replyingWithoutRelationship
                     updateAskSubmissionPhase(.requestingWorkspaceAnswer)
                     performUnscopedChat(
                         sessionID: sessionID,
@@ -806,7 +800,7 @@ struct RelationshipAskView: View {
             }
         }
         .task(id: screenshotPollingKey) {
-            guard !isSending, let ownerSessionID = activeSessionID else { return }
+            guard !operationState.isSending, let ownerSessionID = activeSessionID else { return }
             let taskIDs = screenshotTasks.values.filter { $0.status == "running" }.map(\.taskID)
             guard !taskIDs.isEmpty else { return }
             do {
@@ -833,10 +827,10 @@ struct RelationshipAskView: View {
             if case .reviewSource = errorRecovery { errorRecovery = .retry; selectedCitation = nil }
         }
         .onChange(of: sessionStore.session(id: activeSessionID)?.updatedAt) { _ in
-            guard !isSending else { return }
+            guard !operationState.isSending else { return }
             Task { _ = await synchronizeSessions(nil) }
         }
-        .onChange(of: isSending) { sending in
+        .onChange(of: operationState.isSending) { sending in
             if !sending {
                 if let activeSessionID, draft.isEmpty {
                     _ = sessionStore.clearDraft(sessionID: activeSessionID)
@@ -845,7 +839,7 @@ struct RelationshipAskView: View {
             }
         }
         .onChange(of: draft) { value in
-            guard !isSending else { return }
+            guard !operationState.isSending else { return }
             if selectedScope == nil,
                value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 isRequestingScope = false
@@ -923,8 +917,7 @@ struct RelationshipAskView: View {
             shouldSendAfterCompositionCommits = false
             voiceGestureStartedInControl = false
             flushDraftPersistence()
-            scopedAskInvocation = nil; askOperation?.cancel()
-            askOperation = nil
+            operationState.cancelViewBoundOperations()
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
@@ -1027,7 +1020,7 @@ struct RelationshipAskView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(isSending || hasPendingScreenshotAdmission)
+            .disabled(operationState.isSending || hasPendingScreenshotAdmission)
             .frame(
                 maxWidth: .infinity,
                 minHeight: scopeSelectorMinimumHeight,
@@ -1297,7 +1290,7 @@ struct RelationshipAskView: View {
                                 onResumeScreenshot: { task, body in resumeScreenshotContact(task, body: body) },
                                 onCancelScreenshot: { task in cancelScreenshotContact(task) },
                                 onOpenPerson: onOpenPerson,
-                                canRegenerate: !isSending && !hasBlockingContactProposal
+                                canRegenerate: !operationState.isSending && !hasBlockingContactProposal
                                     && draft.isEmpty && mediaDrafts.isEmpty
                                     && !voiceInput.isBusy && turn.response.media.isEmpty
                                     && !turn.response.blocks.contains { $0.kind == "screenshot_processing" || $0.kind == "contact_proposal" },
@@ -1335,7 +1328,7 @@ struct RelationshipAskView: View {
                         }
                     }
 
-                    if hasPendingScreenshotAdmission, !isSending {
+                    if hasPendingScreenshotAdmission, !operationState.isSending {
                         screenshotAdmissionRecovery
                             .id("ask-screenshot-admission-recovery")
                     }
@@ -1366,12 +1359,12 @@ struct RelationshipAskView: View {
                         .id("contact-proposal-turn")
                     }
 
-                    if let pendingObjective {
+                    if let pendingObjective = operationState.pendingObjective {
                         AskPendingTurnView(
                             message: pendingObjective,
                             mediaDrafts: mediaDrafts,
                             language: appLanguage,
-                            recallPhase: relationshipRecallPhase,
+                            recallPhase: operationState.relationshipRecallPhase,
                             onChooseCandidate: chooseRecallCandidate,
                             onChangeMatch: changeRecalledRelationship,
                             onContinueWithoutRelationship:
@@ -1447,7 +1440,7 @@ struct RelationshipAskView: View {
                     }
                 }
             }
-            .onChange(of: isSending) { sending in
+            .onChange(of: operationState.isSending) { sending in
                 guard sending else { return }
                 Task { @MainActor in
                     await Task.yield()
@@ -1611,7 +1604,7 @@ struct RelationshipAskView: View {
                 voiceInputStatus
             }
 
-            if !mediaDrafts.isEmpty, !isSending {
+            if !mediaDrafts.isEmpty, !operationState.isSending {
                 AskMediaDraftTray(
                     drafts: mediaDrafts,
                     onRetry: retryMediaDraft,
@@ -1619,7 +1612,7 @@ struct RelationshipAskView: View {
                 )
             }
 
-            if let mediaNotice, !isSending {
+            if let mediaNotice, !operationState.isSending {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "photo.on.rectangle.angled")
                         .accessibilityHidden(true)
@@ -2042,9 +2035,9 @@ struct RelationshipAskView: View {
 
     private var composerInputDisabled: Bool {
         voiceInput.isBusy
-            || isSending
+            || operationState.isSending
             || hasBlockingContactProposal
-            || pendingObjective != nil
+            || operationState.pendingObjective != nil
     }
 
     private var compactPhotoControl: some View {
@@ -2271,7 +2264,7 @@ struct RelationshipAskView: View {
         }
         .disabled(
             voiceInput.isBusy
-                || isSending
+                || operationState.isSending
                 || hasBlockingContactProposal
                 || mediaDrafts.count >= 10
         )
@@ -2300,7 +2293,7 @@ struct RelationshipAskView: View {
 
     @ViewBuilder
     private var askSubmissionStatus: some View {
-        switch askSubmissionPhase {
+        switch operationState.askSubmissionPhase {
         case .idle:
             EmptyView()
         case .routingLocally, .requestingWorkspaceAnswer:
@@ -2321,7 +2314,7 @@ struct RelationshipAskView: View {
             .frame(minHeight: 32)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
-                askSubmissionPhase == .routingLocally
+                operationState.askSubmissionPhase == .routingLocally
                     ? appLanguage.text(
                         "Finding the relationship on this device. Nothing has been sent."
                     )
@@ -2330,7 +2323,7 @@ struct RelationshipAskView: View {
                     )
             )
             .accessibilityIdentifier(
-                askSubmissionPhase == .routingLocally
+                operationState.askSubmissionPhase == .routingLocally
                     ? "ask-submission-routing"
                     : "ask-submission-requesting"
             )
@@ -2404,7 +2397,7 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimarySymbol: String {
-        if isSending { return "arrow.up" }
+        if operationState.isSending { return "arrow.up" }
         if voiceInput.isRecording { return "stop.fill" }
         return hasComposerInput ? "arrow.up" : "mic.fill"
     }
@@ -2422,21 +2415,21 @@ struct RelationshipAskView: View {
 
     private var composerPrimaryDisabled: Bool {
         if hasBlockingContactProposal { return true }
-        if pendingObjective != nil { return true }
+        if operationState.pendingObjective != nil { return true }
         if voiceInput.isRecording { return false }
         if voiceInput.phase == .transcribing
             || voiceInput.phase == .requestingPermission {
             return true
         }
         if hasComposerInput { return !canSendDraft }
-        return isSending
+        return operationState.isSending
     }
 
     private var composerPrimaryAccessibilityLabel: String {
         if hasBlockingContactProposal {
             return appLanguage.text("Finish reviewing the contact first")
         }
-        if isSending {
+        if operationState.isSending {
             return appLanguage.text("Reading the record…")
         }
         if voiceInput.isRecording {
@@ -2621,7 +2614,7 @@ struct RelationshipAskView: View {
                 return
             }
             guard !Task.isCancelled,
-                  !isSending,
+                  !operationState.isSending,
                   !isComposerComposing,
                   draft == value else { return }
             persistDraft(value)
@@ -2632,7 +2625,7 @@ struct RelationshipAskView: View {
     private func flushDraftPersistence() {
         draftPersistenceTask?.cancel()
         draftPersistenceTask = nil
-        guard !isSending, !isComposerComposing else { return }
+        guard !operationState.isSending, !isComposerComposing else { return }
         persistDraft(draft)
     }
 
@@ -2661,7 +2654,7 @@ struct RelationshipAskView: View {
             && preferredPersonID == nil
             && selectedScope == nil
             && !isChoosingScope
-            && !isSending
+            && !operationState.isSending
             && !isRequestingScope
             && errorMessage == nil
             && reviewPreparationError == nil
@@ -2715,7 +2708,7 @@ struct RelationshipAskView: View {
                 } label: {
                     Label(appLanguage.text("Fork Session"), systemImage: "arrow.triangle.branch")
                 }
-                .disabled(isSending || voiceInput.isBusy || hasBlockingContactProposal || hasPendingScreenshotAdmission)
+                .disabled(operationState.isSending || voiceInput.isBusy || hasBlockingContactProposal || hasPendingScreenshotAdmission)
                 .accessibilityIdentifier("ask-fork-session")
             }
             if isCanonical {
@@ -2735,7 +2728,7 @@ struct RelationshipAskView: View {
     }
 
     private func forkCurrentSession() {
-        guard let activeSessionID, !isSending, !hasBlockingContactProposal,
+        guard let activeSessionID, !operationState.isSending, !hasBlockingContactProposal,
               let forkID = sessionStore.forkSession(activeSessionID) else {
             sessionActionError = appLanguage.text("The Session could not be forked. Try again.")
             return
@@ -2988,7 +2981,7 @@ struct RelationshipAskView: View {
     }
 
     private var shouldShowScopeBar: Bool {
-        pendingObjective == nil
+        operationState.pendingObjective == nil
             && (selectedScope != nil || isRequestingScope || isChoosingScope)
     }
 
@@ -2999,7 +2992,7 @@ struct RelationshipAskView: View {
 
     private var canSendDraft: Bool {
         return hasComposerInput
-            && !isSending
+            && !operationState.isSending
             && !isSavingContact
             && mediaDrafts.allSatisfy {
                 if case .failed = $0.phase { return false }
@@ -3318,7 +3311,7 @@ struct RelationshipAskView: View {
                 hasCommittedInput: !trimmed.isEmpty || !mediaDrafts.isEmpty,
                 isComposing: isComposerComposing
               ),
-              !isSending else { return }
+              !operationState.isSending else { return }
         if mediaDrafts.isEmpty,
            let localIntent = AgentLocalWorkspacePolicy.intent(for: trimmed) {
             flushDraftPersistence()
@@ -3368,8 +3361,7 @@ struct RelationshipAskView: View {
             return
         }
         errorMessage = nil
-        pendingObjective = effectiveObjective
-        isSending = true
+        operationState.beginSubmission(objective: effectiveObjective)
         draft = ""
         composerFocused = false
 
@@ -3389,15 +3381,17 @@ struct RelationshipAskView: View {
                     objective: effectiveObjective
                 ) else {
                     draft = trimmed
-                    pendingObjective = nil
-                    isSending = false
+                    operationState.pendingObjective = nil
+                    operationState.isSending = false
                     errorMessage = appLanguage.text("The Session could not be protected. Your message was not sent.")
                     return
                 }
                 activeSessionID = created
             }
-            pendingScopedSend = effectiveObjective
-            relationshipRecallPhase = .reading(nil)
+            operationState.adoptScopedSend(
+                objective: effectiveObjective,
+                recallPhase: .reading(nil)
+            )
             performScopedAsk(
                 effectiveObjective: effectiveObjective,
                 originalDraft: trimmed,
@@ -3416,8 +3410,8 @@ struct RelationshipAskView: View {
             unscopedSessionID = created
             activeSessionID = created
         } else {
-            isSending = false
-            pendingObjective = nil
+            operationState.isSending = false
+            operationState.pendingObjective = nil
             draft = trimmed
             updateAskSubmissionPhase(.idle)
             errorMessage = appLanguage.text(
@@ -3427,9 +3421,9 @@ struct RelationshipAskView: View {
         }
 
         sessionStore.saveGlobalDraft("")
-        pendingScopedSend = effectiveObjective
+        operationState.pendingScopedSend = effectiveObjective
         if isUnscopedPersonResearch, let mediaDraft = mediaDrafts.first {
-            relationshipRecallPhase = .reading(nil)
+            operationState.relationshipRecallPhase = .reading(nil)
             updateAskSubmissionPhase(.requestingWorkspaceAnswer)
             performUnscopedPersonResearch(
                 sessionID: unscopedSessionID,
@@ -3439,7 +3433,7 @@ struct RelationshipAskView: View {
             )
             return
         }
-        relationshipRecallPhase = .replyingWithoutRelationship
+        operationState.relationshipRecallPhase = .replyingWithoutRelationship
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
         performUnscopedChat(
             sessionID: unscopedSessionID,
@@ -3471,8 +3465,8 @@ struct RelationshipAskView: View {
         }
         guard let activeSessionID else {
             draft = originalDraft
-            pendingObjective = nil
-            isSending = false
+            operationState.pendingObjective = nil
+            operationState.isSending = false
             errorMessage = appLanguage.text("The Session could not be protected. Your screenshot was not sent.")
             return
         }
@@ -3485,8 +3479,8 @@ struct RelationshipAskView: View {
             proposedIdempotencyKey: "ios:contact-agent:\(UUID().uuidString.lowercased())"
         ), let capturedAt = sessionStore.session(id: activeSessionID)?.pendingScreenshotCapturedAt else {
             draft = hasPendingScreenshotAdmission ? "" : originalDraft
-            pendingObjective = nil
-            isSending = false
+            operationState.pendingObjective = nil
+            operationState.isSending = false
             errorMessage = screenshotAdmissionCapacityNotice
                 ?? appLanguage.text("Choose the same screenshots in the same order to recover the original task.")
             return
@@ -3498,104 +3492,145 @@ struct RelationshipAskView: View {
         )
         screenshotContactRequest = request
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
-        scopedAskInvocation = nil; askOperation?.cancel()
-        askOperation = Task {
-            var accepted = false
-            do {
-                guard await synchronizeSessions(activeSessionID) else { throw sessionSynchronizationFailure(activeSessionID) }
-                guard self.activeSessionID == activeSessionID, !Task.isCancelled else { return }
-                var response = try await workspaceStore.createScreenshotContactTask(request)
-                guard AskScreenshotResponseOwner(sessionID: activeSessionID, taskID: nil)
-                    .accepts(currentSessionID: self.activeSessionID, responseTaskID: response.taskID) else { return }
-                guard recordScreenshotResult(response, expectedSessionID: activeSessionID, admissionIdempotencyKey: request.idempotencyKey) else {
-                    throw AskSessionSynchronizationFailure(message: appLanguage.text("Screenshot processing is available, but Session recovery could not be saved."))
+        operationState.replaceOperation { operationID in
+            Task {
+                var accepted = false
+                defer {
+                    if operationState.finishOperationIfCurrent(operationID) {
+                        operationState.isSending = false
+                    }
                 }
-                accepted = true
-                try Task.checkCancellation()
-                screenshotContactRequest = nil
-                mediaDrafts = []
-                mediaNotice = nil
-                while response.status == "running" {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
-                    let expectedTaskID = response.taskID
-                    response = try await workspaceStore.loadScreenshotContactTask(id: expectedTaskID)
+                do {
+                    guard await synchronizeSessions(activeSessionID) else {
+                        throw sessionSynchronizationFailure(activeSessionID)
+                    }
+                    guard self.activeSessionID == activeSessionID, !Task.isCancelled,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    var response = try await workspaceStore.createScreenshotContactTask(request)
+                    guard AskScreenshotResponseOwner(sessionID: activeSessionID, taskID: nil)
+                        .accepts(currentSessionID: self.activeSessionID, responseTaskID: response.taskID),
+                          operationState.isCurrentOperation(operationID) else { return }
+                    guard recordScreenshotResult(
+                        response,
+                        expectedSessionID: activeSessionID,
+                        admissionIdempotencyKey: request.idempotencyKey
+                    ) else {
+                        throw AskSessionSynchronizationFailure(
+                            message: appLanguage.text(
+                                "Screenshot processing is available, but Session recovery could not be saved."
+                            )
+                        )
+                    }
+                    accepted = true
                     try Task.checkCancellation()
-                    guard AskScreenshotResponseOwner(sessionID: activeSessionID, taskID: expectedTaskID)
-                        .accepts(currentSessionID: self.activeSessionID, responseTaskID: response.taskID) else { return }
-                    recordScreenshotResult(response, expectedSessionID: activeSessionID)
+                    screenshotContactRequest = nil
+                    mediaDrafts = []
+                    mediaNotice = nil
+                    while response.status == "running" {
+                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                        let expectedTaskID = response.taskID
+                        response = try await workspaceStore.loadScreenshotContactTask(id: expectedTaskID)
+                        try Task.checkCancellation()
+                        guard AskScreenshotResponseOwner(sessionID: activeSessionID, taskID: expectedTaskID)
+                            .accepts(currentSessionID: self.activeSessionID, responseTaskID: response.taskID),
+                              operationState.isCurrentOperation(operationID) else { return }
+                        recordScreenshotResult(response, expectedSessionID: activeSessionID)
+                    }
+                    await workspaceStore.load()
+                    guard self.activeSessionID == activeSessionID, !Task.isCancelled,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    bindScreenshotContact(response)
+                    operationState.pendingObjective = nil
+                    operationState.pendingScopedSend = nil
+                    updateAskSubmissionPhase(.idle)
+                } catch {
+                    guard !Task.isCancelled, self.activeSessionID == activeSessionID,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    draft = hasPendingScreenshotAdmission || accepted ? "" : originalDraft
+                    operationState.pendingObjective = nil
+                    updateAskSubmissionPhase(.idle)
+                    if hasPendingScreenshotAdmission {
+                        errorMessage = nil
+                        mediaNotice = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    } else {
+                        presentAskFailure(error)
+                    }
                 }
-                await workspaceStore.load()
-                guard self.activeSessionID == activeSessionID, !Task.isCancelled else { return }
-                bindScreenshotContact(response)
-                pendingObjective = nil
-                pendingScopedSend = nil
-                updateAskSubmissionPhase(.idle)
-                isSending = false
-                askOperation = nil
-            } catch {
-                if Task.isCancelled || self.activeSessionID != activeSessionID { return }
-                draft = hasPendingScreenshotAdmission || accepted ? "" : originalDraft
-                pendingObjective = nil
-                updateAskSubmissionPhase(.idle)
-                isSending = false
-                if hasPendingScreenshotAdmission {
-                    errorMessage = nil
-                    mediaNotice = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                } else {
-                    presentAskFailure(error)
-                }
-                askOperation = nil
             }
         }
     }
 
     private func resumeScreenshotContact(_ current: ScreenshotContactTask, body: ScreenshotContactResumeBody) {
-        guard !isSending, let ownerSessionID = activeSessionID,
+        guard !operationState.isSending, let ownerSessionID = activeSessionID,
               screenshotTasks[current.taskID] != nil,
               sessionStore.session(id: ownerSessionID)?.readOnlyScreenshotTaskIDs.contains(current.taskID) == false else { return }
         let owner = AskScreenshotResponseOwner(sessionID: ownerSessionID, taskID: current.taskID)
-        isSending = true
-        scopedAskInvocation = nil; askOperation?.cancel()
-        askOperation = Task {
-            do {
-                var response = try await workspaceStore.resumeScreenshotContactTask(id: current.taskID, body: body)
-                guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: response.taskID), !Task.isCancelled else { return }
-                recordScreenshotResult(response, expectedSessionID: ownerSessionID)
-                while response.status == "running" {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
-                    response = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
-                    try Task.checkCancellation()
-                    guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: response.taskID) else { return }
-                    recordScreenshotResult(response, expectedSessionID: ownerSessionID)
+        operationState.isSending = true
+        operationState.replaceOperation { operationID in
+            Task {
+                defer {
+                    if operationState.finishOperationIfCurrent(operationID) {
+                        operationState.isSending = false
+                    }
                 }
-                await workspaceStore.load()
-                guard activeSessionID == ownerSessionID, !Task.isCancelled else { return }
-                bindScreenshotContact(response)
-            } catch {
-                guard activeSessionID == ownerSessionID, !Task.isCancelled else { return }
-                presentAskFailure(error)
+                do {
+                    var response = try await workspaceStore.resumeScreenshotContactTask(
+                        id: current.taskID,
+                        body: body
+                    )
+                    guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: response.taskID),
+                          !Task.isCancelled,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    recordScreenshotResult(response, expectedSessionID: ownerSessionID)
+                    while response.status == "running" {
+                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                        response = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
+                        try Task.checkCancellation()
+                        guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: response.taskID),
+                              operationState.isCurrentOperation(operationID) else { return }
+                        recordScreenshotResult(response, expectedSessionID: ownerSessionID)
+                    }
+                    await workspaceStore.load()
+                    guard activeSessionID == ownerSessionID, !Task.isCancelled,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    bindScreenshotContact(response)
+                } catch {
+                    guard activeSessionID == ownerSessionID, !Task.isCancelled,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    presentAskFailure(error)
+                }
             }
-            isSending = false
-            askOperation = nil
         }
     }
 
     private func cancelScreenshotContact(_ current: ScreenshotContactTask) {
         guard let ownerSessionID = activeSessionID, screenshotTasks[current.taskID] != nil,
-              sessionStore.session(id: ownerSessionID)?.readOnlyScreenshotTaskIDs.contains(current.taskID) == false else { return }
+              sessionStore.session(id: ownerSessionID)?.readOnlyScreenshotTaskIDs.contains(current.taskID) == false,
+              !operationState.isCancellingScreenshot(current.taskID) else { return }
+        let taskID = current.taskID
         let owner = AskScreenshotResponseOwner(sessionID: ownerSessionID, taskID: current.taskID)
-        Task {
-            do {
-                let latest = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
-                guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: latest.taskID), !Task.isCancelled else { return }
-                let cancelled = try await workspaceStore.cancelScreenshotContactTask(id: current.taskID, revision: latest.revision)
-                guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: cancelled.taskID), !Task.isCancelled else { return }
-                recordScreenshotResult(cancelled, expectedSessionID: ownerSessionID)
-                scopedAskInvocation = nil; askOperation?.cancel(); askOperation = nil; isSending = false
-                pendingObjective = nil; updateAskSubmissionPhase(.idle)
-            } catch {
-                guard activeSessionID == ownerSessionID, !Task.isCancelled else { return }
-                presentAskFailure(error)
+        operationState.replaceScreenshotCancellation(for: taskID) { cancellationID in
+            Task {
+                defer {
+                    operationState.finishScreenshotCancellationIfCurrent(cancellationID, for: taskID)
+                }
+                do {
+                    let cancelled = try await workspaceStore.cancelLatestScreenshotContactTask(
+                        id: taskID
+                    )
+                    guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: cancelled.taskID),
+                          !Task.isCancelled,
+                          operationState.isCurrentScreenshotCancellation(cancellationID, for: taskID) else { return }
+                    recordScreenshotResult(
+                        cancelled,
+                        expectedSessionID: ownerSessionID,
+                        updatesAskContext: false
+                    )
+                } catch {
+                    guard activeSessionID == ownerSessionID, !Task.isCancelled,
+                          operationState.isCurrentScreenshotCancellation(cancellationID, for: taskID) else { return }
+                    mediaNotice = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                }
             }
         }
     }
@@ -3624,7 +3659,7 @@ struct RelationshipAskView: View {
             events: []
         )
         activeSessionID = created
-        pendingObjective = objective
+        operationState.pendingObjective = objective
         recordScreenshotResult(task, expectedSessionID: created)
         composerFocused = false
     }
@@ -3678,7 +3713,7 @@ struct RelationshipAskView: View {
     }
 
     private var screenshotPollingKey: String {
-        "\(activeSessionID?.uuidString ?? "none"):\(isSending):" + screenshotTasks.values.filter { $0.status == "running" }.map(\.taskID).sorted().joined(separator: ":")
+        "\(activeSessionID?.uuidString ?? "none"):\(operationState.isSending):" + screenshotTasks.values.filter { $0.status == "running" }.map(\.taskID).sorted().joined(separator: ":")
     }
 
     private func bindScreenshotContact(_ task: ScreenshotContactTask) {
@@ -3696,7 +3731,12 @@ struct RelationshipAskView: View {
     }
 
     @discardableResult
-    private func recordScreenshotResult(_ receivedTask: ScreenshotContactTask, expectedSessionID: UUID, admissionIdempotencyKey: String? = nil) -> Bool {
+    private func recordScreenshotResult(
+        _ receivedTask: ScreenshotContactTask,
+        expectedSessionID: UUID,
+        admissionIdempotencyKey: String? = nil,
+        updatesAskContext: Bool = true
+    ) -> Bool {
         let task = screenshotTasks[receivedTask.taskID].map {
             $0.revision > receivedTask.revision ? $0 : receivedTask
         } ?? receivedTask
@@ -3709,7 +3749,8 @@ struct RelationshipAskView: View {
         let activeSessionID = expectedSessionID
         let objective = turns.first { $0.response.taskID == task.taskID }?.objective
             ?? (admissionIdempotencyKey != nil ? sessionStore.session(id: activeSessionID)?.pendingObjective : nil)
-            ?? pendingObjective ?? appLanguage.text("Read this screenshot")
+            ?? (updatesAskContext ? operationState.pendingObjective : nil)
+            ?? appLanguage.text("Read this screenshot")
         let fallback: String
         switch task.status {
         case "running": fallback = appLanguage.text("Reading the screenshot to identify the contact and preserve source-linked context.")
@@ -3722,14 +3763,17 @@ struct RelationshipAskView: View {
         if !sessionStore.recordScreenshotTask(
             sessionID: activeSessionID, taskID: task.taskID,
             objective: objective, summary: summary, status: task.status,
-            admissionIdempotencyKey: admissionIdempotencyKey
+            admissionIdempotencyKey: admissionIdempotencyKey,
+            clearsMatchingPendingObjective: updatesAskContext
         ) {
             sourceReviewNotice = appLanguage.text("Screenshot processing is available, but Session recovery could not be saved.")
             return false
         }
-        bindScreenshotContact(task)
-        // The accepted image is now represented by its original Session message.
-        pendingObjective = nil
+        if updatesAskContext {
+            bindScreenshotContact(task)
+            // The accepted image is now represented by its original Session message.
+            operationState.pendingObjective = nil
+        }
         return true
     }
 
@@ -3750,327 +3794,236 @@ struct RelationshipAskView: View {
     }
 
     private func performUnscopedPersonResearch(
-        sessionID: UUID,
-        effectiveObjective: String,
-        originalDraft: String,
-        mediaDraft: AskMediaDraft
+        sessionID: UUID, effectiveObjective: String, originalDraft: String, mediaDraft: AskMediaDraft
     ) {
-        let contentHash = SHA256.hash(data: mediaDraft.data)
-            .map { String(format: "%02x", $0) }
-            .joined()
+        let contentHash = SHA256.hash(data: mediaDraft.data).map { String(format: "%02x", $0) }.joined()
         let requestIdentity = "\(mediaDraft.mediaType):\(contentHash)"
-        guard let idempotencyKey = sessionStore.beginUnscopedPersonResearch(
-            sessionID: sessionID,
-            objective: effectiveObjective,
-            requestIdentity: requestIdentity,
-            proposedIdempotencyKey: "ios:person-research:\(UUID().uuidString.lowercased())"
-        ) else {
-            isSending = false
-            pendingObjective = nil
-            pendingScopedSend = nil
-            relationshipRecallPhase = .idle
-            updateAskSubmissionPhase(.idle)
+        guard
+            let idempotencyKey = sessionStore.beginUnscopedPersonResearch(
+                sessionID: sessionID, objective: effectiveObjective, requestIdentity: requestIdentity,
+                proposedIdempotencyKey: "ios:person-research:\(UUID().uuidString.lowercased())")
+        else {
+            returnOperationStateToIdle()
             draft = originalDraft
-            errorMessage = appLanguage.text(
-                "The screenshot Run could not be protected for retry. Nothing was sent."
-            )
+            errorMessage = appLanguage.text("The screenshot Run could not be protected for retry. Nothing was sent.")
             return
         }
-        scopedAskInvocation = nil; askOperation?.cancel()
-        askOperation = Task {
-            let activityIdentity = await startAskActivity(sessionID: sessionID)
-            do {
-                try await waitForFixtureAskDelayIfNeeded()
-                let response = try await workspaceStore.researchPerson(
-                    objective: effectiveObjective,
-                    imageData: mediaDraft.data,
-                    mediaType: mediaDraft.mediaType,
-                    idempotencyKey: idempotencyKey
-                )
-                try Task.checkCancellation()
-                guard activeSessionID == sessionID,
-                      pendingScopedSend == effectiveObjective else { return }
-                guard sessionStore.recordUnscopedPersonResearch(
-                    sessionID: sessionID,
-                    objective: effectiveObjective,
-                    response: response.relationshipAskProjection
-                ) else {
-                    throw PursuitWorkspaceClientError.invalidResponse
-                }
-                pendingObjective = nil
-                pendingScopedSend = nil
-                relationshipRecallPhase = .idle
-                updateAskSubmissionPhase(.idle)
-                if response.disposition == "unavailable" {
-                    await updateAskActivity(activityIdentity, phase: .failed)
+        operationState.replaceOperation { operationID in
+            Task {
+                defer { if operationState.finishOperationIfCurrent(operationID) { operationState.isSending = false } }
+                let activityIdentity = await startAskActivity(sessionID: sessionID)
+                guard operationState.isCurrentOperation(operationID), !Task.isCancelled else { return }
+                do {
+                    try await waitForFixtureAskDelayIfNeeded()
+                    let response = try await workspaceStore.researchPerson(
+                        objective: effectiveObjective, imageData: mediaDraft.data, mediaType: mediaDraft.mediaType,
+                        idempotencyKey: idempotencyKey)
+                    try Task.checkCancellation()
+                    guard activeSessionID == sessionID, operationState.pendingScopedSend == effectiveObjective,
+                        operationState.isCurrentOperation(operationID)
+                    else { return }
+                    guard
+                        sessionStore.recordUnscopedPersonResearch(
+                            sessionID: sessionID, objective: effectiveObjective,
+                            response: response.relationshipAskProjection)
+                    else { throw PursuitWorkspaceClientError.invalidResponse }
+                    operationState.pendingObjective = nil
+                    operationState.pendingScopedSend = nil
+                    operationState.relationshipRecallPhase = .idle
+                    updateAskSubmissionPhase(.idle)
+                    if response.disposition == "unavailable" {
+                        await updateAskActivity(activityIdentity, phase: .failed)
+                        guard operationState.isCurrentOperation(operationID), !Task.isCancelled else { return }
+                        draft = originalDraft
+                        sessionStore.saveGlobalDraft(originalDraft)
+                        mediaNotice = appLanguage.text(
+                            "The Agent did not complete this Run. The screenshot remains only on this screen for a fresh retry; the backend receipt says it was not retained."
+                        )
+                    } else {
+                        await updateAskActivity(activityIdentity, phase: .review)
+                        guard operationState.isCurrentOperation(operationID), !Task.isCancelled else { return }
+                        sessionStore.saveGlobalDraft("")
+                        mediaDrafts = []
+                        mediaNotice = appLanguage.text(
+                            "Screenshot processed for this Run · raw image not retained · public matches remain unconfirmed"
+                        )
+                    }
+                } catch {
+                    guard !Task.isCancelled, operationState.isCurrentOperation(operationID) else { return }
+                    await updateAskActivity(activityIdentity, phase: askActivityFailurePhase(error))
+                    guard !Task.isCancelled, operationState.isCurrentOperation(operationID) else { return }
                     draft = originalDraft
-                    sessionStore.saveGlobalDraft(originalDraft)
-                    mediaNotice = appLanguage.text(
-                        "The Agent did not complete this Run. The screenshot remains only on this screen for a fresh retry; the backend receipt says it was not retained."
-                    )
-                } else {
-                    await updateAskActivity(activityIdentity, phase: .review)
-                    sessionStore.saveGlobalDraft("")
-                    mediaDrafts = []
-                    mediaNotice = appLanguage.text(
-                        "Screenshot processed for this Run · raw image not retained · public matches remain unconfirmed"
-                    )
+                    operationState.pendingObjective = nil
+                    operationState.pendingScopedSend = nil
+                    operationState.relationshipRecallPhase = .idle
+                    updateAskSubmissionPhase(.idle)
+                    presentAskFailure(error)
                 }
-            } catch {
-                if Task.isCancelled { return }
-                await updateAskActivity(
-                    activityIdentity,
-                    phase: askActivityFailurePhase(error)
-                )
-                draft = originalDraft
-                pendingObjective = nil
-                pendingScopedSend = nil
-                relationshipRecallPhase = .idle
-                updateAskSubmissionPhase(.idle)
-                presentAskFailure(error)
             }
-            isSending = false
-            askOperation = nil
         }
     }
 
-    private func performUnscopedChat(
-        sessionID: UUID,
-        effectiveObjective: String,
-        originalDraft: String
-    ) {
-        guard let idempotencyKey = sessionStore.beginUnscopedChat(
-            sessionID: sessionID,
-            objective: effectiveObjective,
-            proposedIdempotencyKey: "ios:unscoped-chat:\(UUID().uuidString.lowercased())"
-        ) else {
-            isSending = false
-            pendingObjective = nil
-            pendingScopedSend = nil
-            relationshipRecallPhase = .idle
-            updateAskSubmissionPhase(.idle)
+    private func performUnscopedChat(sessionID: UUID, effectiveObjective: String, originalDraft: String) {
+        guard
+            let idempotencyKey = sessionStore.beginUnscopedChat(
+                sessionID: sessionID, objective: effectiveObjective,
+                proposedIdempotencyKey: "ios:unscoped-chat:\(UUID().uuidString.lowercased())")
+        else {
+            returnOperationStateToIdle()
             draft = originalDraft
             errorMessage = appLanguage.text(
-                "A protected conversation retry could not be saved. Your message was not sent."
-            )
+                "A protected conversation retry could not be saved. Your message was not sent.")
             return
         }
 
         if !isCanonical {
-#if DEBUG
-            if ProcessInfo.processInfo.arguments.contains(
-                "--fixture-agent-contact-proposal"
-            ), var proposal = ConversationContactIntake.propose(
-                effectiveObjective
-            ) {
-                proposal.interpreter = .workspaceAgent
-                let digest = SHA256.hash(data: Data(effectiveObjective.utf8))
-                    .map { String(format: "%02x", $0) }
-                    .joined()
-                let proposalOperationKey = "ios:fixture-agent-contact:\(digest)"
-                guard sessionStore.promoteUnscopedChatToContactProposal(
-                    sessionID: sessionID,
-                    objective: effectiveObjective,
-                    unscopedChatIdempotencyKey: idempotencyKey,
-                    draft: proposal,
-                    proposalIdempotencyKey: proposalOperationKey,
-                    clearingGlobalDraft: true
-                ) else {
-                    isSending = false
-                    pendingObjective = nil
-                    pendingScopedSend = nil
-                    relationshipRecallPhase = .idle
-                    updateAskSubmissionPhase(.idle)
-                    draft = originalDraft
-                    errorMessage = appLanguage.text(
-                        "The preview proposal could not be protected."
-                    )
+            #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--fixture-agent-contact-proposal"),
+                    var proposal = ConversationContactIntake.propose(effectiveObjective)
+                {
+                    proposal.interpreter = .workspaceAgent
+                    let digest = SHA256.hash(data: Data(effectiveObjective.utf8)).map { String(format: "%02x", $0) }
+                        .joined()
+                    let proposalOperationKey = "ios:fixture-agent-contact:\(digest)"
+                    guard
+                        sessionStore.promoteUnscopedChatToContactProposal(
+                            sessionID: sessionID, objective: effectiveObjective,
+                            unscopedChatIdempotencyKey: idempotencyKey, draft: proposal,
+                            proposalIdempotencyKey: proposalOperationKey, clearingGlobalDraft: true)
+                    else {
+                        returnOperationStateToIdle()
+                        draft = originalDraft
+                        errorMessage = appLanguage.text("The preview proposal could not be protected.")
+                        return
+                    }
+                    returnOperationStateToIdle()
+                    sessionStore.saveGlobalDraft("")
+                    stageContactProposal(proposal, operationKey: proposalOperationKey, proposalIsProtected: true)
                     return
                 }
-                pendingObjective = nil
-                pendingScopedSend = nil
-                relationshipRecallPhase = .idle
-                updateAskSubmissionPhase(.idle)
-                sessionStore.saveGlobalDraft("")
-                isSending = false
-                stageContactProposal(
-                    proposal,
-                    operationKey: proposalOperationKey,
-                    proposalIsProtected: true
-                )
-                return
-            }
-#endif
+            #endif
             let response = previewUnscopedResponse(for: effectiveObjective)
-            guard sessionStore.recordUnscopedChat(
-                sessionID: sessionID,
-                objective: effectiveObjective,
-                response: response
-            ) else {
-                isSending = false
-                pendingObjective = nil
-                pendingScopedSend = nil
-                relationshipRecallPhase = .idle
-                updateAskSubmissionPhase(.idle)
+            guard
+                sessionStore.recordUnscopedChat(sessionID: sessionID, objective: effectiveObjective, response: response)
+            else {
+                returnOperationStateToIdle()
                 draft = originalDraft
-                errorMessage = appLanguage.text(
-                    "The preview reply could not be saved."
-                )
+                errorMessage = appLanguage.text("The preview reply could not be saved.")
                 return
             }
-            pendingObjective = nil
-            pendingScopedSend = nil
-            relationshipRecallPhase = .idle
-            updateAskSubmissionPhase(.idle)
+            returnOperationStateToIdle()
             sessionStore.saveGlobalDraft("")
-            isSending = false
             return
         }
 
-        scopedAskInvocation = nil; askOperation?.cancel()
-        askOperation = Task {
-            var continuationScope: AskScope?
-            let activityIdentity = await startAskActivity(sessionID: sessionID)
-            do {
-                try await waitForFixtureAskDelayIfNeeded()
-                guard await synchronizeSessions(sessionID) else {
-                    throw sessionSynchronizationFailure(sessionID)
+        operationState.replaceOperation { operationID in
+            Task {
+                var continuationScope: AskScope?
+                defer {
+                    if operationState.finishOperationIfCurrent(operationID) {
+                        operationState.isSending = false
+                        if let continuationScope {
+                            operationState.isSending = true
+                            performScopedAsk(
+                                effectiveObjective: effectiveObjective, originalDraft: originalDraft,
+                                scope: continuationScope)
+                        }
+                    }
                 }
-                guard activeSessionID == sessionID, !Task.isCancelled,
-                      pendingScopedSend == effectiveObjective else { return }
-                let response = try await workspaceStore.chatUnscoped(
-                    objective: effectiveObjective,
-                    idempotencyKey: idempotencyKey,
-                    sessionID: sessionID,
-                    messageID: UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? "")
-                )
-                try Task.checkCancellation()
-                guard activeSessionID == sessionID,
-                      pendingScopedSend == effectiveObjective else { return }
-                if [
-                    "contact_candidates",
-                    "resolved_contact_context",
-                    "contact_change_proposal",
-                ]
-                    .contains(response.agentEvent?.kind ?? "") {
-                    await workspaceStore.load()
+                let activityIdentity = await startAskActivity(sessionID: sessionID)
+                guard operationState.isCurrentOperation(operationID), !Task.isCancelled else { return }
+                do {
+                    try await waitForFixtureAskDelayIfNeeded()
+                    guard await synchronizeSessions(sessionID) else { throw sessionSynchronizationFailure(sessionID) }
+                    guard activeSessionID == sessionID, !Task.isCancelled,
+                        operationState.pendingScopedSend == effectiveObjective,
+                        operationState.isCurrentOperation(operationID)
+                    else { return }
+                    let response = try await workspaceStore.chatUnscoped(
+                        objective: effectiveObjective, idempotencyKey: idempotencyKey, sessionID: sessionID,
+                        messageID: UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? ""))
                     try Task.checkCancellation()
-                    guard activeSessionID == sessionID,
-                          pendingScopedSend == effectiveObjective else { return }
-                }
-                if response.agentEvent?.kind == "contact_candidates" {
-                    guard let event = response.agentEvent,
-                          let eventCandidates = event.candidates else {
-                        throw PursuitWorkspaceClientError.invalidResponse
+                    guard activeSessionID == sessionID, operationState.pendingScopedSend == effectiveObjective,
+                        operationState.isCurrentOperation(operationID)
+                    else { return }
+                    if ["contact_candidates", "resolved_contact_context", "contact_change_proposal"].contains(
+                        response.agentEvent?.kind ?? "")
+                    {
+                        await workspaceStore.load()
+                        try Task.checkCancellation()
+                        guard activeSessionID == sessionID, operationState.pendingScopedSend == effectiveObjective,
+                            operationState.isCurrentOperation(operationID)
+                        else { return }
                     }
-                    let candidates: [AgentRelationshipRecallCandidate] =
-                        eventCandidates.compactMap { item -> AgentRelationshipRecallCandidate? in
-                        guard let person = currentSnapshot.people.first(where: {
-                            $0.id == item.personID
-                        }),
-                        let context = person.contexts.first(where: {
-                            $0.id == item.relationshipContextID
-                        }) else { return nil }
-                        return AgentRelationshipRecallCandidate(
-                            person: person,
-                            context: context,
-                            matchScore: 0,
-                            matchedPersonName: true,
-                            matchedContextName: false,
-                            matchedRecentSession: false
-                        )
-                    }
-                    guard candidates.count == eventCandidates.count else {
-                        throw PursuitWorkspaceClientError.scopeReadbackMismatch
-                    }
-                    relationshipRecallPhase = .ambiguous(
-                        candidates: candidates,
-                        possibleDuplicate: event.possibleDuplicate ?? false
-                    )
-                    updateAskSubmissionPhase(.idle)
-                } else if response.agentEvent?.kind == "resolved_contact_context" {
-                    guard let event = response.agentEvent,
-                          let personID = event.personID,
-                          let contextID = event.relationshipContextID,
-                          let person = currentSnapshot.people.first(where: {
-                              $0.id == personID
-                          }),
-                          let context = person.contexts.first(where: {
-                              $0.id == contextID
-                          }),
-                          sessionStore.bindUnscopedSession(
-                              id: sessionID,
-                              person: person,
-                              context: context
-                          ) else {
-                        throw PursuitWorkspaceClientError.scopeReadbackMismatch
-                    }
-                    let candidate = AgentRelationshipRecallCandidate(
-                        person: person,
-                        context: context,
-                        matchScore: 0,
-                        matchedPersonName: true,
-                        matchedContextName: true,
-                        matchedRecentSession: false
-                    )
-                    let scope = AskScope(person: person, context: context)
-                    selectedScope = scope
-                    continuationScope = scope
-                    relationshipRecallPhase = .reading(candidate)
-                } else {
-                    if let event = response.agentEvent,
-                       event.kind == "contact_change_proposal" {
-                        guard stageAgentContactProposal(
-                            event,
-                            source: originalDraft.isEmpty
-                                ? effectiveObjective
-                                : originalDraft,
-                            sessionID: sessionID,
-                            objective: effectiveObjective,
-                            unscopedChatIdempotencyKey: idempotencyKey
-                        ) else {
+                    if response.agentEvent?.kind == "contact_candidates" {
+                        guard let event = response.agentEvent, let eventCandidates = event.candidates else {
                             throw PursuitWorkspaceClientError.invalidResponse
                         }
+                        let candidates: [AgentRelationshipRecallCandidate] = eventCandidates.compactMap {
+                            item -> AgentRelationshipRecallCandidate? in
+                            guard let person = currentSnapshot.people.first(where: { $0.id == item.personID }),
+                                let context = person.contexts.first(where: { $0.id == item.relationshipContextID })
+                            else { return nil }
+                            return AgentRelationshipRecallCandidate(
+                                person: person, context: context, matchScore: 0, matchedPersonName: true,
+                                matchedContextName: false, matchedRecentSession: false)
+                        }
+                        guard candidates.count == eventCandidates.count else {
+                            throw PursuitWorkspaceClientError.scopeReadbackMismatch
+                        }
+                        operationState.relationshipRecallPhase = .ambiguous(
+                            candidates: candidates, possibleDuplicate: event.possibleDuplicate ?? false)
+                        updateAskSubmissionPhase(.idle)
+                    } else if response.agentEvent?.kind == "resolved_contact_context" {
+                        guard let event = response.agentEvent, let personID = event.personID,
+                            let contextID = event.relationshipContextID,
+                            let person = currentSnapshot.people.first(where: { $0.id == personID }),
+                            let context = person.contexts.first(where: { $0.id == contextID }),
+                            sessionStore.bindUnscopedSession(id: sessionID, person: person, context: context)
+                        else { throw PursuitWorkspaceClientError.scopeReadbackMismatch }
+                        let candidate = AgentRelationshipRecallCandidate(
+                            person: person, context: context, matchScore: 0, matchedPersonName: true,
+                            matchedContextName: true, matchedRecentSession: false)
+                        let scope = AskScope(person: person, context: context)
+                        selectedScope = scope
+                        continuationScope = scope
+                        operationState.relationshipRecallPhase = .reading(candidate)
                     } else {
-                        guard sessionStore.recordUnscopedChat(
-                            sessionID: sessionID,
-                            objective: effectiveObjective,
-                            response: response.relationshipAskProjection
-                        ) else {
-                            throw PursuitWorkspaceClientError.invalidResponse
+                        if let event = response.agentEvent, event.kind == "contact_change_proposal" {
+                            guard
+                                stageAgentContactProposal(
+                                    event, source: originalDraft.isEmpty ? effectiveObjective : originalDraft,
+                                    sessionID: sessionID, objective: effectiveObjective,
+                                    unscopedChatIdempotencyKey: idempotencyKey)
+                            else { throw PursuitWorkspaceClientError.invalidResponse }
+                        } else {
+                            guard
+                                sessionStore.recordUnscopedChat(
+                                    sessionID: sessionID, objective: effectiveObjective,
+                                    response: response.relationshipAskProjection)
+                            else { throw PursuitWorkspaceClientError.invalidResponse }
                         }
+                        operationState.pendingObjective = nil
+                        operationState.pendingScopedSend = nil
+                        operationState.relationshipRecallPhase = .idle
+                        updateAskSubmissionPhase(.idle)
+                        sessionStore.saveGlobalDraft("")
                     }
-                    pendingObjective = nil
-                    pendingScopedSend = nil
-                    relationshipRecallPhase = .idle
+                    if continuationScope == nil {
+                        await updateAskActivity(activityIdentity, phase: .review)
+                        guard operationState.isCurrentOperation(operationID), !Task.isCancelled else { return }
+                    }
+                } catch {
+                    guard !Task.isCancelled, operationState.isCurrentOperation(operationID) else { return }
+                    await updateAskActivity(activityIdentity, phase: askActivityFailurePhase(error))
+                    guard !Task.isCancelled, operationState.isCurrentOperation(operationID) else { return }
+                    draft = originalDraft
+                    operationState.pendingObjective = nil
+                    operationState.pendingScopedSend = nil
+                    operationState.relationshipRecallPhase = .idle
                     updateAskSubmissionPhase(.idle)
-                    sessionStore.saveGlobalDraft("")
+                    presentAskFailure(error)
                 }
-                if continuationScope == nil {
-                    await updateAskActivity(activityIdentity, phase: .review)
-                }
-            } catch {
-                if Task.isCancelled { return }
-                await updateAskActivity(
-                    activityIdentity,
-                    phase: askActivityFailurePhase(error)
-                )
-                draft = originalDraft
-                pendingObjective = nil
-                pendingScopedSend = nil
-                relationshipRecallPhase = .idle
-                updateAskSubmissionPhase(.idle)
-                presentAskFailure(error)
-            }
-            isSending = false
-            askOperation = nil
-            if let continuationScope {
-                isSending = true
-                performScopedAsk(
-                    effectiveObjective: effectiveObjective,
-                    originalDraft: originalDraft,
-                    scope: continuationScope
-                )
             }
         }
     }
@@ -4253,9 +4206,9 @@ struct RelationshipAskView: View {
     private func continueWithoutRelationship() {
         guard mediaDrafts.isEmpty,
               let sessionID = activeSessionID,
-              let effectiveObjective = pendingScopedSend else { return }
-        isSending = true
-        relationshipRecallPhase = .replyingWithoutRelationship
+              let effectiveObjective = operationState.pendingScopedSend else { return }
+        operationState.isSending = true
+        operationState.relationshipRecallPhase = .replyingWithoutRelationship
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
         performUnscopedChat(
             sessionID: sessionID,
@@ -4268,12 +4221,12 @@ struct RelationshipAskView: View {
         _ candidate: AgentRelationshipRecallCandidate
     ) {
         guard let activeSessionID,
-              let effectiveObjective = pendingScopedSend,
+              let effectiveObjective = operationState.pendingScopedSend,
               bindRecalledCandidate(candidate, to: activeSessionID) else {
             return
         }
-        isSending = true
-        relationshipRecallPhase = .reading(candidate)
+        operationState.isSending = true
+        operationState.relationshipRecallPhase = .reading(candidate)
         performScopedAsk(
             effectiveObjective: effectiveObjective,
             originalDraft: effectiveObjective,
@@ -4304,13 +4257,12 @@ struct RelationshipAskView: View {
     }
 
     private func changeRecalledRelationship() {
-        guard pendingObjective != nil else { return }
-        scopedAskInvocation = nil; askOperation?.cancel()
-        askOperation = nil
-        isSending = false
+        guard operationState.pendingObjective != nil else { return }
+        operationState.cancelOperation()
+        operationState.isSending = false
         updateAskSubmissionPhase(.idle)
         selectedScope = nil
-        relationshipRecallPhase = .unresolved(
+        operationState.relationshipRecallPhase = .unresolved(
             recent: AgentRelationshipRecallPolicy.recentCandidatesForReview(
                 people: currentSnapshot.people,
                 recentSessions: sessionStore.sessions
@@ -4329,12 +4281,13 @@ struct RelationshipAskView: View {
             if ProcessInfo.processInfo.arguments.contains(
                 "--fixture-ask-delay-seconds"
             ) {
-                scopedAskInvocation = nil; askOperation?.cancel()
-                askOperation = Task {
-                    try? await waitForFixtureAskDelayIfNeeded()
-                    guard !Task.isCancelled else { return }
-                    surfacePreviewAskFailure(originalDraft: originalDraft)
-                    askOperation = nil
+                operationState.replaceOperation { operationID in
+                    Task {
+                        try? await waitForFixtureAskDelayIfNeeded()
+                        guard !Task.isCancelled,
+                              operationState.finishOperationIfCurrent(operationID) else { return }
+                        surfacePreviewAskFailure(originalDraft: originalDraft)
+                    }
                 }
                 return
             }
@@ -4343,123 +4296,124 @@ struct RelationshipAskView: View {
             return
         }
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
-        scopedAskInvocation = nil; askOperation?.cancel()
-        let invocation = UUID()
-        scopedAskInvocation = invocation
-        askOperation = Task {
-            defer {
-                if scopedAskInvocation == invocation {
-                    scopedAskInvocation = nil
-                    isSending = false; askOperation = nil
-                    pendingObjective = nil; pendingScopedSend = nil
-                    relationshipRecallPhase = .idle
-                    updateAskSubmissionPhase(.idle)
+        operationState.replaceOperation { operationID in
+            Task {
+                defer {
+                    if operationState.finishOperationIfCurrent(operationID) {
+                        returnOperationStateToIdle()
+                    }
                 }
-            }
-            let sessionID = activeSessionID ?? UUID()
-            activeSessionID = sessionID
-            let reviewOwner = AskCitationReviewOwner(workspaceID: currentSnapshot.workspaceID,
-                userID: currentSnapshot.currentUserID, sessionID: sessionID,
-                personID: scope.person.id, contextID: scope.context.id)
-            do {
-                try await waitForMediaToBecomeReady()
-                try Task.checkCancellation()
-                let mediaIDs = mediaDrafts.compactMap(\.readyMediaID)
-                guard mediaIDs.count == mediaDrafts.count else {
-                    throw PursuitWorkspaceClientError.askUnavailable
-                }
-                let operationID = UUID()
-                guard let idempotencyKey = sessionStore.beginAsk(
-                    effectiveObjective,
-                    personID: scope.person.id,
-                    relationshipContextID: scope.context.id,
-                    proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())",
-                    requestIdentity: mediaIDs.isEmpty
-                        ? nil
-                        : mediaIDs.joined(separator: ":"),
-                    sessionID: sessionID
-                ) else {
-                    draft = originalDraft
-                    pendingObjective = nil
-                    pendingScopedSend = nil
-                    relationshipRecallPhase = .idle
-                    updateAskSubmissionPhase(.idle)
-                    isSending = false
-                    errorMessage = appLanguage.text(
-                        "The question could not be protected for retry. Your message was not sent."
-                    )
-                    askOperation = nil
-                    return
-                }
-                let activityIdentity = await startAskActivity(sessionID: sessionID)
-                try await waitForFixtureAskDelayIfNeeded()
+                let sessionID = activeSessionID ?? UUID()
+                activeSessionID = sessionID
+                let reviewOwner = AskCitationReviewOwner(workspaceID: currentSnapshot.workspaceID,
+                    userID: currentSnapshot.currentUserID, sessionID: sessionID,
+                    personID: scope.person.id, contextID: scope.context.id)
+                do {
+                    try await waitForMediaToBecomeReady()
+                    try Task.checkCancellation()
+                    guard operationState.isCurrentOperation(operationID) else { return }
+                    let mediaIDs = mediaDrafts.compactMap(\.readyMediaID)
+                    guard mediaIDs.count == mediaDrafts.count else {
+                        throw PursuitWorkspaceClientError.askUnavailable
+                    }
+                    let requestID = UUID()
+                    guard let idempotencyKey = sessionStore.beginAsk(
+                        effectiveObjective,
+                        personID: scope.person.id,
+                        relationshipContextID: scope.context.id,
+                        proposedIdempotencyKey: "ios:ask:\(requestID.uuidString.lowercased())",
+                        requestIdentity: mediaIDs.isEmpty
+                            ? nil
+                            : mediaIDs.joined(separator: ":"),
+                        sessionID: sessionID
+                    ) else {
+                        draft = originalDraft
+                        returnOperationStateToIdle()
+                        errorMessage = appLanguage.text(
+                            "The question could not be protected for retry. Your message was not sent."
+                        )
+                        return
+                    }
+                    let activityIdentity = await startAskActivity(sessionID: sessionID)
+                    guard !Task.isCancelled,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    try await waitForFixtureAskDelayIfNeeded()
+                    guard !Task.isCancelled,
+                          operationState.isCurrentOperation(operationID) else { return }
 #if DEBUG
-                fixtureAskRequestCount += 1
+                    fixtureAskRequestCount += 1
 #endif
-                guard await synchronizeSessions(sessionID) else {
-                    throw sessionSynchronizationFailure(sessionID)
-                }
-                guard activeSessionID == sessionID, !Task.isCancelled,
-                      pendingScopedSend == effectiveObjective else { return }
-                let response = try await ask(
-                    effectiveObjective,
-                    scope.person.id,
-                    scope.context.id,
-                    idempotencyKey,
-                    mediaIDs,
-                    sessionID,
-                    UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? "")
-                )
-                try Task.checkCancellation()
-                guard activeSessionID == sessionID, selectedScope?.id == scope.id,
-                      pendingScopedSend == effectiveObjective else {
-                    return
-                }
-                sessionStore.revalidateEvidenceReviewAuthority(
-                    citations: response.citations,
-                    supersededMessage: appLanguage.text(
-                        "A newer source decision is already current. This older operation cannot be retried.",
-                        zhHans: "已有更新的来源决定生效。这条较早的操作不能再次重试。"
+                    guard await synchronizeSessions(sessionID) else {
+                        throw sessionSynchronizationFailure(sessionID)
+                    }
+                    guard activeSessionID == sessionID, !Task.isCancelled,
+                          operationState.pendingScopedSend == effectiveObjective,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    let response = try await ask(
+                        effectiveObjective,
+                        scope.person.id,
+                        scope.context.id,
+                        idempotencyKey,
+                        mediaIDs,
+                        sessionID,
+                        UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? "")
                     )
-                )
-                guard let recordedSessionID = sessionStore.recordIfOwned(
-                    sessionID: sessionID,
-                    objective: effectiveObjective,
-                    response: response,
-                    person: scope.person,
-                    context: scope.context,
-                    sourceMessageID: UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? "")
-                ) else {
-                    throw AskSessionSynchronizationFailure(message: appLanguage.text("The original Session is no longer available. Your message was not recorded."))
-                }
-                activeSessionID = recordedSessionID
-                pendingObjective = nil
-                pendingScopedSend = nil
-                relationshipRecallPhase = .idle
-                updateAskSubmissionPhase(.idle)
-                sessionStore.saveGlobalDraft("")
-                sessionStore.clearDraft(
-                    personID: scope.person.id,
-                    relationshipContextID: scope.context.id
-                )
-                mediaDrafts = []
-                mediaNotice = nil
-                await updateAskActivity(activityIdentity, phase: .review)
-            } catch {
-                guard !Task.isCancelled, currentReviewOwner == reviewOwner else { return }
-                if let identity = currentAskActivityIdentity(sessionID: sessionID) {
-                    await updateAskActivity(
-                        identity,
-                        phase: askActivityFailurePhase(error)
+                    try Task.checkCancellation()
+                    guard activeSessionID == sessionID, selectedScope?.id == scope.id,
+                          operationState.pendingScopedSend == effectiveObjective,
+                          operationState.isCurrentOperation(operationID) else {
+                        return
+                    }
+                    sessionStore.revalidateEvidenceReviewAuthority(
+                        citations: response.citations,
+                        supersededMessage: appLanguage.text(
+                            "A newer source decision is already current. This older operation cannot be retried.",
+                            zhHans: "已有更新的来源决定生效。这条较早的操作不能再次重试。"
+                        )
                     )
+                    guard let recordedSessionID = sessionStore.recordIfOwned(
+                        sessionID: sessionID,
+                        objective: effectiveObjective,
+                        response: response,
+                        person: scope.person,
+                        context: scope.context,
+                        sourceMessageID: UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? "")
+                    ) else {
+                        throw AskSessionSynchronizationFailure(message: appLanguage.text("The original Session is no longer available. Your message was not recorded."))
+                    }
+                    activeSessionID = recordedSessionID
+                    operationState.pendingObjective = nil
+                    operationState.pendingScopedSend = nil
+                    operationState.relationshipRecallPhase = .idle
+                    updateAskSubmissionPhase(.idle)
+                    sessionStore.saveGlobalDraft("")
+                    sessionStore.clearDraft(
+                        personID: scope.person.id,
+                        relationshipContextID: scope.context.id
+                    )
+                    mediaDrafts = []
+                    mediaNotice = nil
+                    await updateAskActivity(activityIdentity, phase: .review)
+                } catch {
+                    guard !Task.isCancelled,
+                          currentReviewOwner == reviewOwner,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    if let identity = currentAskActivityIdentity(sessionID: sessionID) {
+                        await updateAskActivity(
+                            identity,
+                            phase: askActivityFailurePhase(error)
+                        )
+                    }
+                    guard !Task.isCancelled,
+                          currentReviewOwner == reviewOwner,
+                          operationState.isCurrentOperation(operationID) else { return }
+                    draft = originalDraft
+                    operationState.pendingObjective = nil
+                    operationState.pendingScopedSend = nil
+                    operationState.relationshipRecallPhase = .idle
+                    updateAskSubmissionPhase(.idle)
+                    presentAskFailure(error, reviewOwner: reviewOwner)
                 }
-                guard currentReviewOwner == reviewOwner else { return }
-                draft = originalDraft
-                pendingObjective = nil
-                pendingScopedSend = nil
-                relationshipRecallPhase = .idle
-                updateAskSubmissionPhase(.idle)
-                presentAskFailure(error, reviewOwner: reviewOwner)
             }
         }
     }
@@ -4516,11 +4470,7 @@ struct RelationshipAskView: View {
 
     private func surfacePreviewAskFailure(originalDraft: String) {
         draft = originalDraft
-        pendingObjective = nil
-        pendingScopedSend = nil
-        relationshipRecallPhase = .idle
-        updateAskSubmissionPhase(.idle)
-        isSending = false
+        returnOperationStateToIdle()
         errorMessage = appLanguage.text(
             "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
         )
@@ -4598,8 +4548,18 @@ struct RelationshipAskView: View {
     }
 
     private func updateAskSubmissionPhase(_ phase: AskSubmissionPhase) {
-        guard askSubmissionPhase != phase else { return }
-        askSubmissionPhase = phase
+        guard operationState.transitionAskSubmissionPhase(to: phase) else { return }
+        askSubmissionDiagnostic(for: phase)
+    }
+
+    /// Returns the pending values, busy flag, and visible phases to idle while
+    /// emitting the submission diagnostic only on a real phase transition.
+    private func returnOperationStateToIdle() {
+        guard operationState.returnToIdle() else { return }
+        askSubmissionDiagnostic(for: .idle)
+    }
+
+    private func askSubmissionDiagnostic(for phase: AskSubmissionPhase) {
         let diagnostic: AskInputDiagnostics.SubmissionState
         switch phase {
         case .idle:
@@ -4692,7 +4652,7 @@ struct RelationshipAskView: View {
             sessionActionError = appLanguage.text("Finish or dismiss the current contact proposal first.")
             return
         }
-        pendingScopedSend = nil
+        operationState.pendingScopedSend = nil
         errorMessage = nil
         isChoosingScope = false
         isRequestingScope = false
@@ -5278,8 +5238,8 @@ struct RelationshipAskView: View {
     }
 
     private func selectScope(_ scope: AskScope) {
-        let pendingSend = pendingScopedSend
-        pendingScopedSend = nil
+        let pendingSend = operationState.pendingScopedSend
+        operationState.pendingScopedSend = nil
         let priorScope = selectedScope
         let unscopedDraft = draft
         let shouldPromoteDraft = priorScope == nil
@@ -7073,23 +7033,6 @@ private struct AskScope: Identifiable, Equatable {
     let person: WorkspacePerson
     let context: WorkspacePerson.Context
     var id: String { "\(person.id):\(context.id)" }
-}
-
-private enum RelationshipRecallPhase: Equatable {
-    case idle
-    case reading(AgentRelationshipRecallCandidate?)
-    case replyingWithoutRelationship
-    case ambiguous(
-        candidates: [AgentRelationshipRecallCandidate],
-        possibleDuplicate: Bool
-    )
-    case unresolved(recent: [AgentRelationshipRecallCandidate])
-}
-
-private enum AskSubmissionPhase: Equatable {
-    case idle
-    case routingLocally
-    case requestingWorkspaceAnswer
 }
 
 private struct SelectedAskCitation: Identifiable {
