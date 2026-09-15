@@ -474,6 +474,20 @@ final class PursuitWorkspaceStore: ObservableObject {
         return try await service.cancelScreenshotContactTask(id: id, revision: revision)
     }
 
+    /// Executes an accepted screenshot stop command without depending on the
+    /// Ask view's currently selected Session. The caller owns an unstructured
+    /// Task so this read-revision-write sequence can finish after dismissal.
+    func cancelLatestScreenshotContactTask(id: String) async throws -> ScreenshotContactTask {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        let latest = try await service.loadScreenshotContactTask(id: id)
+        guard latest.taskID == id else { throw PursuitWorkspaceClientError.invalidResponse }
+        try Task.checkCancellation()
+        return try await service.cancelScreenshotContactTask(
+            id: id,
+            revision: latest.revision
+        )
+    }
+
     func saveContactDraft(
         _ draft: ConversationContactDraft,
         target: ConversationContactTarget,

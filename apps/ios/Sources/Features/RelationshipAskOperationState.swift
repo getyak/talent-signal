@@ -143,14 +143,13 @@ struct RelationshipAskOperationState {
         screenshotCancellationOperations.removeValue(forKey: taskID)?.task.cancel()
     }
 
-    /// Cancels every owned asynchronous effect when the view leaves the tree.
-    mutating func cancelAllOperations() {
+    /// Cancels only the Ask operation when the view leaves the tree.
+    ///
+    /// Screenshot cancellation is a recruiter-accepted stop command, not a
+    /// view-bound refresh. Its unstructured task must survive dismissal or
+    /// navigation long enough to reach the backend and reconcile its result.
+    mutating func cancelViewBoundOperations() {
         cancelOperation()
-        let screenshotCancellations = Array(screenshotCancellationOperations.values)
-        screenshotCancellationOperations.removeAll()
-        for cancellation in screenshotCancellations {
-            cancellation.task.cancel()
-        }
     }
 
     /// Returns the pending values, busy flag, and both visible phases to idle.

@@ -918,7 +918,7 @@ struct RelationshipAskView: View {
             shouldSendAfterCompositionCommits = false
             voiceGestureStartedInControl = false
             flushDraftPersistence()
-            operationState.cancelAllOperations()
+            operationState.cancelViewBoundOperations()
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
@@ -3641,13 +3641,8 @@ struct RelationshipAskView: View {
                     operationState.finishScreenshotCancellationIfCurrent(cancellationID, for: taskID)
                 }
                 do {
-                    let latest = try await workspaceStore.loadScreenshotContactTask(id: taskID)
-                    guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: latest.taskID),
-                          !Task.isCancelled,
-                          operationState.isCurrentScreenshotCancellation(cancellationID, for: taskID) else { return }
-                    let cancelled = try await workspaceStore.cancelScreenshotContactTask(
-                        id: taskID,
-                        revision: latest.revision
+                    let cancelled = try await workspaceStore.cancelLatestScreenshotContactTask(
+                        id: taskID
                     )
                     guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: cancelled.taskID),
                           !Task.isCancelled,
