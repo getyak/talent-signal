@@ -178,6 +178,10 @@ The backend keeper should resolve its own deployed checkout through
 `~/Library/Application Support/Talent Signal/backend/current` with `pwd -P`,
 independently of `web/current`. Advance that backend pointer only after the
 prepared image passes deployment probes and its image/revision pair is saved.
+Before any recovery deployment, the keeper must compare the resolved checkout's
+HEAD with the revision injected by Infisical and fail closed on a mismatch.
+This check covers interruption between saving the image/revision and advancing
+the checkout pointer; never combine an old Compose definition with a new image.
 Keep the prior checkout available for recovery. Before building or deploying,
 require `git status --porcelain` to be empty, require detached HEAD, and verify
 HEAD matches the intended approved revision. Never build or deploy from a dirty
