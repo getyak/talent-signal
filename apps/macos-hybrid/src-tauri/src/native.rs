@@ -239,7 +239,7 @@ pub async fn session_binding_status(
     let pending_cleanup_error = {
         let _commit = lock(&state.lifecycle_commit)?;
         assert_epoch(&state, epoch)?;
-        if let Some(status) = recover_pending_revocation_status(&app)? {
+        if let Some(status) = recover_pending_revocation_status(&app, &state)? {
             return Ok(status);
         }
         cleanup_pending_keychain_entries(&app).err()
@@ -367,7 +367,11 @@ pub fn disconnect_session_binding(
             ),
         });
     }
-    let _ = clear_pending_revocation(&app);
+    if clear_pending_revocation(&app).is_err() {
+        return Ok(BindingStatus::Revoked {
+            reason: "本机凭据与连接已清理，但解绑恢复记录未能确认删除；原生能力保持关闭。".into(),
+        });
+    }
     Ok(BindingStatus::Unbound {
         reason: (!warnings.is_empty()).then(|| format!("已断开；{}。", warnings.join("，"))),
     })
@@ -1293,15 +1297,38 @@ fn recover_pending_revocation(app: &AppHandle) -> Result<(), String> {
     }
 }
 
-fn recover_pending_revocation_status(app: &AppHandle) -> Result<Option<BindingStatus>, String> {
+fn recover_pending_revocation_status(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<Option<BindingStatus>, String> {
     if read_pending_revocation(app)?.is_none() {
         return Ok(None);
     }
-    match recover_pending_revocation(app) {
-        Ok(()) => Ok(Some(BindingStatus::Unbound {
+    Ok(Some(revocation_recovery_status(
+        invalidate_native_effects(app, state),
+        || recover_pending_revocation(app),
+    )))
+}
+
+fn revocation_recovery_status<F>(
+    native_cleanup: Result<(), String>,
+    recover_durable_state: F,
+) -> BindingStatus
+where
+    F: FnOnce() -> Result<(), String>,
+{
+    if let Err(reason) = native_cleanup {
+        return BindingStatus::Revoked {
+            reason: format!(
+                "上一次解绑的本机进程或敏感缓存尚未确认清理：{reason}；原生能力保持关闭。"
+            ),
+        };
+    }
+    match recover_durable_state() {
+        Ok(()) => BindingStatus::Unbound {
             reason: Some("已完成上一次未结束的本机解绑。".into()),
-        })),
-        Err(reason) => Ok(Some(BindingStatus::Revoked { reason })),
+        },
+        Err(reason) => BindingStatus::Revoked { reason },
     }
 }
 
@@ -2766,6 +2793,20 @@ mod tests {
         state.lifecycle_epoch.fetch_add(1, Ordering::SeqCst);
         let _commit = state.lifecycle_commit.lock().expect("commit lock");
         assert!(assert_epoch(&state, old_epoch).is_err());
+    }
+
+    #[test]
+    fn revocation_recovery_never_clears_durable_state_after_native_cleanup_failure() {
+        let durable_recovery_called = Arc::new(AtomicBool::new(false));
+        let observation = Arc::clone(&durable_recovery_called);
+        let status =
+            revocation_recovery_status(Err("helper termination unconfirmed".into()), move || {
+                observation.store(true, Ordering::SeqCst);
+                Ok(())
+            });
+
+        assert!(matches!(status, BindingStatus::Revoked { .. }));
+        assert!(!durable_recovery_called.load(Ordering::SeqCst));
     }
 
     #[test]
