@@ -9,6 +9,7 @@ import {
 } from "@talent-signal/contracts";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../lib/apiError.js";
+import { registerRecurringJob } from "../lib/recurringJob.js";
 import type { LabFeatureOverrideService } from "./labFeatureOverrides.js";
 
 export function registerLabFeatureOverrideRoutes(app: FastifyInstance, service: LabFeatureOverrideService,
@@ -47,7 +48,10 @@ export function registerLabFeatureOverrideRoutes(app: FastifyInstance, service: 
     return { contract_version: CONTRACT_VERSION, override: await service.stop(request.auth, request.params.id) };
   });
   if (enabled) {
-    const timer = setInterval(() => { void service.scrubExpired().catch(() => {}); }, 60_000);
-    timer.unref(); app.addHook("onClose", async () => { clearInterval(timer); });
+    registerRecurringJob(app, {
+      name: "lab-feature-override-expiry-sweep",
+      intervalMs: 60_000,
+      run: () => service.scrubExpired(),
+    });
   }
 }

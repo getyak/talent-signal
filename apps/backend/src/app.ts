@@ -8,6 +8,7 @@ import { registerSystemHealthRoutes } from "./modules/systemHealth.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
+import { registerRecurringJob } from "./lib/recurringJob.js";
 import { LabTaskTrialService } from "./modules/labTaskTrials.js";
 import { registerLabTaskTrialRoutes } from "./modules/labTaskTrialRoutes.js";
 import { LabFeatureOverrideService } from "./modules/labFeatureOverrides.js";
@@ -3197,18 +3198,19 @@ export async function buildApp(
   );
 
   const stopProductProjection = startProductRunProjection(pool, () => app.log.error("Product run Opik projection unavailable; local records retained"));
-  const retentionSweep = setInterval(() => {
-    void expireScreenshotContactTasks(pool,chatMediaStorage).catch(()=>app.log.error("Contact task retention sweep failed"));
-    void runSourceLifecycleSweep(pool).catch((error: unknown) => {
-      app.log.error(
-        { err: error },
-        "Source lifecycle sweep failed",
-      );
-    });
-  }, config.retentionSweepIntervalMs);
-  retentionSweep.unref();
+  registerRecurringJob(app, {
+    name: "contact-task-retention-sweep",
+    intervalMs: config.retentionSweepIntervalMs,
+    run: () => expireScreenshotContactTasks(pool, chatMediaStorage),
+  });
+  registerRecurringJob(app, {
+    name: "source-lifecycle-sweep",
+    intervalMs: config.retentionSweepIntervalMs,
+    run: async () => {
+      await runSourceLifecycleSweep(pool);
+    },
+  });
   app.addHook("onClose", async () => {
-    clearInterval(retentionSweep);
     await stopProductProjection();
     await screenshotRunner?.close();
   });

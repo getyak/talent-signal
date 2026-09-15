@@ -10,6 +10,7 @@ import type { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fas
 import type { Pool } from "pg";
 import { inTransaction } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
+import { registerRecurringJob } from "../lib/recurringJob.js";
 import { labHash } from "./labJobCases.js";
 import type { AuthContext } from "./auth.js";
 
@@ -219,12 +220,15 @@ export function registerProductRunMonitoring(app: FastifyInstance, pool: Pool, a
       output_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }), expected_behavior: Type.String({ minLength: 1, maxLength: 2000 }) }, { additionalProperties: false }) } },
     async request => ({ contract_version: CONTRACT_VERSION, ...await saveProductRunCase(pool, request.auth,
       await service.detail(request.auth, request.params.id), request.body) }));
-  const timer = setInterval(() => { void inTransaction(pool, async client => {
-    await client.query(`DELETE FROM product_run_spans WHERE run_id IN (SELECT id FROM product_runs WHERE NOT product_run_source_available(id))`);
-    await client.query(`UPDATE product_run_feedback_events SET output='null'::jsonb,comment='',correction='',selected_text=''
-      WHERE run_id IN (SELECT id FROM product_runs WHERE NOT product_run_source_available(id))`);
-    await client.query(`UPDATE product_runs SET input=NULL,output=NULL,objective='',comment='',correction='',selected_text=''
-      WHERE input IS NOT NULL AND NOT product_run_source_available(id)`);
-  }).catch(() => app.log.error("Product run cleanup failed")); }, 60_000);
-  timer.unref(); app.addHook("onClose", async () => clearInterval(timer));
+  registerRecurringJob(app, {
+    name: "product-run-source-cleanup",
+    intervalMs: 60_000,
+    run: () => inTransaction(pool, async client => {
+      await client.query(`DELETE FROM product_run_spans WHERE run_id IN (SELECT id FROM product_runs WHERE NOT product_run_source_available(id))`);
+      await client.query(`UPDATE product_run_feedback_events SET output='null'::jsonb,comment='',correction='',selected_text=''
+        WHERE run_id IN (SELECT id FROM product_runs WHERE NOT product_run_source_available(id))`);
+      await client.query(`UPDATE product_runs SET input=NULL,output=NULL,objective='',comment='',correction='',selected_text=''
+        WHERE input IS NOT NULL AND NOT product_run_source_available(id)`);
+    }),
+  });
 }

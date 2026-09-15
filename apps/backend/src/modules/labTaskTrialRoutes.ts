@@ -3,6 +3,7 @@ import { CONTRACT_VERSION, ErrorResponseSchema, LabTaskConfigurationSchema, LabT
   LabTaskTrialResponseSchema, type LabTaskTrialRequest } from "@talent-signal/contracts";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../lib/apiError.js";
+import { registerRecurringJob } from "../lib/recurringJob.js";
 import type { LabTaskTrialService } from "./labTaskTrials.js";
 
 export function registerLabTaskTrialRoutes(app: FastifyInstance, service: LabTaskTrialService,
@@ -41,7 +42,10 @@ export function registerLabTaskTrialRoutes(app: FastifyInstance, service: LabTas
     return { contract_version: CONTRACT_VERSION, trial: await service.stop(request.auth, request.params.id) };
   });
   if (enabled) {
-    const timer = setInterval(() => { void service.scrubExpired().catch(() => {}); }, 60_000);
-    timer.unref(); app.addHook("onClose", async () => { clearInterval(timer); });
+    registerRecurringJob(app, {
+      name: "lab-task-trial-expiry-sweep",
+      intervalMs: 60_000,
+      run: () => service.scrubExpired(),
+    });
   }
 }

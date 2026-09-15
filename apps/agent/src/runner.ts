@@ -12,6 +12,7 @@ import {
   AGENT_BUDGET_CEILING,
   AgentCapabilityError,
 } from "./runtimePolicy.js";
+import { agentUsage, assertAgentBudget, exceededBudget } from "./runBudget.js";
 import { SYSTEM_AGENT_RUNTIME } from "./runtimeDependencies.js";
 import {
   PURSUIT_AGENT_TOOL_NAMES,
@@ -25,7 +26,6 @@ import {
   type AgentTerminalReceipt,
   type AgentToolName,
   type AgentToolResult,
-  type AgentUsage,
 } from "./types.js";
 
 export { AGENT_BUDGET_CEILING, AgentCapabilityError } from "./runtimePolicy.js";
@@ -65,17 +65,13 @@ function sameValues(left: readonly string[], right: readonly string[]): boolean 
 }
 
 function assertBudget(budget: AgentBudget): void {
-  const entries = Object.entries(budget) as Array<
-    [keyof AgentBudget, number]
-  >;
-  for (const [name, value] of entries) {
-    if (!Number.isFinite(value) || value <= 0) {
-      throw new AgentConfigurationError(`${name} must be positive.`);
-    }
-    if (value > AGENT_BUDGET_CEILING[name]) {
-      throw new AgentConfigurationError(`${name} exceeds the V1 ceiling.`);
-    }
-  }
+  assertAgentBudget(budget, ({ field, violation }) => {
+    throw new AgentConfigurationError(
+      violation === "positive"
+        ? `${field} must be positive.`
+        : `${field} exceeds the V1 ceiling.`,
+    );
+  });
 }
 
 function assertConfiguration(request: AgentRunRequest): void {
@@ -321,39 +317,6 @@ function evidenceMatchesManifest(
   });
 }
 
-function usage(
-  startedAtMs: number,
-  toolCalls: number,
-  provider: {
-    inputTokens: number;
-    outputTokens: number;
-    estimatedUsd: number;
-    turns: number;
-  } | null,
-  nowMs: number,
-): AgentUsage {
-  const inputTokens = provider?.inputTokens ?? null;
-  const outputTokens = provider?.outputTokens ?? null;
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens === null || outputTokens === null ? null : inputTokens + outputTokens,
-    estimatedUsd: provider?.estimatedUsd ?? null,
-    turns: provider?.turns ?? null,
-    toolCalls,
-    durationMs: Math.max(0, nowMs - startedAtMs),
-  };
-}
-
-function exceededBudget(value: AgentUsage, budget: AgentBudget): string | null {
-  if (value.turns !== null && value.turns > budget.maxTurns) return "MAX_TURNS_EXCEEDED";
-  if (value.toolCalls > budget.maxToolCalls) return "MAX_TOOL_CALLS_EXCEEDED";
-  if (value.totalTokens !== null && value.totalTokens > budget.maxTaskTokens) return "MAX_TASK_TOKENS_EXCEEDED";
-  if (value.estimatedUsd !== null && value.estimatedUsd > budget.maxEstimatedUsd) return "MAX_COST_EXCEEDED";
-  if (value.durationMs > budget.maxDurationMs) return "MAX_DURATION_EXCEEDED";
-  return null;
-}
-
 export async function runBoundedAgent(
   request: AgentRunRequest,
 ): Promise<AgentTerminalReceipt> {
@@ -417,7 +380,7 @@ export async function runBoundedAgent(
       throw new Error("The Agent terminal commit was already attempted.");
     }
     terminalCompletionStarted = true;
-    const resultUsage = usage(
+    const resultUsage = agentUsage(
       startedAtMs,
       toolCalls,
       providerResult,
@@ -675,7 +638,7 @@ export async function runBoundedAgent(
     if (providerResult.terminalReason === "structured_output_retry_exhausted") {
       return complete("quarantined", "STRUCTURED_OUTPUT_RETRY_EXHAUSTED");
     }
-    const resultUsage = usage(
+    const resultUsage = agentUsage(
       startedAtMs,
       toolCalls,
       providerResult,

@@ -5,6 +5,7 @@ import { CONTRACT_VERSION, LabExperimentCatalogSchema, LabExperimentRequestSchem
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../lib/apiError.js";
+import { registerRecurringJob } from "../lib/recurringJob.js";
 import { configuredChatPrompt } from "./chatAnswerProvider.js";
 import { experimentCases, LabExperimentService } from "./labExperiments.js";
 
@@ -38,8 +39,10 @@ export function registerLabExperimentRoutes(app: FastifyInstance, service: LabEx
   }, async (request) => ({ contract_version: CONTRACT_VERSION,
     experiment: await service.review(request.auth, request.params.id, request.body.review) }));
   if (enabled) {
-    const timer = setInterval(() => { void service.scrubExpired().catch(() => {}); }, 60_000);
-    timer.unref();
-    app.addHook("onClose", async () => { clearInterval(timer); });
+    registerRecurringJob(app, {
+      name: "lab-experiment-expiry-sweep",
+      intervalMs: 60_000,
+      run: () => service.scrubExpired(),
+    });
   }
 }
