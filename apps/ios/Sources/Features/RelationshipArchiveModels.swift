@@ -2702,7 +2702,15 @@ extension AgentSessionStore {
     }
 
     @discardableResult
-    func recordScreenshotTask(sessionID: UUID, taskID: String, objective: String, summary: String, status: String, admissionIdempotencyKey: String? = nil) -> Bool {
+    func recordScreenshotTask(
+        sessionID: UUID,
+        taskID: String,
+        objective: String,
+        summary: String,
+        status: String,
+        admissionIdempotencyKey: String? = nil,
+        clearsMatchingPendingObjective: Bool = true
+    ) -> Bool {
         _ = pruneExpiredState()
         guard let index = storedSessions.firstIndex(where: { $0.id == sessionID }) else { return false }
         guard !storedSessions[index].readOnlyScreenshotTaskIDs.contains(taskID) else { return false }
@@ -2737,7 +2745,8 @@ extension AgentSessionStore {
             storedSessions[index].pendingScreenshotRequestIdentity = nil
             storedSessions[index].pendingScreenshotCapturedAt = nil
             storedSessions[index].pendingObjective = nil
-        } else if !storedSessions[index].hasPendingScreenshotAdmission,
+        } else if clearsMatchingPendingObjective,
+                  !storedSessions[index].hasPendingScreenshotAdmission,
                   storedSessions[index].pendingObjective == objective {
             storedSessions[index].pendingObjective = nil
         }
