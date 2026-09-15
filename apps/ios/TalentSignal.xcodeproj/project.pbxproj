@@ -67,6 +67,7 @@
 		365E77E8A50219E17D683328 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 314171A5678C6A592D77C852 /* PrivacyInfo.xcprivacy */; };
 		36A63DDC21C8DB11F7435E94 /* AppSessionEnding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 826C2F76F7C724748DD71037 /* AppSessionEnding.swift */; };
 		373EC4428F3966B754C33E6F /* PursuitWorkspaceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91833FC9D20274A1A85C004 /* PursuitWorkspaceClient.swift */; };
+		38B5729E390D82BA3ECAE487 /* TalentSignalHTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4FE85B6A6DF1E1EBDA3653 /* TalentSignalHTTPTransport.swift */; };
 		39C0CF02D7A7CEAD47876007 /* StandaloneOnboardingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC6A81331A906C3C93033158 /* StandaloneOnboardingStore.swift */; };
 		3A4D5DF33ECD01937895409A /* ResearchActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2000FEDD459C574F08D2B0 /* ResearchActivityController.swift */; };
 		3A65DC2E0B32BF0EE18F3399 /* LabResetPermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8067A8D4506AEAFC1517F03A /* LabResetPermissions.swift */; };
@@ -192,6 +193,7 @@
 		AD08E92344FA0B6C172C1F68 /* CandidateSignalComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */; };
 		ADAEC0C77BF5018BE4D5F6D2 /* LabDiagnosticFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = C67F020BFF4B5D36459852B5 /* LabDiagnosticFiles.swift */; };
 		AF846512F867A37E4852DFF6 /* LabFeatureOverrideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 229BFC9CA8CC2F6CB674E4B2 /* LabFeatureOverrideView.swift */; };
+		B14624CBE5BD9FA374989C83 /* TalentSignalHTTPTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 486D6CA55A006F4001B122A9 /* TalentSignalHTTPTransportTests.swift */; };
 		B395CC97F0E0B8496ED52532 /* LabWorkspaceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A339BF01C9C505A2105CFAE7 /* LabWorkspaceUITests.swift */; };
 		B3C923EEE0B61FD92DACA801 /* LabEnvironmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BBA84877E079058F2ED5E38 /* LabEnvironmentView.swift */; };
 		B3FCB11A82FE832BEF7B6B06 /* StandaloneOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */; };
@@ -362,6 +364,7 @@
 		477706244A63791F58675F88 /* StandaloneOnboardingPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingPersistence.swift; sourceTree = "<group>"; };
 		47B3CDAD0540EAB1F5D74736 /* AgentSessionContinuityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionContinuityTests.swift; sourceTree = "<group>"; };
 		47F40DA10468A0E4EF2DE9C6 /* LabWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabWorkspace.swift; sourceTree = "<group>"; };
+		486D6CA55A006F4001B122A9 /* TalentSignalHTTPTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalHTTPTransportTests.swift; sourceTree = "<group>"; };
 		492B173010D561E3AE1D1630 /* LabCIStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabCIStore.swift; sourceTree = "<group>"; };
 		4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedCaptureEnvelope.swift; sourceTree = "<group>"; };
 		4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalOutbox.swift; sourceTree = "<group>"; };
@@ -518,6 +521,7 @@
 		DA9C76EA5C3003ACBC256441 /* Environment.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Environment.xcconfig; sourceTree = "<group>"; };
 		DB0A4A5861074DECBB9DD2A7 /* ResearchActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchActivity.swift; sourceTree = "<group>"; };
 		DC6D8F6894923DD54E359F8E /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
+		DF4FE85B6A6DF1E1EBDA3653 /* TalentSignalHTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalHTTPTransport.swift; sourceTree = "<group>"; };
 		E0AB9B7264527674C941D66E /* RelationshipAgentStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAgentStudioView.swift; sourceTree = "<group>"; };
 		E1896F084E637271B19415C0 /* LabTaskTrialUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabTaskTrialUITests.swift; sourceTree = "<group>"; };
 		E2DE1D23A8F15392A25620C0 /* ScreenshotContactCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotContactCard.swift; sourceTree = "<group>"; };
@@ -622,6 +626,7 @@
 				F53E8ACA4C974310ADDAD651 /* RuntimeEnvironmentTests.swift */,
 				0419621F1D5509920C992683 /* SessionConversationClientTests.swift */,
 				18DB19A9B630FFFC327395CB /* StandaloneOnboardingTests.swift */,
+				486D6CA55A006F4001B122A9 /* TalentSignalHTTPTransportTests.swift */,
 				99715DDDEFB0F06319D06588 /* TalentSignalLabTests.swift */,
 				5DBD7EB9582B085CB7D1063C /* TextSignalCaptureTests.swift */,
 			);
@@ -772,6 +777,7 @@
 				CA61B70184C18544D0719F83 /* StandaloneProposalEngine.swift */,
 				39D83870AC6BF272A562706B /* StandaloneRecordingActivityCoordinator.swift */,
 				5E9E39D69232B7E4E068B600 /* StandaloneVoiceCaptureService.swift */,
+				DF4FE85B6A6DF1E1EBDA3653 /* TalentSignalHTTPTransport.swift */,
 				FE3ECC4EC4904ED2131A5BA2 /* TalentSignalLabClient.swift */,
 				4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */,
 				A11262DED3E38696377856A6 /* TextSignalSyncClient.swift */,
@@ -1167,6 +1173,7 @@
 				3AF235C23737D83E2D8D9988 /* RuntimeEnvironmentTests.swift in Sources */,
 				9ADBA8080D84213687875F90 /* SessionConversationClientTests.swift in Sources */,
 				61A9FCA9306146EBB8B4D618 /* StandaloneOnboardingTests.swift in Sources */,
+				B14624CBE5BD9FA374989C83 /* TalentSignalHTTPTransportTests.swift in Sources */,
 				EA38E93593D1C984DD0D9DE1 /* TalentSignalLabTests.swift in Sources */,
 				A8C31D8E27A8BB40971F0064 /* TextSignalCaptureTests.swift in Sources */,
 			);
@@ -1367,6 +1374,7 @@
 				3657B5F1EAB4954E86EA6F04 /* StandaloneVoiceCaptureService.swift in Sources */,
 				71C2191A8B9F500124E59F7D /* TalentSignalApp.swift in Sources */,
 				9AB40CE436A39B3AE399478A /* TalentSignalBrandMark.swift in Sources */,
+				38B5729E390D82BA3ECAE487 /* TalentSignalHTTPTransport.swift in Sources */,
 				17554FC903A4478FE7F41E25 /* TalentSignalLab.swift in Sources */,
 				5717CFDFE12342D1A36EAB8B /* TalentSignalLabClient.swift in Sources */,
 				80C30845BA1220F1E3D62C3F /* TalentSignalLabStore.swift in Sources */,

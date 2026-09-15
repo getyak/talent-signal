@@ -16,17 +16,18 @@ enum AgentTaskClientError: Error, Equatable {
 
 actor URLAgentTaskClient: AgentTaskServing {
     private let session: TalentSignalSession
-    private let urlSession: URLSession
+    private let transport: TalentSignalHTTPTransport
 
     init(session: TalentSignalSession, urlSession: URLSession = TalentSignalNetworking.session) {
         self.session = session
-        self.urlSession = urlSession
+        transport = TalentSignalHTTPTransport(session: urlSession)
     }
 
     func list(pursuitID: String, includeHistory: Bool) async throws -> [AgentTaskProjection] {
         let state = includeHistory ? "all" : "active"
         let envelope: AgentTaskListEnvelope = try await request(
-            path: "v1/pursuits/\(pursuitID)/agent-tasks?state=\(state)"
+            path: "v1/pursuits/\(pursuitID)/agent-tasks",
+            queryItems: [URLQueryItem(name: "state", value: state)]
         )
         guard envelope.contractVersion == TalentSignalAPIContract.version,
               envelope.workspaceID == session.account.id,
@@ -61,7 +62,8 @@ actor URLAgentTaskClient: AgentTaskServing {
 
     func events(taskID: String, afterSequence: Int) async throws -> [AgentTaskEvent] {
         let envelope: AgentTaskEventsEnvelope = try await request(
-            path: "v1/agent-tasks/\(taskID)/events?after=\(max(0, afterSequence))"
+            path: "v1/agent-tasks/\(taskID)/events",
+            queryItems: [URLQueryItem(name: "after", value: String(max(0, afterSequence)))]
         )
         guard envelope.contractVersion == TalentSignalAPIContract.version,
               envelope.taskID == taskID,
@@ -73,29 +75,39 @@ actor URLAgentTaskClient: AgentTaskServing {
         return envelope.events
     }
 
-    private func request<Response: Decodable>(path: String) async throws -> Response {
-        var request = URLRequest(url: session.baseURL.appending(path: path))
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "accept")
-        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "authorization")
-        let (data, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
+    private func request<Response: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem] = []
+    ) async throws -> Response {
+        let response: TalentSignalHTTPResponse
+        do {
+            response = try await transport.send(
+                baseURL: session.baseURL,
+                path: path,
+                queryItems: queryItems,
+                method: "GET",
+                bearerToken: session.accessToken,
+                body: Optional<AgentTaskEmptyBody>.none
+            )
+        } catch TalentSignalHTTPTransportError.invalidResponse {
             throw AgentTaskClientError.invalidResponse
         }
-        guard (200...299).contains(http.statusCode) else {
-            let error = try? JSONDecoder().decode(AgentTaskErrorEnvelope.self, from: data)
+        guard response.isSuccessful else {
+            let error = try? JSONDecoder().decode(AgentTaskErrorEnvelope.self, from: response.data)
             throw AgentTaskClientError.backend(
-                code: error?.error.code ?? "HTTP_\(http.statusCode)",
+                code: error?.error.code ?? "HTTP_\(response.statusCode)",
                 message: error?.error.message ?? "The Agent Task readback was rejected."
             )
         }
         do {
-            return try JSONDecoder().decode(Response.self, from: data)
+            return try JSONDecoder().decode(Response.self, from: response.data)
         } catch {
             throw AgentTaskClientError.invalidResponse
         }
     }
 }
+
+private struct AgentTaskEmptyBody: Encodable {}
 
 private struct AgentTaskEnvelope: Decodable {
     let contractVersion: String

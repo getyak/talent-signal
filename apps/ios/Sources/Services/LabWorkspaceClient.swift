@@ -14,11 +14,11 @@ protocol LabWorkspaceServing {
 
 actor URLLabWorkspaceClient: LabWorkspaceServing {
     private let baseURL: URL
-    private let network: URLSession
+    private let transport: TalentSignalHTTPTransport
 
     init(baseURL: URL, network: URLSession = TalentSignalNetworking.session) {
         self.baseURL = baseURL
-        self.network = network
+        transport = TalentSignalHTTPTransport(session: network)
     }
 
     func list(using session: TalentSignalSession) async throws -> [LabWorkspace] {
@@ -86,28 +86,30 @@ actor URLLabWorkspaceClient: LabWorkspaceServing {
         guard RuntimeEndpoint.same(session.baseURL, baseURL), !session.accessToken.isEmpty else {
             throw LabWorkspaceError.authenticationRequired
         }
-        var request = URLRequest(url: baseURL.appending(path: path))
-        request.timeoutInterval = 20
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "accept")
-        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "authorization")
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "content-type")
-            request.httpBody = try JSONEncoder().encode(body)
+        let response: TalentSignalHTTPResponse
+        do {
+            response = try await transport.send(
+                baseURL: baseURL,
+                path: path,
+                method: method,
+                bearerToken: session.accessToken,
+                body: body,
+                timeoutInterval: 20,
+                cachePolicy: .reloadIgnoringLocalCacheData
+            )
+        } catch TalentSignalHTTPTransportError.invalidResponse {
+            throw LabWorkspaceError.invalidResponse
         }
-        let (data, response) = try await TalentSignalNetworking.data(for: request, using: network)
-        guard let http = response as? HTTPURLResponse else { throw LabWorkspaceError.invalidResponse }
-        guard (200...299).contains(http.statusCode) else {
-            let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: data)
-            let code = envelope?.error.code ?? "HTTP_\(http.statusCode)"
-            if http.statusCode == 401 { throw LabWorkspaceError.authenticationRequired }
-            if http.statusCode == 410 || code == "LAB_TEST_WORKSPACE_CLOSED" { throw LabWorkspaceError.closed }
-            throw LabWorkspaceError.backend(status: http.statusCode, code: code,
+        guard response.isSuccessful else {
+            let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: response.data)
+            let code = envelope?.error.code ?? "HTTP_\(response.statusCode)"
+            if response.statusCode == 401 { throw LabWorkspaceError.authenticationRequired }
+            if response.statusCode == 410 || code == "LAB_TEST_WORKSPACE_CLOSED" { throw LabWorkspaceError.closed }
+            throw LabWorkspaceError.backend(status: response.statusCode, code: code,
                 message: envelope?.error.message ?? "The test-workspace request was rejected.")
         }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-        do { return try decoder.decode(Response.self, from: data) }
+        do { return try decoder.decode(Response.self, from: response.data) }
         catch { throw LabWorkspaceError.invalidResponse }
     }
 

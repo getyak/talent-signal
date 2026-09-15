@@ -28,9 +28,10 @@ Rejected alternatives:
 ## Milestones
 
 1. [complete] Extract shared Agent budget/usage policy and centralize backend recurring-job lifecycle; prove equivalent behavior with focused tests and full TypeScript checks.
-2. [active] Split `RelationshipAskView` orchestration into focused state/coordinator units and introduce a shared iOS HTTP transport through a small set of clients; prove with storage-guarded unit and UI checks.
-3. [pending] Add contract-version generation/drift validation, migration-manifest integrity checks, and dependency/hotspot ratchets with explicit baselines.
-4. [pending] Run independent review, current-head repository gates, deployment checks required by affected surfaces, and merge only verified slices.
+2. [complete] Introduce a shared iOS HTTP transport through multiple real clients while preserving their domain-specific validation and error semantics; prove with storage-guarded unit checks.
+3. [pending] Split `RelationshipAskView` orchestration into focused state/coordinator units with behavior-preserving unit and UI checks.
+4. [pending] Add contract-version generation/drift validation, migration-manifest integrity checks, and dependency/hotspot ratchets with explicit baselines.
+5. [pending] Run independent review, current-head repository gates, deployment checks required by affected surfaces, and merge only verified slices.
 
 ## Verification
 
@@ -43,4 +44,6 @@ Rejected alternatives:
 
 Each merged slice must name the exact revision, tests and gates, any deployment/readback required by nested repository instructions, and remaining milestones. Local green output or a created PR is intermediate evidence, not completion.
 
-Milestone 1 implementation is on PR #194. At commit `b1a2b675`, Agent reported 243 passed and 1 skipped, Backend reported 416 passed and 130 skipped, Agent Host reported 58 passed, all three relevant typechecks/builds passed, and the PR's applicable CI, Security, CodeQL, and Vercel checks passed. Merge and backend deployment readback remain part of the slice handoff.
+Milestone 1 was merged by PR #194 at `d2bfae017e2ed82126234abd4ab4c03f9b95332e`. At the reviewed implementation commit, Agent reported 243 passed and 1 skipped, Backend reported 416 passed and 130 skipped, Agent Host reported 58 passed, all three relevant typechecks/builds passed, and the latest PR commit's applicable CI, Security, CodeQL, and Vercel checks passed. The merged backend image was built but failed the pre-activation Opik deletion readback with `PRODUCT_OBSERVATION_DELETE_READBACK_REQUIRED`; the runtime was restored to the previously registered `9b803fa2e5d06ed2e13a6c9f08277192385c1db0` image/revision and its direct readiness, Tailnet live, authentication, Apple-key, voice, and chat-provider probes passed. Infisical and the backend release pointer were not advanced.
+
+Milestone 2 moved request construction and governed network execution into `TalentSignalHTTPTransport` for Agent Task, Lab Workspace, and Pursuit Proposal Review clients while leaving authentication preconditions, HTTP error meaning, contract validation, and review-conflict handling in their domain owners. It also replaced Agent Task's path-embedded query text with encoded `URLQueryItem` values. On an allowlisted iPhone 17 Pro Simulator, 13 focused transport/client tests and 569 non-Keychain unit tests passed, and the Release Simulator build passed. Six existing secure-storage tests could not run in the unsigned local test host and consistently reported Keychain `-34018`; they were excluded from the clean regression run and remain for signed CI verification.
