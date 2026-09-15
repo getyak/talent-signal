@@ -1,0 +1,552 @@
+"use client";
+
+/**
+ * NativeCapabilityWorkbench
+ *
+ * A pure React surface. It owns no canonical data, performs no external write,
+ * and imports no host SDK. Every native effect happens only after an explicit
+ * user action and only through the injected {@link PlatformAdapter}.
+ *
+ * Truthful-by-construction rules enforced here:
+ * - capability availability is host-reported and rendered verbatim;
+ * - IME composition text is provisional and cannot be submitted;
+ * - OCR output is local, provisional, editable, failure-only recovery;
+ * - a missing native implementation surfaces as `unavailable`, never success;
+ * - state notifications carry lifecycle state only, never content or authority.
+ */
+
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+
+import {
+  type CapabilityReport,
+  type PlatformAdapter,
+  type PlatformCapability,
+  availabilityFor,
+  availabilityLabel,
+} from "../platform/ports.js";
+import {
+  canSubmitComposer,
+  capabilityBlockReason,
+  composerProvisionalNote,
+  initialWorkbenchState,
+  workbenchReducer,
+  type CaptureOutcome,
+  type NotificationOutcome,
+  type OcrOutcome,
+  type QuickPanelOutcome,
+} from "../state/workbenchState.js";
+import { WORKSPACE_SURFACE_CLASS } from "../theme/tokens.js";
+
+export type WorkbenchScope = {
+  readonly accountId: string;
+  readonly sessionId: string;
+};
+
+export type NativeCapabilityWorkbenchProps = {
+  /** Host-supplied adapter. Required and explicit; never defaulted. */
+  readonly adapter: PlatformAdapter;
+  /** Account/session scope validated by the host before any request. */
+  readonly scope: WorkbenchScope;
+  /** Session intent id used for capture idempotency. */
+  readonly intentId: string;
+  /** Quiet, content-first heading. Hosts may localize. */
+  readonly title?: string;
+  readonly description?: string;
+  /** Called with the provisional local draft text; never a canonical write. */
+  readonly onDraftChange?: (draftText: string) => void;
+};
+
+const CAPABILITY_ORDER: readonly PlatformCapability[] = [
+  "window_capture",
+  "local_ocr",
+  "quick_panel",
+  "notification",
+];
+
+const CAPABILITY_LABELS: Readonly<Record<PlatformCapability, string>> = {
+  window_capture: "窗口采集",
+  local_ocr: "本地文字识别",
+  quick_panel: "快捷面板",
+  notification: "状态通知",
+};
+
+export function NativeCapabilityWorkbench({
+  adapter,
+  scope,
+  intentId,
+  title = "原生能力",
+  description = "所有原生操作都需要你本人触发；失败时不会有云端回退，也不会写入外部系统。",
+  onDraftChange,
+}: NativeCapabilityWorkbenchProps) {
+  const [state, dispatch] = useReducer(workbenchReducer, initialWorkbenchState);
+  const [capabilities, setCapabilities] = useState<CapabilityReport | null>(null);
+  const [capabilityError, setCapabilityError] = useState<string | null>(null);
+  const [submitNote, setSubmitNote] = useState<string | null>(null);
+
+  const captureAbort = useRef<AbortController | null>(null);
+  const ocrAbort = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      captureAbort.current?.abort();
+      ocrAbort.current?.abort();
+    };
+  }, []);
+
+  // Capability discovery is read-only and fail-closed: an error leaves every
+  // capability unknown, and `availabilityFor` renders unknown as unavailable.
+  useEffect(() => {
+    let cancelled = false;
+    adapter
+      .capabilities()
+      .then((report) => {
+        if (!cancelled && mounted.current) {
+          setCapabilities(report);
+          setCapabilityError(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled && mounted.current) {
+          setCapabilities(null);
+          setCapabilityError("无法核验主机能力；按不可用处理，不会假定任何权限。");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [adapter]);
+
+  useEffect(() => {
+    onDraftChange?.(state.draftText);
+  }, [onDraftChange, state.draftText]);
+
+  const captureAvailability = availabilityFor(capabilities, "window_capture");
+  const ocrAvailability = availabilityFor(capabilities, "local_ocr");
+  const quickPanelAvailability = availabilityFor(capabilities, "quick_panel");
+  const notificationAvailability = availabilityFor(capabilities, "notification");
+
+  const capturedHandle =
+    state.capture.kind === "captured" ? state.capture.localHandle : null;
+
+  const requestCapture = useCallback(async () => {
+    captureAbort.current?.abort();
+    const controller = new AbortController();
+    captureAbort.current = controller;
+    dispatch({ type: "capture/pending" });
+    try {
+      const result = await adapter.captureSelectedWindow(
+        { accountId: scope.accountId, sessionId: scope.sessionId, intentId },
+        controller.signal,
+      );
+      if (mounted.current) {
+        dispatch({ type: "capture/settled", result });
+      }
+    } catch {
+      if (mounted.current) {
+        dispatch({
+          type: "capture/settled",
+          result: { status: "failed", reason: "采集请求异常终止；没有生成任何图像。" },
+        });
+      }
+    }
+  }, [adapter, intentId, scope.accountId, scope.sessionId]);
+
+  const cancelCapture = useCallback(() => {
+    captureAbort.current?.abort();
+    dispatch({ type: "capture/settled", result: { status: "cancelled" } });
+  }, []);
+
+  const requestOcr = useCallback(async () => {
+    if (!capturedHandle) {
+      return;
+    }
+    ocrAbort.current?.abort();
+    const controller = new AbortController();
+    ocrAbort.current = controller;
+    dispatch({ type: "ocr/pending" });
+    try {
+      const result = await adapter.recognizeLocalText(
+        {
+          accountId: scope.accountId,
+          sessionId: scope.sessionId,
+          localHandle: capturedHandle,
+        },
+        controller.signal,
+      );
+      if (mounted.current) {
+        dispatch({ type: "ocr/settled", result });
+      }
+    } catch {
+      if (mounted.current) {
+        dispatch({
+          type: "ocr/settled",
+          result: { status: "failed", reason: "本地识别异常终止；没有云端回退。" },
+        });
+      }
+    }
+  }, [adapter, capturedHandle, scope.accountId, scope.sessionId]);
+
+  const requestQuickPanel = useCallback(async () => {
+    dispatch({ type: "quick-panel/pending" });
+    try {
+      const result = await adapter.openQuickPanel({
+        accountId: scope.accountId,
+        sessionId: scope.sessionId,
+        activityId: intentId,
+        label: title,
+      });
+      if (mounted.current) {
+        dispatch({ type: "quick-panel/settled", result });
+      }
+    } catch {
+      if (mounted.current) {
+        dispatch({
+          type: "quick-panel/settled",
+          result: { status: "denied", reason: "快捷面板未能打开。" },
+        });
+      }
+    }
+  }, [adapter, intentId, scope.accountId, scope.sessionId, title]);
+
+  const requestNotification = useCallback(
+    async (nextState: "ready" | "failed") => {
+      try {
+        const result = await adapter.notifyState({
+          accountId: scope.accountId,
+          sessionId: scope.sessionId,
+          activityId: intentId,
+          state: nextState,
+        });
+        if (mounted.current) {
+          dispatch({ type: "notification/settled", result });
+        }
+      } catch {
+        if (mounted.current) {
+          dispatch({
+            type: "notification/settled",
+            result: { status: "denied", reason: "通知未显示。" },
+          });
+        }
+      }
+    },
+    [adapter, intentId, scope.accountId, scope.sessionId],
+  );
+
+  const submit = useCallback(() => {
+    // Submission is only ever a local draft handoff. It cannot create canonical
+    // state or an external write, so success is never claimed here.
+    if (!canSubmitComposer(state)) {
+      setSubmitNote(
+        state.composer.composing
+          ? "输入法仍在组合中：请先确认候选词。"
+          : "草稿为空，没有可提交内容。",
+      );
+      return;
+    }
+    setSubmitNote("已作为本机草稿暂存；不会写入外部系统，也不代表任何确认。");
+  }, [state]);
+
+  const provisionalNote = composerProvisionalNote(state);
+  const submitAllowed = canSubmitComposer(state);
+
+  const capabilityRows = useMemo(
+    () =>
+      CAPABILITY_ORDER.map((capability) => ({
+        availability: availabilityFor(capabilities, capability),
+        blockReason: capabilityBlockReason(capabilities, capability),
+        capability,
+        label: CAPABILITY_LABELS[capability],
+      })),
+    [capabilities],
+  );
+
+  return (
+    <section
+      aria-labelledby="ts-workbench-title"
+      className={WORKSPACE_SURFACE_CLASS}
+      data-adapter-host={adapter.host}
+    >
+      <header style={{ marginBottom: "var(--ts-space-xl)" }}>
+        <p
+          style={{
+            color: "var(--ts-chrome-muted)",
+            fontSize: "var(--ts-type-meta)",
+            letterSpacing: "0.08em",
+            margin: 0,
+            textTransform: "uppercase",
+          }}
+        >
+          原生能力
+        </p>
+        <h1
+          id="ts-workbench-title"
+          style={{
+            fontSize: "var(--ts-type-title)",
+            fontWeight: 560,
+            letterSpacing: "-0.02em",
+            margin: "var(--ts-space-xs) 0 0",
+          }}
+        >
+          {title}
+        </h1>
+        <p
+          style={{
+            color: "var(--ts-chrome-muted)",
+            lineHeight: 1.7,
+            margin: "var(--ts-space-sm) 0 0",
+            maxWidth: "66ch",
+          }}
+        >
+          {description}
+        </p>
+        {capabilityError ? (
+          <p role="alert" style={{ color: "var(--ts-chrome-muted)", marginTop: "var(--ts-space-md)" }}>
+            {capabilityError}
+          </p>
+        ) : null}
+      </header>
+
+      <section aria-labelledby="ts-capability-title" style={{ marginBottom: "var(--ts-space-xl)" }}>
+        <h2 id="ts-capability-title" style={{ fontSize: "1rem", fontWeight: 650, margin: 0 }}>
+          能力状态
+        </h2>
+        <p style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)", margin: "var(--ts-space-xs) 0 var(--ts-space-md)" }}>
+          状态来自当前主机；不可用与需要权限是不同情况。
+        </p>
+        <ul style={{ borderTop: "1px solid var(--ts-divider)", listStyle: "none", margin: 0, padding: 0 }}>
+          {capabilityRows.map((row) => (
+            <li
+              data-availability={row.availability}
+              data-capability={row.capability}
+              key={row.capability}
+              style={{
+                alignItems: "baseline",
+                borderBottom: "1px solid var(--ts-divider)",
+                display: "flex",
+                gap: "var(--ts-space-md)",
+                justifyContent: "space-between",
+                padding: "var(--ts-space-lg) 0",
+              }}
+            >
+              <div>
+                <strong style={{ fontWeight: 600 }}>{row.label}</strong>
+                {row.blockReason ? (
+                  <p style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)", margin: "var(--ts-space-xs) 0 0" }}>
+                    {row.blockReason}
+                  </p>
+                ) : null}
+              </div>
+              <span
+                className="ts-status"
+                data-state={row.availability}
+                style={{ flex: "0 0 auto", fontSize: "var(--ts-type-meta)" }}
+              >
+                {availabilityLabel(row.availability)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section aria-labelledby="ts-composer-title" style={{ marginBottom: "var(--ts-space-xl)" }}>
+        <h2 id="ts-composer-title" style={{ fontSize: "1rem", fontWeight: 650, margin: 0 }}>
+          草稿
+        </h2>
+        <label htmlFor="ts-composer" style={{ display: "block", marginTop: "var(--ts-space-sm)" }}>
+          记录当前关系上下文
+        </label>
+        <textarea
+          aria-describedby={provisionalNote ? "ts-composer-note" : undefined}
+          className="ts-textarea"
+          data-composing={state.composer.composing}
+          id="ts-composer"
+          onBlur={(event) => {
+            if (state.composer.composing) {
+              dispatch({ type: "composer/composition-ended", value: event.target.value });
+            }
+          }}
+          onChange={(event) => dispatch({ type: "composer/changed", value: event.target.value })}
+          onCompositionEnd={(event) =>
+            dispatch({ type: "composer/composition-ended", value: event.currentTarget.value })
+          }
+          onCompositionStart={() => dispatch({ type: "composer/composition-started" })}
+          style={{ marginTop: "var(--ts-space-sm)" }}
+          value={state.composer.value}
+        />
+        {provisionalNote ? (
+          <p
+            id="ts-composer-note"
+            role="status"
+            style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)", margin: "var(--ts-space-sm) 0 0" }}
+          >
+            {provisionalNote}
+          </p>
+        ) : null}
+        <div style={{ alignItems: "center", display: "flex", gap: "var(--ts-space-md)", marginTop: "var(--ts-space-md)" }}>
+          <button className="ts-btn" disabled={!submitAllowed} onClick={submit} type="button">
+            暂存本机草稿
+          </button>
+          <span style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)" }}>
+            仅本机草稿；无外部执行权限。
+          </span>
+        </div>
+        {submitNote ? (
+          <p role="status" style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)", margin: "var(--ts-space-sm) 0 0" }}>
+            {submitNote}
+          </p>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="ts-native-title">
+        <h2 id="ts-native-title" style={{ fontSize: "1rem", fontWeight: 650, margin: 0 }}>
+          原生操作
+        </h2>
+        <p style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)", margin: "var(--ts-space-xs) 0 var(--ts-space-md)" }}>
+          仅在你明确触发后执行；取消意味着没有采集、没有识别。
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--ts-space-sm)" }}>
+          <button
+            className="ts-btn"
+            disabled={captureAvailability !== "available"}
+            onClick={requestCapture}
+            type="button"
+          >
+            选择窗口并采集
+          </button>
+          <button
+            className="ts-btn"
+            disabled={state.capture.kind !== "pending" && state.capture.kind !== "captured"}
+            onClick={cancelCapture}
+            type="button"
+          >
+            取消采集
+          </button>
+          <button
+            className="ts-btn"
+            disabled={!capturedHandle || ocrAvailability !== "available"}
+            onClick={requestOcr}
+            type="button"
+          >
+            本地识别文字
+          </button>
+          <button
+            className="ts-btn"
+            disabled={quickPanelAvailability !== "available"}
+            onClick={requestQuickPanel}
+            type="button"
+          >
+            打开快捷面板
+          </button>
+          <button
+            className="ts-btn"
+            disabled={notificationAvailability !== "available"}
+            onClick={() => void requestNotification("ready")}
+            type="button"
+          >
+            通知：草稿就绪
+          </button>
+          <button
+            className="ts-btn"
+            disabled={notificationAvailability !== "available"}
+            onClick={() => void requestNotification("failed")}
+            type="button"
+          >
+            通知：处理失败
+          </button>
+        </div>
+
+        <dl style={{ display: "grid", gap: "var(--ts-space-md)", margin: "var(--ts-space-lg) 0 0" }}>
+          <OutcomeRow label="采集" outcome={state.capture} />
+          <OutcomeRow label="本地识别" outcome={state.ocr} />
+          <OutcomeRow label="快捷面板" outcome={state.quickPanel} />
+          <OutcomeRow label="通知" outcome={state.notification} />
+        </dl>
+
+        {state.ocr.kind === "recognized" || state.draftText ? (
+          <div className="ts-redline" style={{ marginTop: "var(--ts-space-lg)" }}>
+            <label htmlFor="ts-draft">
+              识别文本（本机、可编辑、尚未确认）
+            </label>
+            <textarea
+              className="ts-textarea"
+              data-provisional="true"
+              id="ts-draft"
+              onChange={(event) => dispatch({ type: "draft/edited", value: event.target.value })}
+              style={{ marginTop: "var(--ts-space-sm)" }}
+              value={state.draftText}
+            />
+          </div>
+        ) : null}
+
+        <aside
+          style={{
+            border: "1px solid var(--ts-divider)",
+            borderRadius: "var(--ts-radius-frame)",
+            color: "var(--ts-chrome-muted)",
+            marginTop: "var(--ts-space-xl)",
+            padding: "var(--ts-space-lg)",
+          }}
+        >
+          <p style={{ lineHeight: 1.7, margin: 0 }}>
+            本界面不创建规范数据，也不执行外部写入。采集与识别失败时没有云端回退；
+            任何后续动作都需要你在对应界面单独授权。
+          </p>
+        </aside>
+      </section>
+    </section>
+  );
+}
+
+function OutcomeRow({
+  label,
+  outcome,
+}: {
+  label: string;
+  outcome: CaptureOutcome | OcrOutcome | QuickPanelOutcome | NotificationOutcome;
+}) {
+  return (
+    <>
+      <div style={{ display: "flex", gap: "var(--ts-space-md)", justifyContent: "space-between" }}>
+        <dt style={{ color: "var(--ts-chrome-muted)", fontSize: "var(--ts-type-meta)" }}>{label}</dt>
+        <dd
+          data-outcome={outcome.kind}
+          style={{ margin: 0, textAlign: "right" }}
+        >
+          {outcomeText(outcome)}
+        </dd>
+      </div>
+    </>
+  );
+}
+
+function outcomeText(
+  outcome: CaptureOutcome | OcrOutcome | QuickPanelOutcome | NotificationOutcome,
+): string {
+  switch (outcome.kind) {
+    case "idle":
+      return "尚未执行";
+    case "pending":
+      return "进行中…";
+    case "cancelled":
+      return "已取消：没有采集，也没有识别。";
+    case "captured":
+      return `已采集到本机句柄（到期 ${outcome.expiresAt}）；尚未成为证据。`;
+    case "recognized":
+      return "已在本机识别；文本仍为暂定，需要你确认。";
+    case "opened":
+      return `已打开快捷面板（${outcome.panelId}）。`;
+    case "shown":
+      return "已显示状态通知（仅状态，无内容）。";
+    case "failed":
+      return `失败：${outcome.reason}`;
+    case "denied":
+      return `被拒绝：${outcome.reason}`;
+    case "suppressed":
+      return `已抑制：${outcome.reason}`;
+    case "unavailable":
+      return `当前主机不可用：${outcome.reason}`;
+  }
+}
