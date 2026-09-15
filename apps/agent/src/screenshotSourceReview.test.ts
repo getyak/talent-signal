@@ -35,7 +35,8 @@ async function setup(height = 400, options: {
     return { id: block.type === "text" ? JSON.parse(block.text).read_receipt_id as string : "", result, input };
   };
   const childReview = async (reading = "Mira: Document reference DOCIOS-test", actor = "child") => {
-    subject.requireChildReview({ source_image_index: 0, region, field: "text" });
+    subject.requireChildReview({ source_image_index: 0, region, field: "text", uncertainty_index: 0,
+      target: { kind: "source" } });
     const child = await read(actor);
     const input = textReading(child.id, reading);
     const result = await subject.reviewTool.execute(input, signal());
@@ -157,7 +158,8 @@ describe("current-Run screenshot source reviews", () => {
 
   it("requires a completed child assessment and will not attribute another reader's review to that child", async () => {
     const { subject, read } = await setup();
-    subject.requireChildReview({ source_image_index: 0, region, field: "text" });
+    subject.requireChildReview({ source_image_index: 0, region, field: "text", uncertainty_index: 0,
+      target: { kind: "source" } });
     const main = await read();
     const input = textReading(main.id);
     const result = await subject.reviewTool.execute(input, signal());
@@ -193,23 +195,46 @@ describe("current-Run screenshot source reviews", () => {
           speaker_label: "Me", time_text: null, source_image_index: 0 },
         { message_id: "m2", sequence: 1, text: "Second untouched message", speaker_side: "unknown" as const,
           speaker_label: null, time_text: null, source_image_index: 0 },
-      ], uncertainties: ["The speaker for message m2 is unclear."] };
+      ], uncertainties: ["The speaker for message m2 is unclear.", "A separate time is unclear."] };
     const { subject, read } = await setup(400, {
-      required: [{ source_image_index: 0, region, field: "speaker" }],
+      required: [{ source_image_index: 0, region, field: "speaker", uncertainty_index: 0,
+        target: { kind: "message", message_id: "m2" } }],
       baselines: [{ source_image_index: 0, extraction: baseline }],
     });
     const own = await read();
     const speakerReading = { read_receipt_id: own.id, field: "speaker" as const,
-      status: "clear" as const, reading: "Alex Chen" };
+      status: "clear" as const, reading: "Alex Chen", speaker_side: "left" as const };
     const result = subject.validate({ images: [{ source_image_index: 0,
       message_corrections: [{ message_id: "m2",
         speaker_side: { value: "left", read_receipt_id: own.id },
         speaker_label: { value: "Alex Chen", read_receipt_id: own.id } }],
       identity_clue_corrections: [],
-      resolved_uncertainties: [{ uncertainty_index: 0, read_receipt_id: own.id, field: "speaker" }],
+      resolved_uncertainties: [{ uncertainty_index: 0, read_receipt_id: own.id, field: "speaker",
+        target: { kind: "message", message_id: "m2" } }],
       pixel_readings: [speakerReading], uncertainties: [] }] });
-    expect(result).toEqual({ images: [{ ...baseline, uncertainties: [], messages: [baseline.messages[0],
+    expect(result).toEqual({ images: [{ ...baseline, uncertainties: ["A separate time is unclear."], messages: [baseline.messages[0],
       { ...baseline.messages[1], speaker_side: "left", speaker_label: "Alex Chen" }] }] });
+
+    expect(subject.validate({ images: [{ source_image_index: 0,
+      message_corrections: [{ message_id: "m1",
+        speaker_side: { value: "left", read_receipt_id: own.id } }],
+      identity_clue_corrections: [], resolved_uncertainties: [],
+      pixel_readings: [speakerReading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING" });
+
+    expect(subject.validate({ images: [{ source_image_index: 0,
+      message_corrections: [], identity_clue_corrections: [],
+      resolved_uncertainties: [{ uncertainty_index: 0, read_receipt_id: own.id, field: "speaker",
+        target: { kind: "message", message_id: "m1" } }],
+      pixel_readings: [speakerReading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
+
+    expect(subject.validate({ images: [{ source_image_index: 0,
+      message_corrections: [], identity_clue_corrections: [],
+      resolved_uncertainties: [{ uncertainty_index: 1, read_receipt_id: own.id, field: "speaker",
+        target: { kind: "message", message_id: "m2" } }],
+      pixel_readings: [speakerReading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID" });
 
     const undeclared = await read(null, { ...region, height: 300 });
     const undeclaredReading = { ...speakerReading, read_receipt_id: undeclared.id };

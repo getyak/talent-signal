@@ -37,6 +37,7 @@ type Response = ScreenshotContactTaskResponse;
 type Manifest = Omit<ScreenshotContactTaskRequest, "image" | "additional_images"> & { image?: ContactImageManifest; additional_images?: ContactImageManifest[]; text?: string };
 interface TaskState {
   deletion_requested?: boolean;
+  preprocessing_deletion_requested?: boolean;
   extraction_parts?: NonNullable<Response["extraction"]>[];
   preprocessing_required?: boolean;
   preprocessing_inflight?: number;
@@ -88,8 +89,12 @@ async function rowFor(client: Pool | PoolClient, auth: AuthContext, id: string, 
   return result.rows[0];
 }
 
+const sourceDeletionRequested = (row: Row) =>
+  row.state.deletion_requested === true || row.state.preprocessing_deletion_requested === true;
+
 async function assertSourceCurrent(client: Pool | PoolClient, row: Row): Promise<void> {
-  if (row.expires_at.getTime() <= Date.now() || row.status === "deleted") deny("CONTACT_TASK_SOURCE_UNAVAILABLE");
+  if (row.expires_at.getTime() <= Date.now() || row.status === "deleted" || sourceDeletionRequested(row))
+    deny("CONTACT_TASK_SOURCE_UNAVAILABLE");
   const directory=(await client.query<{available:boolean}>("SELECT contact_task_directory_available($1,$2::jsonb) AS available",[row.account_id,JSON.stringify(row.state)])).rows[0];
   if(!directory?.available)deny("CONTACT_DIRECTORY_CHANGED_SEARCH_AGAIN");
   if (!row.capture_id) return;
@@ -158,8 +163,9 @@ export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:
   new_contact_name?:string; image?:ScreenshotContactTaskRequest["image"];
 }):Promise<Response>{
   await inTransaction(pool,async client=>{
-    const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
-    if(row.state.deletion_requested)deny("CONTACT_SOURCE_DELETION_PENDING");
+    const row=await rowFor(client,auth,id,true);
+    if(sourceDeletionRequested(row))deny("CONTACT_SOURCE_DELETION_PENDING");
+    await assertSourceCurrent(client,row);
     if(row.revision!==input.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
     if(!["waiting_for_user","partial","failed","cancelled"].includes(row.status))deny("CONTACT_TASK_NOT_RESUMABLE");
     if(Boolean(input.selected_person_id)!==Boolean(input.selected_relationship_context_id))deny("CONTACT_TASK_SCOPE_INCOMPLETE");
@@ -310,6 +316,33 @@ export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:str
   return loadScreenshotContactTask(pool,auth,id);
 }
 
+/** Remove a preprocessing task's retained copy without deleting a canonical
+ * capture that was linked after the copy was created. Full task deletion is a
+ * separate user operation and continues to cascade through deleteCapture. */
+export async function deleteScreenshotPreprocessingSource(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,storage?:ChatMediaStorage){
+  await inTransaction(pool,async client=>{
+    const row=await rowFor(client,auth,id,true);
+    if(row.status==="deleted")return;
+    if(row.input_manifest.preprocess_only!==true)deny("CONTACT_PREPROCESS_DELETE_REQUIRED");
+    if(!row.state.preprocessing_deletion_requested){
+      if(row.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
+      row.state.preprocessing_deletion_requested=true;row.state.response.status="cancelled";
+      row.state.response.limitations.push("CONTACT_PREPROCESS_SOURCE_DELETION_PENDING");await save(client,row);
+      await client.query("UPDATE screenshot_contact_tasks SET lease_epoch=lease_epoch+1,lease_until=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
+    }
+  });
+  await inTransaction(pool,async client=>{
+    const row=await rowFor(client,auth,id,true);
+    if(row.status==="deleted")return;
+    await client.query("DELETE FROM contact_profile_observations WHERE account_id=$1 AND task_id=$2",[auth.accountId,id]);
+    await client.query(`UPDATE screenshot_contact_tasks SET state='{}'::jsonb,input_manifest='{}'::jsonb,status='deleted',
+      revision=revision+1,lease_epoch=lease_epoch+1,lease_until=NULL,updated_at=now() WHERE account_id=$1 AND id=$2 AND status<>'deleted'`,[auth.accountId,id]);
+    await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.preprocessing_source_deleted","screenshot_contact_task",id,{});
+  });
+  if(storage)await purgeContactImagesForTask(pool,auth.accountId,id,storage);
+  return loadScreenshotContactTask(pool,auth,id);
+}
+
 export async function linkScreenshotContactTaskCapture(pool:Pool,auth:AuthContext,id:string,input:{
   expected_revision:number;capture_id:string;source_resource_id:string;
 }){
@@ -323,7 +356,7 @@ export async function linkScreenshotContactTaskCapture(pool:Pool,auth:AuthContex
     }
     if(row.revision!==input.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
     if(!["completed","waiting_for_user"].includes(row.status))deny("CONTACT_PREPROCESS_NOT_LINKABLE");
-    const seed=/^ios:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):preprocess-v1$/u.exec(row.idempotency_key)?.[1];
+    const seed=/^ios:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):preprocess-v2$/u.exec(row.idempotency_key)?.[1];
     if(!seed)deny("CONTACT_PREPROCESS_SOURCE_MISMATCH");
     const capture=await client.query<{subject_id:string;assignment_id:string}>(`SELECT c.subject_id,c.assignment_id
       FROM captures c JOIN source_resources r ON r.account_id=c.account_id AND r.capture_id=c.id

@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 /** Frozen interface version. A shape change requires a new version string. */
-export const SCREENSHOT_PREPROCESS_CONTRACT = "screenshot-preprocess.v1" as const;
-export const SCREENSHOT_PREPROCESS_PROMPT_VERSION = "capture/screenshot-preprocess@1" as const;
-export const SCREENSHOT_PREPROCESS_SCHEMA_VERSION = "screenshot-preprocess-schema@1" as const;
+export const SCREENSHOT_PREPROCESS_CONTRACT = "screenshot-preprocess.v2" as const;
+export const SCREENSHOT_PREPROCESS_PROMPT_VERSION = "capture/screenshot-preprocess@2" as const;
+export const SCREENSHOT_PREPROCESS_SCHEMA_VERSION = "screenshot-preprocess-schema@2" as const;
 
 /** Pinned mainland-China Volcano Ark model. Opaque `latest` aliases are rejected. */
 export const ARK_SCREENSHOT_PREPROCESS_MODEL = "doubao-seed-2-0-lite-260215" as const;
@@ -42,6 +42,13 @@ export const ScreenshotPreprocessIdentityClueSchema = z.strictObject({
   source_excerpt: Short,
 });
 
+export const ScreenshotPreprocessFollowUpTargetSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("message"), message_index: z.number().int().min(0).max(99) }),
+  z.strictObject({ kind: z.literal("identity_clue"), clue_index: z.number().int().min(0).max(11) }),
+  z.strictObject({ kind: z.literal("contact_name") }),
+  z.strictObject({ kind: z.literal("source") }),
+]);
+
 /**
  * One bounded region that a later multimodal read should inspect. The reason is
  * a bounded enum-like string, never free-form prose about a person.
@@ -49,6 +56,8 @@ export const ScreenshotPreprocessIdentityClueSchema = z.strictObject({
 export const ScreenshotPreprocessFollowUpSchema = z.strictObject({
   reason: z.enum(["illegible_text", "ambiguous_speaker", "ambiguous_time", "ambiguous_identity", "cropped_boundary", "layout_overlap"]),
   field: z.enum(["text", "speaker", "time", "identity"]),
+  uncertainty_index: z.number().int().min(0).max(14),
+  target: ScreenshotPreprocessFollowUpTargetSchema,
   region: ScreenshotPreprocessRegionSchema,
 });
 
@@ -72,6 +81,30 @@ export const ScreenshotPreprocessSourceSchema = z.strictObject({
     content_hash: z.string().regex(/^[a-f0-9]{64}$/u),
     tile_count: z.number().int().min(0).max(64),
   }),
+}).superRefine((source, context) => {
+  for (const [index, followUp] of source.follow_up_regions.entries()) {
+    const path = ["follow_up_regions", index, "target"];
+    if (["text", "speaker", "time"].includes(followUp.field) &&
+        !["message", "source"].includes(followUp.target.kind)) {
+      context.addIssue({ code: "custom", path, message: "This field requires a message or source target." });
+    }
+    if (followUp.field === "identity" && followUp.target.kind === "message") {
+      context.addIssue({ code: "custom", path, message: "Identity follow-up cannot target a message." });
+    }
+    if (followUp.target.kind === "message" && !source.messages[followUp.target.message_index]) {
+      context.addIssue({ code: "custom", path, message: "Follow-up message target is outside the source message list." });
+    }
+    if (followUp.target.kind === "identity_clue" && !source.identity_clues[followUp.target.clue_index]) {
+      context.addIssue({ code: "custom", path, message: "Follow-up identity target is outside the source clue list." });
+    }
+    if (followUp.target.kind === "contact_name" && source.contact_name === null) {
+      context.addIssue({ code: "custom", path, message: "Contact-name follow-up requires an existing contact-name proposal." });
+    }
+    if (!source.uncertainties[followUp.uncertainty_index]) {
+      context.addIssue({ code: "custom", path: ["follow_up_regions", index, "uncertainty_index"],
+        message: "Follow-up uncertainty target is outside the source uncertainty list." });
+    }
+  }
 });
 
 export const ScreenshotPreprocessPacketSchema = z.strictObject({

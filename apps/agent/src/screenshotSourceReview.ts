@@ -10,7 +10,12 @@ const Reading = z.strictObject({
   read_receipt_id: z.uuid(), field: Field,
   status: z.enum(["clear", "unreadable", "not_shown"]),
   reading: z.string().trim().min(1).max(8_000).nullable(),
-}).describe("Your own original-pixel assessment. clear requires the exact visible text; unreadable/not_shown require null. A corrected guess is clear, never a source uncertainty.");
+  speaker_side: z.enum(["left", "right", "unknown"]).optional(),
+}).superRefine((value, context) => {
+  if (value.speaker_side !== undefined && (value.field !== "speaker" || value.status !== "clear")) {
+    context.addIssue({ code: "custom", path: ["speaker_side"], message: "speaker_side is valid only for a clear speaker reading." });
+  }
+}).describe("Your own original-pixel assessment. clear requires the exact visible text; unreadable/not_shown require null. For a clear speaker reading also record its visible left/right/unknown side. A corrected guess is clear, never a source uncertainty.");
 const Uncertainty = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.enum(["unreadable_region", "missing_context", "reader_disagreement"]),
     read_receipt_id: z.uuid(), field: Field }),
@@ -54,6 +59,12 @@ const IdentityClueCorrection = z.strictObject({
     read_receipt_id: z.uuid() }).optional(),
 }).refine(value => value.value || value.source_excerpt,
   "At least one identity clue field correction is required.");
+const CorrectionTarget = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("message"), message_id: ContactChatExtractionSchema.shape.messages.element.shape.message_id }),
+  z.strictObject({ kind: z.literal("identity_clue"), clue_index: z.number().int().min(0).max(11) }),
+  z.strictObject({ kind: z.literal("contact_name") }),
+  z.strictObject({ kind: z.literal("source") }),
+]);
 export const ScreenshotCorrectionSchema = z.strictObject({
   images: z.array(z.strictObject({
     source_image_index: z.number().int().min(0).max(9),
@@ -64,6 +75,7 @@ export const ScreenshotCorrectionSchema = z.strictObject({
       uncertainty_index: z.number().int().min(0).max(14),
       read_receipt_id: z.uuid(),
       field: Field,
+      target: CorrectionTarget,
     })).max(15),
     pixel_readings: z.array(Reading).max(24),
     uncertainties: z.array(Uncertainty).max(15),
@@ -72,7 +84,7 @@ export const ScreenshotCorrectionSchema = z.strictObject({
 const Region = z.strictObject({ left: z.number().int().min(0), top: z.number().int().min(0),
   width: z.number().int().min(1).max(1_400), height: z.number().int().min(1).max(1_400) });
 export const ScreenshotDelegationSchema = z.strictObject({ source_image_index: z.number().int().min(0).max(9),
-  region: Region, field: Field });
+  region: Region, field: Field, uncertainty_index: z.number().int().min(0).max(14), target: CorrectionTarget });
 type Rect = z.infer<typeof Region>;
 type PixelReading = z.infer<typeof Reading>;
 type Receipt = { id: string; index: number; sourceHash: string; region: Rect; order: number;
@@ -87,6 +99,8 @@ const contains = (outer: Receipt, inner: Receipt) => outer.index === inner.index
   outer.region.left <= inner.region.left && outer.region.top <= inner.region.top &&
   outer.region.left + outer.region.width >= inner.region.left + inner.region.width &&
   outer.region.top + outer.region.height >= inner.region.top + inner.region.height;
+const sameTarget = (left: z.infer<typeof CorrectionTarget>, right: z.infer<typeof CorrectionTarget>) =>
+  JSON.stringify(left) === JSON.stringify(right);
 const location = (receipt: Receipt) => `original image ${receipt.index + 1}, region (${receipt.region.left}, ${receipt.region.top}, ${receipt.region.width}, ${receipt.region.height})`;
 function metadata(result: unknown): Record<string, unknown> | null {
   if (!result || typeof result !== "object" || ("isError" in result && result.isError)) return null;
@@ -126,7 +140,7 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
   } };
   const reviewTool: HarnessTool = {
     name: "record_screenshot_source_review", readOnly: true, alwaysLoad: true, schema: Reading,
-    description: "Return your bounded source review after inspect_screenshot_region. This is ephemeral analysis, not product storage. Use your own returned read_receipt_id. Read all visible wording for the requested field exactly, without discussing prior guesses. clear requires literal reading; unreadable/not_shown require null. The SDK binds reviewer identity after this call.",
+    description: "Return your bounded source review after inspect_screenshot_region. This is ephemeral analysis, not product storage. Use your own returned read_receipt_id. Read all visible wording for the requested field exactly, without discussing prior guesses. clear requires literal reading; unreadable/not_shown require null. A clear speaker reading must also state the visible speaker_side. The SDK binds reviewer identity after this call.",
     execute: async (args, signal) => {
       signal.throwIfAborted();
       const reading = Reading.parse(args);
@@ -235,20 +249,29 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
         item.kind !== "visible_conflict" && item.read_receipt_id === reading.read_receipt_id && item.field === reading.field))) {
         return { error: "CONTACT_IMAGE_UNRESOLVED_READING_OMITTED" };
       }
-      const isDeclaredCorrectionRead = (reading: PixelReading & { receipt: Receipt }) => !correctionMode ||
+      const isDeclaredCorrectionRead = (reading: PixelReading & { receipt: Receipt }, target?: z.infer<typeof CorrectionTarget>,
+        uncertaintyIndex?: number) => !correctionMode ||
         required.some(selection => selection.source_image_index === sourceIndex && selection.field === reading.field &&
           selection.region.left === reading.receipt.region.left && selection.region.top === reading.receipt.region.top &&
-          selection.region.width === reading.receipt.region.width && selection.region.height === reading.receipt.region.height);
-      const supported = (id: string | undefined, field: z.infer<typeof Field>, value?: string | null) => {
+          selection.region.width === reading.receipt.region.width && selection.region.height === reading.receipt.region.height &&
+          (!target || sameTarget(selection.target, target)) &&
+          (uncertaintyIndex === undefined || selection.uncertainty_index === uncertaintyIndex));
+      const supported = (id: string | undefined, field: z.infer<typeof Field>, value?: string | null,
+        target?: z.infer<typeof CorrectionTarget>, uncertaintyIndex?: number) => {
         const reading=id?own.get(`${id}:${field}`):undefined;
-        if(!reading||!isDeclaredCorrectionRead(reading)||reading.status!=="clear"||
+        if(!reading||!isDeclaredCorrectionRead(reading,target,uncertaintyIndex)||reading.status!=="clear"||
           disagreed.has(`${reading.read_receipt_id}:${reading.field}`))return false;
         return value===undefined||value===null||normalized(reading.reading)!.includes(normalized(value)!);
       };
-      const supportedNull = (id: string, field: z.infer<typeof Field>) => {
+      const supportedNull = (id: string, field: z.infer<typeof Field>, target?: z.infer<typeof CorrectionTarget>) => {
         const reading=own.get(`${id}:${field}`);
-        return Boolean(reading&&isDeclaredCorrectionRead(reading)&&reading.status!=="clear"&&image.uncertainties.some(item=>
+        return Boolean(reading&&isDeclaredCorrectionRead(reading,target)&&reading.status!=="clear"&&image.uncertainties.some(item=>
           item.kind!=="visible_conflict"&&item.read_receipt_id===id&&item.field===field));
+      };
+      const supportedSpeakerSide = (id: string, value: "left"|"right"|"unknown", target: z.infer<typeof CorrectionTarget>) => {
+        const reading=own.get(`${id}:speaker`);
+        return Boolean(reading&&isDeclaredCorrectionRead(reading,target)&&reading.status==="clear"&&
+          reading.speaker_side===value&&!disagreed.has(`${reading.read_receipt_id}:${reading.field}`));
       };
       if(correctionMode){
         const correction=image as z.infer<typeof ScreenshotCorrectionSchema>["images"][number];
@@ -257,8 +280,9 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
         const extraction=ContactChatExtractionSchema.parse(baseline);
         if(correction.contact_name){
           const update=correction.contact_name;
-          if(update.value===null?!supportedNull(update.read_receipt_id,"identity"):
-            !supported(update.read_receipt_id,"identity",update.value))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};
+          const target={kind:"contact_name" as const};
+          if(update.value===null?!supportedNull(update.read_receipt_id,"identity",target):
+            !supported(update.read_receipt_id,"identity",update.value,target))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};
           extraction.contact_name=update.value;
         }
         const seenMessages=new Set<string>();
@@ -267,12 +291,13 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
           seenMessages.add(patch.message_id);
           const target=extraction.messages.find(message=>message.message_id===patch.message_id);
           if(!target)return {error:"CONTACT_IMAGE_MESSAGE_CORRECTION_TARGET_INVALID"};
-          if(patch.text){if(!supported(patch.text.read_receipt_id,"text",patch.text.value))return {error:"CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING"};target.text=patch.text.value;}
-          if(patch.speaker_side){if(!supported(patch.speaker_side.read_receipt_id,"speaker"))return {error:"CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING"};target.speaker_side=patch.speaker_side.value;}
-          if(patch.speaker_label){const update=patch.speaker_label;if(update.value===null?!supportedNull(update.read_receipt_id,"speaker"):
-            !supported(update.read_receipt_id,"speaker",update.value))return {error:"CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING"};target.speaker_label=update.value;}
-          if(patch.time_text){const update=patch.time_text;if(update.value===null?!supportedNull(update.read_receipt_id,"time"):
-            !supported(update.read_receipt_id,"time",update.value))return {error:"CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING"};target.time_text=update.value;}
+          const receiptTarget={kind:"message" as const,message_id:patch.message_id};
+          if(patch.text){if(!supported(patch.text.read_receipt_id,"text",patch.text.value,receiptTarget))return {error:"CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING"};target.text=patch.text.value;}
+          if(patch.speaker_side){if(!supportedSpeakerSide(patch.speaker_side.read_receipt_id,patch.speaker_side.value,receiptTarget))return {error:"CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING"};target.speaker_side=patch.speaker_side.value;}
+          if(patch.speaker_label){const update=patch.speaker_label;if(update.value===null?!supportedNull(update.read_receipt_id,"speaker",receiptTarget):
+            !supported(update.read_receipt_id,"speaker",update.value,receiptTarget))return {error:"CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING"};target.speaker_label=update.value;}
+          if(patch.time_text){const update=patch.time_text;if(update.value===null?!supportedNull(update.read_receipt_id,"time",receiptTarget):
+            !supported(update.read_receipt_id,"time",update.value,receiptTarget))return {error:"CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING"};target.time_text=update.value;}
         }
         const seenClues=new Set<number>();
         for(const patch of correction.identity_clue_corrections){
@@ -280,14 +305,15 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
           seenClues.add(patch.clue_index);
           const target=extraction.identity_clues[patch.clue_index];
           if(!target)return {error:"CONTACT_IMAGE_IDENTITY_CORRECTION_TARGET_INVALID"};
-          if(patch.value){if(!supported(patch.value.read_receipt_id,"identity",patch.value.value))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};target.value=patch.value.value;}
-          if(patch.source_excerpt){if(!supported(patch.source_excerpt.read_receipt_id,"identity",patch.source_excerpt.value))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};target.source_excerpt=patch.source_excerpt.value;}
+          const receiptTarget={kind:"identity_clue" as const,clue_index:patch.clue_index};
+          if(patch.value){if(!supported(patch.value.read_receipt_id,"identity",patch.value.value,receiptTarget))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};target.value=patch.value.value;}
+          if(patch.source_excerpt){if(!supported(patch.source_excerpt.read_receipt_id,"identity",patch.source_excerpt.value,receiptTarget))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};target.source_excerpt=patch.source_excerpt.value;}
           if(!normalized(target.source_excerpt)!.includes(normalized(target.value)!))return {error:"CONTACT_IMAGE_IDENTITY_NOT_IN_OWN_READING"};
         }
         const resolved=new Set<number>();
         for(const item of correction.resolved_uncertainties){
           if(resolved.has(item.uncertainty_index)||!baseline.uncertainties[item.uncertainty_index]||
-            !supported(item.read_receipt_id,item.field))return {error:"CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID"};
+            !supported(item.read_receipt_id,item.field,undefined,item.target,item.uncertainty_index))return {error:"CONTACT_IMAGE_UNCERTAINTY_RESOLUTION_INVALID"};
           resolved.add(item.uncertainty_index);
         }
         extraction.uncertainties=[...baseline.uncertainties.filter((_,itemIndex)=>!resolved.has(itemIndex)),...uncertainties];

@@ -26,7 +26,7 @@ keeping the recruiter's review boundary intact.
 
 ## In scope
 
-- `screenshot-preprocess.v1` shared contract in `apps/agent`.
+- `screenshot-preprocess.v2` shared contract in `apps/agent`.
 - Volcano Ark Doubao-Seed-2.0-lite preprocessor: one stateless Chat API request
   per original image at the Beijing endpoint, `thinking.type=disabled`, strict
   JSON, provider/model/schema mismatch rejection, caller cancellation, and a
@@ -60,7 +60,7 @@ keeping the recruiter's review boundary intact.
 
 ## Chosen approach
 
-1. `screenshotPreprocess.ts` defines `screenshot-preprocess.v1` zod schemas and
+1. `screenshotPreprocess.ts` defines `screenshot-preprocess.v2` zod schemas and
    the `ScreenshotPreprocessor` interface;
    `arkScreenshotPreprocessor.ts` implements it. Provider/model are pinned
    constants; the endpoint is a fixed Beijing Ark URL.
@@ -76,8 +76,9 @@ keeping the recruiter's review boundary intact.
 4. The packet is passed to the downstream Agent. With no follow-up, no original
    is re-sent. Otherwise only flagged source indices are attached, exact
    follow-up regions (maximum 1,400 px per dimension) require current-run pixel
-   receipts. The model returns field patches only; the host validates every
-   changed field against its declared region and merges it into the immutable
+   receipts. Each region is bound to one baseline uncertainty and stable field
+   target. The model returns field patches only; the host validates every
+   changed field and resolved uncertainty against that declaration and merges it into the immutable
    preprocessing baseline before filing tools unlock. Unknown provider
    responses require an explicit audited resume before a retry. Providers that
    cannot issue these region receipts keep the baseline unchanged and pause for
@@ -119,11 +120,11 @@ keeping the recruiter's review boundary intact.
   receipt, token usage, two ordered messages, and no follow-up region; see the
   acceptance evidence directory. No private screenshot or extracted text was
   retained in that receipt.
-- PostgreSQL integration: 33/33, including selected-source correction,
+- PostgreSQL integration: 40/40, including selected-source correction,
   ambiguous abstention, and explicit unknown-response retry authorization.
   The additional deletion recovery case injects a failure after intent commit
   and proves the original revision can resume the final scrub.
-- iOS `RelationshipCaptureTests`: 39/39, including the shared non-filing
+- iOS `RelationshipCaptureTests`: 47/47, including the shared non-filing
   preprocessing request, explicit user Retry/resume, unresolved-source display,
   per-message source provenance, server cleanup before local source removal,
   and local-source preservation across a temporary cleanup failure.

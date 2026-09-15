@@ -5,7 +5,7 @@ import { prepareScreenshotViews, type PreparedScreenshotViews, type PreparedView
 import {
   ARK_SCREENSHOT_PREPROCESS_ENDPOINT, ARK_SCREENSHOT_PREPROCESS_MODEL,
   SCREENSHOT_PREPROCESS_CONTRACT,
-  ScreenshotPreprocessSourceSchema,
+  ScreenshotPreprocessFollowUpTargetSchema, ScreenshotPreprocessSourceSchema,
   type ScreenshotPreprocessImage, type ScreenshotPreprocessResult, type ScreenshotPreprocessor,
 } from "./screenshotPreprocess.js";
 
@@ -40,6 +40,8 @@ const ModelOutputSchema = z.strictObject({
   follow_up_regions: z.array(z.strictObject({
     reason: z.enum(["illegible_text", "ambiguous_speaker", "ambiguous_time", "ambiguous_identity", "cropped_boundary", "layout_overlap"]),
     field: z.enum(["text", "speaker", "time", "identity"]),
+    uncertainty_index: z.number().int().min(0).max(14),
+    target: ScreenshotPreprocessFollowUpTargetSchema,
     left: z.number().int().min(0),
     top: z.number().int().min(0),
     width: z.number().int().min(1).max(1_400),
@@ -108,6 +110,7 @@ export class ArkScreenshotPreprocessor implements ScreenshotPreprocessor {
           identity_clues: raw.identity_clues, uncertainties: raw.uncertainties,
           follow_up_required: raw.follow_up_regions.length > 0,
           follow_up_regions: raw.follow_up_regions.map(region => ({ reason: region.reason, field: region.field,
+            uncertainty_index: region.uncertainty_index, target: region.target,
             region: { left: region.left, top: region.top, width: region.width, height: region.height } })),
           width: views.width, height: views.height,
           prepared_view: { transform: views.overview.transform, content_hash: views.overview.content_hash, tile_count: views.tiles.length },

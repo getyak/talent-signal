@@ -409,7 +409,7 @@ final class RelationshipCaptureTests: XCTestCase {
 
         func encodedRequest(for value: PendingCaptureSeed) throws -> Data {
             let body = ScreenshotContactTaskBody(
-                idempotencyKey: "ios:\(value.id.uuidString.lowercased()):preprocess-v1",
+                idempotencyKey: "ios:\(value.id.uuidString.lowercased()):preprocess-v2",
                 objective: "Preprocess this recruiter-selected screenshot into reviewable, unconfirmed source evidence.",
                 data: value.imageData,
                 mediaType: value.mediaType,
@@ -1154,7 +1154,7 @@ final class RelationshipCaptureTests: XCTestCase {
                 XCTAssertEqual(request.httpMethod, "POST")
                 XCTAssertEqual(
                     request.url?.path,
-                    "/v1/contact-agent/tasks/99999999-9999-4999-8999-999999999990/delete"
+                    "/v1/contact-agent/tasks/99999999-9999-4999-8999-999999999990/preprocessing-source/delete"
                 )
                 let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
                 let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -1332,7 +1332,7 @@ final class RelationshipCaptureTests: XCTestCase {
         let taskID = "99999999-9999-4999-8999-999999999994"
         RelationshipCaptureURLProtocol.handler = { request in
             XCTAssertEqual(request.httpMethod, "POST")
-            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks/\(taskID)/delete")
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks/\(taskID)/preprocessing-source/delete")
             let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertEqual(json["expected_revision"] as? Int, 4)
@@ -1553,7 +1553,7 @@ final class RelationshipCaptureTests: XCTestCase {
         )
         draft.speaker = .candidate
         draft.sourceParserName = "shared-screenshot-preprocess"
-        draft.sourceParserVersion = "screenshot-preprocess.v1"
+        draft.sourceParserVersion = "screenshot-preprocess.v2"
         draft.preprocessedMessages = [
             .init(messageID: "m1", sequence: 0, text: "Available next Tuesday",
                   speakerSide: "left", speakerLabel: "Alex Chen", timeText: "09:30", sourceImageIndex: 0),

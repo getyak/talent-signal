@@ -178,7 +178,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
 
     func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
         let deleted: ScreenshotContactTask = try await request(
-            path: "v1/contact-agent/tasks/\(taskID)/delete",
+            path: "v1/contact-agent/tasks/\(taskID)/preprocessing-source/delete",
             method: "POST",
             body: ScreenshotContactDeleteBody(expectedRevision: expectedRevision)
         )
@@ -222,7 +222,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
             mediaType: seed.mediaType
         )
         let body = ScreenshotContactTaskBody(
-            idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):preprocess-v1",
+            idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):preprocess-v2",
             objective: "Preprocess this recruiter-selected screenshot into reviewable, unconfirmed source evidence.",
             data: upload.data,
             mediaType: upload.mediaType,
@@ -279,7 +279,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                 var draft = RecognizedCaptureDraft.empty
                 draft.displayNameHint = extraction.contactName ?? ""
                 draft.sourceParserName = "shared-screenshot-preprocess"
-                draft.sourceParserVersion = "screenshot-preprocess.v1"
+                draft.sourceParserVersion = "screenshot-preprocess.v2"
                 draft.preprocessingUncertainties = preprocessingIssues.isEmpty
                     ? ["No conversation messages were readable. Inspect the original before entering evidence."]
                     : preprocessingIssues
@@ -304,7 +304,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         let hasUntypedHandle = extraction.identityClues?.contains(where: { $0.kind == "handle" }) == true
         if hasUntypedHandle { draft.handleValue = "" }
         draft.sourceParserName = "shared-screenshot-preprocess"
-        draft.sourceParserVersion = "screenshot-preprocess.v1"
+        draft.sourceParserVersion = "screenshot-preprocess.v2"
         var draftPreprocessingIssues = preprocessingIssues
         if hasUntypedHandle {
             draftPreprocessingIssues.append(
@@ -368,7 +368,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                     reviewStatus: reviewStatus,
                     parser: .init(
                         name: draft.sourceParserName ?? "shared-screenshot-preprocess",
-                        version: draft.sourceParserVersion ?? "screenshot-preprocess.v1"
+                        version: draft.sourceParserVersion ?? "screenshot-preprocess.v2"
                     )
                 )
             }

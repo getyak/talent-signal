@@ -26,7 +26,7 @@ const modelOutput={platform:"WeChat",conversation_kind:"direct",contact_name:"Sy
   identity_clues:[{kind:"name",value:"Synthetic Person",source_excerpt:"Synthetic Person"}],
   uncertainties:[],follow_up_regions:[]};
 
-describe("screenshot-preprocess.v1",()=>{
+describe("screenshot-preprocess.v2",()=>{
   it("keeps ordinary views legible and tiles long screenshots with overlap",async()=>{
     const ordinary=await prepareScreenshotViews(await image(),0);
     expect(ordinary).toMatchObject({width:120,height:240,native_clarity:true,tiles:[]});
@@ -71,10 +71,12 @@ describe("screenshot-preprocess.v1",()=>{
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response(modelOutput,"latest")})
       .preprocess(source,0,new AbortController().signal)).rejects.toThrow("PROVIDER_IDENTITY_MISMATCH");
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
-      follow_up_regions:[{reason:"illegible_text",field:"text",left:100,top:0,width:40,height:20}]})})
+      uncertainties:["Message text is unclear."],follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
+        target:{kind:"message",message_index:0},left:100,top:0,width:40,height:20}]})})
       .preprocess(source,0,new AbortController().signal)).rejects.toThrow("REGION_OUT_OF_BOUNDS");
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
-      follow_up_regions:[{reason:"illegible_text",field:"text",left:0,top:0,width:120,height:1401}]})})
+      uncertainties:["Message text is unclear."],follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
+        target:{kind:"message",message_index:0},left:0,top:0,width:120,height:1401}]})})
       .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
   });
 
@@ -106,6 +108,8 @@ describe("screenshot-preprocess.v1",()=>{
         (_, left) => ({
           reason: "illegible_text" as const,
           field: "text" as const,
+          uncertainty_index: 0,
+          target: { kind: "message" as const, message_index: 0 },
           region: { left, top: 0, width: 10, height: 10 },
         }),
       ),

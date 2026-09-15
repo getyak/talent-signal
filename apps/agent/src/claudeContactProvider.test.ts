@@ -91,7 +91,8 @@ describe("multimodal contact SDK adapter", () => {
           {sequence:0,text:"Keep this message",speaker_label:"Me",speaker_side:"right" as const,time_text:null},
           {sequence:1,text:"Correct only my speaker",speaker_label:null,speaker_side:"unknown" as const,time_text:null},
         ]:[{sequence:0,text:"Earlier image message",speaker_label:"Synthetic",speaker_side:"left" as const,time_text:null}],identity_clues:[],uncertainties:index===1?["Second speaker is unclear."]:[],
-        follow_up_required:index===1,follow_up_regions:index===1?[{reason:"ambiguous_speaker" as const,field:"speaker" as const,region:{left:2,top:4,width:10,height:12}}]:[],width:24,height:48,
+        follow_up_required:index===1,follow_up_regions:index===1?[{reason:"ambiguous_speaker" as const,field:"speaker" as const,
+          uncertainty_index:0,target:{kind:"message" as const,message_index:1},region:{left:2,top:4,width:10,height:12}}]:[],width:24,height:48,
         prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}))};
     const record=vi.fn(async()=>({status:"unconfirmed"}));
     const execute=vi.fn(async(_configuration,request:ClaudeHarnessRequest)=>{
@@ -113,8 +114,9 @@ describe("multimodal contact SDK adapter", () => {
       const result=await correction.execute({images:[{source_image_index:1,
         message_corrections:[{message_id:"m3",speaker_side:{value:"left",read_receipt_id:receipt},
           speaker_label:{value:"Synthetic",read_receipt_id:receipt}}],identity_clue_corrections:[],
-        resolved_uncertainties:[{uncertainty_index:0,read_receipt_id:receipt,field:"speaker"}],
-        pixel_readings:[{read_receipt_id:receipt,field:"speaker",status:"clear",reading:"Synthetic"}],uncertainties:[]}]},
+        resolved_uncertainties:[{uncertainty_index:0,read_receipt_id:receipt,field:"speaker",
+          target:{kind:"message",message_id:"m3"}}],
+        pixel_readings:[{read_receipt_id:receipt,field:"speaker",status:"clear",reading:"Synthetic",speaker_side:"left"}],uncertainties:[]}]},
       new AbortController().signal);
       expect(result.isError).not.toBe(true);
       expect(record).toHaveBeenCalledWith([expect.objectContaining({messages:[
