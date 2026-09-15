@@ -6,8 +6,14 @@
     "node": ">=22.19.0"
   },
   "packageManager": "pnpm@11.18.0",
+  "devDependencies": {
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  },
   "scripts": {
-    "architecture:check": "node scripts/check-architecture-diagrams.mjs",
+    "architecture:boundaries": "node scripts/check-architecture-boundaries.mjs",
+    "architecture:contract:sync": "node scripts/check-architecture-boundaries.mjs --write-contract",
+    "architecture:check": "pnpm architecture:boundaries && pnpm architecture:diagrams:check",
+    "architecture:diagrams:check": "node scripts/check-architecture-diagrams.mjs",
     "architecture:generate": "node scripts/generate-architecture-diagrams.mjs",
     "agent:check": "pnpm --filter @talent-signal/agent typecheck && pnpm --filter @talent-signal/agent test && pnpm --filter @talent-signal/agent build && pnpm --filter @talent-signal/agent-host typecheck && pnpm --filter @talent-signal/agent-host test && pnpm --filter @talent-signal/agent-host build",
     "agent:research": "pnpm --filter @talent-signal/agent build && pnpm --filter @talent-signal/agent-host build && node apps/agent-host/dist/cli.js research",
