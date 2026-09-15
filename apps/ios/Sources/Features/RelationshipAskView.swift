@@ -6,7 +6,6 @@ import ActivityKit
 import CryptoKit
 import PhotosUI
 import UniformTypeIdentifiers
-import Vision
 
 private struct VoiceQuickControlFramePreferenceKey: PreferenceKey {
     static var defaultValue: CGRect = .zero
@@ -3181,38 +3180,13 @@ struct RelationshipAskView: View {
             mediaType: mediaType,
             width: max(1, Int(preview.size.width * scale)),
             height: max(1, Int(preview.size.height * scale)),
-            routingText: "",
             remoteAsset: nil,
             phase: .waitingForContext
         )
         mediaDrafts.append(mediaDraft)
-        Task {
-            let recognizedText = await Task.detached(priority: .utility) {
-                Self.routingText(in: data)
-            }.value
-            guard let index = mediaDrafts.firstIndex(where: { $0.id == id }) else {
-                return
-            }
-            mediaDrafts[index].routingText = recognizedText
-        }
         mediaNotice = nil
         if let selectedScope, !hasPendingScreenshotAdmission {
             uploadMediaDraft(id, scope: selectedScope)
-        }
-    }
-
-    nonisolated private static func routingText(in data: Data) -> String {
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.recognitionLanguages = ["zh-Hans", "en-US"]
-        do {
-            try VNImageRequestHandler(data: data).perform([request])
-            return (request.results ?? [])
-                .compactMap { $0.topCandidates(1).first?.string }
-                .joined(separator: "\n")
-        } catch {
-            return ""
         }
     }
 

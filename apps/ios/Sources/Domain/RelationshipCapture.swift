@@ -106,6 +106,9 @@ struct RecognizedCaptureDraft: Codable, Equatable {
     var keepOriginalForReview: Bool? = nil
     var sourceByteCount: Int? = nil
     var sourceTimezone: String? = nil
+    var sourceParserName: String? = nil
+    var sourceParserVersion: String? = nil
+    var preprocessingUncertainties: [String]? = nil
 
     static let empty = RecognizedCaptureDraft(
         reviewedText: "",

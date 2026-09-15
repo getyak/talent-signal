@@ -18,7 +18,19 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
         var id: String { messageID }
         enum CodingKeys: String, CodingKey { case messageID = "message_id", text, speakerSide = "speaker_side", timeText = "time_text", sourceImageIndex = "source_image_index" }
     }
-    struct Extraction: Decodable, Equatable { let messages: [Message]; let uncertainties: [String] }
+    struct IdentityClue: Decodable, Equatable {
+        let kind: String; let value: String; let sourceExcerpt: String; let sourceImageIndex: Int?
+        enum CodingKeys: String, CodingKey { case kind, value, sourceExcerpt = "source_excerpt", sourceImageIndex = "source_image_index" }
+    }
+    struct Extraction: Decodable, Equatable {
+        let platform: String?; let contactName: String?; let identityClues: [IdentityClue]?
+        let messages: [Message]; let uncertainties: [String]
+        init(platform: String? = nil, contactName: String? = nil, identityClues: [IdentityClue]? = nil, messages: [Message], uncertainties: [String]) {
+            self.platform = platform; self.contactName = contactName; self.identityClues = identityClues
+            self.messages = messages; self.uncertainties = uncertainties
+        }
+        enum CodingKeys: String, CodingKey { case platform, contactName = "contact_name", identityClues = "identity_clues", messages, uncertainties }
+    }
     struct ProfileDraft: Decodable, Equatable {
         struct Field: Decodable, Equatable, Identifiable {
             let clueIndex: Int; let kind: String; let value: String; let sourceExcerpt: String; let sourceImageIndex: Int
@@ -102,20 +114,22 @@ struct ScreenshotContactTaskBody: Encodable {
     let selectedPersonID: String?
     let selectedRelationshipContextID: String?
     let allowPublicResearch: Bool
+    let preprocessOnly: Bool?
     let capturedAt: String
-    init(idempotencyKey: String, objective: String, data: Data, mediaType: String, personID: String?, contextID: String?, capturedAt: Date = Date()) {
-        self.init(idempotencyKey: idempotencyKey, objective: objective, images: [Image(data: data, mediaType: mediaType)], personID: personID, contextID: contextID, capturedAt: capturedAt)
+    init(idempotencyKey: String, objective: String, data: Data, mediaType: String, personID: String?, contextID: String?, capturedAt: Date = Date(), preprocessOnly: Bool = false, allowPublicResearch: Bool = true) {
+        self.init(idempotencyKey: idempotencyKey, objective: objective, images: [Image(data: data, mediaType: mediaType)], personID: personID, contextID: contextID, capturedAt: capturedAt, preprocessOnly: preprocessOnly, allowPublicResearch: allowPublicResearch)
     }
-    init(idempotencyKey: String, objective: String, images: [Image], personID: String?, contextID: String?, capturedAt: Date = Date()) {
+    init(idempotencyKey: String, objective: String, images: [Image], personID: String?, contextID: String?, capturedAt: Date = Date(), preprocessOnly: Bool = false, allowPublicResearch: Bool = true) {
         precondition(!images.isEmpty && images.count <= 10)
         self.idempotencyKey = idempotencyKey; self.objective = objective
         image = images[0]; additionalImages = images.count > 1 ? Array(images.dropFirst()) : nil
-        selectedPersonID = personID; selectedRelationshipContextID = contextID; allowPublicResearch = true
+        selectedPersonID = personID; selectedRelationshipContextID = contextID; self.allowPublicResearch = allowPublicResearch
+        self.preprocessOnly = preprocessOnly ? true : nil
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         self.capturedAt = formatter.string(from: capturedAt)
     }
     enum CodingKeys: String, CodingKey {
-        case idempotencyKey = "idempotency_key", objective, image, additionalImages = "additional_images", selectedPersonID = "selected_person_id", selectedRelationshipContextID = "selected_relationship_context_id", allowPublicResearch = "allow_public_research", capturedAt = "captured_at"
+        case idempotencyKey = "idempotency_key", objective, image, additionalImages = "additional_images", selectedPersonID = "selected_person_id", selectedRelationshipContextID = "selected_relationship_context_id", allowPublicResearch = "allow_public_research", preprocessOnly = "preprocess_only", capturedAt = "captured_at"
     }
 }
 

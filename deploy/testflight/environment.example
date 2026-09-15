@@ -25,6 +25,9 @@ ZHIPU_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
 # end-to-end probe pass.
 TALENT_SIGNAL_AGENT_PROVIDER=zhipu
 TALENT_SIGNAL_AGENT_VISION_MODEL=glm-4.6v-flash
+# Required by the shared screenshot-preprocess.v1 stage. The model and Beijing
+# endpoint are pinned in code; keep this credential in Infisical /shared.
+ARK_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
 TALENT_SIGNAL_PERSON_RESEARCH_ENABLED=false
 TALENT_SIGNAL_PERSON_RESEARCH_TIMEOUT_MS=65000
 

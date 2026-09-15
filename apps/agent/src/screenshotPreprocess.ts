@@ -1,0 +1,143 @@
+import { z } from "zod";
+
+/** Frozen interface version. A shape change requires a new version string. */
+export const SCREENSHOT_PREPROCESS_CONTRACT = "screenshot-preprocess.v1" as const;
+export const SCREENSHOT_PREPROCESS_PROMPT_VERSION = "capture/screenshot-preprocess@1" as const;
+export const SCREENSHOT_PREPROCESS_SCHEMA_VERSION = "screenshot-preprocess-schema@1" as const;
+
+/** Pinned mainland-China Volcano Ark model. Opaque `latest` aliases are rejected. */
+export const ARK_SCREENSHOT_PREPROCESS_MODEL = "doubao-seed-2-0-lite-260215" as const;
+export const ARK_SCREENSHOT_PREPROCESS_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/chat/completions" as const;
+
+const Text = z.string().min(1);
+const Short = z.string().min(1).max(600);
+
+/** Bounded original-pixel region, always in EXIF-oriented original coordinates. */
+export const ScreenshotPreprocessRegionSchema = z.strictObject({
+  left: z.number().int().min(0),
+  top: z.number().int().min(0),
+  width: z.number().int().min(1).max(1_400),
+  height: z.number().int().min(1).max(1_400),
+});
+
+export const ScreenshotPreprocessParticipantSchema = z.strictObject({
+  label: Short.nullable(),
+  side: z.enum(["left", "right", "unknown"]),
+  role_hint: z.enum(["account_owner", "counterpart", "third_party", "unknown"]),
+  visible_name: Short.nullable(),
+});
+
+export const ScreenshotPreprocessMessageSchema = z.strictObject({
+  sequence: z.number().int().min(0),
+  text: Text.max(4_000),
+  speaker_label: Short.nullable(),
+  speaker_side: z.enum(["left", "right", "unknown"]),
+  time_text: Short.nullable(),
+});
+
+export const ScreenshotPreprocessIdentityClueSchema = z.strictObject({
+  kind: z.enum(["name", "handle", "profile_url", "company", "job_title"]),
+  value: Short,
+  source_excerpt: Short,
+});
+
+/**
+ * One bounded region that a later multimodal read should inspect. The reason is
+ * a bounded enum-like string, never free-form prose about a person.
+ */
+export const ScreenshotPreprocessFollowUpSchema = z.strictObject({
+  reason: z.enum(["illegible_text", "ambiguous_speaker", "ambiguous_time", "ambiguous_identity", "cropped_boundary", "layout_overlap"]),
+  field: z.enum(["text", "speaker", "time", "identity"]),
+  region: ScreenshotPreprocessRegionSchema,
+});
+
+/** Per-original-image understanding. Never a score, trait, or confirmed fact. */
+export const ScreenshotPreprocessSourceSchema = z.strictObject({
+  source_image_index: z.number().int().min(0).max(9),
+  source_hash: z.string().regex(/^[a-f0-9]{64}$/u),
+  platform: Short.nullable(),
+  conversation_kind: z.enum(["profile", "direct", "group", "forwarded", "comments", "unknown", "not_chat"]),
+  contact_name: Short.nullable(),
+  participants: z.array(ScreenshotPreprocessParticipantSchema).max(20),
+  messages: z.array(ScreenshotPreprocessMessageSchema).max(100),
+  identity_clues: z.array(ScreenshotPreprocessIdentityClueSchema).max(12),
+  uncertainties: z.array(Short).max(15),
+  follow_up_required: z.boolean(),
+  follow_up_regions: z.array(ScreenshotPreprocessFollowUpSchema).max(20),
+  width: z.number().int().min(1),
+  height: z.number().int().min(1),
+  prepared_view: z.strictObject({
+    transform: Text.max(80),
+    content_hash: z.string().regex(/^[a-f0-9]{64}$/u),
+    tile_count: z.number().int().min(0).max(64),
+  }),
+});
+
+export const ScreenshotPreprocessPacketSchema = z.strictObject({
+  contract_version: z.literal(SCREENSHOT_PREPROCESS_CONTRACT),
+  schema_version: z.literal(SCREENSHOT_PREPROCESS_SCHEMA_VERSION),
+  prompt_version: z.literal(SCREENSHOT_PREPROCESS_PROMPT_VERSION),
+  provider: z.literal("volcano_ark"),
+  model: z.literal(ARK_SCREENSHOT_PREPROCESS_MODEL),
+  request_receipts: z.array(z.strictObject({
+    source_image_index: z.number().int().min(0).max(9),
+    request_id: Text.max(200),
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative(),
+  })).min(1).max(10),
+  usage: z.strictObject({
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative(),
+  }),
+  sources: z.array(ScreenshotPreprocessSourceSchema).min(1).max(10),
+});
+
+export type ScreenshotPreprocessRegion = z.infer<typeof ScreenshotPreprocessRegionSchema>;
+export type ScreenshotPreprocessSource = z.infer<typeof ScreenshotPreprocessSourceSchema>;
+export type ScreenshotPreprocessPacket = z.infer<typeof ScreenshotPreprocessPacketSchema>;
+export type ScreenshotPreprocessFollowUp = z.infer<typeof ScreenshotPreprocessFollowUpSchema>;
+
+export interface ScreenshotPreprocessImage {
+  media_type: "image/png" | "image/jpeg" | "image/webp";
+  byte_size: number;
+  content_hash: string;
+  data_base64: string;
+}
+
+export interface ScreenshotPreprocessResult {
+  source: ScreenshotPreprocessSource;
+  request_id: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+/**
+ * One stateless request per original image. Implementations must pin the
+ * provider/model, reject mismatches, honor cancellation, and bound response
+ * size. The packet never carries raw pixels beyond the ephemeral request.
+ */
+export interface ScreenshotPreprocessor {
+  readonly provider: "volcano_ark";
+  readonly model: string;
+  preprocess(image: ScreenshotPreprocessImage, imageIndex: number, signal: AbortSignal): Promise<ScreenshotPreprocessResult>;
+}
+
+/** Reject any model/provider/schema drift before a result can be persisted. */
+export function assertScreenshotPreprocessAgreement(input: {
+  provider: string; model: string; contractVersion: string; schemaVersion: string; promptVersion: string;
+}): void {
+  if (input.provider !== "volcano_ark") throw new Error("SCREENSHOT_PREPROCESS_PROVIDER_MISMATCH");
+  if (input.model !== ARK_SCREENSHOT_PREPROCESS_MODEL) throw new Error("SCREENSHOT_PREPROCESS_MODEL_MISMATCH");
+  if (input.contractVersion !== SCREENSHOT_PREPROCESS_CONTRACT) throw new Error("SCREENSHOT_PREPROCESS_CONTRACT_MISMATCH");
+  if (input.schemaVersion !== SCREENSHOT_PREPROCESS_SCHEMA_VERSION) throw new Error("SCREENSHOT_PREPROCESS_SCHEMA_MISMATCH");
+  if (input.promptVersion !== SCREENSHOT_PREPROCESS_PROMPT_VERSION) throw new Error("SCREENSHOT_PREPROCESS_PROMPT_MISMATCH");
+}
+
+/**
+ * Whether the downstream Agent must re-read original pixels. When every source
+ * declares no follow-up, original multimodal reading is unnecessary.
+ */
+export function preprocessNeedsOriginalMultimodalRead(packet: ScreenshotPreprocessPacket): boolean {
+  return packet.sources.some(source => source.follow_up_required || source.follow_up_regions.length > 0);
+}

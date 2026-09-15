@@ -1,61 +1,10 @@
 import Foundation
-import UIKit
-@preconcurrency import Vision
-
-protocol ConversationTextRecognizing {
-    func recognizeText(in imageData: Data) async throws -> String
-}
-
-struct VisionConversationTextRecognizer: ConversationTextRecognizing {
-    func recognizeText(in imageData: Data) async throws -> String {
-        guard let image = UIImage(data: imageData),
-              let cgImage = image.cgImage else {
-            throw ConversationRecognitionError.unreadableImage
-        }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let request = VNRecognizeTextRequest { request, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
-                let ordered = observations.sorted { left, right in
-                    let rowDifference = abs(left.boundingBox.midY - right.boundingBox.midY)
-                    if rowDifference > 0.025 {
-                        return left.boundingBox.midY > right.boundingBox.midY
-                    }
-                    return left.boundingBox.minX < right.boundingBox.minX
-                }
-                let text = ordered.compactMap { $0.topCandidates(1).first?.string }
-                    .joined(separator: "\n")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                guard !text.isEmpty else {
-                    continuation.resume(throwing: ConversationRecognitionError.noText)
-                    return
-                }
-                continuation.resume(returning: text)
-            }
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            request.recognitionLanguages = ["zh-Hans", "en-US"]
-
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    try VNImageRequestHandler(cgImage: cgImage).perform([request])
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-    }
-}
 
 enum ConversationRecognitionError: LocalizedError, Equatable {
     case unreadableImage
     case noText
+    case sharedPreprocessingUnavailable
+    case sharedPreprocessingFailed
 
     var errorDescription: String? {
         switch self {
@@ -63,6 +12,10 @@ enum ConversationRecognitionError: LocalizedError, Equatable {
             return "The selected file is not a readable image."
         case .noText:
             return "No readable conversation text was found. Try a clearer screenshot."
+        case .sharedPreprocessingUnavailable:
+            return "Shared screenshot preprocessing is unavailable. Reconnect to Talent Signal and retry."
+        case .sharedPreprocessingFailed:
+            return "Shared screenshot preprocessing did not produce reviewable evidence. Retry with the original screenshot."
         }
     }
 }

@@ -11,7 +11,10 @@ const extraction = () => ({ platform: "synthetic", conversation_kind: "comments"
 const textReading = (id: string, reading: string | null = "Mira: Document reference DOCIOS-test") => ({
   read_receipt_id: id, field: "text", status: reading === null ? "unreadable" : "clear", reading,
 });
-async function setup(height = 400) {
+async function setup(height = 400, options: {
+  required?: Parameters<typeof screenshotSourceReview>[1];
+  baselines?: Parameters<typeof screenshotSourceReview>[2];
+} = {}) {
   let revoked = false;
   const bytes = await sharp({ create: { width: 300, height, channels: 3, background: "white" } }).png().toBuffer();
   const image = { media_type: "image/png" as const, byte_size: bytes.length,
@@ -22,7 +25,7 @@ async function setup(height = 400) {
     if (revoked) throw new Error("SOURCE_REVOKED");
     return value;
   }, signal());
-  const subject = screenshotSourceReview(views);
+  const subject = screenshotSourceReview(views, options.required, options.baselines);
   const read = async (actor: string | null = null, selected = region, bind = true) => {
     const input = { source_image_index: 0, region: selected };
     const result = await subject.inspect.execute(input, signal());
@@ -180,5 +183,41 @@ describe("current-Run screenshot source reviews", () => {
     expect(long.subject.validate({ images: [value] })).toEqual({ error: "CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING" });
     (value.messages[0] as any).source_image_index = 1;
     expect(plain.subject.validate({ images: [value] })).toEqual({ error: "CONTACT_IMAGE_SOURCE_INDEX_MISMATCH" });
+  });
+
+  it("patches only a bounded speaker field while preserving every untouched baseline message", async () => {
+    const baseline = { platform: "WeChat", conversation_kind: "direct" as const, contact_name: "Alex Chen",
+      identity_clues: [{ kind: "name" as const, value: "Alex Chen", source_excerpt: "Alex Chen", source_image_index: 0 }],
+      messages: [
+        { message_id: "m1", sequence: 0, text: "First untouched message", speaker_side: "right" as const,
+          speaker_label: "Me", time_text: null, source_image_index: 0 },
+        { message_id: "m2", sequence: 1, text: "Second untouched message", speaker_side: "unknown" as const,
+          speaker_label: null, time_text: null, source_image_index: 0 },
+      ], uncertainties: ["The speaker for message m2 is unclear."] };
+    const { subject, read } = await setup(400, {
+      required: [{ source_image_index: 0, region, field: "speaker" }],
+      baselines: [{ source_image_index: 0, extraction: baseline }],
+    });
+    const own = await read();
+    const speakerReading = { read_receipt_id: own.id, field: "speaker" as const,
+      status: "clear" as const, reading: "Alex Chen" };
+    const result = subject.validate({ images: [{ source_image_index: 0,
+      message_corrections: [{ message_id: "m2",
+        speaker_side: { value: "left", read_receipt_id: own.id },
+        speaker_label: { value: "Alex Chen", read_receipt_id: own.id } }],
+      identity_clue_corrections: [],
+      resolved_uncertainties: [{ uncertainty_index: 0, read_receipt_id: own.id, field: "speaker" }],
+      pixel_readings: [speakerReading], uncertainties: [] }] });
+    expect(result).toEqual({ images: [{ ...baseline, uncertainties: [], messages: [baseline.messages[0],
+      { ...baseline.messages[1], speaker_side: "left", speaker_label: "Alex Chen" }] }] });
+
+    const undeclared = await read(null, { ...region, height: 300 });
+    const undeclaredReading = { ...speakerReading, read_receipt_id: undeclared.id };
+    expect(subject.validate({ images: [{ source_image_index: 0,
+      message_corrections: [{ message_id: "m2",
+        speaker_side: { value: "left", read_receipt_id: undeclared.id } }],
+      identity_clue_corrections: [], resolved_uncertainties: [],
+      pixel_readings: [speakerReading, undeclaredReading], uncertainties: [] }] }))
+      .toEqual({ error: "CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING" });
   });
 });

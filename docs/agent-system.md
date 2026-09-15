@@ -273,7 +273,7 @@ Filing never confirms actors, dates, real-world identity, or interpreted claims.
 An ordered image set is one immutable import intent. Each message retains image
 provenance; conflicting visible identities stop filing, and overlapping messages
 are not repeated commitments. Private originals stay outside model/task state
-and expire with the task. Recovery reuses stored images and extraction checkpoints.
+and expire with the task. New tasks run the pinned, no-OCR `screenshot-preprocess.v1` contract first; recovery reuses stored originals and per-image provider checkpoints, downstream models receive an original again only for a recorded multimodal follow-up region, and the authenticated monitor shows this unconfirmed packet beside the bounded seven-day visual Memory.
 Source invalidation denies access and queues retryable permanent cleanup;
 reversible archive hides sources without extending retention. See the
 [storage playbook](operations/backend-production.md#chat-media-object-storage).

@@ -30229,6 +30229,106 @@
         }
       }
     },
+    "Correct what the original supports below. Anything you do not resolve remains unknown.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在下方仅修正原图能够支持的内容。无法解决的部分将保持未知。"
+          }
+        }
+      }
+    },
+    "Opens the original image for zooming before you correct the preprocessed text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在修正预处理文本前打开原图并支持缩放查看。"
+          }
+        }
+      }
+    },
+    "Pinch or double tap to zoom while checking the preprocessed text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核对预处理文本时，可捏合或双击缩放。"
+          }
+        }
+      }
+    },
+    "Pinch or double tap to zoom. Return to the review to correct preprocessing errors.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捏合或双击可缩放。返回核对页修正预处理错误。"
+          }
+        }
+      }
+    },
+    "Preparing the screenshot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在预处理截图"
+          }
+        }
+      }
+    },
+    "Preprocessing can be wrong. Speaker identity stays unknown until another source supports it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预处理可能有误。在其他来源提供支持前，说话者身份保持未知。"
+          }
+        }
+      }
+    },
+    "Shared preprocessing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享预处理"
+          }
+        }
+      }
+    },
+    "Still unresolved in the original": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图中仍无法确认"
+          }
+        }
+      }
+    },
+    "The original is sent to the private preprocessing service and archived for review. Nothing is attached to a person without the next governed step.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图会发送到私有预处理服务并归档以供核对。完成下一步受控操作前，不会关联到任何人物。"
+          }
+        }
+      }
+    },
+    "The protected local copy stays for up to 7 days, or until review is complete. The private service also retains the submitted original under the task retention policy so monitor review and deletion remain possible.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受保护的本地副本最多保留 7 天，或在核对完成后删除。私有服务也会按任务保留策略保存提交的原图，以支持监控核对和删除。"
+          }
+        }
+      }
+    },
     "The file could not be saved. Try again.": {
       "localizations": {
         "zh-Hans": {

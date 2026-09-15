@@ -2568,7 +2568,7 @@ export async function buildApp(
     schema: {tags:["contact-agent"],security},
   }, async(request,reply)=>{
     if(!screenshotRunner)throw new ApiError(503,"CONTACT_AGENT_UNAVAILABLE","Screenshot contact Agent is not configured.");
-    const result=await createScreenshotContactTask(pool,request.auth,request.body,chatMediaStorage);
+    const result=await createScreenshotContactTask(pool,request.auth,request.body,chatMediaStorage,{preprocessingRequired:true});
     void screenshotRunner.start(request.auth,result.body.task_id).catch(()=>request.log.error({task_id:result.body.task_id},"Contact task could not start"));
     return reply.header("idempotent-replayed",result.replayed).status(result.replayed?200:201).send(result.body);
   });

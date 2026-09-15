@@ -11,6 +11,9 @@ protocol RelationshipCaptureServing {
         draft: RecognizedCaptureDraft
     ) async throws -> ResourceCaptureResult
 
+    func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
+    func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
+
     func createProposedCapture(
         seed: PendingCaptureSeed,
         draft: RecognizedCaptureDraft
@@ -41,6 +44,14 @@ extension RelationshipCaptureServing {
         draft: RecognizedCaptureDraft
     ) async throws -> ResourceCaptureResult {
         try await createCapture(seed: seed, draft: draft)
+    }
+
+    func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        throw ConversationRecognitionError.sharedPreprocessingUnavailable
+    }
+
+    func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(seed: seed)
     }
 }
 
@@ -78,6 +89,74 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         )
     }
 
+    func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(seed: seed, resumeFailedTask: false)
+    }
+
+    func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(seed: seed, resumeFailedTask: true)
+    }
+
+    private func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        resumeFailedTask: Bool
+    ) async throws -> RecognizedCaptureDraft {
+        let body = ScreenshotContactTaskBody(
+            idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):preprocess-v1",
+            objective: "Preprocess this recruiter-selected screenshot into reviewable, unconfirmed source evidence.",
+            data: seed.imageData,
+            mediaType: seed.mediaType,
+            personID: nil,
+            contextID: nil,
+            capturedAt: seed.createdAt,
+            preprocessOnly: true,
+            allowPublicResearch: false
+        )
+        var task: ScreenshotContactTask = try await request(
+            path: "v1/contact-agent/tasks",
+            method: "POST",
+            body: body
+        )
+        // A repeated create is the durable lookup for this source. Only the
+        // explicit resume entry point, called from the recruiter's Retry
+        // action, may authorize another provider attempt at this revision.
+        if resumeFailedTask && (task.status == "failed" || task.status == "cancelled") {
+            task = try await request(
+                path: "v1/contact-agent/tasks/\(task.taskID)/resume",
+                method: "POST",
+                body: ScreenshotContactResumeBody(expectedRevision: task.revision)
+            )
+        }
+        for _ in 0..<240 where task.status == "running" {
+            try await Task.sleep(nanoseconds: 500_000_000)
+            task = try await request(
+                path: "v1/contact-agent/tasks/\(task.taskID)",
+                method: "GET",
+                body: Optional<EmptyBody>.none
+            )
+        }
+        guard task.status == "completed" || task.status == "waiting_for_user",
+              let extraction = task.extraction else {
+            throw ConversationRecognitionError.sharedPreprocessingFailed
+        }
+        let text = extraction.messages.map(\.text).joined(separator: "\n")
+        let fallbackText = extraction.identityClues?.map(\.sourceExcerpt).joined(separator: "\n") ?? ""
+        var draft = CaptureDraftBuilder.makeDraft(from: text.isEmpty ? fallbackText : text)
+        draft.displayNameHint = extraction.contactName ?? draft.displayNameHint
+        if let handle = extraction.identityClues?.first(where: { $0.kind == "handle" })?.value {
+            if handle.contains("@") { draft.handleType = .email }
+            else if handle.filter(\.isNumber).count >= 7 { draft.handleType = .phone }
+            else { draft.handleType = .wechat }
+            draft.handleValue = handle
+        }
+        draft.sourceParserName = "shared-screenshot-preprocess"
+        draft.sourceParserVersion = "screenshot-preprocess.v1"
+        draft.preprocessingUncertainties = extraction.uncertainties.isEmpty
+            ? nil
+            : extraction.uncertainties
+        return draft
+    }
+
     func createProposedCapture(
         seed: PendingCaptureSeed,
         draft: RecognizedCaptureDraft
@@ -102,6 +181,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
     ) async throws -> ResourceCaptureResult {
         let clientResourceID = "ios-share:\(seed.id.uuidString.lowercased())"
         let reviewedSpeaker = draft.speaker ?? .unknown
+        let sharedPreprocessing = draft.sourceParserName == "shared-screenshot-preprocess"
         let body = ResourceCaptureBody(
             contractVersion: TalentSignalAPIContract.version,
             idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):capture",
@@ -146,9 +226,9 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                     text: draft.reviewedText,
                     locator: .init(
                         kind: "message",
-                        sourceMessageID: reviewStatus == "proposed"
-                            ? "ocr-proposed-1"
-                            : "ocr-reviewed-1",
+                        sourceMessageID: sharedPreprocessing && reviewStatus == "proposed"
+                            ? "shared-preprocess-proposed-1"
+                            : sharedPreprocessing ? "shared-preprocess-reviewed-1" : "legacy-reviewed-draft-1",
                         sequence: 0,
                         speakerSide: "unknown",
                         messageTimestamp: draft.messageTimestamp.map(Self.timestamp)
@@ -161,8 +241,8 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                     ),
                     reviewStatus: reviewStatus,
                     parser: .init(
-                        name: "ios-vision-text-recognition",
-                        version: "1.0.0"
+                        name: draft.sourceParserName ?? "legacy-reviewed-screenshot-draft",
+                        version: draft.sourceParserVersion ?? "1"
                     )
                 )
             ]

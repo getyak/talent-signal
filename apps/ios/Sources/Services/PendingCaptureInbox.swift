@@ -556,8 +556,7 @@ final class CaptureHandoffStore: ObservableObject {
 
     func processPendingCaptures(
         sessionStore: AgentSessionStore,
-        service: RelationshipCaptureServing? = nil,
-        recognizer: ConversationTextRecognizing = VisionConversationTextRecognizer()
+        service: RelationshipCaptureServing? = nil
     ) async {
         processingSessionStore = sessionStore
         await refreshInbox()
@@ -598,8 +597,7 @@ final class CaptureHandoffStore: ObservableObject {
             await process(
                 item,
                 sessionStore: sessionStore,
-                service: service,
-                recognizer: recognizer
+                service: service
             )
         }
         await refreshInbox()
@@ -608,8 +606,7 @@ final class CaptureHandoffStore: ObservableObject {
     private func process(
         _ item: PendingCaptureSummary,
         sessionStore: AgentSessionStore,
-        service: RelationshipCaptureServing?,
-        recognizer: ConversationTextRecognizing
+        service: RelationshipCaptureServing?
     ) async {
         guard !processingIDs.contains(item.id),
               let sessionID = item.sessionID,
@@ -644,7 +641,7 @@ final class CaptureHandoffStore: ObservableObject {
                 id: item.id,
                 sessionID: sessionID,
                 state: .processing,
-                detail: "Reading the screenshot on this device.",
+                detail: "Running shared screenshot preprocessing.",
                 scope: runtimeScope
             )
             await refreshInbox()
@@ -656,8 +653,10 @@ final class CaptureHandoffStore: ObservableObject {
             if let saved = try await inbox.loadDraft(for: item.id, scope: runtimeScope) {
                 draft = saved
             } else {
-                let text = try await recognizer.recognizeText(in: seed.imageData)
-                draft = CaptureDraftBuilder.makeDraft(from: text)
+                guard let service else {
+                    throw ConversationRecognitionError.sharedPreprocessingUnavailable
+                }
+                draft = try await service.preprocessScreenshot(seed: seed)
                 try await inbox.saveDraft(draft, for: item.id, scope: runtimeScope)
             }
             let blockers: [String]
@@ -1163,7 +1162,7 @@ final class CaptureHandoffStore: ObservableObject {
             )
             UIColor(red: 0.72, green: 0.91, blue: 0.62, alpha: 1).setFill()
             boundary.fill()
-            "Review the original before saving OCR as evidence.".draw(
+            "Review the original before saving preprocessed text as evidence.".draw(
                 in: CGRect(x: 295, y: 930, width: 670, height: 120),
                 withAttributes: [
                     .font: UIFont.systemFont(ofSize: 34, weight: .medium),

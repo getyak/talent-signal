@@ -13,7 +13,6 @@ final class RelationshipCaptureStore: ObservableObject {
     @Published var reviewedSpeaker: TextSignalSpeaker?
     @Published private(set) var originalAvailable: Bool
     let seed: PendingCaptureSeed
-    private let recognizer: ConversationTextRecognizing
     private let service: RelationshipCaptureServing
     private let inbox: PendingCaptureInbox
     private var task: Task<Void, Never>?
@@ -28,11 +27,9 @@ final class RelationshipCaptureStore: ObservableObject {
     private var removedFromInbox = false
 
     init(seed: PendingCaptureSeed,
-         recognizer: ConversationTextRecognizing = VisionConversationTextRecognizer(),
          service: RelationshipCaptureServing, initialDraft: RecognizedCaptureDraft? = nil,
          inbox: PendingCaptureInbox = .shared) {
         self.seed = seed
-        self.recognizer = recognizer
         self.service = service
         self.inbox = inbox
         draft = initialDraft ?? .empty
@@ -87,7 +84,7 @@ final class RelationshipCaptureStore: ObservableObject {
         }
         recognize()
     }
-    func recognize() {
+    func recognize(resumeFailedPreprocessing: Bool = false) {
         run(stage: .recognizing, recoveryStage: .recognition) {
             try await LabClientDiagnostics.measure(.captureReviewPreparation) {
                 if let saved = try await self.inbox.loadDraft(for: self.seed.id, scope: self.service.runtimeScope) {
@@ -110,7 +107,9 @@ final class RelationshipCaptureStore: ObservableObject {
                         self.fail("The original image is no longer available. Import it again to recognize text.", at: .recognition)
                         return
                     }
-                    self.draft = CaptureDraftBuilder.makeDraft(from: try await self.recognizer.recognizeText(in: self.seed.imageData))
+                    self.draft = try await (resumeFailedPreprocessing
+                        ? self.service.resumeScreenshotPreprocessing(seed: self.seed)
+                        : self.service.preprocessScreenshot(seed: self.seed))
                 }
                 try await self.saveRecovery()
                 self.stage = .reviewing
@@ -202,7 +201,7 @@ final class RelationshipCaptureStore: ObservableObject {
     func retry() {
         guard case let .failed(failure) = stage else { return }
         switch failure.recoveryStage {
-        case .recognition: recognize()
+        case .recognition: recognize(resumeFailedPreprocessing: true)
         case .submission: submitReviewedDraft()
         case .identity: run(stage: .submitting, recoveryStage: .identity) { try await self.resumeCanonical() }
         case .changes:

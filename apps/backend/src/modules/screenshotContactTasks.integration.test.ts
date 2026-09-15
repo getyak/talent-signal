@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { ContactResearchToolRequestSchema } from "@talent-signal/agent";
-import type { ContactAgentModel, ContactChatExtraction, ScreenshotContactTaskRequest } from "@talent-signal/agent";
+import { ARK_SCREENSHOT_PREPROCESS_MODEL, ContactResearchToolRequestSchema } from "@talent-signal/agent";
+import type { ContactAgentModel, ContactChatExtraction, ScreenshotContactTaskRequest, ScreenshotPreprocessor } from "@talent-signal/agent";
 import { deleteContactCaptureTask, loadBrowserCaptureTask, lookupScreenshotContactReceipt, createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage, confirmScreenshotContactProfile } from "./screenshotContactTasks.js";
 import type { AuthContext } from "./auth.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
@@ -540,6 +540,105 @@ class TestImageStorage implements ChatMediaStorage {
 }
 
 describe.skipIf(!pool)("durable multi-image contact sources",()=>{
+  it("checkpoints pinned preprocessing and does not resend an ordinary original downstream",async()=>{
+    const storage=new TestImageStorage();const request=input();let preprocessCalls=0,sdkCalls=0;
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(source,index)=>{preprocessCalls++;return {request_id:`ark-${index}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:11,output_tokens:7,
+        source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",conversation_kind:"direct",contact_name:"Synthetic preprocessed",
+          participants:[{label:"我",side:"right",role_hint:"account_owner",visible_name:null}],
+          messages:[{sequence:0,text:"I can talk next Tuesday.",speaker_label:"Synthetic preprocessed",speaker_side:"left",time_text:null}],
+          identity_clues:[{kind:"name",value:"Synthetic preprocessed",source_excerpt:"Synthetic preprocessed"}],uncertainties:[],
+          follow_up_required:false,follow_up_regions:[],width:100,height:200,
+          prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}};}};
+    const sdk=sdkModel(async(admission,signal)=>{
+      sdkCalls++;expect(admission.images).toEqual([]);expect(admission.preprocessing?.sources).toHaveLength(1);
+      await admission.invoke("ask_contact_clarification",{question:"Which visible person should own this source?"},signal);
+      return sdkReceipt();
+    });
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:sdk,preprocessor,research:null},storage);
+    await runner.start(auth,created.body.task_id);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting).toMatchObject({status:"waiting_for_user",preprocessing:{provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      usage:{input_tokens:11,output_tokens:7}}});
+    expect(waiting.events.filter(event=>event.tool==="preprocess_screenshot")).toHaveLength(1);
+    const state=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[waiting.task_id])).rows[0]!.state;
+    expect(JSON.stringify(state)).not.toContain(request.image.data_base64);
+    await resumeScreenshotContactTask(pool!,auth,waiting.task_id,{expected_revision:waiting.revision});
+    await runner.start(auth,waiting.task_id);
+    expect(preprocessCalls).toBe(1);expect(sdkCalls).toBe(2);
+  });
+  it("exposes only the flagged source and merges its correction before any filing tool is authorized",async()=>{
+    const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const,additional_images:[input().image]};
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(source,index)=>({request_id:`ark-follow-up-${index}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:3,output_tokens:2,
+        source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",conversation_kind:"direct",contact_name:"Synthetic selected",
+          participants:[],messages:[{sequence:0,text:`preprocessed-${index}`,speaker_label:"Synthetic selected",speaker_side:"left",time_text:null}],
+          identity_clues:[{kind:"name",value:"Synthetic selected",source_excerpt:"Synthetic selected"}],uncertainties:index===1?["small text"]:[],
+          follow_up_required:index===1,follow_up_regions:index===1?[{reason:"illegible_text",field:"text",region:{left:0,top:0,width:50,height:80}}]:[],width:100,height:200,
+          prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}})};
+    const sdk=sdkModel(async(admission,signal)=>{
+      expect(admission.images).toEqual([request.additional_images[0]]);
+      expect(admission.imageSourceIndices).toEqual([1]);
+      expect((admission.state as any).current_state.allowed_tools).toEqual(["record_screenshot_understanding"]);
+      const corrected=await admission.recordUnderstanding([{platform:"WeChat",conversation_kind:"direct",contact_name:"Synthetic selected",
+        identity_clues:[{kind:"name",value:"Synthetic selected",source_excerpt:"Synthetic selected",source_image_index:1}],
+        messages:[{message_id:"m1",sequence:0,text:"corrected-second",speaker_side:"left",speaker_label:"Synthetic selected",time_text:null,source_image_index:1}],uncertainties:[]}],signal);
+      expect(corrected).toMatchObject({status:"completed",current_state:{allowed_tools:[]}});
+      return sdkReceipt();
+    });
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    await new ScreenshotContactTaskRunner(pool!,{model:sdk,preprocessor,research:null},storage).start(auth,created.body.task_id);
+    const done=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(done.status,JSON.stringify(done)).toBe("completed");
+    expect(done.extraction?.messages.map(message=>[message.text,message.source_image_index])).toEqual([["preprocessed-0",0],["corrected-second",1]]);
+    expect(done.contact).toBeNull();expect(done.capture_id).toBeNull();
+  });
+  it("keeps the preprocessing baseline intact when the default provider cannot issue bounded region receipts",async()=>{
+    const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const,additional_images:[input().image]};
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(source,index)=>({request_id:`ark-default-${index}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:3,output_tokens:2,
+        source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",conversation_kind:"direct",contact_name:"Ambiguous source",
+          participants:[],messages:index===1?[
+            {sequence:0,text:"preprocessed-1-first",speaker_label:"Ambiguous source",speaker_side:"left",time_text:null},
+            {sequence:1,text:"preprocessed-1-untouched",speaker_label:null,speaker_side:"unknown",time_text:null},
+          ]:[{sequence:0,text:"preprocessed-0",speaker_label:"Ambiguous source",speaker_side:"left",time_text:null}],identity_clues:[],
+          uncertainties:index===1?["speaker unclear"]:[],follow_up_required:index===1,
+          follow_up_regions:index===1?[{reason:"ambiguous_speaker",field:"speaker",region:{left:0,top:0,width:50,height:80}}]:[],width:100,height:200,
+          prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}})};
+    const base=model("unused"),extract=vi.fn(async()=>{throw new Error("FULL_IMAGE_REFINEMENT_MUST_NOT_RUN");});
+    const next=vi.fn(base.next);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    await new ScreenshotContactTaskRunner(pool!,{model:{...base,extract,next},preprocessor,research:null},storage).start(auth,created.body.task_id);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting.status,JSON.stringify(waiting)).toBe("waiting_for_user");
+    expect(waiting.question).toContain("不支持受限区域回执");expect(extract).not.toHaveBeenCalled();expect(next).not.toHaveBeenCalled();
+    expect(waiting.extraction?.messages.map(message=>message.text)).toEqual([
+      "preprocessed-0","preprocessed-1-first","preprocessed-1-untouched",
+    ]);
+    expect(waiting.events).toContainEqual(expect.objectContaining({tool:"refine_screenshot_preprocessing",status:"denied"}));
+    expect(waiting.contact).toBeNull();expect(waiting.capture_id).toBeNull();
+  });
+  it("requires an explicit resume receipt before retrying an unknown preprocessing response",async()=>{
+    const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const};let calls=0;
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(source,index)=>{if(++calls===1)throw new Error("SYNTHETIC_PROVIDER_INTERRUPTED");return {request_id:"ark-retry",model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:3,output_tokens:2,
+        source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",conversation_kind:"direct",contact_name:"Retry proof",participants:[],
+          messages:[{sequence:0,text:"retry succeeded",speaker_label:"Retry proof",speaker_side:"left",time_text:null}],identity_clues:[],uncertainties:[],
+          follow_up_required:false,follow_up_regions:[],width:100,height:200,prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}};}};
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:model("unused"),preprocessor,research:null},storage);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    await runner.start(auth,created.body.task_id);
+    const failed=await loadScreenshotContactTask(pool!,auth,created.body.task_id);expect(failed.status).toBe("failed");
+    const before=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[failed.task_id])).rows[0].state;
+    expect(before.preprocessing_inflight).toBe(0);
+    await resumeScreenshotContactTask(pool!,auth,failed.task_id,{expected_revision:failed.revision});
+    await runner.start(auth,failed.task_id);
+    const done=await loadScreenshotContactTask(pool!,auth,failed.task_id);
+    expect(done.status,JSON.stringify(done)).toBe("completed");expect(calls).toBe(2);
+    expect(done.events.some(event=>event.tool==="preprocess_screenshot_retry_authorized"&&event.status==="completed")).toBe(true);
+    expect((await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[done.task_id])).rows[0].state.preprocessing_inflight).toBeUndefined();
+  });
   it("rejects ordinary chat completion when an image naturally expires after the provider returns",async()=>{
     const storage=new TestImageStorage();const request=input();
     const uniqueBytes=Buffer.concat([Buffer.from(request.image.data_base64,"base64"),Buffer.from(randomUUID())]);
