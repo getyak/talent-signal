@@ -6,6 +6,7 @@ import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerMeetingDraftRoutes } from "./modules/meetingDraftRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerSystemHealthRoutes } from "./modules/systemHealth.js";
+import { registerReadinessRoutes } from "./modules/readinessRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
@@ -647,44 +648,7 @@ export async function buildApp(
     });
   });
 
-  app.get("/health/live", async () => ({
-    status: "ok",
-    service: "talent-signal-backend",
-  }));
-  app.get(
-    "/health/ready",
-    {
-      config: {
-        rateLimit: {
-          max: 60,
-          timeWindow: "1 minute",
-        },
-      },
-    },
-    async (_request, reply) => {
-      try {
-        const result = await pool.query<{ version: string }>(
-          `SELECT version
-           FROM schema_migrations
-          WHERE version IN ('065_screenshot_directory_authority', '058_account_management', '069_account_access_event_details', '070_meeting_drafts')`,
-        );
-        const requiredMigrations = ["065_screenshot_directory_authority", "058_account_management", "069_account_access_event_details", "070_meeting_drafts"];
-        if (!requiredMigrations.every(version => result.rows.some(row => row.version === version))) {
-          throw new Error("migration unavailable");
-        }
-        return {
-          status: "ready",
-          database: "ready",
-          migration: "070_meeting_drafts",
-        };
-      } catch {
-        return reply.status(503).send({
-          status: "not_ready",
-          database: "unavailable",
-        });
-      }
-    },
-  );
+  registerReadinessRoutes(app, pool);
   app.get("/v1/meta", async () => ({
     contract_version: CONTRACT_VERSION,
     authority: "account_scoped_backend",

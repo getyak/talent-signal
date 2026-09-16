@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildApp } from "./app.js";
 import type { BackendConfig } from "./config.js";
+import { REQUIRED_SYSTEM_MIGRATIONS } from "./modules/systemHealth.js";
 import type { VoiceTranscriptionServing } from "./modules/voiceTranscription.js";
 
 const config: BackendConfig = {
@@ -58,17 +59,12 @@ describe("readiness rate limiting", () => {
 
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("070_meeting_drafts"),
-    );
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("ANY"), [
+      REQUIRED_SYSTEM_MIGRATIONS,
+    ]);
   }, 10_000);
 
-  it.each([
-    "065_screenshot_directory_authority",
-    "058_account_management",
-    "069_account_access_event_details",
-    "070_meeting_drafts",
-  ])(
+  it.each(REQUIRED_SYSTEM_MIGRATIONS)(
     "stays unavailable when required migration %s is missing",
     async missing => {
       const query = vi.fn().mockResolvedValue({
