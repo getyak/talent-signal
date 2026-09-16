@@ -105,6 +105,43 @@ Known gap: TS-011 proves the Web recovery path for one current synthetic
 relationship. It does not claim that the Session itself became relationship
 scoped, and it does not promote the remaining exceptional-state or native cases.
 
+## Post-review draft and directory hardening
+
+Commit `4e932e60fac5d07ef09e6eafa1ee6f7708959cde` adds deterministic
+recovery around the earlier browser observation:
+
+1. The renderer serializes one active save plus one latest-state follow-up and
+   generation-fences both late responses and already-scheduled microtasks.
+2. Before leaving the page, it durably records the exact latest draft request
+   and, while a request is active, its exact predecessor. A restart continues
+   only when canonical state still matches the base or the exact predecessor;
+   unrelated state becomes a visible conflict and is never overwritten.
+3. Server retry reconciliation includes caller-owned timestamps. An exact
+   retry can settle after a lost response, while a same-text/new-time or
+   otherwise changed request receives `409`.
+4. Recovery records are bounded to 24 hours, contain no credential, and are
+   partitioned by an HMAC of account/user identity. The global workspace
+   boundary prunes other scopes even when the requested Session is unavailable;
+   every reachable logout path clears both Session and MeetingDraft intents.
+5. Directory pagination materializes only owner-scoped identity and frozen
+   sort keys for five minutes. It is bounded to 5,000 rows and four active
+   snapshots, and only first-page materialization consumes the 30/minute owner
+   rate bucket. A real PostgreSQL lock-timeout test proved auxiliary snapshot
+   cleanup cannot abort sensitive Session scrubbing or a user mutation.
+
+Focused verification passed Web 7 files/47 tests and Backend 2 files/51 tests
+against isolated PostgreSQL. The final root check passed Web 99 files/626 tests
+(`1/1` skipped) and Backend 59 files/445 tests (`10/139` skipped), plus lint,
+typecheck, the 39-page production build, 75-migration architecture checks, and
+secret scanning. Independent review found no unresolved P0/P1/P2 in this
+hardening diff.
+
+Residual P3 evidence boundary: the returned rows intentionally project current
+canonical content, so a concurrent update can make displayed `updated_at`
+briefly non-monotonic relative to the frozen directory order. The frozen
+identity set/order still prevents duplicates and omissions. No historical
+screenshot or TS status is promoted by these tests.
+
 ## Verification
 
 - `pnpm --filter @talent-signal/web lint`: passed.

@@ -28,7 +28,10 @@ as `not_run`.
   Person selection, message-level evidence, stale-review rejection, current
   fact-decision receipt readback, and return to the exact Session. TS-006,
   TS-011, and TS-024 are `passed`; unpromoted exceptional cases remain
-  `not_run` in the matrix even where unit or route tests exist.
+  `not_run` in the matrix even where unit or route tests exist. Post-review
+  hardening at `4e932e60` adds exact restart-durable draft recovery, global
+  account/user pruning, immutable Session directory snapshots, and isolated
+  retention cleanup.
 - M2: the Meetings/Plugs implementation slice is delivered and independently
   reviewed: canonical MeetingDraft persistence, exact-intent recovery,
   conflict/revocation handling, ICS-only handoff, truthful capability state,
@@ -40,7 +43,9 @@ as `not_run`.
   Session, Keychain restart recovery, shared Web/native capability UI, an
   explicit content-free quick panel, same-process notification-request dedupe,
   direct Vision success/failure, and bounded command/security rules. The
-  independent code review found no unresolved P0/P1. `apps/macos` remains the
+  post-review renderer now expires and scope-prunes capture intents and remounts
+  native state on verified account/Session changes. The independent code review
+  found no unresolved P0/P1 in the delivered hardening diff. `apps/macos` remains the
   rollback host. Full M3/M4 is still open for permission-granted capture/OCR,
   real Chinese IME, broader WebView parity, multi-display/global-shortcut
   behavior, OAuth/deep links, sleep/wake, state-file/helper identity hardening,
@@ -249,21 +254,26 @@ and no unresolved P0/P1 safety finding remains. Design acceptance may still be
 
 ## Recoverable checkpoint — 2026-09-16
 
-- Delivery branch: `codex/web-macos-hybrid-handoff`; native implementation:
-  `7ea86be2e87486a60ebe5b210d50338ec4c4b53a`.
+- Delivery branch: `codex/web-macos-hybrid-handoff`; historical packaged native
+  observation: `7ea86be2e87486a60ebe5b210d50338ec4c4b53a`; post-review
+  recovery/retention hardening: `4e932e60fac5d07ef09e6eafa1ee6f7708959cde`.
 - M1 and M2 Web slices are implemented with canonical PostgreSQL-backed
   Session and MeetingDraft workflows, exact-intent recovery, conflict and
   revocation states, governed receipts, ICS-only handoff, and truthful Plugs.
 - M3/M4 feasibility is packaged and exact-leaf HTTPS/Keychain restart recovery
   is observed. Permission-granted capture/OCR and the full TS-026…TS-030 matrix
   remain open; the native SwiftUI app is still the rollback host.
-- Final local gates passed: root `pnpm check`, 33 Rust tests plus fmt/clippy,
-  backend TLS 4 tests, TLS script test, pinned Actions, actionlint, codesign
-  integrity, documentation, and diff checks.
-- Independent review found no unresolved P0/P1. Four disclosed P2 release
-  hardening gaps remain: pre-binding terminal-receipt availability, receipt
-  generation crash recovery, same-user state-file TOCTOU, and helper identity
-  replacement between verification and execution.
+- Final local gates passed: root `pnpm check` (Web 626 tests; Backend 445
+  tests), isolated PostgreSQL 51 tests, Hybrid UI 14 tests, 33 Rust tests plus
+  fmt/clippy, 75-migration architecture checks, secret scanning, Tauri bundle,
+  strict code-signature verification, documentation, and diff checks.
+- Independent review found no unresolved P0/P1/P2 in the post-review hardening
+  diff. The four earlier native feasibility/release gaps remain explicitly
+  disclosed in the historical `7ea86be2` evidence rather than promoted away.
+- Residual P3 evidence boundaries: Hybrid scope remount is structurally tested
+  rather than live-swapped in React, and current canonical `updated_at` can be
+  briefly non-monotonic relative to frozen directory order without duplicates
+  or omissions.
 - Production deployment, real external writes, Screen Recording permission
   changes, notarization/distribution, and human design acceptance were not
   authorized or performed.

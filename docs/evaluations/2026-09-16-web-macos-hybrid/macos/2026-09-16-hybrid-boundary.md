@@ -18,6 +18,35 @@ This observation proves a least-privilege feasibility slice. It does not claim
 that the Hybrid host is release-ready, that the native capability matrix is
 complete, or that TS-026 through TS-030 has passed.
 
+## Post-review renderer recovery hardening
+
+Commit `4e932e60fac5d07ef09e6eafa1ee6f7708959cde` was verified after the
+historical `7ea86be2` packaged observation. It does not replace or relabel the
+screenshots below.
+
+- The renderer persists only an opaque capture-intent UUID for the exact
+  account/Session scope, with a strict 24-hour expiry and defensive handling of
+  corrupt or unavailable Web Storage.
+- A stale or unbound authority result retains a still-valid unknown intent so a
+  later verified recovery can replay or cancel it. A verified rebind prunes all
+  other scopes, and confirmed disconnect clears every capture-intent scope.
+- `NativeCapabilityWorkbench` is keyed by the verified account/Session, so a
+  verified A-to-B status transition remounts it instead of carrying A's
+  in-memory capture handle, intent reference, OCR, or transport state into B.
+
+Hybrid UI verification passed 2 files/14 tests and typecheck. The native gate
+passed 33 Rust tests, formatting, and clippy with warnings denied. A fresh
+ad-hoc bundle passed `codesign --verify --deep --strict`; it remained 15,120
+KiB, with app executable SHA-256
+`9a0e81f996b298c5954e5ecd1e3eb51f950150e2afbc1482483b1ffeeec96a64`
+and unchanged Vision helper SHA-256
+`8cd4193c6b193f2a732d74410883e0d4607075fd44a4121297ffd05f8152a95d`.
+
+Residual P3 evidence boundary: the verified scope remount is covered by a
+structural regression test rather than a live React status-swap integration
+test. No permission was changed, no production credential was used, and no
+TS-026…TS-030 status or human design acceptance was promoted.
+
 ## Observed packaged-app behavior
 
 1. The packaged app rendered only bundled local assets. Its generated Tauri

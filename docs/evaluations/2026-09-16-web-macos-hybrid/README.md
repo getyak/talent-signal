@@ -124,3 +124,34 @@ TS-030 remain `not_run`: their complete permission, integration, multi-display,
 deep-link, denial, connector-ownership, and privilege-escalation boundaries
 were not executed. The observed notification result proves request submission,
 not system display. Human design acceptance remains `not_reviewed`.
+
+### Post-review recovery and retention hardening
+
+Commit `4e932e60fac5d07ef09e6eafa1ee6f7708959cde` hardens the delivered
+slice without rewriting its historical browser or packaged-app observations:
+
+- Web keeps the exact latest draft plus its in-flight predecessor in a
+  24-hour, account/user-partitioned local recovery record. Reload can continue
+  only an exact canonical predecessor; unrelated server state remains a visible
+  conflict. Global workspace and logout boundaries remove other-account data.
+- Session pagination now uses owner-scoped, five-minute identity snapshots with
+  frozen `(updated_at, id)` order, a 5,000-item ceiling, four active snapshots,
+  and first-page-only rate limiting. Physical snapshot cleanup is isolated from
+  sensitive-content scrubbing and business transactions.
+- Hybrid capture-intent recovery retains UUIDs only, expires after 24 hours,
+  prunes on verified scope changes, clears on confirmed disconnect, and remounts
+  the native workbench when the verified account/Session changes.
+- Backend TLS configuration reads a nonblocking, no-follow file descriptor, so
+  a FIFO or symlink cannot block startup or swap the inspected file.
+
+The final local gates passed with 75 migrations, Web 99 files/626 tests
+(`1/1` skipped), Backend 59 files/445 tests (`10/139` skipped), Hybrid 2
+files/14 tests, 33 Rust tests, an isolated PostgreSQL 2-file/51-test boundary
+run, the 39-page Web production build, Tauri bundle build, strict code-signature
+verification, documentation/architecture checks, and secret scanning. An
+independent review found no unresolved P0/P1/P2 in the hardening diff.
+
+This adds deterministic recovery and safety evidence, not new product
+acceptance. The historical screenshots stay bound to their named builds;
+TS-026 through TS-030 remain `not_run`, and human design acceptance remains
+`not_reviewed`.
