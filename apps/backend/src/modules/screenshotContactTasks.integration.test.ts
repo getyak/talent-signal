@@ -673,7 +673,7 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
   it("keeps unbounded uncertainty human-only even when the SDK is available",async()=>{
     const storage=new TestImageStorage();const request=input();
     const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
-      preprocess:async(source,index)=>({request_id:`ark-unbounded-uncertainty-${index}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(source,index)=>({request_id:`fixture-unbounded-${index}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,
         input_tokens:3,output_tokens:2,source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",
           conversation_kind:"direct",contact_name:"Uncertain source",participants:[],messages:[{sequence:0,text:"Visible text",
             speaker_label:null,speaker_side:"unknown",time_text:null}],identity_clues:[],uncertainties:["Identity remains ambiguous."],
@@ -777,14 +777,17 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const,additional_images:[input().image]};
     const calls=[0,0];
     const regions=(count:number)=>Array.from({length:count},(_,left)=>({reason:"illegible_text" as const,
-      field:"text" as const,uncertainty_index:left,target:{kind:"message" as const,message_index:0},baseline_text:"source",region:{left,top:0,width:1,height:1}}));
+      field:"text" as const,uncertainty_index:left,target:{kind:"message" as const,message_index:left},
+      baseline_text:`source-${left}`,region:{left,top:0,width:1,height:1}}));
     const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
       preprocess:async(source,index)=>{calls[index] = (calls[index]??0)+1;
         const followUps=index===0||calls[index]===1
           ? regions(SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1) : [];
         return {request_id:`ark-budget-${index}-${calls[index]}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:3,output_tokens:2,
           source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",conversation_kind:"direct",contact_name:"Budget source",
-            participants:[],messages:[{sequence:0,text:`source-${index}`,speaker_label:null,speaker_side:"unknown",time_text:null}],identity_clues:[],
+            participants:[],messages:Array.from({length:SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1},
+              (_,messageIndex)=>({sequence:messageIndex,text:`source-${messageIndex} text`,speaker_label:null,
+                speaker_side:"unknown" as const,time_text:null})),identity_clues:[],
             uncertainties:followUps.map((_,uncertaintyIndex)=>`small text ${uncertaintyIndex}`),follow_up_required:followUps.length>0,follow_up_regions:followUps,
             width:100,height:200,prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}};}};
     const runner=new ScreenshotContactTaskRunner(pool!,{model:model("unused"),preprocessor,research:null},storage);
