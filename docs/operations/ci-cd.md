@@ -13,6 +13,7 @@ pull request / push
         |      web lint/typecheck/test/build
         |      backend typecheck/test/build
         |      iOS Release build + unit tests + bounded UI smoke when relevant
+        |      macOS Hybrid build and native boundary checks when relevant
         |
         +--> Security required
                dependency review on pull requests
@@ -36,6 +37,44 @@ successful main CI + iOS product change
 `CI required` and `Security required` are intentionally stable job names for
 branch rules. Matrix jobs and path-sensitive jobs feed those aggregators, so
 branch protection does not depend on a changing list of individual contexts.
+
+## Low-cost scope policy
+
+CI and Security stay deterministic and fully automatic; no workflow calls a
+model or an AI service. To keep pull-request cost proportional to risk, a
+fail-closed classifier (`scripts/ci/has-runtime-changes.sh`) reports whether a
+change set is documentation/knowledge-only. It returns `true` for code,
+workflow, or configuration paths, empty diffs, missing revisions, and any
+ambiguous input, and `false` only when every changed path is a Markdown file or
+lives under `docs/` or `_index/`.
+
+- `Repository policy and docs` and `Secret hygiene` run on every change.
+- `Web quality`, `Backend quality`, `Phase one`, and JS/Actions CodeQL are
+  skipped only for an automatic documentation-only pull request or `main` push.
+- `macOS Hybrid boundary` runs only when its app, `workspace-ui`, macOS tooling,
+  root dependency inputs, or CI definition changed. Missing or ambiguous
+  revisions fail closed to running it.
+- The aggregators accept those intentional skips only when the classifier
+  reported documentation-only scope; every other scope still requires success.
+- Manual `CI` and `Security` dispatch always runs the full scope, and scheduled
+  or manual Security scans keep the complete scan including Swift CodeQL.
+
+The `Release iOS` workflow listens only to `CI` runs on `main`, so a
+pull-request CI completion no longer produces a skipped release run. Manual
+release dispatch remains available and the release decision logic is unchanged.
+
+## Waiting on required checks
+
+Use one bounded command instead of repeated ad-hoc polling:
+
+```bash
+./scripts/ci/wait-for-required-checks.sh [PR_NUMBER] [TIMEOUT_SECONDS]
+```
+
+The waiter reads only `gh pr checks` output for `CI required` and `Security
+required`, prints a clear failure or timeout, and never mutates the repository,
+the pull request, or any check. Override the bounded scope with newline-separated
+`REQUIRED_CHECKS` and the poll interval with `WAIT_INTERVAL` when needed.
 
 ## Workflow inventory
 
@@ -209,6 +248,28 @@ hook runs both the repository knowledge contract and the read-only compiler
 check. A stale compilation must be resolved by running `pnpm wiki:build`,
 reviewing and committing the source plus generated diff, and then pushing
 again. The hook never mutates a commit during push.
+
+## Contributor workflow
+
+Keep the automatic gates meaningful by batching and stabilizing work before you
+push:
+
+1. Batch locally verified fixes. Run the narrow deterministic scripts for the
+   changed surface, use `pnpm check` for changes spanning several runtime
+   boundaries, and run `./scripts/ios/check.sh` for iOS changes, so one push
+   carries a coherent change set instead of speculative pushes.
+2. After pushing, wait with the bounded
+   `scripts/ci/wait-for-required-checks.sh` command rather than polling
+   repeatedly by hand.
+3. Inspect a failure's logs once with `gh pr checks <PR>` and `gh run view
+   <RUN_ID> --log-failed`; do not re-read the same failed run.
+4. Retain the deterministic `CI` and `Security` gates. Documentation-only
+   changes legitimately skip runtime quality and JS/Actions CodeQL jobs, while
+   unrelated runtime changes can skip the path-scoped macOS Hybrid job. Never
+   disable or weaken a required gate to make a change pass.
+5. Request a Codex review manually only on a stable, high-risk head. After a
+   material P0/P1 fix, request at most one re-review of the new head; do not
+   stream intermediate pushes into repeated review requests.
 
 ## Failure and recovery
 

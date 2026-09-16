@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
       ios: ${{ steps.filter.outputs.ios }}
     steps:
       - name: Check out repository
@@ -36,6 +37,30 @@ jobs:
         run: |
           ios="$(./scripts/ci/has-ios-changes.sh "$BASE_SHA" "$HEAD_SHA" --ci-files)"
           echo "ios=$ios" >> "$GITHUB_OUTPUT"
+
+      - name: Classify documentation-only scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # Scheduled and manual scans are always full; only automatic
+          # pull-request and main-push runs may skip JS/Actions CodeQL.
+          if [ "$EVENT_NAME" != "pull_request" ] && [ "$EVENT_NAME" != "push" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "Non-push event keeps the full security scope"
+            exit 0
+          fi
+
+          runtime_changes="$(./scripts/ci/has-runtime-changes.sh "$BASE_SHA" "$HEAD_SHA")"
+          if [ "$runtime_changes" = "false" ]; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+            echo "Documentation-only change; JS/Actions CodeQL may be skipped"
+          else
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "Runtime change; JS/Actions CodeQL is required"
+          fi
 
   dependency-review:
     name: Dependency review
@@ -67,6 +92,8 @@ jobs:
 
   codeql:
     name: CodeQL (${{ matrix.language }})
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -140,6 +167,7 @@ jobs:
     timeout-minutes: 5
     env:
       CHANGES_RESULT: ${{ needs.changes.result }}
+      DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
       DEPENDENCY_RESULT: ${{ needs.dependency-review.result }}
       SECRET_RESULT: ${{ needs.secret-hygiene.result }}
       CODEQL_RESULT: ${{ needs.codeql.result }}
@@ -150,5 +178,13 @@ jobs:
           test "$CHANGES_RESULT" = "success"
           test "$DEPENDENCY_RESULT" = "success" || test "$DEPENDENCY_RESULT" = "skipped"
           test "$SECRET_RESULT" = "success"
-          test "$CODEQL_RESULT" = "success"
           test "$SWIFT_RESULT" = "success" || test "$SWIFT_RESULT" = "skipped"
+
+          # JS/Actions CodeQL may be intentionally skipped only for an
+          # automatic documentation-only change. Secrets and dependency
+          # review stay mandatory in every scope.
+          if [ "$DOCS_ONLY" = "true" ]; then
+            test "$CODEQL_RESULT" = "success" || test "$CODEQL_RESULT" = "skipped"
+          else
+            test "$CODEQL_RESULT" = "success"
+          fi
