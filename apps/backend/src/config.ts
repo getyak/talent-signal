@@ -51,7 +51,10 @@ function readTlsFile(path: string, label: string, isPrivate: boolean): string {
 
   let descriptor: number;
   try {
-    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    descriptor = openSync(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ELOOP") {
       throw new Error(`${label} must be a regular file, not a symlink.`);

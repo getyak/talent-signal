@@ -25,9 +25,24 @@ import {
   markSaveError,
   markSaved,
   markSaving,
+  shouldRetainDraftAfterConflict,
+  type SaveRequestBody,
   type DetailState,
   type SessionDetail,
 } from "./session-detail-state";
+import { SessionSaveDrain, type SaveDrainContext } from "./session-save-drain";
+import {
+  beginPendingSessionDraft,
+  clearPendingSessionDraft,
+  createPendingSessionDraft,
+  pendingSessionDraftRequest,
+  prunePendingSessionDrafts,
+  readPendingSessionDraft,
+  rebasePendingSessionDraft,
+  resolvePendingSessionDraft,
+  writePendingSessionDraft,
+  type PendingSessionDraft,
+} from "./session-draft-pending";
 import {
   conflictView,
   draftStatusLabel,
@@ -48,9 +63,11 @@ type Props = {
   sessionVersion: string | null;
   initialError: string | null;
   sessionRecoveryHref: string | null;
+  storageScope: string;
 };
 
 type DetailResponse = {
+  code?: string;
   detail?: SessionDetail;
   message?: string;
   session_version?: string;
@@ -61,6 +78,7 @@ export function SessionWorkbench({
   sessionVersion,
   initialError,
   sessionRecoveryHref,
+  storageScope,
 }: Props) {
   const [state, setState] = useState<DetailState>(() =>
     initialDetailState(initialDetail),
@@ -70,10 +88,20 @@ export function SessionWorkbench({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [notice, setNotice] = useState(initialError ?? "");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const keyRef = useRef<string | null>(null);
+  const saveAttemptRef = useRef<SaveRequestBody | null>(null);
+  const pendingDraftRef = useRef<PendingSessionDraft | null>(null);
+  const saveDrainRef = useRef(new SessionSaveDrain());
   const deleteKeyRef = useRef<string | null>(null);
   const stateRef = useRef(state);
+  const bindingRef = useRef(binding);
   stateRef.current = state;
+  bindingRef.current = binding;
+
+  const commitState = useCallback((update: (current: DetailState) => DetailState) => {
+    const next = update(stateRef.current);
+    stateRef.current = next;
+    setState(next);
+  }, []);
 
   const detail = state.detail;
   const scope = sessionScopeView({
@@ -85,18 +113,82 @@ export function SessionWorkbench({
     sessionId: detail.session_id,
   });
 
-  const persist = useCallback(
-    async (force = false) => {
+  const clearDurableDraft = useCallback(
+    (expectedIdempotencyKey?: string) => {
+      clearPendingSessionDraft(
+        storageScope,
+        initialDetail.session_id,
+        expectedIdempotencyKey,
+      );
+    },
+    [initialDetail.session_id, storageScope],
+  );
+
+  useEffect(() => {
+    prunePendingSessionDrafts(storageScope);
+    const recovered = readPendingSessionDraft(
+      storageScope,
+      initialDetail.session_id,
+    );
+    if (!recovered) return;
+    const resolution = resolvePendingSessionDraft(
+      recovered,
+      stateRef.current.detail,
+    );
+    if (resolution.kind === "settled" || resolution.kind === "unavailable") {
+      clearDurableDraft(recovered.latest.idempotencyKey);
+      return;
+    }
+    const pending = resolution.kind === "continue" ? resolution.pending : recovered;
+    pendingDraftRef.current = pending;
+    if (resolution.kind === "continue") writePendingSessionDraft(pending);
+    commitState((previous) => {
+      const restored = applyDraftInput(previous, pending.latest.draft);
+      return resolution.kind === "conflict" ? markConflict(restored) : restored;
+    });
+    setNotice(
+      resolution.kind === "conflict"
+        ? "已恢复离开前的本机草稿；服务端版本已变化，不会自动覆盖。"
+        : "已恢复离开前尚未确认保存的草稿。",
+    );
+  }, [clearDurableDraft, commitState, initialDetail.session_id, storageScope]);
+
+  const executePersist = useCallback(
+    async ({ force, isCurrent }: SaveDrainContext) => {
       const current = stateRef.current;
-      if (!binding) return;
-      const request = buildSaveRequest(current, keyRef.current ?? "");
+      const activeBinding = bindingRef.current;
+      if (!activeBinding) return;
+      let durablePending = pendingDraftRef.current;
+      let request = saveAttemptRef.current;
+      if (!request && durablePending?.latest.draft === current.draft) {
+        durablePending = beginPendingSessionDraft(
+          durablePending,
+          current.detail.revision,
+        );
+        pendingDraftRef.current = durablePending;
+        if (!writePendingSessionDraft(durablePending)) {
+          setNotice("本机草稿恢复存储不可用；请等待保存完成后再离开。");
+        }
+        request = pendingSessionDraftRequest(
+          durablePending,
+          current.detail.revision,
+        );
+      }
+      request ??= buildSaveRequest(
+        current,
+        crypto.randomUUID(),
+        new Date().toISOString(),
+      );
       if (!request) {
         if (force && current.detail.state === "active") {
-          keyRef.current = null;
+          saveAttemptRef.current = null;
+          pendingDraftRef.current = null;
+          clearDurableDraft();
         }
         return;
       }
-      setState((previous) => markSaving(previous));
+      saveAttemptRef.current = request;
+      commitState(markSaving);
       try {
         const response = await workspaceSessionFetch(
           `/api/workspace-sessions/${encodeURIComponent(current.detail.session_id)}`,
@@ -105,27 +197,43 @@ export function SessionWorkbench({
             cache: "no-store",
             headers: {
               "content-type": "application/json",
-              "x-workspace-session": binding,
+              "x-workspace-session": activeBinding,
             },
             keepalive: true,
             method: "PUT",
           },
         );
         const payload = (await response.json()) as DetailResponse;
-        if (payload.session_version) setBinding(payload.session_version);
+        if (!isCurrent()) return;
+        if (payload.session_version) {
+          bindingRef.current = payload.session_version;
+          setBinding(payload.session_version);
+        }
         if (isDetailConflictResponse(response.status)) {
-          keyRef.current = null;
-          setState((previous) => markConflict(previous));
+          if (saveAttemptRef.current === request) saveAttemptRef.current = null;
+          if (!shouldRetainDraftAfterConflict(response.status, payload.code)) {
+            pendingDraftRef.current = null;
+            clearDurableDraft();
+            setNotice(payload.message || "登录已改变，请重新打开这段对话。");
+          }
+          commitState(markConflict);
           return;
         }
         if (isDetailGoneResponse(response.status)) {
-          keyRef.current = null;
+          if (saveAttemptRef.current === request) saveAttemptRef.current = null;
+          pendingDraftRef.current = null;
+          clearDurableDraft();
           setNotice(payload.message || "这段对话已删除或过期。");
           try {
-            const readback = await readSession(current.detail.session_id, binding);
-            if (readback) setState((previous) => markDeleted(previous, readback));
+            const readback = await readSession(current.detail.session_id, activeBinding);
+            if (!isCurrent()) return;
+            if (readback) commitState((previous) => markDeleted(previous, readback));
           } catch {
-            setState((previous) => markSaveError(previous, payload.message || "内容不可用。"));
+            if (isCurrent()) {
+              commitState((previous) =>
+                markSaveError(previous, payload.message || "内容不可用。"),
+              );
+            }
           }
           return;
         }
@@ -133,29 +241,80 @@ export function SessionWorkbench({
           throw new Error(payload.message || "保存失败。");
         }
         if (payload.detail.state !== "active") {
-          setState((previous) => markDeleted(previous, payload.detail as SessionDetail));
+          if (saveAttemptRef.current === request) saveAttemptRef.current = null;
+          pendingDraftRef.current = null;
+          clearDurableDraft();
+          commitState((previous) =>
+            markDeleted(previous, payload.detail as SessionDetail),
+          );
           return;
         }
-        keyRef.current = null;
-        setState((previous) => {
-          const next = markSaved(
+        if (saveAttemptRef.current === request) saveAttemptRef.current = null;
+        const latestPending = pendingDraftRef.current;
+        if (latestPending?.latest.idempotencyKey === request.idempotency_key) {
+          clearDurableDraft(request.idempotency_key);
+          pendingDraftRef.current = null;
+        } else if (latestPending) {
+          const rebased = rebasePendingSessionDraft(
+            latestPending,
+            payload.detail.revision,
+          );
+          pendingDraftRef.current = rebased;
+          if (!writePendingSessionDraft(rebased)) {
+            setNotice("本机草稿恢复存储不可用；请等待保存完成后再离开。");
+          }
+        }
+        commitState((previous) =>
+          markSaved(
             previous,
             payload.detail as SessionDetail,
             request.composer_draft,
-          );
-          if (next.status === "pending") keyRef.current = crypto.randomUUID();
-          return next;
-        });
-      } catch (caught) {
-        setState((previous) =>
-          markSaveError(
-            previous,
-            caught instanceof Error ? caught.message : "保存失败，草稿仍在本机。",
           ),
         );
+      } catch (caught) {
+        if (isCurrent()) {
+          commitState((previous) =>
+            markSaveError(
+              previous,
+              caught instanceof Error ? caught.message : "保存失败，草稿仍在本机。",
+            ),
+          );
+        }
       }
     },
-    [binding],
+    [clearDurableDraft, commitState],
+  );
+
+  const persist = useCallback(
+    (force = false) => saveDrainRef.current.run(executePersist, force),
+    [executePersist],
+  );
+
+  const updateDraft = useCallback(
+    (value: string) => {
+      const current = stateRef.current;
+      const next = applyDraftInput(current, value);
+      if (next.draft === current.lastSavedDraft) {
+        pendingDraftRef.current = null;
+        clearDurableDraft();
+      } else {
+        const pending = createPendingSessionDraft({
+          baseRevision: current.detail.revision,
+          draft: next.draft,
+          idempotencyKey: crypto.randomUUID(),
+          predecessor: saveAttemptRef.current,
+          sessionId: current.detail.session_id,
+          storageScope,
+          updatedAt: new Date().toISOString(),
+        });
+        pendingDraftRef.current = pending;
+        if (!writePendingSessionDraft(pending)) {
+          setNotice("本机草稿恢复存储不可用；请等待保存完成后再离开。");
+        }
+      }
+      commitState(() => next);
+    },
+    [clearDurableDraft, commitState, storageScope],
   );
 
   // Debounced persistence. Lifecycle flush keeps a committed draft from being
@@ -172,6 +331,7 @@ export function SessionWorkbench({
   }, [state.draft, state.status, persist]);
 
   useEffect(() => {
+    const saveDrain = saveDrainRef.current;
     function flush() {
       const current = stateRef.current;
       if (
@@ -188,20 +348,24 @@ export function SessionWorkbench({
       }
     }
     window.addEventListener("pagehide", flush);
-    return () => window.removeEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      saveDrain.invalidate();
+    };
   }, [persist]);
 
   async function reload() {
-    if (!binding) return;
+    const activeBinding = bindingRef.current;
+    if (!activeBinding) return;
+    saveDrainRef.current.invalidate();
     setBusy("reload");
     setNotice("");
     try {
-      const readback = await readSession(detail.session_id, binding);
+      const readback = await readSession(detail.session_id, activeBinding);
       if (readback) {
-        setState((previous) => {
+        commitState((previous) => {
           const next = applyReload(previous, readback);
-          keyRef.current =
-            next.status === "pending" ? crypto.randomUUID() : null;
+          saveAttemptRef.current = null;
           deleteKeyRef.current = null;
           return next;
         });
@@ -215,7 +379,9 @@ export function SessionWorkbench({
   }
 
   async function remove() {
-    if (!binding) return;
+    const activeBinding = bindingRef.current;
+    if (!activeBinding) return;
+    saveDrainRef.current.invalidate();
     setBusy("delete");
     setNotice("");
     try {
@@ -231,17 +397,20 @@ export function SessionWorkbench({
           cache: "no-store",
           headers: {
             "content-type": "application/json",
-            "x-workspace-session": binding,
+            "x-workspace-session": activeBinding,
           },
           method: "DELETE",
         },
       );
       const payload = (await response.json()) as DetailResponse;
-      if (payload.session_version) setBinding(payload.session_version);
+      if (payload.session_version) {
+        bindingRef.current = payload.session_version;
+        setBinding(payload.session_version);
+      }
       if (isDetailConflictResponse(response.status)) {
         setConfirmingDelete(false);
         deleteKeyRef.current = null;
-        setState((previous) => markConflict(previous));
+        commitState(markConflict);
         return;
       }
       if (!response.ok || !payload.detail) {
@@ -249,7 +418,11 @@ export function SessionWorkbench({
       }
       setConfirmingDelete(false);
       deleteKeyRef.current = null;
-      setState((previous) => markDeleted(previous, payload.detail as SessionDetail));
+      pendingDraftRef.current = null;
+      clearDurableDraft();
+      commitState((previous) =>
+        markDeleted(previous, payload.detail as SessionDetail),
+      );
       setNotice(deletedNotice());
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "删除失败。");
@@ -428,12 +601,7 @@ export function SessionWorkbench({
           disabled={detail.state !== "active"}
           id="session-composer-draft"
           maxLength={12_000}
-          onChange={(event) =>
-            setState((previous) => {
-              if (!keyRef.current) keyRef.current = crypto.randomUUID();
-              return applyDraftInput(previous, event.target.value);
-            })
-          }
+          onChange={(event) => updateDraft(event.target.value)}
           placeholder={detail.state === "active" ? "写下你想保留的内容…" : "对话不可用，无法编辑草稿。"}
           rows={6}
           value={state.draft}

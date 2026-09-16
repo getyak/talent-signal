@@ -29,6 +29,7 @@ import { authSecret, authenticatedBackendClient as signedInBackendClient, type B
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const OPAQUE_CURSOR = /^[A-Za-z0-9_-]{1,512}$/u;
 
 /** Sessions retain for thirty days; the composer draft expires sooner. */
 export const SESSION_RETENTION_DAYS = 30;
@@ -100,6 +101,16 @@ export function isWorkspaceSessionId(value: unknown): value is string {
   return typeof value === "string" && UUID.test(value);
 }
 
+export function isWorkspaceSessionCursor(value: unknown): value is string {
+  return typeof value === "string" && OPAQUE_CURSOR.test(value);
+}
+
+export function isWorkspaceSessionTimestamp(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 32) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
+}
+
 /**
  * Opaque, non-authoritative binding to the exact credential reviewed in this
  * browser. Separated from the contact-handoff binding so a Session cookie
@@ -114,6 +125,25 @@ export function workspaceSessionsBinding(claims: BackendSessionClaims): string {
         claims.backendUserId,
         claims.backendAccessToken,
         claims.backendExpiresAt,
+      ]),
+    )
+    .digest("hex");
+}
+
+/**
+ * Stable, non-authorizing browser-storage partition for recoverable drafts.
+ * It intentionally excludes the rotating access token and is never accepted
+ * by an API as authentication or mutation authority.
+ */
+export function workspaceSessionDraftStorageScope(
+  claims: BackendSessionClaims,
+): string {
+  return createHmac("sha256", authSecret())
+    .update(
+      JSON.stringify([
+        "workspace-session-draft-storage.v1",
+        claims.backendAccountId,
+        claims.backendUserId,
       ]),
     )
     .digest("hex");
@@ -326,11 +356,6 @@ export function workspaceSessionDirectory(
     const summary = workspaceSessionSummary(record);
     if (summary) sessions.push(summary);
   }
-  sessions.sort((left, right) =>
-    left.updatedAt === right.updatedAt
-      ? left.sessionId.localeCompare(right.sessionId)
-      : right.updatedAt.localeCompare(left.updatedAt),
-  );
   return {
     sessions,
     complete: response.complete,
@@ -504,7 +529,7 @@ function assertList(value: unknown): AgentSessionListResponse {
 export async function loadWorkspaceSessionDirectory(options: {
   cursor?: string | null;
 } = {}): Promise<WorkspaceSessionDirectory> {
-  const after = options.cursor && UUID.test(options.cursor) ? options.cursor : null;
+  const after = isWorkspaceSessionCursor(options.cursor) ? options.cursor : null;
   const response = assertList(
     await (await client()).listAgentSessions(after ?? undefined),
   );
@@ -538,11 +563,14 @@ export async function createUnscopedWorkspaceSession(options: {
   sessionId: string;
   idempotencyKey?: string;
   title?: string;
+  updatedAt: string;
 }): Promise<WorkspaceSessionDetail> {
-  if (!isWorkspaceSessionId(options.sessionId)) {
+  if (
+    !isWorkspaceSessionId(options.sessionId) ||
+    !isWorkspaceSessionTimestamp(options.updatedAt)
+  ) {
     throw new TalentSignalHttpError(400, "agent_session_invalid", "对话标识无效。", null);
   }
-  const now = new Date().toISOString();
   const title = workspaceSessionDisplayTitle(
     options.title?.trim() || "新的对话",
   );
@@ -555,7 +583,7 @@ export async function createUnscopedWorkspaceSession(options: {
       scopeKind: "unresolved_intent",
       title,
       turns: [],
-      updatedAt: now,
+      updatedAt: options.updatedAt,
       personDisplayLabel: "",
       contextDisplayLabel: "",
     },
@@ -568,6 +596,7 @@ export type SaveWorkspaceSessionDraftInput = {
   expectedRevision: number;
   idempotencyKey: string;
   composerDraft: string;
+  composerDraftUpdatedAt: string;
 };
 
 /**
@@ -578,7 +607,11 @@ export type SaveWorkspaceSessionDraftInput = {
 export async function saveWorkspaceSessionDraft(
   input: SaveWorkspaceSessionDraftInput,
 ): Promise<WorkspaceSessionDetail> {
-  if (!isWorkspaceSessionId(input.sessionId) || !UUID.test(input.idempotencyKey)) {
+  if (
+    !isWorkspaceSessionId(input.sessionId) ||
+    !UUID.test(input.idempotencyKey) ||
+    !isWorkspaceSessionTimestamp(input.composerDraftUpdatedAt)
+  ) {
     throw new TalentSignalHttpError(400, "agent_session_invalid", "保存参数无效。", null);
   }
   if (
@@ -597,13 +630,32 @@ export async function saveWorkspaceSessionDraft(
     );
   }
   const draft = boundedComposerDraft(input.composerDraft);
+  if (current.record.revision !== input.expectedRevision) {
+    if (
+      current.record.revision > input.expectedRevision &&
+      current.record.payload.composerDraft === draft &&
+      current.record.payload.composerDraftUpdatedAt ===
+        input.composerDraftUpdatedAt
+    ) {
+      // The original mutation committed but its response was lost. The exact
+      // caller-owned draft identity is already canonical, so replay success
+      // without rebuilding a differently hashed backend request.
+      return current;
+    }
+    throw new TalentSignalHttpError(
+      409,
+      "AGENT_SESSION_REVISION_CONFLICT",
+      "另一端已更新这段对话；已保留本地草稿，请重新载入后核对。",
+      null,
+    );
+  }
   const response = await (await client()).saveAgentSession(input.sessionId, {
     expected_revision: input.expectedRevision,
     idempotency_key: input.idempotencyKey,
     payload: {
       ...current.record.payload,
       composerDraft: draft,
-      composerDraftUpdatedAt: new Date().toISOString(),
+      composerDraftUpdatedAt: input.composerDraftUpdatedAt,
     },
   });
   return workspaceSessionDetail(response.session);

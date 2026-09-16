@@ -8,6 +8,7 @@ import {
   boundedComposerDraft,
   deleteWorkspaceSession,
   isWorkspaceSessionId,
+  isWorkspaceSessionTimestamp,
   loadWorkspaceSession,
   saveWorkspaceSessionDraft,
   workspaceSessionDetailWire,
@@ -143,12 +144,14 @@ export async function PUT(
       expected_revision?: unknown;
       idempotency_key?: unknown;
       composer_draft?: unknown;
+      composer_draft_updated_at?: unknown;
     };
     if (
       !Number.isInteger(input?.expected_revision) ||
       typeof input.idempotency_key !== "string" ||
       !UUID.test(input.idempotency_key) ||
-      typeof input.composer_draft !== "string"
+      typeof input.composer_draft !== "string" ||
+      !isWorkspaceSessionTimestamp(input.composer_draft_updated_at)
     ) {
       return reply({ message: "保存参数无效。" }, 400);
     }
@@ -157,6 +160,7 @@ export async function PUT(
       expectedRevision: input.expected_revision as number,
       idempotencyKey: input.idempotency_key,
       composerDraft: boundedComposerDraft(input.composer_draft),
+      composerDraftUpdatedAt: input.composer_draft_updated_at,
     });
     return reply({ detail: workspaceSessionDetailWire(detail) });
   } catch (error) {

@@ -7,11 +7,13 @@ import {
   initialDetailState,
   markConflict,
   markSaved,
+  shouldRetainDraftAfterConflict,
   type SessionDetail,
 } from "./session-detail-state";
 
 const sessionId = "10000000-0000-4000-8000-000000000001";
 const requestId = "10000000-0000-4000-8000-000000000002";
+const updatedAt = "2026-09-16T00:00:01.000Z";
 const detail: SessionDetail = {
   composer_draft: "server draft",
   composer_draft_updated_at: "2026-09-16T00:00:00.000Z",
@@ -55,20 +57,38 @@ describe("Session draft state", () => {
     expect(reloaded.detail.revision).toBe(4);
     expect(reloaded.draft).toBe("local draft");
     expect(reloaded.lastSavedDraft).toBe("other device");
+    expect(reloaded.conflict).toBe(true);
+    expect(reloaded.status).toBe("conflict");
+  });
+
+  it("does not schedule a save after editing or reverting a conflicted draft", () => {
+    const conflict = markConflict(applyDraftInput(initialDetailState(detail), "local draft"));
+    expect(applyDraftInput(conflict, "edited locally").status).toBe("conflict");
+    const clean = applyDraftInput(initialDetailState(detail), "server draft");
+    expect(clean.status).toBe("saved");
   });
 
   it("builds a retryable mutation with exact revision and identity", () => {
     const state = applyDraftInput(initialDetailState(detail), "changed");
-    expect(buildSaveRequest(state, requestId)).toEqual({
+    expect(buildSaveRequest(state, requestId, updatedAt)).toEqual({
       composer_draft: "changed",
+      composer_draft_updated_at: updatedAt,
       expected_revision: 3,
       idempotency_key: requestId,
     });
-    expect(buildSaveRequest(markConflict(state), requestId)).toEqual({
+    expect(buildSaveRequest(markConflict(state), requestId, updatedAt)).toEqual({
       composer_draft: "changed",
+      composer_draft_updated_at: updatedAt,
       expected_revision: 3,
       idempotency_key: requestId,
     });
   });
-});
 
+  it("retains recovery only for a canonical revision conflict", () => {
+    expect(shouldRetainDraftAfterConflict(409, "AGENT_SESSION_REVISION_CONFLICT")).toBe(true);
+    expect(shouldRetainDraftAfterConflict(409, "AGENT_SESSION_SOURCE_BUSY")).toBe(true);
+    expect(shouldRetainDraftAfterConflict(409, "session_stale")).toBe(false);
+    expect(shouldRetainDraftAfterConflict(409, "AGENT_SESSION_IDEMPOTENCY_CONFLICT")).toBe(false);
+    expect(shouldRetainDraftAfterConflict(409, undefined)).toBe(false);
+  });
+});

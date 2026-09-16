@@ -62,10 +62,15 @@ export function applyDraftInput(
   state: DetailState,
   value: string,
 ): DetailState {
+  const draft = boundedDraft(value);
   return {
     ...state,
-    draft: boundedDraft(value),
-    status: "pending",
+    draft,
+    status: state.conflict
+      ? "conflict"
+      : draft === state.lastSavedDraft
+        ? "saved"
+        : "pending",
   };
 }
 
@@ -106,16 +111,14 @@ export function applyReload(
   state: DetailState,
   detail: SessionDetail,
 ): DetailState {
+  const matches = boundedDraft(state.draft) === (detail.composer_draft ?? "");
   return {
     ...state,
-    conflict: false,
+    conflict: !matches,
     detail,
     error: "",
     lastSavedDraft: detail.composer_draft ?? "",
-    status:
-      boundedDraft(state.draft) === (detail.composer_draft ?? "")
-        ? "saved"
-        : "pending",
+    status: matches ? "saved" : "conflict",
   };
 }
 
@@ -135,6 +138,7 @@ export type SaveRequestBody = {
   expected_revision: number;
   idempotency_key: string;
   composer_draft: string;
+  composer_draft_updated_at: string;
 };
 
 /**
@@ -145,12 +149,21 @@ export type SaveRequestBody = {
 export function buildSaveRequest(
   state: DetailState,
   idempotencyKey: string,
+  updatedAt: string,
 ): SaveRequestBody | null {
   if (state.detail.state !== "active") return null;
   if (boundedDraft(state.draft) === state.lastSavedDraft) return null;
   if (!isSessionId(idempotencyKey)) return null;
+  const parsedUpdatedAt = Date.parse(updatedAt);
+  if (
+    !Number.isFinite(parsedUpdatedAt) ||
+    new Date(parsedUpdatedAt).toISOString() !== updatedAt
+  ) {
+    return null;
+  }
   return {
     composer_draft: boundedDraft(state.draft),
+    composer_draft_updated_at: updatedAt,
     expected_revision: state.detail.revision,
     idempotency_key: idempotencyKey,
   };
@@ -158,6 +171,16 @@ export function buildSaveRequest(
 
 export function isDetailConflictResponse(status: number): boolean {
   return status === 409;
+}
+
+export function shouldRetainDraftAfterConflict(
+  status: number,
+  code: unknown,
+): boolean {
+  return status === 409 && (
+    code === "AGENT_SESSION_REVISION_CONFLICT" ||
+    code === "AGENT_SESSION_SOURCE_BUSY"
+  );
 }
 
 export function isDetailGoneResponse(status: number): boolean {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 
 import { ThemeToggle } from "./theme-toggle";
+import { clearAllPendingSessionDrafts } from "./session-workbench/session-draft-pending";
 import { clearAllPendingMeetingDraftIntents } from "@/lib/meeting-draft-pending";
 import styles from "./workspace-shell.module.css";
 
@@ -34,6 +35,11 @@ export function WorkspaceAccountMenu({
   const menu = useRef<HTMLDetailsElement>(null);
   const popover = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLElement>(null);
+
+  function clearPendingLocalIntents() {
+    clearAllPendingMeetingDraftIntents();
+    clearAllPendingSessionDrafts();
+  }
 
   function close(returnFocus = false) {
     if (menu.current) menu.current.open = false;
@@ -119,7 +125,7 @@ export function WorkspaceAccountMenu({
         <hr />
         <Link href="/workspace/plugs" onClick={() => close()}>连接与权限</Link>
         <Link href="/workspace/monitor" onClick={() => close()}>运行反馈</Link>
-        <form action={signOutAction} onSubmit={clearAllPendingMeetingDraftIntents}>
+        <form action={signOutAction} onSubmit={clearPendingLocalIntents}>
           <button type="submit">
             <SignOut aria-hidden="true" size={17} />
             退出登录

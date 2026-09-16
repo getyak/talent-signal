@@ -10,9 +10,13 @@ import {
   type BindingStatus,
 } from "./platform";
 import {
+  captureIntentStorageKey,
   loadCaptureIntent,
+  pruneCaptureIntents,
   retainCaptureIntentScope,
   saveCaptureIntent,
+  sweepExpiredCaptureIntents,
+  type CaptureIntentScope,
 } from "./captureIntentStorage";
 
 const platform = createDesktopPlatformAdapter();
@@ -34,19 +38,19 @@ export function App() {
   const refreshInFlight = useRef<Promise<void> | null>(null);
   const verifiedScope = useRef<{ accountId: string; sessionId: string } | null>(null);
 
-  const clearPendingCaptureIntent = useCallback(() => {
-    const scope = verifiedScope.current;
+  const pruneLocalCaptureIntents = useCallback((retained: CaptureIntentScope | null) => {
     try {
-      if (scope) {
-        sessionStorage.removeItem(`ts.hybrid.capture.${scope.accountId}.${scope.sessionId}`);
-        return;
-      }
-      for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
-        const key = sessionStorage.key(index);
-        if (key?.startsWith("ts.hybrid.capture.")) sessionStorage.removeItem(key);
-      }
+      pruneCaptureIntents(localStorage, retained);
     } catch {
       // Storage failure never re-opens a native permission boundary.
+    }
+  }, []);
+
+  const sweepLocalCaptureIntents = useCallback(() => {
+    try {
+      sweepExpiredCaptureIntents(localStorage);
+    } catch {
+      // Storage failure never changes native binding authority.
     }
   }, []);
 
@@ -55,6 +59,7 @@ export function App() {
     const expectedEpoch = viewEpoch.current;
     setChecking(true);
     const pending = (async () => {
+      sweepLocalCaptureIntents();
       try {
         const next = await desktopSession.status();
         if (viewEpoch.current === expectedEpoch) {
@@ -62,6 +67,9 @@ export function App() {
           // native Started receipt was cleared. Retain the exact prior scope
           // so a verified recovery can replay or cancel the same intent.
           verifiedScope.current = retainCaptureIntentScope(verifiedScope.current, next);
+          if (next.state === "verified") {
+            pruneLocalCaptureIntents(verifiedScope.current);
+          }
           setBinding(next);
         }
       } catch {
@@ -75,7 +83,7 @@ export function App() {
     })();
     refreshInFlight.current = pending;
     return pending;
-  }, []);
+  }, [pruneLocalCaptureIntents, sweepLocalCaptureIntents]);
 
   useEffect(() => {
     void refresh();
@@ -135,9 +143,9 @@ export function App() {
     setChecking(true);
     try {
       const next = await desktopSession.activate(form);
-      clearPendingCaptureIntent();
       if (next.state === "verified") {
         verifiedScope.current = { accountId: next.accountId, sessionId: next.sessionId };
+        pruneLocalCaptureIntents(verifiedScope.current);
       }
       setBinding(next);
       setForm((current) => ({ ...current, accessToken: "" }));
@@ -155,7 +163,7 @@ export function App() {
     try {
       const next = await desktopSession.disconnect();
       if (next.state === "unbound") {
-        clearPendingCaptureIntent();
+        pruneLocalCaptureIntents(null);
         verifiedScope.current = null;
       }
       setBinding(next);
@@ -235,13 +243,14 @@ export function App() {
                 adapter={platform}
                 description="每次操作都会重新核验 loopback 后端中的账号与 Agent Session；令牌保存在 Keychain，不进入 WebView 存储。"
                 intentId={intentId}
+                key={bindingScope}
                 loadPendingCaptureIntent={() => {
-                  const key = `ts.hybrid.capture.${binding.accountId}.${binding.sessionId}`;
-                  return loadCaptureIntent(sessionStorage, key);
+                  const key = captureIntentStorageKey(binding);
+                  return loadCaptureIntent(localStorage, key);
                 }}
                 savePendingCaptureIntent={(value, expectedIntent) => {
-                  const key = `ts.hybrid.capture.${binding.accountId}.${binding.sessionId}`;
-                  saveCaptureIntent(sessionStorage, key, value, expectedIntent);
+                  const key = captureIntentStorageKey(binding);
+                  saveCaptureIntent(localStorage, key, value, expectedIntent);
                 }}
                 scope={{ accountId: binding.accountId, sessionId: binding.sessionId }}
                 title="当前 Session 的本机能力"

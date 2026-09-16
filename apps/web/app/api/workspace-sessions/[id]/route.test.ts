@@ -15,6 +15,7 @@ vi.mock("@/lib/server/workspaceSessions", () => ({
   boundedComposerDraft: (value: string) => value.slice(0, 12_000),
   deleteWorkspaceSession: mocked.remove,
   isWorkspaceSessionId: (value: unknown) => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value),
+  isWorkspaceSessionTimestamp: (value: unknown) => value === "2026-09-16T00:00:00.000Z",
   loadWorkspaceSession: mocked.load,
   saveWorkspaceSessionDraft: mocked.save,
   workspaceSessionDetailWire: (value: unknown) => value,
@@ -26,6 +27,7 @@ import { DELETE, PUT } from "./route";
 const claims = { backendExpiresAt: "2099-01-01T00:00:00.000Z" };
 const sessionId = "10000000-0000-4000-8000-000000000001";
 const requestId = "10000000-0000-4000-8000-000000000002";
+const updatedAt = "2026-09-16T00:00:00.000Z";
 const context = { params: Promise.resolve({ id: sessionId }) };
 
 function request(method: "PUT" | "DELETE", body: unknown, binding = "binding") {
@@ -48,12 +50,14 @@ describe("workspace Session detail route", () => {
   it("forwards exact revision, retry identity, and bounded draft", async () => {
     const response = await PUT(request("PUT", {
       composer_draft: "保留草稿",
+      composer_draft_updated_at: updatedAt,
       expected_revision: 3,
       idempotency_key: requestId,
     }), context);
     expect(response.status).toBe(200);
     expect(mocked.save).toHaveBeenCalledWith({
       composerDraft: "保留草稿",
+      composerDraftUpdatedAt: updatedAt,
       expectedRevision: 3,
       idempotencyKey: requestId,
       sessionId,
@@ -64,6 +68,7 @@ describe("workspace Session detail route", () => {
     mocked.save.mockRejectedValue(new TalentSignalHttpError(409, "AGENT_SESSION_REVISION_CONFLICT", "另一端已更新", null));
     const response = await PUT(request("PUT", {
       composer_draft: "本地草稿",
+      composer_draft_updated_at: updatedAt,
       expected_revision: 3,
       idempotency_key: requestId,
     }), context);
@@ -94,4 +99,3 @@ describe("workspace Session detail route", () => {
     });
   });
 });
-

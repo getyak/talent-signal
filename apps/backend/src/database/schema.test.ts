@@ -3,6 +3,21 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("authority schema", () => {
+  it("snapshots Session list identity and immutable ordering without duplicating content", async () => {
+    const sql = await readFile(
+      new URL("./071_agent_session_list_snapshots.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE INDEX agent_sessions_owner_recency_idx");
+    expect(sql).toContain("CREATE TABLE agent_session_list_snapshots");
+    expect(sql).toContain("CREATE TABLE agent_session_list_snapshot_items");
+    expect(sql).toContain("CREATE INDEX agent_session_list_snapshots_owner_idx");
+    expect(sql).toContain("sort_updated_at timestamptz NOT NULL");
+    expect(sql).toContain("REFERENCES agent_sessions(account_id,id) ON DELETE CASCADE");
+    expect(sql).toContain("('agent_session_list_snapshots','account')");
+    expect(sql).not.toContain("payload");
+  });
+
   it("keeps meeting drafts session-bound, non-executing, and redactable", async () => {
     const sql = await readFile(
       new URL("./070_meeting_drafts.sql", import.meta.url),

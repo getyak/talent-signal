@@ -1,4 +1,5 @@
-import { sweepHarnessSessions } from "./harnessSessions.js";
+import { randomUUID } from "node:crypto";
+
 import { FormatRegistry } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import {
@@ -22,6 +23,7 @@ import {
   screenshotConversationText,
   type AgentSessionChatSource,
 } from "./agentSessionSources.js";
+import { sweepHarnessSessions } from "./harnessSessions.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 if (!FormatRegistry.Has("uuid"))
@@ -33,6 +35,53 @@ if (!FormatRegistry.Has("date-time"))
       /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value)),
   );
 const DAY = 86_400_000;
+const MICROSECONDS = /^(?:0|[1-9]\d{0,18})$/u;
+const POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807n;
+const MAX_SESSION_SNAPSHOT_ITEMS = 5_000;
+const MAX_ACTIVE_SESSION_SNAPSHOTS = 4;
+
+type AgentSessionListCursor = {
+  v: 1;
+  snapshot_id: string;
+  before_us: string | null;
+  before_id: string | null;
+};
+
+function validMicroseconds(value: string | undefined): value is string {
+  return Boolean(
+    value &&
+    MICROSECONDS.test(value) &&
+    BigInt(value) <= POSTGRES_BIGINT_MAX,
+  );
+}
+
+function encodeAgentSessionListCursor(cursor: AgentSessionListCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function decodeAgentSessionListCursor(value: string): AgentSessionListCursor {
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as Partial<AgentSessionListCursor>;
+    if (
+      parsed.v !== 1 ||
+      !UUID.test(parsed.snapshot_id ?? "") ||
+      ((parsed.before_us === null) !== (parsed.before_id === null)) ||
+      (parsed.before_us !== null && !validMicroseconds(parsed.before_us)) ||
+      (parsed.before_id !== null && !UUID.test(parsed.before_id ?? ""))
+    ) {
+      throw new Error("invalid_cursor");
+    }
+    return parsed as AgentSessionListCursor;
+  } catch {
+    throw new ApiError(
+      400,
+      "AGENT_SESSION_CURSOR_INVALID",
+      "The Session list cursor is invalid.",
+    );
+  }
+}
 function canonicalID(value: string): string {
   return UUID.test(value) ? value.toLowerCase() : value;
 }
@@ -228,6 +277,32 @@ export async function sweepAgentSessions(
     [accountId ?? null],
   );
 }
+
+/**
+ * Physical list-snapshot retention runs outside Session business transactions.
+ * Its caller must surface failures so an operator can repair persistent cleanup
+ * faults without rolling back sensitive-content scrubbing or user mutations.
+ */
+export async function cleanupExpiredAgentSessionListSnapshots(
+  client: Pool,
+  accountId?: string,
+): Promise<void> {
+  await client.query(
+    `DELETE FROM agent_session_list_snapshots
+     WHERE expires_at<=statement_timestamp()
+       AND ($1::uuid IS NULL OR account_id=$1)`,
+    [accountId ?? null],
+  );
+}
+
+export async function runAgentSessionRetentionSweep(
+  client: Pool,
+): Promise<void> {
+  // Finish and commit the security-sensitive sweep before auxiliary snapshot
+  // cleanup starts in its own autocommit statement.
+  await sweepAgentSessions(client);
+  await cleanupExpiredAgentSessionListSnapshots(client);
+}
 export async function getAgentSession(
   client: DatabaseClient,
   auth: AuthContext,
@@ -239,32 +314,154 @@ export async function getAgentSession(
   return record(row);
 }
 export async function listAgentSessions(
-  client: DatabaseClient,
+  client: Pool,
   auth: AuthContext,
   after?: string,
   limit = 50,
 ): Promise<AgentSessionListResponse> {
   await sweepAgentSessions(client, auth.accountId);
-  const rows = (
-    await client.query<Row>(
-      `SELECT * FROM agent_sessions WHERE account_id=$1 AND created_by_user_id=$2
-    AND ($3::uuid IS NULL OR id>$3) ORDER BY id LIMIT $4`,
-      [
-        auth.accountId,
-        auth.userId,
-        after ?? null,
-        Math.min(50, Math.max(1, limit)) + 1,
-      ],
-    )
-  ).rows;
   const effectiveLimit = Math.min(50, Math.max(1, limit));
+  let cursor = after ? decodeAgentSessionListCursor(after) : null;
+  if (!cursor) {
+    const snapshotID = randomUUID();
+    await inTransaction(client, async (tx) => {
+      await tx.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+        [`agent-session-list:${auth.accountId}:${auth.userId}`],
+      );
+      // Keep a small multi-tab window while bounding live identity rows. The
+      // authenticated route rate bucket separately bounds materialization
+      // write/CPU amplification.
+      await tx.query(
+        `DELETE FROM agent_session_list_snapshots
+         WHERE account_id=$1 AND created_by_user_id=$2 AND id IN (
+           SELECT id FROM agent_session_list_snapshots
+           WHERE account_id=$1 AND created_by_user_id=$2
+           ORDER BY created_at DESC,id DESC
+           OFFSET $3
+         )`,
+        [
+          auth.accountId,
+          auth.userId,
+          MAX_ACTIVE_SESSION_SNAPSHOTS - 1,
+        ],
+      );
+      const materialized = await tx.query(
+        `WITH snapshot AS (
+           INSERT INTO agent_session_list_snapshots(
+             account_id,id,created_by_user_id,expires_at
+           ) VALUES($1,$3,$2,clock_timestamp()+interval '5 minutes')
+           RETURNING account_id,id
+         )
+         INSERT INTO agent_session_list_snapshot_items(
+           account_id,snapshot_id,session_id,sort_updated_at
+         )
+         SELECT snapshot.account_id,snapshot.id,sessions.id,sessions.updated_at
+         FROM snapshot
+         JOIN agent_sessions sessions ON sessions.account_id=snapshot.account_id
+         WHERE sessions.created_by_user_id=$2
+         ORDER BY sessions.updated_at DESC,sessions.id DESC
+         LIMIT $4`,
+        [
+          auth.accountId,
+          auth.userId,
+          snapshotID,
+          MAX_SESSION_SNAPSHOT_ITEMS + 1,
+        ],
+      );
+      if ((materialized.rowCount ?? 0) > MAX_SESSION_SNAPSHOT_ITEMS) {
+        throw new ApiError(
+          413,
+          "AGENT_SESSION_LIST_TOO_LARGE",
+          "The Session list is too large to snapshot safely.",
+        );
+      }
+    });
+    cursor = {
+      v: 1,
+      snapshot_id: snapshotID,
+      before_us: null,
+      before_id: null,
+    };
+  }
+  const beforePredicate = cursor.before_us === null
+    ? ""
+    : `AND ((extract(epoch FROM item.sort_updated_at)*1000000)::bigint,item.session_id)
+           < ($4::bigint,$5::uuid)`;
+  const parameters: unknown[] = [
+    auth.accountId,
+    auth.userId,
+    cursor.snapshot_id,
+  ];
+  if (cursor.before_us !== null) {
+    parameters.push(cursor.before_us, cursor.before_id);
+  }
+  parameters.push(effectiveLimit + 1);
+  const limitParameter = parameters.length;
+  type PageRow = Row & {
+    snapshot_marker: string;
+    sort_updated_at_us: string;
+  };
+  type EmptyPageRow = {
+    id: null;
+    snapshot_marker: string;
+    sort_updated_at_us: null;
+  };
+  const result = await client.query<PageRow | EmptyPageRow>(
+    `SELECT snapshot.id AS snapshot_marker,page.*
+     FROM agent_session_list_snapshots snapshot
+     LEFT JOIN LATERAL (
+       SELECT sessions.*,
+         (extract(epoch FROM item.sort_updated_at)*1000000)::bigint::text
+           AS sort_updated_at_us
+       FROM agent_session_list_snapshot_items item
+       JOIN agent_sessions sessions
+         ON sessions.account_id=item.account_id AND sessions.id=item.session_id
+       WHERE item.account_id=snapshot.account_id
+         AND item.snapshot_id=snapshot.id
+         AND sessions.created_by_user_id=$2
+         ${beforePredicate}
+       ORDER BY item.sort_updated_at DESC,item.session_id DESC
+       LIMIT $${limitParameter}
+     ) page ON TRUE
+     WHERE snapshot.account_id=$1 AND snapshot.created_by_user_id=$2
+       AND snapshot.id=$3 AND snapshot.expires_at>statement_timestamp()`,
+    parameters,
+  );
+  if (!result.rows.length) {
+    throw new ApiError(
+      410,
+      "AGENT_SESSION_CURSOR_EXPIRED",
+      "The Session list cursor expired; restart from the first page.",
+    );
+  }
+  const rows = result.rows.filter((row): row is PageRow => row.id !== null);
   const page = rows.slice(0, effectiveLimit);
   const complete = rows.length <= effectiveLimit;
+  const last = page.at(-1);
+  if (complete) {
+    try {
+      await client.query(
+        `DELETE FROM agent_session_list_snapshots
+         WHERE account_id=$1 AND created_by_user_id=$2 AND id=$3`,
+        [auth.accountId, auth.userId, cursor.snapshot_id],
+      );
+    } catch {
+      // Completion cleanup must not hide a successful canonical read. The
+      // observable recurring sweep owns eventual physical retention cleanup.
+    }
+  }
   return {
     contract_version: CONTRACT_VERSION,
     sessions: page.map(record),
     complete,
-    next_cursor: complete ? null : page.at(-1)!.id,
+    next_cursor: complete || !last
+      ? null
+      : encodeAgentSessionListCursor({
+          ...cursor,
+          before_us: last.sort_updated_at_us,
+          before_id: last.id,
+        }),
   };
 }
 function invalid(message: string): never {

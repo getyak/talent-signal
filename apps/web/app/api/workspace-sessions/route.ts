@@ -6,7 +6,9 @@ import { isAllowedMutationOrigin } from "@/lib/request-origin";
 import { readBackendSessionClaims } from "@/lib/server/backendAuth";
 import {
   createUnscopedWorkspaceSession,
+  isWorkspaceSessionCursor,
   isWorkspaceSessionId,
+  isWorkspaceSessionTimestamp,
   loadWorkspaceSessionDirectory,
   workspaceSessionDetailWire,
   workspaceSessionSummaryWire,
@@ -63,8 +65,11 @@ export async function GET(request: Request) {
       return reply({ code: "backend_session_expired", message: "请先登录。" }, 401);
     }
     const cursor = new URL(request.url).searchParams.get("cursor");
+    if (cursor !== null && !isWorkspaceSessionCursor(cursor)) {
+      return reply({ code: "agent_session_cursor_invalid", message: "分页标识无效。" }, 400);
+    }
     const directory = await loadWorkspaceSessionDirectory({
-      cursor: cursor && isWorkspaceSessionId(cursor) ? cursor : null,
+      cursor: isWorkspaceSessionCursor(cursor) ? cursor : null,
     });
     return reply({
       sessions: directory.sessions.map((summary) =>
@@ -113,13 +118,17 @@ export async function POST(request: Request) {
     } catch {
       return reply({ message: "请求格式无效。" }, 400);
     }
-    const input = body as { session_id?: unknown; title?: unknown };
-    if (!isWorkspaceSessionId(input?.session_id)) {
+    const input = body as { session_id?: unknown; title?: unknown; updated_at?: unknown };
+    if (
+      !isWorkspaceSessionId(input?.session_id) ||
+      !isWorkspaceSessionTimestamp(input.updated_at)
+    ) {
       return reply({ message: "对话标识无效。" }, 400);
     }
     const detail = await createUnscopedWorkspaceSession({
       sessionId: input.session_id,
       title: typeof input.title === "string" ? input.title : undefined,
+      updatedAt: input.updated_at,
     });
     return reply(
       {

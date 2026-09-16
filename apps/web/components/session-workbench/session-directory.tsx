@@ -60,17 +60,27 @@ export function SessionDirectory({
   const [binding, setBinding] = useState(sessionVersion);
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState<"create" | "more" | null>(null);
-  const pendingCreateId = useRef<string | null>(null);
+  const pendingCreate = useRef<{
+    sessionId: string;
+    updatedAt: string;
+  } | null>(null);
 
   async function createSession() {
     if (!binding || busy) return;
     setBusy("create");
     setError("");
-    const id = pendingCreateId.current ?? crypto.randomUUID();
-    pendingCreateId.current = id;
+    const attempt =
+      pendingCreate.current ??
+      (pendingCreate.current = {
+        sessionId: crypto.randomUUID(),
+        updatedAt: new Date().toISOString(),
+      });
     try {
       const response = await workspaceSessionFetch("/api/workspace-sessions", {
-        body: JSON.stringify({ session_id: id }),
+        body: JSON.stringify({
+          session_id: attempt.sessionId,
+          updated_at: attempt.updatedAt,
+        }),
         cache: "no-store",
         headers: {
           "content-type": "application/json",
@@ -87,8 +97,8 @@ export function SessionDirectory({
       if (payload.session_version) setBinding(payload.session_version);
       const created = isSessionId(payload.detail?.session_id)
         ? payload.detail.session_id
-        : id;
-      pendingCreateId.current = null;
+        : attempt.sessionId;
+      pendingCreate.current = null;
       // A new unscoped Session has no turn and no model work; restoration is
       // the only next step, so navigate straight to it.
       router.push(`/workspace/sessions/${encodeURIComponent(created)}`);

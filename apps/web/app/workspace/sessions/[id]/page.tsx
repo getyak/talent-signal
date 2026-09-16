@@ -12,6 +12,7 @@ import { readBackendSessionClaims } from "@/lib/server/backendAuth";
 import {
   isWorkspaceSessionId,
   loadWorkspaceSession,
+  workspaceSessionDraftStorageScope,
   workspaceSessionDetailWire,
   workspaceSessionsBinding,
   type WorkspaceSessionDetailWire,
@@ -81,6 +82,7 @@ export default async function SessionDetailPage({
       initialDetail={detail}
       initialError={error}
       sessionRecoveryHref={sessionRecoveryHref}
+      storageScope={workspaceSessionDraftStorageScope(claims)}
       sessionVersion={workspaceSessionsBinding(claims)}
     />
   );

@@ -25,7 +25,11 @@ import accountStyles from "@/components/account-settings.module.css";
 import { SystemHealthProvider } from "@/components/system-health-provider";
 import { WorkspaceAccountMenu } from "@/components/workspace-account-menu";
 import { MeetingDraftSessionBoundary } from "@/components/meeting-draft-session-boundary";
-import { workspaceSessionsBinding } from "@/lib/server/workspaceSessions";
+import { SessionDraftSessionBoundary } from "@/components/session-draft-session-boundary";
+import {
+  workspaceSessionDraftStorageScope,
+  workspaceSessionsBinding,
+} from "@/lib/server/workspaceSessions";
 
 function AccountControls({
   accountName,
@@ -60,7 +64,11 @@ export default async function WorkspaceLayout({
   // Child pages retain the exact callback URL when authentication is missing.
   // Rendering no product chrome here lets their redirect remain authoritative.
   if (!session?.user) {
-    return <><MeetingDraftSessionBoundary sessionVersion={null} />{children}</>;
+    return <>
+      <MeetingDraftSessionBoundary sessionVersion={null} />
+      <SessionDraftSessionBoundary storageScope={null} />
+      {children}
+    </>;
   }
 
   let testName: string | null = null;
@@ -72,12 +80,14 @@ export default async function WorkspaceLayout({
   // account settings: a settings outage must not unbind the rendered workspace.
   let scope: string | null = null;
   let pendingBinding: string | null = null;
+  let pendingSessionDraftScope: string | null = null;
   let backendAccount: {name:string;slug:string} | null = null;
   try {
     const claims = await readBackendSessionClaims();
     if (claims && !backendSessionIsExpired(claims.backendExpiresAt)) {
       scope = claims.backendAccountId;
       pendingBinding = workspaceSessionsBinding(claims);
+      pendingSessionDraftScope = workspaceSessionDraftStorageScope(claims);
       backendAccount = {name:claims.backendAccountName,slug:claims.backendAccountSlug};
     }
   } catch { /* Scope mismatch or unreadable test session: stay unbound. */ }
@@ -85,6 +95,7 @@ export default async function WorkspaceLayout({
   if (!scope) {
     return <>
       <MeetingDraftSessionBoundary sessionVersion={null} />
+      <SessionDraftSessionBoundary storageScope={null} />
       <section className={accountStyles.section} aria-live="polite">
         <h1>需要重新确认登录空间</h1>
         <p className={accountStyles.error}>登录空间已变化或会话已过期，暂不能显示工作区内容。</p>
@@ -107,6 +118,7 @@ export default async function WorkspaceLayout({
       {pendingBinding ? (
         <MeetingDraftSessionBoundary sessionVersion={pendingBinding} />
       ) : null}
+      <SessionDraftSessionBoundary storageScope={pendingSessionDraftScope} />
       <aside aria-label="Talent Signal 工作台" className={styles.rail}>
         <Link
           aria-label="Talent Signal 今日"

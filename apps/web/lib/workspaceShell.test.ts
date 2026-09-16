@@ -13,12 +13,23 @@ describe("persistent workspace shell", () => {
     const layout = read("app/workspace/layout.tsx");
     const navigation = read("components/workspace-shell-nav.tsx");
     const accountMenu = read("components/workspace-account-menu.tsx");
+    const sessionBoundary = read("components/session-draft-session-boundary.tsx");
+    const standaloneWorkspace = read("components/workspace-app.tsx");
 
     expect(layout).toContain("<WorkspaceShellNav />");
     expect(layout).toContain('id="workspace-content"');
     expect(layout).toContain("<AccountControls");
     expect(layout).toContain("<MeetingDraftSessionBoundary");
+    expect(layout).toContain("<SessionDraftSessionBoundary");
+    expect(layout).toContain("storageScope={null}");
     expect(layout).toContain("pendingBinding = workspaceSessionsBinding(claims)");
+    expect(layout).toContain(
+      "pendingSessionDraftScope = workspaceSessionDraftStorageScope(claims)",
+    );
+    expect(sessionBoundary).toContain(
+      "if (storageScope) prunePendingSessionDrafts(storageScope)",
+    );
+    expect(sessionBoundary).toContain("else clearAllPendingSessionDrafts()");
     expect(layout).toContain("fixtureWorkspace");
     expect(layout).toContain(
       "合成测试工作台——仅含评测数据，不是真实招聘记录",
@@ -52,10 +63,19 @@ describe("persistent workspace shell", () => {
     expect(accountMenu).toContain('"ArrowDown", "ArrowUp", "Home", "End"');
     expect(accountMenu).toContain("moveFocus(event.key");
     expect(accountMenu).toContain("signOutAction");
-    expect(accountMenu).toContain("onSubmit={clearAllPendingMeetingDraftIntents}");
+    expect(accountMenu).toContain("onSubmit={clearPendingLocalIntents}");
+    expect(accountMenu).toContain("clearAllPendingMeetingDraftIntents()");
+    expect(accountMenu).toContain("clearAllPendingSessionDrafts()");
     expect(accountMenu).toContain("退出登录");
     expect(accountMenu).toContain("简体中文");
     expect(accountMenu).toContain("<ThemeToggle");
+    expect(standaloneWorkspace).toContain(
+      "onSubmit={clearPendingLocalIntents}",
+    );
+    expect(standaloneWorkspace).toContain(
+      "clearAllPendingMeetingDraftIntents()",
+    );
+    expect(standaloneWorkspace).toContain("clearAllPendingSessionDrafts()");
   });
 
   it("leaves global account and navigation controls out of product surfaces", () => {
