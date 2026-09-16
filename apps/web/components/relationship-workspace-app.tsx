@@ -49,6 +49,10 @@ import {
 } from "./relationship-workspace/use-relationship-workspace-readback";
 import { useWorkspaceSessionRecovery } from "./use-workspace-session-recovery";
 import { workspaceSessionFetch } from "./workspace-session-request";
+import {
+  sessionReturnHref,
+  withReturnSession,
+} from "./session-return-navigation";
 
 // The capture editor and image-processing code load only when capture opens.
 // https://nextjs.org/docs/app/guides/lazy-loading#nextdynamic
@@ -65,6 +69,7 @@ type Props = {
   initialKnowledgeSnapshot: KnowledgeSnapshot | null;
   initialWorkspace: WorkspaceReviewResponse | null;
   initialRelationshipScope: RelationshipScope | null;
+  initialReturnSessionId: string | null;
   initialError: string | null;
   initialSessionRecoveryHref: string | null;
   initialCaptureOpen?: boolean;
@@ -97,6 +102,7 @@ export function RelationshipWorkspaceApp({
   initialKnowledgeSnapshot,
   initialWorkspace,
   initialRelationshipScope,
+  initialReturnSessionId,
   initialError,
   initialSessionRecoveryHref,
   initialCaptureOpen = false,
@@ -150,6 +156,9 @@ export function RelationshipWorkspaceApp({
       }
     : relationshipScope;
   const activeCaptureId = workspace?.capture.id ?? null;
+  const canonicalSessionReturnHref = sessionReturnHref(initialReturnSessionId);
+  const preserveSessionReturn = (href: string) =>
+    withReturnSession(href, initialReturnSessionId);
   const { beginSessionRecovery, sessionRecoveryHref } =
     useWorkspaceSessionRecovery(initialSessionRecoveryHref);
   const {
@@ -308,7 +317,11 @@ export function RelationshipWorkspaceApp({
     setKnowledgeSnapshot(null);
     clearAgentHistory();
     setAnnouncement("来源及已登记的衍生数据已删除。");
-    window.history.replaceState(null, "", "/workspace");
+    window.history.replaceState(
+      null,
+      "",
+      preserveSessionReturn("/workspace?surface=desk"),
+    );
   }
 
   function handleCommitted(next: WorkspaceReviewResponse) {
@@ -334,7 +347,9 @@ export function RelationshipWorkspaceApp({
     window.history.replaceState(
       null,
       "",
-      `/workspace?capture=${encodeURIComponent(next.capture.id)}#proposed-changes`,
+      preserveSessionReturn(
+        `/workspace?capture=${encodeURIComponent(next.capture.id)}#proposed-changes`,
+      ),
     );
     void refreshAgentHistory(
       next.subject.id,
@@ -369,7 +384,11 @@ export function RelationshipWorkspaceApp({
     setResourceComposerOpen(false);
     setError("");
     setAnnouncement(announcement);
-    window.history.replaceState(null, "", "/workspace");
+    window.history.replaceState(
+      null,
+      "",
+      preserveSessionReturn("/workspace?surface=desk"),
+    );
   }
 
   function handleInitialResourcesCommitted(
@@ -420,9 +439,11 @@ export function RelationshipWorkspaceApp({
     window.history.replaceState(
       null,
       "",
-      `/workspace?person=${encodeURIComponent(
-        scope.person.id,
-      )}&context=${encodeURIComponent(scope.relationship_context.id)}`,
+      preserveSessionReturn(
+        `/workspace?person=${encodeURIComponent(
+          scope.person.id,
+        )}&context=${encodeURIComponent(scope.relationship_context.id)}`,
+      ),
     );
     void refreshAgentHistory(
       scope.person.id,
@@ -451,9 +472,11 @@ export function RelationshipWorkspaceApp({
     window.history.replaceState(
       null,
       "",
-      parameters.size > 0
-        ? `/workspace?${parameters.toString()}`
-        : "/workspace",
+      preserveSessionReturn(
+        parameters.size > 0
+          ? `/workspace?${parameters.toString()}`
+          : "/workspace?surface=desk",
+      ),
     );
   }
 
@@ -657,11 +680,13 @@ export function RelationshipWorkspaceApp({
       window.history.replaceState(
         null,
         "",
-        `/workspace?person=${encodeURIComponent(
-          restoredScope.person.id,
-        )}&context=${encodeURIComponent(
-          restoredScope.relationship_context.id,
-        )}#contact-overview`,
+        preserveSessionReturn(
+          `/workspace?person=${encodeURIComponent(
+            restoredScope.person.id,
+          )}&context=${encodeURIComponent(
+            restoredScope.relationship_context.id,
+          )}#contact-overview`,
+        ),
       );
       void refreshAgentHistory(
         restoredScope.person.id,
@@ -761,11 +786,13 @@ export function RelationshipWorkspaceApp({
     window.history.replaceState(
       null,
       "",
-      `/workspace?person=${encodeURIComponent(
-        result.workspace.subject.id,
-      )}&context=${encodeURIComponent(
-        result.workspace.assignment.id,
-      )}&capture=${encodeURIComponent(captureId)}#proposed-changes`,
+      preserveSessionReturn(
+        `/workspace?person=${encodeURIComponent(
+          result.workspace.subject.id,
+        )}&context=${encodeURIComponent(
+          result.workspace.assignment.id,
+        )}&capture=${encodeURIComponent(captureId)}#proposed-changes`,
+      ),
     );
     setAnnouncement(
       "所选采集内容审阅已打开，无需重新加载关系工作台。",
@@ -811,15 +838,17 @@ export function RelationshipWorkspaceApp({
     window.history.replaceState(
       null,
       "",
-      `/workspace?person=${encodeURIComponent(
-        input.personId,
-      )}&context=${encodeURIComponent(
-        input.relationshipContextId,
-      )}&capture=${encodeURIComponent(
-        input.captureId,
-      )}&identity_corrected=${encodeURIComponent(
-        String(input.captureIdsRebound),
-      )}#proposed-changes`,
+      preserveSessionReturn(
+        `/workspace?person=${encodeURIComponent(
+          input.personId,
+        )}&context=${encodeURIComponent(
+          input.relationshipContextId,
+        )}&capture=${encodeURIComponent(
+          input.captureId,
+        )}&identity_corrected=${encodeURIComponent(
+          String(input.captureIdsRebound),
+        )}#proposed-changes`,
+      ),
     );
     setAnnouncement(
       "来源身份已修正，已核验的目标关系现在无需重新加载即可打开。",
@@ -877,6 +906,9 @@ export function RelationshipWorkspaceApp({
               ) : null}
             </div>
             <div>
+              {canonicalSessionReturnHref ? (
+                <Link href={canonicalSessionReturnHref}>返回原对话</Link>
+              ) : null}
               {activeScope && relationshipAgent.workspaceChat.turns.length > 0 ? (
                 <button
                   className="context-secondary-button"

@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && next build",
+    "build": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && pnpm --filter @talent-signal/workspace-ui build && next build",
     "auth:hash-password": "node scripts/hash-password.mjs",
     "start": "next start",
     "lint": "eslint app components lib proxy.ts proxy.test.ts next.config.ts vitest.config.ts postcss.config.mjs",
-    "typecheck": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && tsc --noEmit",
+    "typecheck": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && pnpm --filter @talent-signal/workspace-ui build && tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
@@ -18,6 +18,7 @@
     "@sinclair/typebox": "^0.34.41",
     "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
+    "@talent-signal/workspace-ui": "workspace:*",
     "mammoth": "^1.12.2",
     "motion": "13.2.0",
     "next": "16.3.4",

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildApp } from "./app.js";
 import type { BackendConfig } from "./config.js";
+import { REQUIRED_SYSTEM_MIGRATIONS } from "./modules/systemHealth.js";
 import type { VoiceTranscriptionServing } from "./modules/voiceTranscription.js";
 
 const config: BackendConfig = {
@@ -26,6 +27,34 @@ afterEach(async () => {
 });
 
 describe("readiness rate limiting", () => {
+  it("keeps liveness database-free and returns the exact readiness contract", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: REQUIRED_SYSTEM_MIGRATIONS.map((version) => ({ version })),
+    });
+    const app = await buildApp({
+      config,
+      pool: { query } as unknown as Pool,
+    });
+    apps.push(app);
+
+    const live = await app.inject({ method: "GET", url: "/health/live" });
+    expect(live.statusCode).toBe(200);
+    expect(live.json()).toEqual({
+      status: "ok",
+      service: "talent-signal-backend",
+    });
+    expect(query).not.toHaveBeenCalled();
+
+    const ready = await app.inject({ method: "GET", url: "/health/ready" });
+    expect(ready.statusCode).toBe(200);
+    expect(ready.json()).toEqual({
+      status: "ready",
+      database: "ready",
+      migration: "071_agent_session_list_snapshots",
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   it("bounds repeated public database readiness probes", async () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
@@ -34,6 +63,8 @@ describe("readiness rate limiting", () => {
         },
         { version: "058_account_management" },
         { version: "069_account_access_event_details" },
+        { version: "070_meeting_drafts" },
+        { version: "071_agent_session_list_snapshots" },
       ],
     });
     const app = await buildApp({
@@ -57,16 +88,12 @@ describe("readiness rate limiting", () => {
 
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("065_screenshot_directory_authority"),
-    );
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("ANY"), [
+      REQUIRED_SYSTEM_MIGRATIONS,
+    ]);
   }, 10_000);
 
-  it.each([
-    "065_screenshot_directory_authority",
-    "058_account_management",
-    "069_account_access_event_details",
-  ])(
+  it.each(REQUIRED_SYSTEM_MIGRATIONS)(
     "stays unavailable when required migration %s is missing",
     async missing => {
       const query = vi.fn().mockResolvedValue({
@@ -74,6 +101,8 @@ describe("readiness rate limiting", () => {
           "065_screenshot_directory_authority",
           "058_account_management",
           "069_account_access_event_details",
+          "070_meeting_drafts",
+          "071_agent_session_list_snapshots",
         ]
           .filter(version => version !== missing).map(version => ({ version })),
       });

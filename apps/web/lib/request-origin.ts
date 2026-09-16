@@ -13,7 +13,21 @@ export function isAllowedMutationOrigin(
   }
 
   try {
-    return new URL(origin).host === requestHost;
+    const parsed = new URL(origin);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+    const forwarded = headers
+      .get("x-forwarded-proto")
+      ?.split(",", 1)[0]
+      ?.trim()
+      .toLowerCase();
+    const expectedProtocol = forwarded === "http" || forwarded === "https"
+      ? `${forwarded}:`
+      : production
+        ? "https:"
+        : "http:";
+    return parsed.host === requestHost && parsed.protocol === expectedProtocol;
   } catch {
     return false;
   }

@@ -17,7 +17,11 @@ beforeEach(() => vi.clearAllMocks());
 it.each([create, append, complete])("rejects old unbound telemetry callers before reading or retaining private content", async route => {
   const request = new Request("https://example.test/api/telemetry/traces", {
     method: "POST",
-    headers: { host: "example.test", origin: "https://example.test" },
+    headers: {
+      host: "example.test",
+      origin: "https://example.test",
+      "x-forwarded-proto": "https",
+    },
     body: '{"content_parts":[{"content_text":"Synthetic private evidence"}]}',
   });
   const readBody = vi.spyOn(request, "json");

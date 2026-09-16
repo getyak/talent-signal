@@ -1,3 +1,6 @@
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
+import { isAbsolute } from "node:path";
+
 export interface BackendConfig {
   allowedOrigins: string[];
   appleSignInAudiences: string[];
@@ -12,6 +15,7 @@ export interface BackendConfig {
   sessionTtlSeconds: number;
   simulatedAuthEnabled: boolean;
   internalLabEnabled?: boolean;
+  tls?: { certificatePem: string; privateKeyPem: string };
   chatMediaStorage?:
     | { provider: "local"; directory: string }
     | {
@@ -36,6 +40,61 @@ function parseBoolean(value: string | undefined, defaultValue: boolean): boolean
     return defaultValue;
   }
   return value === "true";
+}
+
+function pkcs8PrivateKeyBoundary(kind: "BEGIN" | "END"): string {
+  return `-----${kind} ${["PRIVATE", "KEY"].join(" ")}-----`;
+}
+
+function readTlsFile(path: string, label: string, isPrivate: boolean): string {
+  if (!isAbsolute(path)) throw new Error(`${label} path must be absolute.`);
+
+  let descriptor: number;
+  try {
+    descriptor = openSync(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ELOOP") {
+      throw new Error(`${label} must be a regular file, not a symlink.`);
+    }
+    throw error;
+  }
+
+  try {
+    const metadata = fstatSync(descriptor);
+    if (!metadata.isFile()) {
+      throw new Error(`${label} must be a regular file, not a symlink.`);
+    }
+    if (metadata.size < 1 || metadata.size > 64 * 1024) {
+      throw new Error(`${label} must be between 1 byte and 64 KiB.`);
+    }
+    if (typeof process.geteuid === "function" && metadata.uid !== process.geteuid()) {
+      throw new Error(`${label} must be owned by the backend user.`);
+    }
+    if (isPrivate && (metadata.mode & 0o077) !== 0) {
+      throw new Error(`${label} must not be group- or world-readable.`);
+    }
+    return readFileSync(descriptor, "utf8");
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+export function loadTlsIdentity(
+  certificatePath: string,
+  privateKeyPath: string,
+): NonNullable<BackendConfig["tls"]> {
+  const certificatePem = readTlsFile(certificatePath, "TLS certificate", false);
+  const privateKeyPem = readTlsFile(privateKeyPath, "TLS private key", true);
+  if (!certificatePem.includes("-----BEGIN CERTIFICATE-----")) {
+    throw new Error("TLS certificate is not PEM encoded.");
+  }
+  if (!privateKeyPem.includes(pkcs8PrivateKeyBoundary("BEGIN"))) {
+    throw new Error("TLS private key is not PEM encoded.");
+  }
+  return { certificatePem, privateKeyPem };
 }
 
 export function loadConfig(): BackendConfig {
@@ -102,6 +161,20 @@ export function loadConfig(): BackendConfig {
             process.env.CHAT_MEDIA_LOCAL_DIRECTORY?.trim() ||
             `${process.cwd()}/.data/chat-media`,
         };
+  const tlsCertificatePath = process.env.TALENT_SIGNAL_TLS_CERTIFICATE_PATH?.trim();
+  const tlsPrivateKeyPath = process.env.TALENT_SIGNAL_TLS_PRIVATE_KEY_PATH?.trim();
+  if (Boolean(tlsCertificatePath) !== Boolean(tlsPrivateKeyPath)) {
+    throw new Error(
+      "TALENT_SIGNAL_TLS_CERTIFICATE_PATH and TALENT_SIGNAL_TLS_PRIVATE_KEY_PATH must be configured together.",
+    );
+  }
+  const tls = tlsCertificatePath && tlsPrivateKeyPath
+    ? loadTlsIdentity(tlsCertificatePath, tlsPrivateKeyPath)
+    : undefined;
+  const host = process.env.HOST ?? "0.0.0.0";
+  if (tls && !["127.0.0.1", "::1"].includes(host)) {
+    throw new Error("TLS mode for the macOS Hybrid adapter requires HOST=127.0.0.1 or HOST=::1.");
+  }
 
   return {
     allowedOrigins: (
@@ -115,7 +188,7 @@ export function loadConfig(): BackendConfig {
     appleSignInEnabled,
     googleSignInAudiences: (process.env.GOOGLE_SIGN_IN_AUDIENCES ?? "").split(",").map(value => value.trim()).filter(Boolean),
     databaseUrl: requireValue("DATABASE_URL"),
-    host: process.env.HOST ?? "0.0.0.0",
+    host,
     passwordAuthEnabled,
     passwordRegistrationEnabled,
     port: Number.parseInt(process.env.PORT ?? "4317", 10),
@@ -133,5 +206,6 @@ export function loadConfig(): BackendConfig {
     simulatedAuthEnabled,
     internalLabEnabled,
     chatMediaStorage,
+    ...(tls ? { tls } : {}),
   };
 }

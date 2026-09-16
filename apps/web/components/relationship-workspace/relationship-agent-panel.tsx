@@ -1,7 +1,7 @@
 "use client";
 import {RunArtifacts} from "@/components/run-artifacts";
 
-import { CalendarDraftReview } from "@/components/calendar-draft-review";
+import { MeetingDraftHandoff } from "@/components/meeting-draft-handoff";
 
 import type {
   ChatTaskResponse,
@@ -361,7 +361,7 @@ export function RelationshipAgentPanel({
               </header>
               <h2>{block.title}</h2>
               <p>{block.body}</p>
-              {block.calendar_draft && block.calendar_draft.source_request_id === response.task_id ? <CalendarDraftReview draft={block.calendar_draft} /> : null}
+              {block.calendar_draft && block.calendar_draft.source_request_id === response.task_id ? <MeetingDraftHandoff draft={block.calendar_draft} persistence="unbound" /> : null}
               <footer>
                 <span>
                   <LinkSimple aria-hidden="true" size={14} />

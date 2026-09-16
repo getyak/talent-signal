@@ -1,5 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import rateLimit from "@fastify/rate-limit";
 import { Pool } from "pg";
 import Fastify from "fastify";
 import {
@@ -7,6 +8,7 @@ import {
   type AgentSessionPayload,
 } from "@talent-signal/contracts";
 import {
+  cleanupExpiredAgentSessionListSnapshots,
   getAgentSession,
   listAgentSessions,
   mutateAgentSession,
@@ -290,6 +292,50 @@ afterAll(async () => {
 });
 
 describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
+  it("commits sensitive scrubbing and mutations while isolated snapshot cleanup is blocked", async () => {
+    const expired = await create();
+    await pool!.query(
+      "UPDATE agent_sessions SET expires_at=now()-interval '1 minute' WHERE account_id=$1 AND id=$2",
+      [auth.accountId, expired.session_id],
+    );
+    const blocker = await pool!.connect();
+    const cleanupPool = new Pool({ connectionString: database!, max: 1 });
+    try {
+      await blocker.query("BEGIN");
+      await blocker.query(
+        "LOCK TABLE agent_session_list_snapshots IN ACCESS EXCLUSIVE MODE",
+      );
+      await cleanupPool.query("SET lock_timeout='75ms'");
+      await expect(
+        cleanupExpiredAgentSessionListSnapshots(cleanupPool),
+      ).rejects.toMatchObject({ code: "55P03" });
+
+      const current = payload();
+      const saved = await mutateAgentSession(
+        pool!,
+        auth,
+        current.id,
+        mutation(current),
+      );
+      expect(saved.revision).toBe(1);
+      const scrubbed = (
+        await pool!.query<{
+          deleted_at: Date | null;
+          payload: AgentSessionPayload | null;
+        }>(
+          "SELECT deleted_at,payload FROM agent_sessions WHERE account_id=$1 AND id=$2",
+          [auth.accountId, expired.session_id],
+        )
+      ).rows[0];
+      expect(scrubbed?.deleted_at).toBeInstanceOf(Date);
+      expect(scrubbed?.payload).toBeNull();
+    } finally {
+      await blocker.query("ROLLBACK");
+      blocker.release();
+      await cleanupPool.end();
+    }
+  });
+
   it("preserves stable turn identity and displays a second-device read as unconfirmed", async () => {
     const value = payload(),
       request = mutation(value),
@@ -2529,11 +2575,92 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
         [auth.accountId, auth.userId],
       )
     ).rows[0].count;
+    const expected = (
+      await pool!.query<{ id: string }>(
+        `SELECT id FROM agent_sessions
+         WHERE account_id=$1 AND created_by_user_id=$2
+         ORDER BY updated_at DESC,id DESC`,
+        [auth.accountId, auth.userId],
+      )
+    ).rows.map((row) => row.id);
     expect(new Set(seen).size).toBe(count);
     expect(seen.length).toBe(count);
+    expect(seen).toEqual(expected);
+  });
+  it("keeps the snapshot order when the cursor and an unseen Session mutate between pages", async () => {
+    const first = await listAgentSessions(pool!, auth, undefined, 3);
+    expect(first.complete).toBe(false);
+    expect(first.next_cursor).toEqual(expect.any(String));
+    const expected = (
+      await pool!.query<{ session_id: string }>(
+        `SELECT item.session_id
+         FROM agent_session_list_snapshots snapshot
+         JOIN agent_session_list_snapshot_items item
+           ON item.account_id=snapshot.account_id
+          AND item.snapshot_id=snapshot.id
+         WHERE snapshot.account_id=$1 AND snapshot.created_by_user_id=$2
+         ORDER BY item.sort_updated_at DESC,item.session_id DESC`,
+        [auth.accountId, auth.userId],
+      )
+    ).rows.map((row) => row.session_id);
+    expect(expected.length).toBeGreaterThan(3);
+    const cursorSession = first.sessions.at(-1)!.session_id;
+    const unseenSession = expected.find(
+      (id) => !first.sessions.some((session) => session.session_id === id),
+    )!;
+    await pool!.query(
+      `UPDATE agent_sessions
+       SET updated_at=clock_timestamp()+interval '2 seconds'
+       WHERE account_id=$1 AND id=ANY($2::uuid[])`,
+      [auth.accountId, [cursorSession, unseenSession]],
+    );
+
+    const seen = first.sessions.map((session) => session.session_id);
+    let after = first.next_cursor!;
+    for (;;) {
+      const page = await listAgentSessions(pool!, auth, after, 3);
+      seen.push(...page.sessions.map((session) => session.session_id));
+      if (page.complete) break;
+      after = page.next_cursor!;
+    }
+
+    expect(seen).toEqual(expected);
+    expect(new Set(seen).size).toBe(expected.length);
+  });
+  it("bounds concurrent owner snapshots while retaining a four-tab window", async () => {
+    await create();
+    await create();
+    const cursors: string[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const first = await listAgentSessions(pool!, auth, undefined, 1);
+      expect(first.complete).toBe(false);
+      cursors.push(first.next_cursor!);
+    }
+    const count = await pool!.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM agent_session_list_snapshots
+       WHERE account_id=$1 AND created_by_user_id=$2`,
+      [auth.accountId, auth.userId],
+    );
+    expect(Number(count.rows[0]?.count)).toBeLessThanOrEqual(4);
+    await expect(
+      listAgentSessions(pool!, auth, cursors[0], 1),
+    ).rejects.toMatchObject({
+      code: "AGENT_SESSION_CURSOR_EXPIRED",
+      statusCode: 410,
+    });
+    await expect(
+      listAgentSessions(pool!, auth, cursors.at(-1), 1),
+    ).resolves.toMatchObject({ sessions: expect.any(Array) });
+  });
+  it("rejects malformed Session list cursors before querying a snapshot", async () => {
+    await expect(listAgentSessions(pool!, auth, "not-json", 3)).rejects.toMatchObject({
+      code: "AGENT_SESSION_CURSOR_INVALID",
+      statusCode: 400,
+    });
   });
   it("serves no-store HTTP readback and rejects authority-bearing client blocks at the route", async () => {
     const app = Fastify();
+    await app.register(rateLimit, { global: false });
     app.decorateRequest("auth", null as unknown as AuthContext);
     registerAgentSessionRoutes(app, pool!, async (req) => {
       req.auth = auth;
@@ -2639,6 +2766,92 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
         payload: mutation(value, 1),
       });
       expect(denied.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+  it("rate limits repeated first-page snapshot materialization by authenticated owner", async () => {
+    const app = Fastify();
+    await app.register(rateLimit, { global: false });
+    app.decorateRequest("auth", null as unknown as AuthContext);
+    registerAgentSessionRoutes(app, pool!, async (request) => {
+      request.auth = auth;
+    });
+    app.setErrorHandler((error, request, reply) => {
+      const apiError = error as ApiError;
+      reply.code(apiError.statusCode ?? 500).send({
+        error: {
+          code: apiError.code ?? "INTERNAL_ERROR",
+          message: apiError.message,
+          request_id: request.id,
+        },
+      });
+    });
+    try {
+      const responses = [];
+      for (let index = 0; index < 31; index += 1) {
+        responses.push(
+          await app.inject({ method: "GET", url: "/v1/agent-sessions?limit=1" }),
+        );
+      }
+      expect(
+        [...new Set(responses.map((response) => response.statusCode))],
+        responses.map((response) => response.body).join("\n"),
+      ).toEqual([200, 429]);
+      expect(responses.filter((response) => response.statusCode === 200)).toHaveLength(30);
+      expect(responses.filter((response) => response.statusCode === 429)).toHaveLength(1);
+    } finally {
+      await app.close();
+    }
+  });
+  it("does not charge cursor continuations against the first-page materialization limit", async () => {
+    const records = Array.from({ length: 35 }, () => payload());
+    await pool!.query(
+      `INSERT INTO agent_sessions(
+         account_id,id,created_by_user_id,revision,payload,created_at,updated_at,expires_at
+       )
+       SELECT $1,(entry.value->>'id')::uuid,$2,1,entry.value,
+         statement_timestamp(),
+         statement_timestamp()-(entry.ordinality * interval '1 millisecond'),
+         statement_timestamp()+interval '7 days'
+       FROM jsonb_array_elements($3::jsonb) WITH ORDINALITY AS entry(value,ordinality)`,
+      [auth.accountId, auth.userId, JSON.stringify(records)],
+    );
+    const first = await listAgentSessions(pool!, auth, undefined, 1);
+    expect(first.next_cursor).toEqual(expect.any(String));
+
+    const app = Fastify();
+    await app.register(rateLimit, { global: false });
+    app.decorateRequest("auth", null as unknown as AuthContext);
+    registerAgentSessionRoutes(app, pool!, async (request) => {
+      request.auth = auth;
+    });
+    app.setErrorHandler((error, request, reply) => {
+      const apiError = error as ApiError;
+      reply.code(apiError.statusCode ?? 500).send({
+        error: {
+          code: apiError.code ?? "INTERNAL_ERROR",
+          message: apiError.message,
+          request_id: request.id,
+        },
+      });
+    });
+    try {
+      let cursor = first.next_cursor!;
+      for (let index = 0; index < 31; index += 1) {
+        const response = await app.inject({
+          method: "GET",
+          url: `/v1/agent-sessions?limit=1&after=${encodeURIComponent(cursor)}`,
+        });
+        expect(response.statusCode, response.body).toBe(200);
+        const page = response.json<{
+          complete: boolean;
+          next_cursor: string | null;
+        }>();
+        expect(page.complete).toBe(false);
+        expect(page.next_cursor).toEqual(expect.any(String));
+        cursor = page.next_cursor!;
+      }
     } finally {
       await app.close();
     }

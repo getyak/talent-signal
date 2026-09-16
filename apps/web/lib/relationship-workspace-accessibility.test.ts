@@ -335,7 +335,9 @@ describe("relationship workspace accessibility contract", () => {
     expect(relationshipResourceComposer).toContain(
       "onEvidenceChanged(announcement, true)",
     );
-    expect(component).toContain('window.history.replaceState(null, "", "/workspace")');
+    expect(component).toContain(
+      'preserveSessionReturn("/workspace?surface=desk")',
+    );
   });
 
   it("offers destination reconciliation instead of blind retry for unknown effects", () => {

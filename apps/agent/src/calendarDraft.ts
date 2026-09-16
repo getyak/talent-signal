@@ -12,7 +12,7 @@ export interface CalendarDraftContext {
 const schema = z.strictObject({
   title: z.string().trim().min(1).max(200),
   starts_at: z.iso.datetime({ offset: true }), ends_at: z.iso.datetime({ offset: true }),
-  time_zone: z.string().min(1).max(100), source_excerpt: z.string().min(1).max(1000),
+  time_zone: z.string().trim().min(1).max(100), source_excerpt: z.string().trim().min(1).max(1000),
 });
 
 function wallTimeMatches(value: string, zone: string): boolean {

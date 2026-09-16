@@ -9,12 +9,14 @@ import {
 import Link from "next/link";
 
 import styles from "./people-directory-app.module.css";
+import { withReturnSession } from "./session-return-navigation";
 import { WorkspaceDisconnectedState } from "./workspace-disconnected-state";
 
 type Props = {
   error: string | null;
   people: PersonDirectoryItem[];
   query: string;
+  returnSessionId: string | null;
   sessionRecoveryHref: string | null;
 };
 
@@ -43,16 +45,19 @@ function formatActivity(value: string) {
   }).format(date);
 }
 
-function relationshipHref(person: PersonDirectoryItem) {
+function relationshipHref(
+  person: PersonDirectoryItem,
+  returnSessionId: string | null,
+) {
   const context = person.contexts[0];
   if (!context) {
-    return "/workspace";
+    return withReturnSession("/workspace?surface=desk", returnSessionId);
   }
   const search = new URLSearchParams({
     context: context.id,
     person: person.id,
   });
-  return `/workspace?${search.toString()}`;
+  return withReturnSession(`/workspace?${search.toString()}`, returnSessionId);
 }
 
 function identityMatchLabel(
@@ -71,6 +76,7 @@ export function PeopleDirectoryApp({
   error,
   people,
   query,
+  returnSessionId,
   sessionRecoveryHref,
 }: Props) {
   return (
@@ -83,13 +89,19 @@ export function PeopleDirectoryApp({
               <h1>联系人</h1>
               <p className={styles.intro}>
                 按已确认线索检索联系人，并回到其关系情境与准确证据。
+                {returnSessionId
+                  ? " 这次选择会保留原对话入口，但不会自动改变对话范围。"
+                  : ""}
               </p>
             </div>
 
             <div className={styles.heroTools}>
               <Link
                 className={styles.createPerson}
-                href="/workspace?surface=desk&intent=create-contact"
+                href={withReturnSession(
+                  "/workspace?surface=desk&intent=create-contact",
+                  returnSessionId,
+                )}
               >
                 <UserPlus aria-hidden="true" size={18} />
                 使用 Agent 新建联系人
@@ -104,6 +116,13 @@ export function PeopleDirectoryApp({
                   placeholder="按姓名、邮箱或电话查找…"
                   type="search"
                 />
+                {returnSessionId ? (
+                  <input
+                    name="session"
+                    type="hidden"
+                    value={returnSessionId}
+                  />
+                ) : null}
                 <button type="submit">搜索</button>
               </form>
             </div>
@@ -154,9 +173,23 @@ export function PeopleDirectoryApp({
                   </p>
                 </div>
                 {query ? (
-                  <Link href="/workspace/people">清除搜索</Link>
+                  <Link
+                    href={withReturnSession(
+                      "/workspace/people",
+                      returnSessionId,
+                    )}
+                  >
+                    清除搜索
+                  </Link>
                 ) : (
-                  <Link href="/workspace">打开智能助理</Link>
+                  <Link
+                    href={withReturnSession(
+                      "/workspace?surface=desk",
+                      returnSessionId,
+                    )}
+                  >
+                    打开智能助理
+                  </Link>
                 )}
               </div>
             ) : (
@@ -170,7 +203,7 @@ export function PeopleDirectoryApp({
                 </div>
                 <ol className={styles.peopleList}>
                 {people.map((person) => {
-                  const href = relationshipHref(person);
+                  const href = relationshipHref(person, returnSessionId);
                   return (
                     <li key={person.id}>
                       <article className={styles.personCard}>
@@ -213,7 +246,10 @@ export function PeopleDirectoryApp({
                               {person.contexts.slice(0, 3).map((context) => (
                                 <li key={context.id}>
                                   <Link
-                                    href={`/workspace?person=${encodeURIComponent(person.id)}&context=${encodeURIComponent(context.id)}`}
+                                    href={withReturnSession(
+                                      `/workspace?person=${encodeURIComponent(person.id)}&context=${encodeURIComponent(context.id)}`,
+                                      returnSessionId,
+                                    )}
                                   >
                                     {context.display_label}
                                   </Link>

@@ -4,6 +4,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PeopleDirectoryApp } from "@/components/people-directory-app";
 import {
+  validReturnSessionId,
+  withReturnSession,
+} from "@/components/session-return-navigation";
+import {
   backendSessionRecoveryHref,
   isBackendSessionExpiredError,
 } from "@/lib/backend-session";
@@ -25,19 +29,29 @@ export const metadata: Metadata = {
 export default async function PeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ query?: string }>;
+  searchParams: Promise<{ query?: string; session?: string }>;
 }) {
+  const parameters = await searchParams;
+  const returnSessionId = validReturnSessionId(parameters.session);
+  const query = (parameters.query ?? "")
+    .normalize("NFKC")
+    .trim()
+    .slice(0, 160);
+  const directoryHref = withReturnSession(
+    query
+      ? `/workspace/people?query=${encodeURIComponent(query)}`
+      : "/workspace/people",
+    returnSessionId,
+  );
   const session = await auth();
   if (!session?.user) {
-    redirect("/login?callbackUrl=%2Fworkspace%2Fpeople");
+    redirect(`/login?callbackUrl=${encodeURIComponent(directoryHref)}`);
   }
 
   if (!isIntegrationMode()) {
     redirect("/workspace");
   }
 
-  const parameters = await searchParams;
-  const query = (parameters.query ?? "").normalize("NFKC").trim().slice(0, 160);
   let people: Awaited<ReturnType<typeof loadPeopleDirectory>>["people"] = [];
   let error: string | null = null;
   let sessionRecoveryHref: string | null = null;
@@ -51,9 +65,7 @@ export default async function PeoplePage({
     if (isBackendSessionExpiredError(caught)) {
       error = caught.message;
       sessionRecoveryHref = backendSessionRecoveryHref(
-        query
-          ? `/workspace/people?query=${encodeURIComponent(query)}`
-          : "/workspace/people",
+        directoryHref,
       );
     } else {
       error =
@@ -66,6 +78,7 @@ export default async function PeoplePage({
       error={error}
       people={people}
       query={query}
+      returnSessionId={returnSessionId}
       sessionRecoveryHref={sessionRecoveryHref}
     />
   );

@@ -21,6 +21,8 @@ import {
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { signOutOfWorkspace } from "@/app/login/actions";
+import { clearAllPendingMeetingDraftIntents } from "@/lib/meeting-draft-pending";
+import { clearAllPendingSessionDrafts } from "./session-workbench/session-draft-pending";
 import {
   getCaseEvidence,
   getCaseIdentityLabel,
@@ -251,6 +253,11 @@ export function WorkspaceApp({
     useState<OutcomeStatus>("pending");
   const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
 
+  function clearPendingLocalIntents() {
+    clearAllPendingMeetingDraftIntents();
+    clearAllPendingSessionDrafts();
+  }
+
   const fixtureCase =
     dataset.cases.find((item) => item.id === selectedId) ?? dataset.cases[0];
   const review = reviews[fixtureCase.id];
@@ -382,7 +389,7 @@ export function WorkspaceApp({
             <ArrowSquareOut aria-hidden="true" size={16} />
             产品网站
           </Link>
-          <form action={signOutOfWorkspace}>
+          <form action={signOutOfWorkspace} onSubmit={clearPendingLocalIntents}>
             <button type="submit">
               <SignOut aria-hidden="true" size={16} />
               退出登录

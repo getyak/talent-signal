@@ -3,6 +3,49 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("authority schema", () => {
+  it("snapshots Session list identity and immutable ordering without duplicating content", async () => {
+    const sql = await readFile(
+      new URL("./071_agent_session_list_snapshots.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE INDEX agent_sessions_owner_recency_idx");
+    expect(sql).toContain("CREATE TABLE agent_session_list_snapshots");
+    expect(sql).toContain("CREATE TABLE agent_session_list_snapshot_items");
+    expect(sql).toContain("CREATE INDEX agent_session_list_snapshots_owner_idx");
+    expect(sql).toContain("sort_updated_at timestamptz NOT NULL");
+    expect(sql).toContain("REFERENCES agent_sessions(account_id,id) ON DELETE CASCADE");
+    expect(sql).toContain("('agent_session_list_snapshots','account')");
+    expect(sql).not.toContain("payload");
+  });
+
+  it("keeps meeting drafts session-bound, non-executing, and redactable", async () => {
+    const sql = await readFile(
+      new URL("./070_meeting_drafts.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE TABLE meeting_drafts");
+    expect(sql).toContain("external_effect = 'none'");
+    expect(sql).toContain("REFERENCES agent_sessions(account_id,id)");
+    expect(sql).toContain("meeting_draft_source_available");
+    expect(sql).toContain("redact_unavailable_meeting_drafts");
+    expect(sql).toContain("CREATE TABLE meeting_draft_list_snapshots");
+    expect(sql).toContain("CREATE TABLE meeting_draft_list_snapshot_items");
+    expect(sql).toContain(
+      "REFERENCES agent_session_chat_tasks(account_id,task_id,actor_user_id,origin_session_id)",
+    );
+    expect(sql).toContain(
+      "REFERENCES meeting_drafts(account_id,id,created_by_user_id)",
+    );
+    expect(sql).toContain("status <> 'needs_review' OR dismissed_at IS NULL");
+    expect(sql).toContain("DELETE FROM meeting_draft_operations operation");
+    expect(sql).toContain("AFTER INSERT ON agent_session_retracted_tasks");
+    expect(sql).toContain("ends_at - starts_at <= interval '7 days'");
+    expect(sql).toContain("parsed.ends_at - parsed.starts_at <= interval '7 days'");
+    expect(sql).not.toContain("CREATE OR REPLACE FUNCTION retract_agent_session_chat_sources");
+    expect(sql).not.toContain("CREATE TABLE calendar_events");
+    expect(sql).not.toContain("access_token");
+  });
+
   it("keeps Lab sessions, replay, receipts, and promoted cases isolated from product truth", async () => {
     const sql = await readFile(
       new URL("./039_talent_signal_lab.sql", import.meta.url),
@@ -199,6 +242,51 @@ describe("authority schema", () => {
     ]) {
       expect(sql).toContain(`CREATE TABLE ${table}`);
     }
+  });
+
+  it("keeps meeting drafts inside verified test-workspace cleanup", async () => {
+    const sql = await readFile(
+      new URL("./070_meeting_drafts.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain(
+      "INSERT INTO lab_test_workspace_table_manifest(table_name,scope)",
+    );
+    for (const table of [
+      "meeting_drafts",
+      "meeting_draft_operations",
+      "meeting_draft_list_snapshots",
+      "meeting_draft_list_snapshot_items",
+    ]) {
+      expect(sql).toContain(`('${table}','account')`);
+    }
+    expect(sql).toContain(
+      "BEFORE INSERT OR UPDATE ON meeting_drafts",
+    );
+    expect(sql).toContain(
+      "BEFORE INSERT OR UPDATE ON meeting_draft_operations",
+    );
+    expect(sql).toContain(
+      "FOR EACH ROW EXECUTE FUNCTION lab_test_workspace_write_guard()",
+    );
+    expect(sql.indexOf("INSERT INTO meeting_drafts(")).toBeLessThan(
+      sql.indexOf("INSERT INTO lab_test_workspace_table_manifest"),
+    );
+    expect(sql).toContain(
+      "CASE WHEN jsonb_typeof(i.response_body->'blocks')='array'",
+    );
+    expect(sql).toContain(
+      "jsonb_typeof(block.value->'calendar_draft')='object'",
+    );
+    expect(sql).toContain(
+      "pg_input_is_valid(draft.value->>'starts_at','timestamptz')",
+    );
+    expect(sql).toContain(
+      "pg_input_is_valid(draft.value->>'reference_time','timestamptz')",
+    );
+    expect(sql).toContain("btrim(draft.value->>'source_excerpt')<>''");
+    expect(sql).toContain("FROM pg_timezone_names zone");
+    expect(sql).toContain("(Z|[+-][0-9]{2}:[0-9]{2})$");
   });
 
   it("uses composite account-scoped relationships", async () => {

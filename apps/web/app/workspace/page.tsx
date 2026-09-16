@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { TalentSignalHttpError } from "@talent-signal/contracts";
 import { auth } from "@/auth";
+import {
+  validReturnSessionId,
+  withReturnSession,
+} from "@/components/session-return-navigation";
 import { readBackendSessionClaims } from "@/lib/server/backendAuth";
 import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
 import { RelationshipWorkspaceApp } from "@/components/relationship-workspace-app";
@@ -38,6 +42,7 @@ export default async function WorkspacePage({
     identity_case?: string;
     intent?: string;
     person?: string;
+    session?: string;
     surface?: string;
   }>;
 }) {
@@ -62,6 +67,7 @@ export default async function WorkspacePage({
     /^[0-9a-f-]{36}$/i.test(parameters.identity_case)
       ? parameters.identity_case
       : undefined;
+  const requestedReturnSession = validReturnSessionId(parameters.session);
   const session = await auth();
   if (!session?.user) {
     const callbackParameters = new URLSearchParams();
@@ -73,6 +79,9 @@ export default async function WorkspacePage({
     }
     if (requestedIdentityCase) {
       callbackParameters.set("identity_case", requestedIdentityCase);
+    }
+    if (requestedReturnSession) {
+      callbackParameters.set("session", requestedReturnSession);
     }
     const callbackUrl =
       callbackParameters.size > 0
@@ -87,6 +96,7 @@ export default async function WorkspacePage({
     !requestedPerson &&
     !requestedContext &&
     !requestedIdentityCase &&
+    !requestedReturnSession &&
     !parameters.surface
   ) {
     redirect("/workspace/today");
@@ -129,9 +139,12 @@ export default async function WorkspacePage({
           /^[0-9a-f-]{36}$/i.test(retainedContextId)
         ) {
           redirect(
-            `/workspace?person=${encodeURIComponent(
-              retainedPersonId,
-            )}&context=${encodeURIComponent(retainedContextId)}`,
+            withReturnSession(
+              `/workspace?person=${encodeURIComponent(
+                retainedPersonId,
+              )}&context=${encodeURIComponent(retainedContextId)}`,
+              requestedReturnSession,
+            ),
           );
         }
       }
@@ -148,6 +161,9 @@ export default async function WorkspacePage({
         }
         if (requestedIdentityCase) {
           callbackParameters.set("identity_case", requestedIdentityCase);
+        }
+        if (requestedReturnSession) {
+          callbackParameters.set("session", requestedReturnSession);
         }
         sessionRecoveryHref = backendSessionRecoveryHref(
           `/workspace?${callbackParameters.toString()}`,
@@ -179,6 +195,7 @@ export default async function WorkspacePage({
         }
         initialKnowledgeSnapshot={initialRead?.knowledgeSnapshot ?? null}
         initialRelationshipScope={initialRead?.relationshipScope ?? null}
+        initialReturnSessionId={requestedReturnSession}
         initialWorkspace={initialRead?.workspace ?? null}
         initialError={integrationError}
         initialSessionRecoveryHref={sessionRecoveryHref}

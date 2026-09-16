@@ -73,6 +73,8 @@
     "066_harness_run_artifacts",
     "067_harness_artifact_parent_authority",
     "068_harness_artifact_reply_retirement",
-    "069_account_access_event_details"
+    "069_account_access_event_details",
+    "070_meeting_drafts",
+    "071_agent_session_list_snapshots"
   ]
 }

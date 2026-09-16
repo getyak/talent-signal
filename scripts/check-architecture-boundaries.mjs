@@ -17,9 +17,9 @@ const MIGRATION_MANIFEST =
 const MIGRATION_DIRECTORY = "apps/backend/src/database";
 const WORKSPACE_CONFIGURATION = "pnpm-workspace.yaml";
 const WORKSPACE_PATTERNS = ["apps/*", "packages/*"];
-const FROZEN_MIGRATION_COUNT = 73;
+const FROZEN_MIGRATION_COUNT = 75;
 const FROZEN_MIGRATION_DIGEST =
-  "f7d3c65416a38017641635e47d4b9021065fa2bcfa7cd82bcbdad98d0a6bf790";
+  "149a70de482cad457c1350273dd34795647dcdc0930d86bad36cf7f33e1a166f";
 
 const LEGACY_MIGRATION_PREFIX_COLLISIONS = new Map([
   [
@@ -52,6 +52,10 @@ const WORKSPACE_BOUNDARIES = new Map([
       name: "@talent-signal/evaluation",
       allowedNames: ["@talent-signal/contracts"],
     },
+  ],
+  [
+    "packages/workspace-ui/package.json",
+    { name: "@talent-signal/workspace-ui", allowedNames: [] },
   ],
   [
     "apps/agent/package.json",
@@ -93,7 +97,18 @@ const WORKSPACE_BOUNDARIES = new Map([
     "apps/web/package.json",
     {
       name: "@talent-signal/web",
-      allowedNames: ["@talent-signal/agent", "@talent-signal/contracts"],
+      allowedNames: [
+        "@talent-signal/agent",
+        "@talent-signal/contracts",
+        "@talent-signal/workspace-ui",
+      ],
+    },
+  ],
+  [
+    "apps/macos-hybrid/package.json",
+    {
+      name: "@talent-signal/macos-hybrid",
+      allowedNames: ["@talent-signal/workspace-ui"],
     },
   ],
 ]);
