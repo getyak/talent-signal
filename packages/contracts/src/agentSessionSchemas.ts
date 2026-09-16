@@ -303,7 +303,7 @@ export const AgentSessionListResponseSchema = Type.Object(
     contract_version: Type.Literal(CONTRACT_VERSION),
     sessions: Type.Array(AgentSessionRecordSchema, { maxItems: 50 }),
     complete: Type.Boolean(),
-    next_cursor: Type.Union([id, Type.Null()]),
+    next_cursor: Type.Union([text(512), Type.Null()]),
   },
   obj,
 );

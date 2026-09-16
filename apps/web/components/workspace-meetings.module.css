@@ -1,0 +1,459 @@
+.page {
+  display: grid;
+  gap: 28px;
+  margin: 0 auto;
+  padding: var(--workspace-page-padding);
+  width: min(100%, 1280px);
+}
+
+.header {
+  align-items: end;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  padding-bottom: 24px;
+}
+
+.eyebrow,
+.agendaHeading p,
+.contextPane > header p {
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+  letter-spacing: 0.08em;
+  margin: 0 0 7px;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  color: var(--ink);
+  font-size: var(--workspace-object-size);
+  font-weight: 560;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.header > div > p:last-child {
+  color: var(--muted-strong);
+  line-height: 1.75;
+  margin: 9px 0 0;
+  max-width: 68ch;
+}
+
+.newConversation {
+  align-items: center;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--button-radius);
+  color: var(--background);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: var(--workspace-meta-size);
+  gap: 7px;
+  min-height: 44px;
+  padding: 9px 14px;
+  text-decoration: none;
+}
+
+.workspace {
+  align-items: start;
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(420px, 1.2fr) minmax(230px, 0.72fr) minmax(280px, 0.9fr);
+}
+
+.deepLinkNotice {
+  border-left: 2px solid var(--accent);
+  color: var(--muted-strong);
+  font-size: var(--workspace-meta-size);
+  line-height: 1.65;
+  margin: -8px 0 0;
+  padding: 9px 12px;
+}
+
+.calendarPane,
+.agendaPane,
+.contextPane {
+  min-width: 0;
+}
+
+.monthHeader {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  margin-bottom: 13px;
+}
+
+.monthHeader h2 {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 650;
+  margin: 0;
+  text-align: center;
+}
+
+.monthHeader a {
+  align-items: center;
+  border-radius: 7px;
+  color: var(--muted-strong);
+  display: inline-flex;
+  height: 44px;
+  justify-content: center;
+}
+
+.monthHeader a:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.weekdays,
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.monthRow {
+  display: contents;
+}
+
+.weekdays span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  padding: 6px;
+  text-align: center;
+}
+
+.monthGrid {
+  border-left: 1px solid var(--line-soft);
+  border-top: 1px solid var(--line-soft);
+}
+
+.dayCell {
+  display: flex;
+  min-width: 0;
+}
+
+.day {
+  align-content: space-between;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+  color: var(--ink-soft);
+  display: grid;
+  flex: 1;
+  min-height: 67px;
+  padding: 8px;
+  text-decoration: none;
+}
+
+.day[data-in-month="false"] {
+  background: var(--background);
+  color: var(--muted);
+}
+
+.day:hover {
+  background: var(--surface-muted);
+}
+
+.day[aria-current="date"] {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.day > span {
+  font-size: var(--workspace-meta-size);
+}
+
+.day small {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  display: inline-flex;
+  font-size: 0.67rem;
+  height: 20px;
+  justify-content: center;
+  justify-self: end;
+  width: 20px;
+}
+
+.agendaHeading {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.agendaHeading h2,
+.contextPane > header h2 {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 650;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.agendaHeading > span {
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+}
+
+.agendaList {
+  border-top: 1px solid var(--line);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.agendaList li {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.agendaList a {
+  display: grid;
+  gap: 4px;
+  padding: 14px 10px;
+  text-decoration: none;
+}
+
+.agendaList a:hover,
+.agendaList a[aria-current="true"] {
+  background: var(--surface-muted);
+}
+
+.agendaList time,
+.agendaList small {
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+}
+
+.agendaList strong {
+  color: var(--ink);
+  font-size: var(--workspace-body-size);
+  font-weight: 640;
+  overflow-wrap: anywhere;
+}
+
+.contextPane {
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
+}
+
+.contextPane > header {
+  margin-bottom: 16px;
+}
+
+.contextMeta {
+  border-bottom: 1px solid var(--line-soft);
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 7px;
+  margin: 0 0 18px;
+  padding: 12px 0;
+}
+
+.contextMeta > div {
+  display: flex;
+  font-size: var(--workspace-meta-size);
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.contextMeta dt {
+  color: var(--muted);
+}
+
+.contextMeta dd {
+  color: var(--ink-soft);
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.contextLinks {
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 15px;
+}
+
+.contextLinks > a {
+  color: var(--ink-soft);
+  font-size: var(--workspace-meta-size);
+  align-items: center;
+  display: inline-flex;
+  min-height: 44px;
+  padding-block: 8px;
+  width: fit-content;
+}
+
+.dismissArea {
+  display: grid;
+  gap: 6px;
+}
+
+.dismissArea button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--button-radius);
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--workspace-meta-size);
+  gap: 6px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  width: fit-content;
+}
+
+.dismissArea button:hover:not(:disabled) {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.dismissArea button:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.dismissArea small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.55;
+  max-width: 34rem;
+}
+
+.dismissArea p {
+  color: var(--error);
+  font-size: var(--workspace-meta-size);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.spin {
+  animation: spin 800ms linear infinite;
+}
+
+.empty {
+  align-items: start;
+  border-top: 1px solid var(--line);
+  color: var(--muted-strong);
+  display: flex;
+  gap: 11px;
+  padding: 18px 8px;
+}
+
+.empty strong {
+  color: var(--ink-soft);
+  font-size: var(--workspace-body-size);
+}
+
+.empty p,
+.contextEmpty {
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+  line-height: 1.7;
+  margin: 5px 0 0;
+}
+
+.error {
+  align-items: start;
+  border: 1px solid color-mix(in srgb, var(--error) 34%, var(--line));
+  border-radius: var(--object-radius);
+  color: var(--error);
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+}
+
+.error strong {
+  color: var(--ink);
+}
+
+.error p {
+  color: var(--muted-strong);
+  line-height: 1.7;
+  margin: 4px 0 0;
+}
+
+.error a {
+  align-items: center;
+  display: inline-flex;
+  min-height: 44px;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.unavailable {
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+  padding-top: 16px;
+}
+
+.unavailable summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  min-height: 44px;
+}
+
+.unavailable li {
+  margin-block: 8px;
+}
+
+.page :is(a, button, summary):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1120px) {
+  .workspace {
+    grid-template-columns: minmax(390px, 1.35fr) minmax(230px, 0.8fr);
+  }
+
+  .contextPane {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    grid-column: 1 / -1;
+    padding: 24px 0 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    gap: 24px;
+    padding: 28px 20px 104px;
+  }
+
+  .header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contextPane {
+    grid-column: auto;
+  }
+
+  .day {
+    min-height: 52px;
+    padding: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation-duration: 1.6s;
+  }
+}

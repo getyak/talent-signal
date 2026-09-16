@@ -6,6 +6,7 @@ import {
   CreatePursuitAgentRunRequestSchema,
   CreatePursuitRequestSchema,
   CreateCaptureRequestSchema,
+  MeetingDraftRecordSchema,
   PursuitMutationResponseSchema,
   PursuitProposalReviewResponseSchema,
   ReviewPursuitProposalRequestSchema,
@@ -33,6 +34,62 @@ beforeAll(() => {
 });
 
 describe("shared HTTP contract", () => {
+  it("fails closed on impossible meeting draft content and tombstone combinations", () => {
+    const active = {
+      id: "11111111-1111-4111-8111-111111111111",
+      status: "needs_review",
+      external_effect: "none",
+      revision: 1,
+      source_task_id: "22222222-2222-4222-8222-222222222222",
+      origin_session_id: "33333333-3333-4333-8333-333333333333",
+      created_at: "2026-09-16T00:00:00.000Z",
+      updated_at: "2026-09-16T00:00:00.000Z",
+      expires_at: "2026-09-20T00:00:00.000Z",
+      content_available: true,
+      title: "Synthetic meeting",
+      starts_at: "2026-09-18T01:00:00.000Z",
+      ends_at: "2026-09-18T02:00:00.000Z",
+      time_zone: "UTC",
+      source_excerpt: "A synthetic source excerpt.",
+      reference_time: "2026-09-16T00:00:00.000Z",
+      redacted_at: null,
+      dismissed_at: null,
+    };
+    expect(Value.Check(MeetingDraftRecordSchema, active)).toBe(true);
+    expect(Value.Check(MeetingDraftRecordSchema, {
+      ...active,
+      status: "redacted",
+    })).toBe(false);
+
+    const tombstone = {
+      ...active,
+      status: "redacted",
+      revision: 2,
+      content_available: false,
+      title: null,
+      starts_at: null,
+      ends_at: null,
+      time_zone: null,
+      source_excerpt: null,
+      reference_time: null,
+      redacted_at: "2026-09-17T00:00:00.000Z",
+    };
+    expect(Value.Check(MeetingDraftRecordSchema, tombstone)).toBe(true);
+    expect(Value.Check(MeetingDraftRecordSchema, {
+      ...tombstone,
+      title: "Content must never escape a tombstone.",
+    })).toBe(false);
+    expect(Value.Check(MeetingDraftRecordSchema, {
+      ...active,
+      status: "dismissed",
+    })).toBe(false);
+    expect(Value.Check(MeetingDraftRecordSchema, {
+      ...active,
+      status: "dismissed",
+      dismissed_at: "2026-09-17T00:00:00.000Z",
+    })).toBe(true);
+  });
+
   it("round-trips Session static-share classification and accepts legacy unclassified copies", () => {
     const request = {
       expected_revision: 0,

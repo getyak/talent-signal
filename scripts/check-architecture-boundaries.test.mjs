@@ -26,10 +26,12 @@ const fixtureManifests = new Map([
   ["package.json", "talent-signal"],
   ["packages/contracts/package.json", "@talent-signal/contracts"],
   ["packages/evaluation/package.json", "@talent-signal/evaluation"],
+  ["packages/workspace-ui/package.json", "@talent-signal/workspace-ui"],
   ["apps/agent/package.json", "@talent-signal/agent"],
   ["apps/agent-host/package.json", "@talent-signal/agent-host"],
   ["apps/backend/package.json", "@talent-signal/backend"],
   ["apps/eval-runner/package.json", "@talent-signal/eval-runner"],
+  ["apps/macos-hybrid/package.json", "@talent-signal/macos-hybrid"],
   ["apps/web/package.json", "@talent-signal/web"],
 ]);
 

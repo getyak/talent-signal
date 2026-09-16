@@ -1,0 +1,179 @@
+/*
+ * Quiet shared theme tokens for the Talent Signal workspace surface.
+ *
+ * Consumed via `@talent-signal/workspace-ui/theme.css`. Hosts (Next.js Web,
+ * Tauri) load this once; the component styles reference only these variables.
+ * Dark mode and reduced motion are handled structurally, not recomposed.
+ */
+
+.ts-workspace-surface {
+  --ts-accent: #b94632;
+  --ts-chrome-muted: #707571;
+  --ts-chrome-surface: #f5f5f3;
+  --ts-content-surface: #fdfdfc;
+  --ts-divider: #e7e8e5;
+  --ts-ink: #292b2b;
+  --ts-panel-surface: #ffffff;
+  --ts-radius-control: 6px;
+  --ts-radius-frame: 8px;
+  --ts-space-xs: 4px;
+  --ts-space-sm: 8px;
+  --ts-space-md: 12px;
+  --ts-space-lg: 16px;
+  --ts-space-xl: 24px;
+  --ts-space-xxl: 32px;
+  --ts-type-title: 24px;
+  --ts-type-body: 14px;
+  --ts-type-nav: 13px;
+  --ts-type-meta: 12px;
+
+  color: var(--ts-ink);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: var(--ts-type-body);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ts-workspace-surface {
+    --ts-chrome-muted: #a4aaa6;
+    --ts-chrome-surface: #1b1c1c;
+    --ts-content-surface: #141515;
+    --ts-divider: #2c2e2e;
+    --ts-ink: #ecece8;
+    --ts-panel-surface: #1f2020;
+  }
+}
+
+.ts-workspace-surface *,
+.ts-workspace-surface *::before,
+.ts-workspace-surface *::after {
+  box-sizing: border-box;
+}
+
+/* Focus is always visible and never hover-only. */
+.ts-workspace-surface :focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ts-accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.ts-workspace-surface .ts-btn,
+.ts-workspace-surface .ts-textarea {
+  border-radius: var(--ts-radius-control);
+  font: inherit;
+}
+
+.ts-workspace-surface .ts-btn {
+  align-items: center;
+  background: var(--ts-panel-surface);
+  border: 1px solid var(--ts-divider);
+  color: var(--ts-ink);
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--ts-space-sm);
+  min-height: 36px;
+  padding: 0 var(--ts-space-md);
+}
+
+.ts-workspace-surface .ts-btn[data-primary="true"] {
+  background: var(--ts-ink);
+  border-color: var(--ts-ink);
+  color: var(--ts-content-surface);
+}
+
+.ts-workspace-surface .ts-btn:disabled {
+  color: var(--ts-chrome-muted);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.ts-workspace-surface .ts-textarea {
+  background: var(--ts-panel-surface);
+  border: 1px solid var(--ts-divider);
+  color: var(--ts-ink);
+  min-height: 88px;
+  padding: var(--ts-space-md);
+  resize: vertical;
+  width: 100%;
+}
+
+.ts-workspace-surface .ts-status {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--ts-space-xs);
+}
+
+.ts-workspace-surface .ts-kicker {
+  color: var(--ts-chrome-muted);
+  font-size: var(--ts-type-meta);
+  letter-spacing: 0.09em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.ts-workspace-surface .ts-heading {
+  font-size: var(--ts-type-title);
+  font-weight: 580;
+  letter-spacing: -0.025em;
+  margin: var(--ts-space-xs) 0 0;
+}
+
+.ts-workspace-surface .ts-description {
+  color: var(--ts-chrome-muted);
+  line-height: 1.65;
+  margin: var(--ts-space-sm) 0 0;
+  max-width: 66ch;
+}
+
+.ts-workspace-surface .ts-capability-list {
+  border-top: 1px solid var(--ts-divider);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ts-workspace-surface .ts-capability-row {
+  align-items: baseline;
+  border-bottom: 1px solid var(--ts-divider);
+  display: flex;
+  gap: var(--ts-space-md);
+  justify-content: space-between;
+  padding: var(--ts-space-lg) 0;
+}
+
+.ts-workspace-surface .ts-capability-row strong {
+  font-weight: 620;
+}
+
+.ts-workspace-surface .ts-capability-row p {
+  color: var(--ts-chrome-muted);
+  font-size: var(--ts-type-meta);
+  line-height: 1.5;
+  margin: var(--ts-space-xs) 0 0;
+}
+
+.ts-workspace-surface .ts-status[data-state="available"] {
+  color: color-mix(in srgb, var(--ts-ink) 84%, var(--ts-chrome-muted));
+}
+
+.ts-workspace-surface .ts-status[data-state="permission_required"],
+.ts-workspace-surface .ts-status[data-state="denied"],
+.ts-workspace-surface .ts-status[data-state="unavailable"] {
+  color: var(--ts-chrome-muted);
+}
+
+.ts-workspace-surface .ts-redline {
+  border-left: 2px solid var(--ts-accent);
+  padding-left: var(--ts-space-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ts-workspace-surface *,
+  .ts-workspace-surface *::before,
+  .ts-workspace-surface *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}

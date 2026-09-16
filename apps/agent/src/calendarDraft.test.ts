@@ -28,6 +28,16 @@ describe("review-only calendar capability", () => {
       expect(capability.draft()).toBeUndefined();
     }
   });
+  it("rejects blank provenance before a draft can be staged", async () => {
+    const capability = calendarDraftCapability(context, objective);
+    await expect(
+      capability.tools[0]!.execute(
+        { ...input, source_excerpt: "   " },
+        signal,
+      ),
+    ).rejects.toThrow();
+    expect(capability.draft()).toBeUndefined();
+  });
   it("does not guess a timezone or create an ambient capability", () => {
     expect(calendarDraftCapability(undefined, objective).tools).toEqual([]);
     expect(() => calendarDraftCapability({ ...context, sourceRequestID: "forged" }, objective)).toThrow("CONTEXT_INVALID");

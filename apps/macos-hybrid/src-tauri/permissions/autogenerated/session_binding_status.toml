@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-session-binding-status"
+description = "Enables the session_binding_status command without any pre-configured scope."
+commands.allow = ["session_binding_status"]
+
+[[permission]]
+identifier = "deny-session-binding-status"
+description = "Denies the session_binding_status command without any pre-configured scope."
+commands.deny = ["session_binding_status"]

@@ -1,0 +1,32 @@
+{
+  "name": "@talent-signal/macos-hybrid",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm build:ui",
+    "build:ui": "pnpm --filter @talent-signal/workspace-ui build && vite build",
+    "build:vision": "./scripts/build-vision-helper.sh",
+    "dev": "pnpm build:vision && tauri dev",
+    "dev:ui": "vite --host 127.0.0.1 --port 1420 --strictPort",
+    "tauri": "tauri",
+    "tauri:build": "pnpm build:vision && tauri build --bundles app",
+    "test": "vitest run",
+    "typecheck": "pnpm --filter @talent-signal/workspace-ui build && tsc6 --noEmit"
+  },
+  "dependencies": {
+    "@talent-signal/workspace-ui": "workspace:*",
+    "@tauri-apps/api": "2.11.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite": "8.3.0",
+    "vitest": "5.0.0"
+  }
+}

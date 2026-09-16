@@ -57,6 +57,8 @@
     "macos:check": "./scripts/macos/check.sh",
     "macos:e2e:live": "./scripts/macos/live-e2e.sh",
     "macos:generate": "./scripts/macos/generate.sh",
+    "macos-hybrid:ui-check": "pnpm --filter @talent-signal/workspace-ui typecheck && pnpm --filter @talent-signal/workspace-ui test && pnpm --filter @talent-signal/macos-hybrid typecheck && pnpm --filter @talent-signal/macos-hybrid test && pnpm --filter @talent-signal/macos-hybrid build:ui",
+    "macos-hybrid:native-check": "pnpm --filter @talent-signal/macos-hybrid build:vision && cargo fmt --manifest-path apps/macos-hybrid/src-tauri/Cargo.toml -- --check && cargo test --manifest-path apps/macos-hybrid/src-tauri/Cargo.toml && cargo clippy --manifest-path apps/macos-hybrid/src-tauri/Cargo.toml --all-targets -- -D warnings",
     "lint": "pnpm --filter @talent-signal/web lint",
     "secrets:check:dev": "./scripts/infisical/run.sh dev /shared /web -- node scripts/infisical/verify-contract.mjs developmentRuntime",
     "secrets:check:agent-host": "./scripts/infisical/run.sh dev /shared /agent-host -- node scripts/infisical/verify-contract.mjs localAgentHost",
@@ -72,7 +74,7 @@
     "wiki:build": "node scripts/wiki.mjs build",
     "wiki:check": "node scripts/wiki.mjs check",
     "wiki:test": "node --test scripts/wiki.test.mjs",
-    "check": "pnpm brand:check && pnpm secrets:check:test && pnpm docs:check && pnpm agent:check && pnpm lint && pnpm typecheck && pnpm test && ./apps/backend/scripts/ci.sh && pnpm build",
+    "check": "pnpm brand:check && pnpm secrets:check:test && pnpm docs:check && pnpm agent:check && pnpm macos-hybrid:ui-check && pnpm lint && pnpm typecheck && pnpm test && ./apps/backend/scripts/ci.sh && pnpm build",
     "prompts:sync": "pnpm --filter @talent-signal/agent build && node scripts/prompts/opik.mjs sync",
     "prompts:status": "pnpm --filter @talent-signal/agent build && node scripts/prompts/opik.mjs status",
     "prompts:import": "pnpm --filter @talent-signal/agent build && node scripts/prompts/opik.mjs import"

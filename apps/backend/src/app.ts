@@ -3,8 +3,10 @@ import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessR
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
+import { registerMeetingDraftRoutes } from "./modules/meetingDraftRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerSystemHealthRoutes } from "./modules/systemHealth.js";
+import { registerReadinessRoutes } from "./modules/readinessRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
@@ -500,6 +502,9 @@ export async function buildApp(
     dependencies.chatMediaStorage ?? createChatMediaStorage(config);
   const screenshotRunner = screenshotContact ? new ScreenshotContactTaskRunner(pool,screenshotContact,chatMediaStorage) : null;
   const app = Fastify({
+    ...(config.tls
+      ? { https: { cert: config.tls.certificatePem, key: config.tls.privateKeyPem } }
+      : {}),
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
       redact: {
@@ -580,7 +585,7 @@ export async function buildApp(
           "Account-scoped localhost contract. All effects are labeled deterministic simulations.",
         version: CONTRACT_VERSION,
       },
-      servers: [{ url: `http://localhost:${config.port}` }],
+      servers: [{ url: `${config.tls ? "https" : "http"}://localhost:${config.port}` }],
       components: {
         securitySchemes: {
           bearerSession: {
@@ -643,44 +648,7 @@ export async function buildApp(
     });
   });
 
-  app.get("/health/live", async () => ({
-    status: "ok",
-    service: "talent-signal-backend",
-  }));
-  app.get(
-    "/health/ready",
-    {
-      config: {
-        rateLimit: {
-          max: 60,
-          timeWindow: "1 minute",
-        },
-      },
-    },
-    async (_request, reply) => {
-      try {
-        const result = await pool.query<{ version: string }>(
-          `SELECT version
-           FROM schema_migrations
-           WHERE version IN ('065_screenshot_directory_authority', '058_account_management', '069_account_access_event_details')`,
-        );
-        const requiredMigrations = ["065_screenshot_directory_authority", "058_account_management", "069_account_access_event_details"];
-        if (!requiredMigrations.every(version => result.rows.some(row => row.version === version))) {
-          throw new Error("migration unavailable");
-        }
-        return {
-          status: "ready",
-          database: "ready",
-          migration: "065_screenshot_directory_authority",
-        };
-      } catch {
-        return reply.status(503).send({
-          status: "not_ready",
-          database: "unavailable",
-        });
-      }
-    },
-  );
+  registerReadinessRoutes(app, pool);
   app.get("/v1/meta", async () => ({
     contract_version: CONTRACT_VERSION,
     authority: "account_scoped_backend",
@@ -799,6 +767,7 @@ export async function buildApp(
   registerProductRunMonitoring(app, pool, authenticate);
   registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
   registerAgentSessionRoutes(app, pool, authenticate);
+  registerMeetingDraftRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
   registerAgentPreferenceRoutes(app, pool, authenticate, remoteChatProvider?.providerId === "claude-agent-sdk");

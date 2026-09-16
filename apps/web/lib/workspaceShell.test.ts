@@ -12,10 +12,24 @@ describe("persistent workspace shell", () => {
   it("owns account chrome and route-aware product navigation in one layout", () => {
     const layout = read("app/workspace/layout.tsx");
     const navigation = read("components/workspace-shell-nav.tsx");
+    const accountMenu = read("components/workspace-account-menu.tsx");
+    const sessionBoundary = read("components/session-draft-session-boundary.tsx");
+    const standaloneWorkspace = read("components/workspace-app.tsx");
 
     expect(layout).toContain("<WorkspaceShellNav />");
     expect(layout).toContain('id="workspace-content"');
     expect(layout).toContain("<AccountControls");
+    expect(layout).toContain("<MeetingDraftSessionBoundary");
+    expect(layout).toContain("<SessionDraftSessionBoundary");
+    expect(layout).toContain("storageScope={null}");
+    expect(layout).toContain("pendingBinding = workspaceSessionsBinding(claims)");
+    expect(layout).toContain(
+      "pendingSessionDraftScope = workspaceSessionDraftStorageScope(claims)",
+    );
+    expect(sessionBoundary).toContain(
+      "if (storageScope) prunePendingSessionDrafts(storageScope)",
+    );
+    expect(sessionBoundary).toContain("else clearAllPendingSessionDrafts()");
     expect(layout).toContain("fixtureWorkspace");
     expect(layout).toContain(
       "合成测试工作台——仅含评测数据，不是真实招聘记录",
@@ -23,8 +37,45 @@ describe("persistent workspace shell", () => {
     expect(navigation).toContain('aria-label="工作台导航"');
     expect(navigation).toContain('aria-current={current ? "page" : undefined}');
     expect(navigation).toContain('href: "/workspace/today"');
-    expect(navigation).toContain('href: "/workspace?surface=desk"');
+    expect(navigation).toContain('href: "/workspace/sessions"');
     expect(navigation).toContain('href: "/workspace/people"');
+    expect(navigation).toContain('href: "/workspace/meetings"');
+    expect(navigation).toContain('href: "/workspace/captures"');
+    expect(navigation).toContain("WorkspaceMobileSourcesLink");
+    expect(navigation).toContain('aria-label="打开来源"');
+    expect(layout).toContain("<WorkspaceMobileSourcesLink />");
+    const shellStyles = read("components/workspace-shell.module.css");
+    expect(shellStyles).toContain(".mobileSources");
+    expect(shellStyles).toContain("min-height: 44px");
+    expect(shellStyles).toContain("min-width: 44px");
+    expect(navigation).toContain('href: "/workspace/plugs"');
+    expect(navigation).not.toContain('href: "/workspace/monitor"');
+    expect(navigation).toContain("COLLAPSED_KEY");
+    expect(navigation).toContain('data-mobile-secondary={!item.mobile || undefined}');
+    expect(accountMenu).toContain("onClick={() => close()}");
+    expect(accountMenu).toContain('event.key === "Escape"');
+    expect(accountMenu).toContain('current === -1');
+    expect(accountMenu).toContain('key === "ArrowUp" ? items.length - 1 : 0');
+    expect(accountMenu).toContain("close(true)");
+    expect(accountMenu).toContain("trigger.current?.focus()");
+    expect(accountMenu).toContain('document.addEventListener("pointerdown"');
+    expect(accountMenu).toContain('document.addEventListener("focusin"');
+    expect(accountMenu).toContain('"ArrowDown", "ArrowUp", "Home", "End"');
+    expect(accountMenu).toContain("moveFocus(event.key");
+    expect(accountMenu).toContain("signOutAction");
+    expect(accountMenu).toContain("onSubmit={clearPendingLocalIntents}");
+    expect(accountMenu).toContain("clearAllPendingMeetingDraftIntents()");
+    expect(accountMenu).toContain("clearAllPendingSessionDrafts()");
+    expect(accountMenu).toContain("退出登录");
+    expect(accountMenu).toContain("简体中文");
+    expect(accountMenu).toContain("<ThemeToggle");
+    expect(standaloneWorkspace).toContain(
+      "onSubmit={clearPendingLocalIntents}",
+    );
+    expect(standaloneWorkspace).toContain(
+      "clearAllPendingMeetingDraftIntents()",
+    );
+    expect(standaloneWorkspace).toContain("clearAllPendingSessionDrafts()");
   });
 
   it("leaves global account and navigation controls out of product surfaces", () => {

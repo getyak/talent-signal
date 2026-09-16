@@ -11,12 +11,13 @@ import {
 } from "@talent-signal/contracts";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import type { Pool } from "pg";
+import { ApiError } from "../lib/apiError.js";
 import { registerRecurringJob } from "../lib/recurringJob.js";
 import {
   getAgentSession,
   listAgentSessions,
   mutateAgentSession,
-  sweepAgentSessions,
+  runAgentSessionRetentionSweep,
 } from "./agentSessions.js";
 export function registerAgentSessionRoutes(
   app: FastifyInstance,
@@ -31,15 +32,40 @@ export function registerAgentSessionRoutes(
     { id: Type.String({ format: "uuid" }) },
     { additionalProperties: false },
   );
+  const authenticatedListRateLimit = app.rateLimit({
+    errorResponseBuilder: () => new ApiError(
+      429,
+      "AGENT_SESSION_LIST_RATE_LIMITED",
+      "Too many Session list refreshes; retry after the current window.",
+    ),
+    keyGenerator: (request) =>
+      `${request.auth.accountId}:${request.auth.userId}`,
+    max: 30,
+    timeWindow: "1 minute",
+  });
+  const firstPageListRateLimit: preHandlerHookHandler = async function (
+    request,
+    reply,
+  ) {
+    const query = request.query as { after?: string };
+    if (!query.after) {
+      await authenticatedListRateLimit.call(this, request, reply);
+    }
+  };
   app.get<{ Querystring: { after?: string; limit?: string } }>(
     "/v1/agent-sessions",
     {
       ...common,
+      // Authentication must establish the owner before the bucket key is
+      // derived; loopback Web traffic otherwise collapses into one IP bucket.
+      preHandler: [authenticate, firstPageListRateLimit],
       schema: {
         ...common.schema,
         querystring: Type.Object(
           {
-            after: Type.Optional(Type.String({ format: "uuid" })),
+            after: Type.Optional(
+              Type.String({ maxLength: 512, pattern: "^[A-Za-z0-9_-]+$" }),
+            ),
             limit: Type.Optional(
               Type.String({ pattern: "^(?:[1-9]|[1-4][0-9]|50)$" }),
             ),
@@ -142,6 +168,6 @@ export function registerAgentSessionRoutes(
   registerRecurringJob(app, {
     name: "agent-session-retention-sweep",
     intervalMs: 60_000,
-    run: () => sweepAgentSessions(pool),
+    run: () => runAgentSessionRetentionSweep(pool),
   });
 }

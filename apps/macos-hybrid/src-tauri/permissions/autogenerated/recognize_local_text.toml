@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recognize-local-text"
+description = "Enables the recognize_local_text command without any pre-configured scope."
+commands.allow = ["recognize_local_text"]
+
+[[permission]]
+identifier = "deny-recognize-local-text"
+description = "Denies the recognize_local_text command without any pre-configured scope."
+commands.deny = ["recognize_local_text"]

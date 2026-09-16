@@ -19,6 +19,7 @@ vi.mock("@/lib/server/labBackend", () => ({ loadLabManifest }));
 vi.mock("@/components/workspace-shell-nav", () => ({
   WorkspaceShellNav: () => null,
   WorkspaceCaptureLink: () => null,
+  WorkspaceMobileSourcesLink: () => null,
 }));
 vi.mock("@/components/theme-toggle", () => ({ ThemeToggle: () => null }));
 vi.mock("@/components/talent-signal-lab/lab-shell", () => ({
@@ -43,7 +44,11 @@ describe("workspace critical loading path", () => {
   it("leaves unauthenticated redirects to the child without loading Lab", async () => {
     auth.mockResolvedValue(null);
     const child = createElement("main", null, "Authentication boundary");
-    expect(await WorkspaceLayout({ children: child })).toBe(child);
+    const html = renderToStaticMarkup(
+      await WorkspaceLayout({ children: child }),
+    );
+    expect(html).toContain("Authentication boundary");
+    expect(html).not.toContain("Talent Signal 工作台");
     expect(loadLabManifest).not.toHaveBeenCalled();
   });
 });
