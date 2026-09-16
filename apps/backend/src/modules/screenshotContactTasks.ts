@@ -42,6 +42,7 @@ interface TaskState {
   preprocessing_required?: boolean;
   preprocessing_inflight?: number;
   preprocessing_parts?: ScreenshotPreprocessResult[];
+  preprocessing_follow_up_abstained?: boolean;
   preprocessing_refined_indices?: number[];
   preprocessing_refinement_unresolved?: boolean;
   batch_conflict?: boolean;
@@ -878,15 +879,33 @@ export class ScreenshotContactTaskRunner {
         deny("SCREENSHOT_PREPROCESS_RECEIPT_MISMATCH");
       const committedRegionCount=(row.state.preprocessing_parts??[]).reduce(
         (count,part)=>count+part.source.follow_up_regions.length,0);
-      if(committedRegionCount+output.source.follow_up_regions.length>SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT)
-        deny("SCREENSHOT_PREPROCESS_FOLLOW_UP_BUDGET");
+      const alreadyAbstained=row.state.preprocessing_follow_up_abstained===true;
+      const overRegionBudget=alreadyAbstained||committedRegionCount+output.source.follow_up_regions.length>
+        SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT;
       await this.checkpoint(auth,id,epoch,async(_,latest)=>{
         latest.state.preprocessing_parts??=[];
-        if(!latest.state.preprocessing_parts.some(part=>part.source.source_image_index===index))latest.state.preprocessing_parts.push(output);
+        // The provider call already happened. If its region proposals would
+        // exceed the packet-wide budget, checkpoint the useful baseline and
+        // receipt but remove those extra original-pixel permissions. Its
+        // uncertainties then remain human-review-only, so Resume cannot
+        // repeat the same deterministic, billed preprocessing request.
+        const committed=overRegionBudget?{...output,source:{...output.source,
+          follow_up_required:false,follow_up_regions:[]}}:output;
+        if(overRegionBudget){
+          latest.state.preprocessing_follow_up_abstained=true;
+          latest.state.preprocessing_parts=latest.state.preprocessing_parts.map(part=>({...part,source:{...part.source,
+            follow_up_required:false,follow_up_regions:[]}}));
+        }
+        if(!latest.state.preprocessing_parts.some(part=>part.source.source_image_index===index))latest.state.preprocessing_parts.push(committed);
         delete latest.state.preprocessing_inflight;
         latest.state.tokens+=output.input_tokens+output.output_tokens;
         latest.state.model_receipts.push({model:output.model,request_id:output.request_id,input_tokens:output.input_tokens,output_tokens:output.output_tokens});
         latest.state.response.events.push({sequence:latest.state.response.events.length+1,tool:"preprocess_screenshot",status:"completed",occurred_at:new Date().toISOString()});
+        if(overRegionBudget&&!alreadyAbstained){
+          latest.state.response.limitations.push("SCREENSHOT_PREPROCESS_FOLLOW_UP_BUDGET");
+          latest.state.response.events.push({sequence:latest.state.response.events.length+1,
+            tool:"authorize_screenshot_follow_up_regions",status:"denied",occurred_at:new Date().toISOString()});
+        }
       });
     }
     await this.checkpoint(auth,id,epoch,async(client,latest)=>{

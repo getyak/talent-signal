@@ -775,36 +775,42 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     await runner.start(auth,done.task_id);
     expect(sdkCalls).toBe(2);
   });
-  it("rejects an over-budget preprocessing part before checkpoint and can replace it after explicit retry",async()=>{
+  it("keeps an over-budget preprocessing baseline for human review without repeating the billed call",async()=>{
     const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const,additional_images:[input().image]};
     const calls=[0,0];
-    const regions=(count:number)=>Array.from({length:count},(_,left)=>({reason:"illegible_text" as const,
-      field:"text" as const,uncertainty_index:left,target:{kind:"message" as const,message_index:left},
-      baseline_text:`source-${left}`,region:{left,top:0,width:1,height:1}}));
+    const regions=(count:number)=>Array.from({length:count},(_,left)=>({reason:"ambiguous_identity" as const,
+      field:"identity" as const,uncertainty_index:left,target:{kind:"contact_name" as const},
+      baseline_text:null,region:{left,top:0,width:1,height:1}}));
     const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
       preprocess:async(source,index)=>{calls[index] = (calls[index]??0)+1;
-        const followUps=index===0||calls[index]===1
-          ? regions(SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1) : [];
+        const followUps=regions(SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1);
         return {request_id:`ark-budget-${index}-${calls[index]}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:3,output_tokens:2,
           source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",conversation_kind:"direct",contact_name:"Budget source",
-            participants:[],messages:Array.from({length:SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1},
-              (_,messageIndex)=>({sequence:messageIndex,text:`source-${messageIndex} text`,speaker_label:null,
-                speaker_side:"unknown" as const,time_text:null})),identity_clues:[],
+            participants:[],messages:[],identity_clues:[],
             uncertainties:followUps.map((_,uncertaintyIndex)=>`small text ${uncertaintyIndex}`),follow_up_required:followUps.length>0,follow_up_regions:followUps,
             width:100,height:200,prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}};}};
     const runner=new ScreenshotContactTaskRunner(pool!,{model:model("unused"),preprocessor,research:null},storage);
     const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
     await runner.start(auth,created.body.task_id);
-    const failed=await loadScreenshotContactTask(pool!,auth,created.body.task_id);expect(failed.status).toBe("failed");
-    const failedState=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[failed.task_id])).rows[0]!.state;
-    expect(failedState.preprocessing_parts).toHaveLength(1);expect(failedState.preprocessing_inflight).toBe(1);
-    await resumeScreenshotContactTask(pool!,auth,failed.task_id,{expected_revision:failed.revision});
-    await runner.start(auth,failed.task_id);
-    const recovered=await loadScreenshotContactTask(pool!,auth,failed.task_id);
-    expect(recovered.status).toBe("waiting_for_user");expect(recovered.preprocessing?.sources).toHaveLength(2);
-    expect(calls).toEqual([1,2]);
-    const recoveredState=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[failed.task_id])).rows[0]!.state;
-    expect(recoveredState.preprocessing_parts).toHaveLength(2);expect(recoveredState.preprocessing_inflight).toBeUndefined();
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting.status).toBe("waiting_for_user");expect(waiting.preprocessing?.sources).toHaveLength(2);
+    expect(waiting.preprocessing?.sources[0]?.follow_up_regions).toEqual([]);
+    expect(waiting.preprocessing?.sources[1]?.follow_up_regions).toEqual([]);
+    expect(waiting.preprocessing?.sources[1]?.uncertainties).toHaveLength(13);
+    expect(waiting.preprocessing_pending_source_indices).toEqual([]);
+    expect(waiting.limitations).toContain("SCREENSHOT_PREPROCESS_FOLLOW_UP_BUDGET");
+    expect(waiting.events).toContainEqual(expect.objectContaining({tool:"authorize_screenshot_follow_up_regions",status:"denied"}));
+    expect(calls).toEqual([1,1]);
+    const waitingState=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[waiting.task_id])).rows[0]!.state;
+    expect(waitingState.preprocessing_parts).toHaveLength(2);expect(waitingState.preprocessing_inflight).toBeUndefined();
+    expect(waitingState.model_receipts.map((receipt:{request_id:string})=>receipt.request_id)).toEqual([
+      "ark-budget-0-1","ark-budget-1-1",
+    ]);
+    await resumeScreenshotContactTask(pool!,auth,waiting.task_id,{expected_revision:waiting.revision});
+    await runner.start(auth,waiting.task_id);
+    const resumed=await loadScreenshotContactTask(pool!,auth,waiting.task_id);
+    expect(resumed.status).toBe("waiting_for_user");expect(resumed.preprocessing_pending_source_indices).toEqual([]);
+    expect(calls).toEqual([1,1]);
   });
   it("links only the matching iOS source, preserves that link across retry, and purges it with the capture",async()=>{
     const filedRequest=input();const filedCreated=await createScreenshotContactTask(pool!,auth,filedRequest);
