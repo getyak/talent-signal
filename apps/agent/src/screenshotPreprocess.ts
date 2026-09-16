@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 /** Frozen interface version. A shape change requires a new version string. */
-export const SCREENSHOT_PREPROCESS_CONTRACT = "screenshot-preprocess.v2" as const;
-export const SCREENSHOT_PREPROCESS_PROMPT_VERSION = "capture/screenshot-preprocess@2" as const;
-export const SCREENSHOT_PREPROCESS_SCHEMA_VERSION = "screenshot-preprocess-schema@2" as const;
+export const SCREENSHOT_PREPROCESS_CONTRACT = "screenshot-preprocess.v3" as const;
+export const SCREENSHOT_PREPROCESS_PROMPT_VERSION = "capture/screenshot-preprocess@3" as const;
+export const SCREENSHOT_PREPROCESS_SCHEMA_VERSION = "screenshot-preprocess-schema@3" as const;
 
 /** Pinned mainland-China Volcano Ark model. Opaque `latest` aliases are rejected. */
 export const ARK_SCREENSHOT_PREPROCESS_MODEL = "doubao-seed-2-0-lite-260215" as const;
@@ -12,6 +12,10 @@ export const SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT = 24 as const;
 
 const Text = z.string().min(1);
 const Short = z.string().min(1).max(600);
+const isUniqueSubstring=(text:string,needle:string):boolean=>{
+  const first=text.indexOf(needle);
+  return first>=0&&text.indexOf(needle,first+1)===-1;
+};
 
 /** Bounded original-pixel region, always in EXIF-oriented original coordinates. */
 export const ScreenshotPreprocessRegionSchema = z.strictObject({
@@ -58,6 +62,7 @@ export const ScreenshotPreprocessFollowUpSchema = z.strictObject({
   field: z.enum(["text", "speaker", "time", "identity"]),
   uncertainty_index: z.number().int().min(0).max(14),
   target: ScreenshotPreprocessFollowUpTargetSchema,
+  baseline_text: Text.max(4_000).nullable(),
   region: ScreenshotPreprocessRegionSchema,
 });
 
@@ -103,6 +108,35 @@ export const ScreenshotPreprocessSourceSchema = z.strictObject({
     if (!source.uncertainties[followUp.uncertainty_index]) {
       context.addIssue({ code: "custom", path: ["follow_up_regions", index, "uncertainty_index"],
         message: "Follow-up uncertainty target is outside the source uncertainty list." });
+    }
+    if(followUp.field==="text"&&followUp.target.kind==="message"){
+      const message=source.messages[followUp.target.message_index];
+      if(!message||!followUp.baseline_text||followUp.baseline_text===message.text||
+        !isUniqueSubstring(message.text,followUp.baseline_text))
+        context.addIssue({code:"custom",path:["follow_up_regions",index,"baseline_text"],
+        message:"Text follow-up requires one exact unique proper substring from its target message."});
+    }else if(followUp.baseline_text!==null){
+      context.addIssue({code:"custom",path:["follow_up_regions",index,"baseline_text"],
+        message:"Only a message text follow-up may declare baseline_text."});
+    }
+    if(source.follow_up_regions.some((prior,priorIndex)=>priorIndex<index&&
+      prior.uncertainty_index===followUp.uncertainty_index)){
+      context.addIssue({code:"custom",path:["follow_up_regions",index,"uncertainty_index"],
+        message:"Each baseline uncertainty may authorize only one follow-up region."});
+    }
+    if(followUp.field==="text"&&followUp.target.kind==="message"&&followUp.baseline_text){
+      const messageIndex=followUp.target.message_index;
+      const baselineText=followUp.baseline_text;
+      const message=source.messages[messageIndex];
+      const start=message?.text.indexOf(baselineText)??-1;
+      if(source.follow_up_regions.some((prior,priorIndex)=>{
+        if(priorIndex>=index||prior.field!=="text"||prior.target.kind!=="message"||
+          prior.target.message_index!==messageIndex||!prior.baseline_text||!message)return false;
+        const priorStart=message.text.indexOf(prior.baseline_text);
+        return start>=0&&priorStart>=0&&start<priorStart+prior.baseline_text.length&&
+          priorStart<start+baselineText.length;
+      }))context.addIssue({code:"custom",path:["follow_up_regions",index,"baseline_text"],
+        message:"Text follow-up baseline substrings for one message must not overlap."});
     }
   }
 });
@@ -181,9 +215,10 @@ export function assertScreenshotPreprocessAgreement(input: {
 }
 
 /**
- * Whether the downstream Agent must re-read original pixels. When every source
- * declares no follow-up, original multimodal reading is unnecessary.
+ * Whether the downstream Agent must re-read original pixels. Only a declared,
+ * bounded region authorizes that extra model exposure; an uncertainty without
+ * a region remains human-review-only.
  */
 export function preprocessNeedsOriginalMultimodalRead(packet: ScreenshotPreprocessPacket): boolean {
-  return packet.sources.some(source => source.follow_up_required || source.follow_up_regions.length > 0);
+  return packet.sources.some(source => source.follow_up_regions.length > 0);
 }

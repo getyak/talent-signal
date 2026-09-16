@@ -65,6 +65,26 @@ final class RelationshipCaptureStore: ObservableObject {
         draft.preprocessedMessages?[index].text = text
         draft.reviewedText = draft.preprocessedMessages?.map(\.text).joined(separator: "\n") ?? draft.reviewedText
     }
+    func updatePreprocessedMessageSpeakerSide(id: String, speakerSide: String) {
+        guard ["left", "right", "unknown"].contains(speakerSide),
+              let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?[index].speakerSide = speakerSide
+    }
+    func updatePreprocessedMessageSpeakerLabel(id: String, speakerLabel: String) {
+        guard let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?[index].speakerLabel = speakerLabel
+            .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+    func updatePreprocessedMessageTimeText(id: String, timeText: String) {
+        guard let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?[index].timeText = timeText
+            .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+    func removePreprocessedMessage(id: String) {
+        guard let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?.remove(at: index)
+        draft.reviewedText = draft.preprocessedMessages?.map(\.text).joined(separator: "\n") ?? ""
+    }
     var canCreatePerson: Bool {
         identityCase?.hasCurrentCandidate != true && draft.displayNameHint.nonEmpty != nil &&
         draft.relationshipLabel.nonEmpty != nil && draft.relationshipPurpose.nonEmpty != nil
@@ -108,14 +128,19 @@ final class RelationshipCaptureStore: ObservableObject {
                     }
                 }
                 if !self.hasInitialDraft {
-                    guard self.originalAvailable else {
+                    let retainedReceipt = resumeFailedPreprocessing
+                        ? self.draft.preprocessingTaskID.flatMap { taskID in
+                            self.draft.preprocessingTaskRevision.map { (taskID, $0) }
+                        }
+                        : nil
+                    guard self.originalAvailable || retainedReceipt != nil else {
                         self.fail("The original image is no longer available. Import it again to recognize text.", at: .recognition)
                         return
                     }
                     let persistReceipt: ScreenshotPreprocessingReceiptHandler = { receipt in
                         var checkpoint = self.draft
                         checkpoint.sourceParserName = "shared-screenshot-preprocess"
-                        checkpoint.sourceParserVersion = "screenshot-preprocess.v2"
+                        checkpoint.sourceParserVersion = "screenshot-preprocess.v3"
                         checkpoint.preprocessingTaskID = receipt.taskID
                         checkpoint.preprocessingTaskRevision = receipt.revision
                         checkpoint.preprocessingRetryRequired = true
@@ -130,8 +155,15 @@ final class RelationshipCaptureStore: ObservableObject {
                             scope: self.service.runtimeScope
                         )
                     }
-                    self.draft = try await (resumeFailedPreprocessing
-                        ? self.service.resumeScreenshotPreprocessing(
+                    if let retainedReceipt {
+                        self.draft = try await self.service.resumeScreenshotPreprocessing(
+                            taskID: retainedReceipt.0,
+                            expectedRevision: retainedReceipt.1,
+                            onTaskReceipt: persistReceipt
+                        )
+                    } else {
+                        self.draft = try await (resumeFailedPreprocessing
+                            ? self.service.resumeScreenshotPreprocessing(
                             seed: self.seed,
                             onRemoteRequestStarted: {
                                 try await self.inbox.markPreprocessingRemoteRequestMayExist(
@@ -141,7 +173,7 @@ final class RelationshipCaptureStore: ObservableObject {
                             },
                             onTaskReceipt: persistReceipt
                         )
-                        : self.service.preprocessScreenshot(
+                            : self.service.preprocessScreenshot(
                             seed: self.seed,
                             onRemoteRequestStarted: {
                                 try await self.inbox.markPreprocessingRemoteRequestMayExist(
@@ -151,6 +183,7 @@ final class RelationshipCaptureStore: ObservableObject {
                             },
                             onTaskReceipt: persistReceipt
                         ))
+                    }
                     self.hasInitialDraft = true
                 }
                 try await self.saveRecovery()

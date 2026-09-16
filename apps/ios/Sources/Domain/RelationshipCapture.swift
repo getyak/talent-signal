@@ -97,9 +97,9 @@ struct PreprocessedCaptureMessage: Identifiable, Codable, Equatable {
     let messageID: String
     let sequence: Int
     var text: String
-    let speakerSide: String
-    let speakerLabel: String?
-    let timeText: String?
+    var speakerSide: String
+    var speakerLabel: String?
+    var timeText: String?
     let sourceImageIndex: Int
 
     var id: String { "\(sourceImageIndex):\(messageID)" }

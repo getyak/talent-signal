@@ -12,6 +12,7 @@ import {
   SCREENSHOT_PREPROCESS_PROMPT_VERSION,
   SCREENSHOT_PREPROCESS_SCHEMA_VERSION,
   ScreenshotPreprocessPacketSchema,
+  preprocessNeedsOriginalMultimodalRead,
 } from "./screenshotPreprocess.js";
 
 async function image(width = 120, height = 240) {
@@ -26,7 +27,20 @@ const modelOutput={platform:"WeChat",conversation_kind:"direct",contact_name:"Sy
   identity_clues:[{kind:"name",value:"Synthetic Person",source_excerpt:"Synthetic Person"}],
   uncertainties:[],follow_up_regions:[]};
 
-describe("screenshot-preprocess.v2",()=>{
+describe("screenshot-preprocess.v3",()=>{
+  it("keeps uncertainty without a provider region human-review-only",()=>{
+    const source={source_image_index:0,source_hash:"a".repeat(64),...modelOutput,
+      uncertainties:["The visible identity is ambiguous."],follow_up_required:false,follow_up_regions:[],
+      width:120,height:240,prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}};
+    const packet=ScreenshotPreprocessPacketSchema.parse({
+      contract_version:SCREENSHOT_PREPROCESS_CONTRACT,schema_version:SCREENSHOT_PREPROCESS_SCHEMA_VERSION,
+      prompt_version:SCREENSHOT_PREPROCESS_PROMPT_VERSION,provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      request_receipts:[{source_image_index:0,request_id:"ark-uncertain",input_tokens:1,output_tokens:1}],
+      usage:{input_tokens:1,output_tokens:1},sources:[source],
+    });
+    expect(preprocessNeedsOriginalMultimodalRead(packet)).toBe(false);
+  });
+
   it("keeps ordinary views legible and tiles long screenshots with overlap",async()=>{
     const ordinary=await prepareScreenshotViews(await image(),0);
     expect(ordinary).toMatchObject({width:120,height:240,native_clarity:true,tiles:[]});
@@ -93,11 +107,28 @@ describe("screenshot-preprocess.v2",()=>{
       .preprocess(source,0,new AbortController().signal)).rejects.toThrow("PROVIDER_IDENTITY_MISMATCH");
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       uncertainties:["Message text is unclear."],follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
-        target:{kind:"message",message_index:0},left:100,top:0,width:40,height:20}]})})
+        target:{kind:"message",message_index:0},baseline_text:"source",left:100,top:0,width:40,height:20}]})})
       .preprocess(source,0,new AbortController().signal)).rejects.toThrow("REGION_OUT_OF_BOUNDS");
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       uncertainties:["Message text is unclear."],follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
-        target:{kind:"message",message_index:0},left:0,top:0,width:120,height:1401}]})})
+        target:{kind:"message",message_index:0},baseline_text:"source",left:0,top:0,width:120,height:1401}]})})
+      .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+    await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
+      messages:[{...modelOutput.messages[0],text:"aaa"}],uncertainties:["Message text is unclear."],
+      follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
+        target:{kind:"message",message_index:0},baseline_text:"aa",left:0,top:0,width:40,height:20}]})})
+      .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+    await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
+      messages:[{...modelOutput.messages[0],text:"abcdef"}],uncertainties:["First text is unclear.","Second text is unclear."],
+      follow_up_regions:[
+        {reason:"illegible_text",field:"text",uncertainty_index:0,
+          target:{kind:"message",message_index:0},baseline_text:"abcd",left:0,top:0,width:40,height:20},
+        {reason:"illegible_text",field:"text",uncertainty_index:1,
+          target:{kind:"message",message_index:0},baseline_text:"cdef",left:40,top:0,width:40,height:20},
+      ]})}).preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+    await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
+      uncertainties:["Whole message is unclear."],follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
+        target:{kind:"message",message_index:0},baseline_text:modelOutput.messages[0]!.text,left:0,top:0,width:40,height:20}]})})
       .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
   });
 
@@ -123,14 +154,20 @@ describe("screenshot-preprocess.v2",()=>{
       source_image_index: sourceImageIndex,
       source_hash: String(sourceImageIndex + 1).repeat(64),
       ...modelOutput,
+      messages: Array.from({length:SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1},(_,index)=>({
+        sequence:index,text:`source-${index} text`,speaker_label:null,speaker_side:"unknown" as const,time_text:null,
+      })),
+      uncertainties: Array.from({length:SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1},
+        (_,index)=>`Message text ${index} is unclear.`),
       follow_up_required: true,
       follow_up_regions: Array.from(
         { length: SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT / 2 + 1 },
         (_, left) => ({
           reason: "illegible_text" as const,
           field: "text" as const,
-          uncertainty_index: 0,
-          target: { kind: "message" as const, message_index: 0 },
+          uncertainty_index: left,
+          target: { kind: "message" as const, message_index: left },
+          baseline_text: `source-${left}`,
           region: { left, top: 0, width: 10, height: 10 },
         }),
       ),
@@ -142,7 +179,7 @@ describe("screenshot-preprocess.v2",()=>{
         tile_count: 0,
       },
     }));
-    expect(ScreenshotPreprocessPacketSchema.safeParse({
+    const parsed=ScreenshotPreprocessPacketSchema.safeParse({
       contract_version: SCREENSHOT_PREPROCESS_CONTRACT,
       schema_version: SCREENSHOT_PREPROCESS_SCHEMA_VERSION,
       prompt_version: SCREENSHOT_PREPROCESS_PROMPT_VERSION,
@@ -156,6 +193,10 @@ describe("screenshot-preprocess.v2",()=>{
       })),
       usage: { input_tokens: 2, output_tokens: 2 },
       sources,
-    }).success).toBe(false);
+    });
+    expect(parsed.success).toBe(false);
+    if(!parsed.success)expect(parsed.error.issues).toContainEqual(expect.objectContaining({
+      message:`At most ${SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT} follow-up regions are allowed across the packet.`,
+    }));
   });
 });

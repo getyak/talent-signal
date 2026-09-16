@@ -72,6 +72,44 @@ const digest = (value: string | Buffer) => createHash("sha256").update(value).di
 const normalized = (value: string) => value.normalize("NFKC").toLocaleLowerCase().trim();
 const normalizedEvidence = (value: string) => normalized(value).replace(/\s+/gu," ");
 const searchableIdentityKinds = new Set(["name","handle","profile_url"]);
+const identityWords = (value: string) => normalizedEvidence(value).match(/[\p{L}\p{N}]+/gu)??[];
+const identityHandleTokens = (value: string) => normalizedEvidence(value).match(/[\p{L}\p{N}_.+@-]+/gu)??[];
+const identityAdjacency = /[\p{L}\p{N}_.+@/\\?&=#%-]/u;
+function hasStandaloneVisibleName(value:string,sourceExcerpt:string):boolean{
+  const expected=normalizedEvidence(value),excerpt=normalizedEvidence(sourceExcerpt);
+  if(!expected)return false;
+  for(let index=excerpt.indexOf(expected);index>=0;index=excerpt.indexOf(expected,index+expected.length)){
+    const before=Array.from(excerpt.slice(0,index)).at(-1)??"";
+    const after=Array.from(excerpt.slice(index+expected.length))[0]??"";
+    if(!identityAdjacency.test(before)&&!identityAdjacency.test(after))return true;
+  }
+  return false;
+}
+function canonicalProfileURL(value:string):string|null{
+  try{
+    const url=new URL(value);if(!["http:","https:"].includes(url.protocol))return null;
+    url.hash="";url.hostname=url.hostname.toLocaleLowerCase();
+    url.pathname=url.pathname.replace(/\/+$/u,"")||"/";
+    return url.toString();
+  }catch{return null;}
+}
+function isGroundedIdentityClue(clue:NonNullable<Response["extraction"]>["identity_clues"][number]):boolean{
+  const value=normalizedEvidence(clue.value),excerpt=normalizedEvidence(clue.source_excerpt);
+  if(!value||!excerpt)return false;
+  if(clue.kind==="profile_url"){
+    const expected=canonicalProfileURL(value);if(!expected)return false;
+    return (excerpt.match(/https?:\/\/[^\s<>"']+/giu)??[]).some(candidate=>canonicalProfileURL(
+      candidate.replace(/[),.;!?]+$/u,""))===expected);
+  }
+  if(clue.kind==="handle"){
+    const expected=value.replace(/^@/u,"");
+    return identityHandleTokens(excerpt).some(token=>token.replace(/^@/u,"")===expected);
+  }
+  if(clue.kind==="name")return hasStandaloneVisibleName(value,excerpt);
+  const expected=identityWords(value),visible=identityWords(excerpt);
+  if(!expected.length)return false;
+  return visible.some((_,index)=>expected.every((word,offset)=>visible[index+offset]===word));
+}
 function automaticIdentityEvidence(row:Row){
   const extraction=row.state.response.extraction;
   // Clarification is intentionally available before understanding exists.
@@ -79,11 +117,8 @@ function automaticIdentityEvidence(row:Row){
   if(!row.state.response.preprocessing)return {contactName:extraction.contact_name,clues:extraction.identity_clues};
   // Preserve every provider clue in its original position for target-bound
   // follow-up correction. Only project grounded values at action boundaries.
-  const clues=extraction.identity_clues.filter(clue=>{
-    const value=normalizedEvidence(clue.value),excerpt=normalizedEvidence(clue.source_excerpt);
-    return value.length>0&&excerpt.includes(value);
-  });
-  const contactName=extraction.contact_name&&clues.some(clue=>searchableIdentityKinds.has(clue.kind)&&
+  const clues=extraction.identity_clues.filter(isGroundedIdentityClue);
+  const contactName=extraction.contact_name&&clues.some(clue=>clue.kind==="name"&&
     normalizedEvidence(clue.value)===normalizedEvidence(extraction.contact_name!))?extraction.contact_name:null;
   return {contactName,clues};
 }
@@ -226,6 +261,7 @@ export async function confirmScreenshotContactProfile(pool:Pool,auth:AuthContext
   const review=parsed.data;
   await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
+    if(row.input_manifest.preprocess_only===true)deny("CONTACT_PREPROCESS_PROFILE_FILING_FORBIDDEN");
     if(row.revision!==review.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
     if(row.status!=="waiting_for_user"||!row.state.response.contact_draft||!row.state.response.extraction||row.state.batch_conflict)deny("CONTACT_PROFILE_NOT_REVIEWABLE");
     const response=row.state.response;
@@ -305,7 +341,8 @@ export async function listScreenshotContactTasks(pool:Pool,auth:AuthContext){
   return {tasks};
 }
 
-export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,storage?:ChatMediaStorage){
+export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,
+  storage?:ChatMediaStorage,onDeletionFenced?:()=>void){
   const captureID=await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);
     if(row.status==="deleted")return row.capture_id;
@@ -320,6 +357,7 @@ export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:str
     }
     return row.capture_id;
   });
+  onDeletionFenced?.();
   if(captureID)await deleteCapture(pool,auth,captureID,{idempotency_key:`delete-contact-source:${id}`,reason:"User deleted this captured source and its derived analysis."});
   await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);
@@ -336,7 +374,8 @@ export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:str
 /** Remove a preprocessing task's retained copy without deleting a canonical
  * capture that was linked after the copy was created. Full task deletion is a
  * separate user operation and continues to cascade through deleteCapture. */
-export async function deleteScreenshotPreprocessingSource(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,storage?:ChatMediaStorage){
+export async function deleteScreenshotPreprocessingSource(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,
+  storage?:ChatMediaStorage,onDeletionFenced?:()=>void){
   await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);
     if(row.status==="deleted")return;
@@ -348,6 +387,7 @@ export async function deleteScreenshotPreprocessingSource(pool:Pool,auth:AuthCon
       await client.query("UPDATE screenshot_contact_tasks SET lease_epoch=lease_epoch+1,lease_until=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
     }
   });
+  onDeletionFenced?.();
   await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);
     if(row.status==="deleted")return;
@@ -373,7 +413,9 @@ export async function linkScreenshotContactTaskCapture(pool:Pool,auth:AuthContex
     }
     if(row.revision!==input.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
     if(!["completed","waiting_for_user"].includes(row.status))deny("CONTACT_PREPROCESS_NOT_LINKABLE");
-    const seed=/^ios:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):preprocess-v2$/u.exec(row.idempotency_key)?.[1];
+    // New tasks use v3. Keep exact v2 linkage for retained receipts created
+    // before the baseline_text contract upgrade; they are never replayed as v3.
+    const seed=/^ios:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):preprocess-v(?:2|3)$/u.exec(row.idempotency_key)?.[1];
     if(!seed)deny("CONTACT_PREPROCESS_SOURCE_MISMATCH");
     const capture=await client.query<{subject_id:string;assignment_id:string}>(`SELECT c.subject_id,c.assignment_id
       FROM captures c JOIN source_resources r ON r.account_id=c.account_id AND r.capture_id=c.id
@@ -510,8 +552,26 @@ function currentToolState(row: Row) {
 function pendingPreprocessRefinementIndices(row: Row): number[] {
   const completed=new Set(row.state.preprocessing_refined_indices??[]);
   return row.state.response.preprocessing?.sources
-    .filter(source=>(source.follow_up_required||source.follow_up_regions.length>0)&&!completed.has(source.source_image_index))
+    .filter(source=>source.follow_up_regions.length>0&&!completed.has(source.source_image_index))
     .map(source=>source.source_image_index)??[];
+}
+
+function hasHumanOnlyPreprocessUncertainty(row:Row):boolean{
+  return row.state.response.preprocessing?.sources.some(source=>{
+    const regionBound=new Set(source.follow_up_regions.map(region=>region.uncertainty_index));
+    return source.uncertainties.some((_,index)=>!regionBound.has(index));
+  })??false;
+}
+
+function boundedRefinementStillUnresolved(row:Row,sourceImageIndex:number,
+  part:NonNullable<Response["extraction"]>):boolean{
+  const source=row.state.response.preprocessing?.sources.find(item=>item.source_image_index===sourceImageIndex);
+  if(!source)return false;
+  const baseline=new Set(source.uncertainties);
+  const bounded=new Set(source.follow_up_regions.map(region=>source.uncertainties[region.uncertainty_index]).filter(Boolean));
+  // A new uncertainty is necessarily backed by one of this Run's declared
+  // region receipts. Baseline uncertainties without a region stay human-only.
+  return part.uncertainties.some(item=>bounded.has(item)||!baseline.has(item));
 }
 
 function normalizeRefinedExtraction(part:NonNullable<Response["extraction"]>,sourceImageIndex:number):NonNullable<Response["extraction"]>{
@@ -532,9 +592,32 @@ async function summarizeExtractionParts(client:PoolClient,auth:AuthContext,row:R
     row.state.response.question="限定原图补读后仍有无法可靠确认的字段。请核对原图并重新发送更清晰或范围更完整的截图。";
     return;
   }
+  if(hasHumanOnlyPreprocessUncertainty(row)){
+    const merged=parts.length===1?{extraction:parts[0]!}:mergeContactExtractions(parts);
+    row.state.response.extraction=merged.extraction;row.state.response.status="waiting_for_user";
+    row.state.response.question="预处理仍有未声明可复读区域的不确定字段。为避免扩大原图暴露，请人工核对或重新发送更清晰、范围更完整的截图。";
+    row.state.response.summary=row.input_manifest.preprocess_only
+      ? "截图已完成共享预处理，但仍有仅供人工核对的字段；未执行联系人或证据写入。"
+      : "截图预处理已保留；未授权额外模型读取，等待人工核对。";
+    return;
+  }
   if(parts.every(part=>!part.contact_name&&!part.identity_clues.length&&!part.messages.length)){
     row.state.response.extraction=parts[0]!;row.state.response.status="completed";
     row.state.response.summary="未发现可归档的人物。来源已保存，可检查原图或删除本次采集。";return;
+  }
+  if(row.input_manifest.preprocess_only===true){
+    const merged=parts.length===1?{extraction:parts[0]!,question:null as string|null,identityConflict:false}:mergeContactExtractions(parts);
+    const mergedExtraction=merged.extraction??parts[0]!;
+    row.state.response.extraction=mergedExtraction;
+    const unresolved=Boolean(merged.question)||parts.some(part=>part.uncertainties.length>0);
+    row.state.response.status=unresolved?"waiting_for_user":"completed";
+    row.state.response.question=merged.question??(unresolved
+      ? "共享预处理仍有无法可靠确认的字段；请核对原图或重新发送更清晰、范围更完整的截图。"
+      : null);
+    row.state.response.summary=unresolved
+      ? "截图已完成共享预处理，但仍有具体字段需要人工核对；未执行联系人或证据写入。"
+      : "截图已完成共享预处理；结构化结果仍需用户核对，未执行联系人或证据写入。";
+    return;
   }
   const profile=profileUnderstanding(parts);
   if(profile){
@@ -625,10 +708,22 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
   switch(call.name){
     case "search_contacts":{
       const args=CONTACT_INTAKE_TOOLS.search_contacts.schema.parse(call.arguments);
-      const clues=[row.state.user_contact_label,identity.contactName,...identity.clues.filter(c=>searchableIdentityKinds.has(c.kind)).map(c=>c.value)].filter((v):v is string=>Boolean(v));
-      if(!clues.some(c=>normalized(c)===normalized(args.query)))deny("CONTACT_SEARCH_NOT_AN_IDENTITY_CLUE");
+      const strictPreprocessing=Boolean(response.preprocessing);
+      const exactUserLabel=Boolean(row.state.user_contact_label&&normalized(row.state.user_contact_label)===normalized(args.query));
+      const exactVisibleName=Boolean(identity.contactName&&normalized(identity.contactName)===normalized(args.query)&&
+        (!strictPreprocessing||identity.clues.some(clue=>clue.kind==="name"&&normalized(clue.value)===normalized(args.query))));
+      const exactProfileURL=strictPreprocessing&&identity.clues.some(clue=>clue.kind==="profile_url"&&normalized(clue.value)===normalized(args.query));
+      const ordinaryClue=!strictPreprocessing&&identity.clues.some(clue=>searchableIdentityKinds.has(clue.kind)&&
+        normalized(clue.value)===normalized(args.query));
+      // For a preprocessing projection, a bare handle is not a typed directory
+      // query: searchPeople would treat it as a display-label substring and
+      // could bind @lin to Linda. Require an exact visible name or confirmed URL.
+      if(!exactUserLabel&&!exactVisibleName&&!exactProfileURL&&!ordinaryClue)deny("CONTACT_SEARCH_NOT_AN_IDENTITY_CLUE");
       const found=await searchPeople(client,auth,args.query);
-      const candidates=found.people.flatMap(p=>p.contexts.map(c=>({person_id:p.id,display_name:p.display_label,relationship_context_id:c.id,relationship_label:c.display_label}))).slice(0,10);
+      const eligiblePeople=strictPreprocessing?found.people.filter(person=>exactProfileURL
+        ? person.identity_matches.some(match=>match.kind==="confirmed_handle")
+        : normalized(person.display_label)===normalized(args.query)):found.people;
+      const candidates=eligiblePeople.flatMap(p=>p.contexts.map(c=>({person_id:p.id,display_name:p.display_label,relationship_context_id:c.id,relationship_label:c.display_label}))).slice(0,10);
       response.candidates=candidates;row.state.searches.push({query:args.query,candidates});
       return {query:args.query,candidates,unique:candidates.length===1,selected:row.state.selected};
     }
@@ -732,6 +827,9 @@ export class ScreenshotContactTaskRunner {
     const controller=new AbortController();this.controllers.set(key,controller);
     const operation=this.observedRun(auth,id,image,controller.signal).finally(()=>{this.active.delete(key);this.controllers.delete(key);});this.active.set(key,operation);return operation;
   }
+  fenceSourceDeletion(auth:AuthContext,id:string):void{
+    this.controllers.get(`${auth.accountId}:${id}`)?.abort(new Error("CONTACT_SOURCE_DELETION_PENDING"));
+  }
   private async observedRun(auth:AuthContext,id:string,image:ScreenshotContactTaskRequest["image"]|undefined,signal:AbortSignal) {
     const result=await this.pool.query<{id:string;source_generation:string|null}>("SELECT id,source_generation FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3 ORDER BY created_at LIMIT 1",[auth.accountId,auth.userId,id]);
     const runID=result.rows[0]?.id;
@@ -830,6 +928,12 @@ export class ScreenshotContactTaskRunner {
       await this.preprocess(auth,id,epoch,image,signal);
       row=await rowFor(this.pool,auth,id);
       if(row.status!=="running")return;
+      const refinementIndices=pendingPreprocessRefinementIndices(row);
+      if(row.state.response.preprocessing&&!refinementIndices.length&&
+        (row.state.preprocessing_refinement_unresolved||hasHumanOnlyPreprocessUncertainty(row))){
+        await this.checkpoint(auth,id,epoch,async(client,latest)=>{await summarizeExtractionParts(client,auth,latest);});
+        return;
+      }
       if(row.input_manifest.preprocess_only&&!pendingPreprocessRefinementIndices(row).length){
         await this.checkpoint(auth,id,epoch,async(_,latest)=>{
           if(latest.state.response.status==="running"){
@@ -845,7 +949,6 @@ export class ScreenshotContactTaskRunner {
         await this.runSDK(auth, id, epoch, row, image, signal);
         return;
       }
-      const refinementIndices=pendingPreprocessRefinementIndices(row);
       if(refinementIndices.length){
         // The plain Chat Completions vision adapter cannot enforce native
         // region receipts or field patches. Keep the Ark baseline intact and
@@ -1016,9 +1119,10 @@ export class ScreenshotContactTaskRunner {
             const mergedParts=[...(r.state.extraction_parts??[])];
             parts.forEach((part,slot)=>{const sourceIndex=imageSourceIndices[slot];if(sourceIndex===undefined)deny("CONTACT_IMAGE_REFERENCE_INVALID");mergedParts[sourceIndex]=normalizeRefinedExtraction(part,sourceIndex);});
             r.state.extraction_parts=mergedParts;
-            const unresolvedIndices=imageSourceIndices.filter((_,slot)=>Boolean(parts[slot]?.uncertainties.length));
+            const unresolvedIndices=imageSourceIndices.filter((sourceIndex,slot)=>
+              Boolean(parts[slot]&&boundedRefinementStillUnresolved(r,sourceIndex,parts[slot]!)));
             const unresolved=new Set(unresolvedIndices);
-            r.state.preprocessing_refinement_unresolved=unresolved.size>0;
+            r.state.preprocessing_refinement_unresolved=parts.some(part=>part.uncertainties.length>0);
             r.state.preprocessing_refined_indices=[...new Set([
               ...(r.state.preprocessing_refined_indices??[]).filter(index=>!unresolved.has(index)),
               ...imageSourceIndices.filter(index=>!unresolved.has(index)),

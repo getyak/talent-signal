@@ -1,6 +1,66 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左侧"
+          }
+        }
+      }
+    },
+    "Omit this message": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忽略这条消息"
+          }
+        }
+      }
+    },
+    "Right": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右侧"
+          }
+        }
+      }
+    },
+    "Speaker side": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话方位置"
+          }
+        }
+      }
+    },
+    "Visible speaker label": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可见说话方标签"
+          }
+        }
+      }
+    },
+    "Visible time": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可见时间"
+          }
+        }
+      }
+    },
     "TALENT SIGNAL": {
       "localizations": {
         "zh-Hans": {

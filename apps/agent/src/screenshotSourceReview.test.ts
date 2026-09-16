@@ -276,6 +276,87 @@ describe("current-Run screenshot source reviews", () => {
       .toEqual({ images: [{ ...baseline, uncertainties: [], messages: [{ ...baseline.messages[0], time_text: "Thursday" }] }] });
   });
 
+  it("rejects a bounded substring as a replacement for the whole baseline message",async()=>{
+    const baseline={platform:"WeChat",conversation_kind:"direct" as const,contact_name:null,identity_clues:[],
+      messages:[{message_id:"m1",sequence:0,text:"I can meet next Tuesday afternoon",speaker_side:"left" as const,
+        speaker_label:null,time_text:null,source_image_index:0}],uncertainties:["The weekday is unclear."]};
+    const {subject,read}=await setup(400,{required:[{source_image_index:0,region,field:"text",uncertainty_index:0,
+      target:{kind:"message",message_id:"m1"},baseline_text:"Tuesday"}],baselines:[{source_image_index:0,extraction:baseline}]});
+    const own=await read();
+    const resolution={uncertainty_index:0,read_receipt_id:own.id,field:"text" as const,
+      target:{kind:"message" as const,message_id:"m1"}};
+    const correction=(replaces:string,value:string,reading:string)=>({images:[{source_image_index:0,
+      message_corrections:[{message_id:"m1",text_patches:[{replaces,value,read_receipt_id:own.id}]}],identity_clue_corrections:[],
+      resolved_uncertainties:[resolution],pixel_readings:[{read_receipt_id:own.id,field:"text" as const,
+        status:"clear" as const,reading}],uncertainties:[]}]});
+    expect(subject.validate(correction(baseline.messages[0]!.text,"Thursday","Thursday")))
+      .toEqual({error:"CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING"});
+    expect(subject.validate(correction("meet next Tuesday","Thursday","Thursday")))
+      .toEqual({error:"CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING"});
+    expect(subject.validate(correction("Tuesday","Thursday","Thursday")))
+      .toEqual({images:[{...baseline,uncertainties:[],messages:[{...baseline.messages[0],
+        text:"I can meet next Thursday afternoon"}]}]});
+  });
+
+  it("rejects an overlapping baseline substring because its region cannot identify one occurrence",async()=>{
+    const baseline={platform:"WeChat",conversation_kind:"direct" as const,contact_name:null,identity_clues:[],
+      messages:[{message_id:"m1",sequence:0,text:"aaa",speaker_side:"left" as const,speaker_label:null,
+        time_text:null,source_image_index:0}],uncertainties:["One pair is unclear."]};
+    const {subject,read}=await setup(400,{required:[{source_image_index:0,region,field:"text",uncertainty_index:0,
+      target:{kind:"message",message_id:"m1"},baseline_text:"aa"}],baselines:[{source_image_index:0,extraction:baseline}]});
+    const own=await read();
+    expect(subject.validate({images:[{source_image_index:0,message_corrections:[{message_id:"m1",text_patches:[{
+      replaces:"aa",value:"b",read_receipt_id:own.id}]}],identity_clue_corrections:[],resolved_uncertainties:[],
+      pixel_readings:[{read_receipt_id:own.id,field:"text",status:"clear",reading:"b"}],uncertainties:[]}]}))
+      .toEqual({error:"CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING"});
+  });
+
+  it("merges two disjoint text regions for one message in a single correction",async()=>{
+    const firstRegion={left:0,top:0,width:120,height:80};
+    const secondRegion={left:160,top:0,width:120,height:80};
+    const baseline={platform:"WeChat",conversation_kind:"direct" as const,contact_name:null,identity_clues:[],
+      messages:[{message_id:"m1",sequence:0,text:"Meet Tues at nien",speaker_side:"left" as const,
+        speaker_label:null,time_text:null,source_image_index:0}],uncertainties:["Weekday is unclear.","Time is unclear."]};
+    const target={kind:"message" as const,message_id:"m1"};
+    const {subject,read}=await setup(400,{required:[
+      {source_image_index:0,region:firstRegion,field:"text",uncertainty_index:0,target,baseline_text:"Tues"},
+      {source_image_index:0,region:secondRegion,field:"text",uncertainty_index:1,target,baseline_text:"nien"},
+    ],baselines:[{source_image_index:0,extraction:baseline}]});
+    const first=await read(null,firstRegion);const second=await read(null,secondRegion);
+    const firstReading={read_receipt_id:first.id,field:"text" as const,status:"clear" as const,reading:"Thursday"};
+    const secondReading={read_receipt_id:second.id,field:"text" as const,status:"clear" as const,reading:"nine"};
+    expect(subject.validate({images:[{source_image_index:0,message_corrections:[{message_id:"m1",text_patches:[
+      {replaces:"Tues",value:"Thursday",read_receipt_id:first.id},
+      {replaces:"nien",value:"nine",read_receipt_id:second.id},
+    ]}],identity_clue_corrections:[],resolved_uncertainties:[
+      {uncertainty_index:0,read_receipt_id:first.id,field:"text",target},
+      {uncertainty_index:1,read_receipt_id:second.id,field:"text",target},
+    ],pixel_readings:[firstReading,secondReading],uncertainties:[]}]})).toEqual({images:[{
+      ...baseline,uncertainties:[],messages:[{...baseline.messages[0],text:"Meet Thursday at nine"}],
+    }]});
+  });
+
+  it("rejects two individually unique text patches whose baseline spans overlap",async()=>{
+    const firstRegion={left:0,top:0,width:120,height:80};
+    const secondRegion={left:120,top:0,width:120,height:80};
+    const baseline={platform:"WeChat",conversation_kind:"direct" as const,contact_name:null,identity_clues:[],
+      messages:[{message_id:"m1",sequence:0,text:"abcdef",speaker_side:"left" as const,
+        speaker_label:null,time_text:null,source_image_index:0}],uncertainties:["First span is unclear.","Second span is unclear."]};
+    const target={kind:"message" as const,message_id:"m1"};
+    const {subject,read}=await setup(400,{required:[
+      {source_image_index:0,region:firstRegion,field:"text",uncertainty_index:0,target,baseline_text:"abcd"},
+      {source_image_index:0,region:secondRegion,field:"text",uncertainty_index:1,target,baseline_text:"cdef"},
+    ],baselines:[{source_image_index:0,extraction:baseline}]});
+    const first=await read(null,firstRegion);const second=await read(null,secondRegion);
+    expect(subject.validate({images:[{source_image_index:0,message_corrections:[{message_id:"m1",text_patches:[
+      {replaces:"abcd",value:"AB",read_receipt_id:first.id},
+      {replaces:"cdef",value:"CD",read_receipt_id:second.id},
+    ]}],identity_clue_corrections:[],resolved_uncertainties:[],pixel_readings:[
+      {read_receipt_id:first.id,field:"text",status:"clear",reading:"AB"},
+      {read_receipt_id:second.id,field:"text",status:"clear",reading:"CD"},
+    ],uncertainties:[]}]})).toEqual({error:"CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING"});
+  });
+
   it("keeps composite speaker and identity uncertainties until every retained member is supported", async () => {
     const speakerTarget = { kind: "message" as const, message_id: "m1" };
     const speakerRequired = [{ source_image_index: 0, region, field: "speaker" as const, uncertainty_index: 0,

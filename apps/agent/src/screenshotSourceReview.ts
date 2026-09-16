@@ -41,15 +41,17 @@ const ContactNameCorrection = z.strictObject({
 });
 const MessageCorrection = z.strictObject({
   message_id: ContactChatExtractionSchema.shape.messages.element.shape.message_id,
-  text: z.strictObject({ value: ContactChatExtractionSchema.shape.messages.element.shape.text,
-    read_receipt_id: z.uuid() }).optional(),
+  text_patches: z.array(z.strictObject({ value: ContactChatExtractionSchema.shape.messages.element.shape.text,
+    replaces: ContactChatExtractionSchema.shape.messages.element.shape.text.describe(
+      "Exact unique baseline_text already bound to this original-pixel region by preprocessing."),
+    read_receipt_id: z.uuid() })).min(1).max(24).optional(),
   speaker_side: z.strictObject({ value: ContactChatExtractionSchema.shape.messages.element.shape.speaker_side,
     read_receipt_id: z.uuid() }).optional(),
   speaker_label: z.strictObject({ value: ContactChatExtractionSchema.shape.messages.element.shape.speaker_label,
     read_receipt_id: z.uuid() }).optional(),
   time_text: z.strictObject({ value: ContactChatExtractionSchema.shape.messages.element.shape.time_text,
     read_receipt_id: z.uuid() }).optional(),
-}).refine(value => value.text || value.speaker_side || value.speaker_label || value.time_text,
+}).refine(value => value.text_patches?.length || value.speaker_side || value.speaker_label || value.time_text,
   "At least one message field correction is required.");
 const IdentityClueCorrection = z.strictObject({
   clue_index: z.number().int().min(0).max(11),
@@ -84,7 +86,8 @@ export const ScreenshotCorrectionSchema = z.strictObject({
 const Region = z.strictObject({ left: z.number().int().min(0), top: z.number().int().min(0),
   width: z.number().int().min(1).max(1_400), height: z.number().int().min(1).max(1_400) });
 export const ScreenshotDelegationSchema = z.strictObject({ source_image_index: z.number().int().min(0).max(9),
-  region: Region, field: Field, uncertainty_index: z.number().int().min(0).max(14), target: CorrectionTarget });
+  region: Region, field: Field, uncertainty_index: z.number().int().min(0).max(14), target: CorrectionTarget,
+  baseline_text: ContactChatExtractionSchema.shape.messages.element.shape.text.nullable().optional() });
 type Rect = z.infer<typeof Region>;
 type PixelReading = z.infer<typeof Reading>;
 type Receipt = { id: string; index: number; sourceHash: string; region: Rect; order: number;
@@ -93,6 +96,8 @@ type Review = PixelReading & { id: string; receipt: Receipt; order: number };
 const normalized = (value: string | null) => value?.replace(/\s+/gu, " ").trim() ?? null;
 const sameRegion = (a: Receipt, b: Receipt) => a.index === b.index && a.sourceHash === b.sourceHash &&
   a.region.left === b.region.left && a.region.top === b.region.top && a.region.width === b.region.width && a.region.height === b.region.height;
+const sameRect = (a: Rect, b: Rect) => a.left === b.left && a.top === b.top &&
+  a.width === b.width && a.height === b.height;
 const overlaps = (a: Receipt, b: Receipt) => a.index === b.index && a.region.left < b.region.left + b.region.width &&
   b.region.left < a.region.left + a.region.width && a.region.top < b.region.top + b.region.height && b.region.top < a.region.top + a.region.height;
 const contains = (outer: Receipt, inner: Receipt) => outer.index === inner.index &&
@@ -101,6 +106,10 @@ const contains = (outer: Receipt, inner: Receipt) => outer.index === inner.index
   outer.region.top + outer.region.height >= inner.region.top + inner.region.height;
 const sameTarget = (left: z.infer<typeof CorrectionTarget>, right: z.infer<typeof CorrectionTarget>) =>
   JSON.stringify(left) === JSON.stringify(right);
+const isUniqueSubstring=(text:string,needle:string):boolean=>{
+  const first=text.indexOf(needle);
+  return first>=0&&text.indexOf(needle,first+1)===-1;
+};
 const location = (receipt: Receipt) => `original image ${receipt.index + 1}, region (${receipt.region.left}, ${receipt.region.top}, ${receipt.region.width}, ${receipt.region.height})`;
 function metadata(result: unknown): Record<string, unknown> | null {
   if (!result || typeof result !== "object" || ("isError" in result && result.isError)) return null;
@@ -264,7 +273,7 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
         return value===undefined||value===null||normalized(reading.reading)!.includes(normalized(value)!);
       };
       const exactlySupported = (id: string, field: z.infer<typeof Field>, value: string,
-        target: z.infer<typeof CorrectionTarget>, uncertaintyIndex: number) => supported(id,field,value,target,uncertaintyIndex)&&
+        target: z.infer<typeof CorrectionTarget>, uncertaintyIndex?: number) => supported(id,field,value,target,uncertaintyIndex)&&
         normalized(own.get(`${id}:${field}`)?.reading??null)===normalized(value);
       const supportedNull = (id: string, field: z.infer<typeof Field>, target?: z.infer<typeof CorrectionTarget>) => {
         const reading=own.get(`${id}:${field}`);
@@ -290,13 +299,36 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
           extraction.contact_name=update.value;
         }
         const seenMessages=new Set<string>();
+        const appliedTextPatches=new Map<string,{readReceiptID:string}>();
         for(const patch of correction.message_corrections){
           if(seenMessages.has(patch.message_id))return {error:"CONTACT_IMAGE_DUPLICATE_MESSAGE_CORRECTION"};
           seenMessages.add(patch.message_id);
           const target=extraction.messages.find(message=>message.message_id===patch.message_id);
           if(!target)return {error:"CONTACT_IMAGE_MESSAGE_CORRECTION_TARGET_INVALID"};
           const receiptTarget={kind:"message" as const,message_id:patch.message_id};
-          if(patch.text){if(!supported(patch.text.read_receipt_id,"text",patch.text.value,receiptTarget))return {error:"CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING"};target.text=patch.text.value;}
+          // Region receipts correct only their exact bounded substring. Never
+          // promote a word-level read into replacement of the whole message.
+          if(patch.text_patches){
+            const baselineText=target.text;
+            const planned:Array<{start:number;end:number;value:string;readReceiptID:string;uncertaintyIndex:number}>=[];
+            for(const textPatch of patch.text_patches){
+              const receipt=receipts.get(textPatch.read_receipt_id);
+              const selection=receipt&&required.find(item=>item.source_image_index===sourceIndex&&item.field==="text"&&
+                sameTarget(item.target,receiptTarget)&&sameRect(item.region,receipt.region)&&
+                item.baseline_text===textPatch.replaces);
+              const start=baselineText.indexOf(textPatch.replaces);
+              if(textPatch.replaces===baselineText||!isUniqueSubstring(baselineText,textPatch.replaces)||!selection||
+                planned.some(item=>start<item.end&&item.start<start+textPatch.replaces.length)||
+                !exactlySupported(textPatch.read_receipt_id,"text",textPatch.value,receiptTarget,selection.uncertainty_index))
+                return {error:"CONTACT_IMAGE_QUOTE_NOT_IN_OWN_READING"};
+              planned.push({start,end:start+textPatch.replaces.length,value:textPatch.value,
+                readReceiptID:textPatch.read_receipt_id,uncertaintyIndex:selection.uncertainty_index});
+            }
+            for(const item of planned.sort((left,right)=>right.start-left.start))
+              target.text=`${target.text.slice(0,item.start)}${item.value}${target.text.slice(item.end)}`;
+            for(const item of planned)appliedTextPatches.set(`${patch.message_id}:${item.uncertaintyIndex}`,
+              {readReceiptID:item.readReceiptID});
+          }
           if(patch.speaker_side){if(!supportedSpeakerSide(patch.speaker_side.read_receipt_id,patch.speaker_side.value,receiptTarget))return {error:"CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING"};target.speaker_side=patch.speaker_side.value;}
           if(patch.speaker_label){const update=patch.speaker_label;if(update.value===null?!supportedNull(update.read_receipt_id,"speaker",receiptTarget):
             !supported(update.read_receipt_id,"speaker",update.value,receiptTarget))return {error:"CONTACT_IMAGE_METADATA_NOT_IN_OWN_READING"};target.speaker_label=update.value;}
@@ -322,7 +354,10 @@ export function screenshotSourceReview(views: Awaited<ReturnType<typeof screensh
           if(target.kind==="message"){
             const message=extraction.messages.find(candidate=>candidate.message_id===target.message_id);
             if(!message)return false;
-            if(item.field==="text")return exactlySupported(item.read_receipt_id,item.field,message.text,target,item.uncertainty_index);
+            if(item.field==="text"){
+              const patch=appliedTextPatches.get(`${target.message_id}:${item.uncertainty_index}`);
+              return patch?.readReceiptID===item.read_receipt_id;
+            }
             if(item.field==="time")return Boolean(message.time_text)&&
               exactlySupported(item.read_receipt_id,item.field,message.time_text!,target,item.uncertainty_index);
             if(item.field==="speaker")return message.speaker_side!=="unknown"&&

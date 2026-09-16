@@ -450,12 +450,75 @@ struct RelationshipCaptureView: View {
                                 Text(verbatim: [
                                     "Message \(message.sequence + 1)",
                                     "source \(message.sourceImageIndex + 1)",
-                                    message.speakerSide,
-                                    message.speakerLabel,
-                                    message.timeText,
                                 ].compactMap { $0 }.joined(separator: " · "))
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.tsMutedInk)
+                                Picker(
+                                    appLanguage.text("Speaker side"),
+                                    selection: Binding(
+                                        get: {
+                                            store.draft.preprocessedMessages?
+                                                .first(where: { $0.id == message.id })?.speakerSide
+                                                ?? "unknown"
+                                        },
+                                        set: {
+                                            store.updatePreprocessedMessageSpeakerSide(
+                                                id: message.id,
+                                                speakerSide: $0
+                                            )
+                                        }
+                                    )
+                                ) {
+                                    Text(appLanguage.text("Left")).tag("left")
+                                    Text(appLanguage.text("Right")).tag("right")
+                                    Text(appLanguage.text("Unknown")).tag("unknown")
+                                }
+                                .pickerStyle(.segmented)
+                                .accessibilityIdentifier("reviewed-preprocessed-speaker-side-\(message.id)")
+                                TextField(
+                                    appLanguage.text("Visible speaker label"),
+                                    text: Binding(
+                                        get: {
+                                            store.draft.preprocessedMessages?
+                                                .first(where: { $0.id == message.id })?.speakerLabel ?? ""
+                                        },
+                                        set: {
+                                            store.updatePreprocessedMessageSpeakerLabel(
+                                                id: message.id,
+                                                speakerLabel: $0
+                                            )
+                                        }
+                                    )
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("reviewed-preprocessed-speaker-label-\(message.id)")
+                                TextField(
+                                    appLanguage.text("Visible time"),
+                                    text: Binding(
+                                        get: {
+                                            store.draft.preprocessedMessages?
+                                                .first(where: { $0.id == message.id })?.timeText ?? ""
+                                        },
+                                        set: {
+                                            store.updatePreprocessedMessageTimeText(
+                                                id: message.id,
+                                                timeText: $0
+                                            )
+                                        }
+                                    )
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("reviewed-preprocessed-visible-time-\(message.id)")
+                                Button(role: .destructive) {
+                                    store.removePreprocessedMessage(id: message.id)
+                                } label: {
+                                    Label(
+                                        appLanguage.text("Omit this message"),
+                                        systemImage: "trash"
+                                    )
+                                }
+                                .font(.caption.weight(.semibold))
+                                .accessibilityIdentifier("remove-preprocessed-message-\(message.id)")
                                 TextEditor(text: Binding(
                                     get: {
                                         store.draft.preprocessedMessages?

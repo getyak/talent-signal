@@ -83,6 +83,7 @@ export function registerScreenshotContactRoutes(
       request.params.id,
       request.body.expected_revision,
       chatMediaStorage,
+      () => screenshotRunner?.fenceSourceDeletion(request.auth, request.params.id),
     ),
   );
   app.post<{ Params: { id: string }; Body: { expected_revision: number } }>(
@@ -94,6 +95,7 @@ export function registerScreenshotContactRoutes(
       request.params.id,
       request.body.expected_revision,
       chatMediaStorage,
+      () => screenshotRunner?.fenceSourceDeletion(request.auth, request.params.id),
     ),
   );
   app.post<{

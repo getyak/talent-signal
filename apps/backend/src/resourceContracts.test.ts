@@ -430,7 +430,7 @@ describe("multichannel relationship-resource contracts", () => {
         },
         attribution: { actor_kind: "unknown", status: "proposed" },
         review_status: "reviewed",
-        parser: { name: "shared-screenshot-preprocess", version: "screenshot-preprocess.v2" },
+        parser: { name: "shared-screenshot-preprocess", version: "screenshot-preprocess.v3" },
       }],
     };
 

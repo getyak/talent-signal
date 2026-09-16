@@ -773,7 +773,7 @@ final class CaptureHandoffStore: ObservableObject {
                         )
                         var checkpoint = RecognizedCaptureDraft.empty
                         checkpoint.sourceParserName = "shared-screenshot-preprocess"
-                        checkpoint.sourceParserVersion = "screenshot-preprocess.v2"
+                        checkpoint.sourceParserVersion = "screenshot-preprocess.v3"
                         checkpoint.preprocessingTaskID = receipt.taskID
                         checkpoint.preprocessingTaskRevision = receipt.revision
                         checkpoint.preprocessingRetryRequired = true
