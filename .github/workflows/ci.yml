@@ -40,7 +40,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
       ios: ${{ steps.filter.outputs.ios }}
+      macos_hybrid: ${{ steps.macos_hybrid.outputs.required }}
     steps:
       - name: Check out the tested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -89,6 +91,40 @@ jobs:
           echo "ios=$ios" >> "$GITHUB_OUTPUT"
           echo "iOS checks required: $ios"
 
+      - name: Classify documentation-only scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # Manual dispatch is always a full run; only automatic pull-request
+          # and main-push runs may intentionally skip the quality jobs.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch runs the full quality and security scope"
+            exit 0
+          fi
+
+          runtime_changes="$(./scripts/ci/has-runtime-changes.sh "$BASE_SHA" "$HEAD_SHA")"
+          if [ "$runtime_changes" = "false" ]; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+            echo "Documentation-only change; quality jobs may be skipped"
+          else
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "Runtime change; all quality jobs are required"
+          fi
+
+      - name: Detect macOS Hybrid changes
+        id: macos_hybrid
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          required="$(./scripts/ci/has-macos-hybrid-changes.sh "$BASE_SHA" "$HEAD_SHA")"
+          echo "required=$required" >> "$GITHUB_OUTPUT"
+          echo "macOS Hybrid checks required: $required"
+
   repository:
     name: Repository policy and docs
     runs-on: ubuntu-latest
@@ -118,7 +154,7 @@ jobs:
           ./scripts/ci/test-next-ios-version.sh
           node --test scripts/verify-secret-environment.test.mjs scripts/infisical/manifest.test.mjs scripts/infisical/migrate.test.mjs scripts/infisical/run.test.mjs
           node --test scripts/check-architecture-boundaries.test.mjs
-          node --test scripts/ci/ios-release-policy.test.mjs
+          node --test scripts/ci/*.test.mjs
           node --test scripts/ios/*.test.mjs
           find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
           shellcheck scripts/ci/*.sh scripts/ios/*.sh
@@ -165,6 +201,8 @@ jobs:
 
   web:
     name: Web quality
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -206,6 +244,8 @@ jobs:
 
   backend:
     name: Backend quality
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -334,6 +374,8 @@ jobs:
 
   phase-one:
     name: Phase one control plane (no model credentials)
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -415,6 +457,8 @@ jobs:
 
   macos-hybrid:
     name: macOS Hybrid boundary
+    needs: changes
+    if: needs.changes.outputs.macos_hybrid == 'true'
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -467,19 +511,35 @@ jobs:
     timeout-minutes: 5
     env:
       CHANGES_RESULT: ${{ needs.changes.result }}
+      DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
       REPOSITORY_RESULT: ${{ needs.repository.result }}
       WEB_RESULT: ${{ needs.web.result }}
       BACKEND_RESULT: ${{ needs.backend.result }}
       PHASE_ONE_RESULT: ${{ needs.phase-one.result }}
       IOS_RESULT: ${{ needs.ios.result }}
+      MACOS_HYBRID_REQUIRED: ${{ needs.changes.outputs.macos_hybrid }}
       MACOS_HYBRID_RESULT: ${{ needs.macos-hybrid.result }}
     steps:
       - name: Enforce required job results
         run: |
           test "$CHANGES_RESULT" = "success"
           test "$REPOSITORY_RESULT" = "success"
-          test "$WEB_RESULT" = "success"
-          test "$BACKEND_RESULT" = "success"
-          test "$PHASE_ONE_RESULT" = "success"
           test "$IOS_RESULT" = "success" || test "$IOS_RESULT" = "skipped"
-          test "$MACOS_HYBRID_RESULT" = "success"
+
+          if [ "$MACOS_HYBRID_REQUIRED" = "true" ]; then
+            test "$MACOS_HYBRID_RESULT" = "success"
+          else
+            test "$MACOS_HYBRID_RESULT" = "success" || test "$MACOS_HYBRID_RESULT" = "skipped"
+          fi
+
+          # Quality jobs may be intentionally skipped only for an automatic
+          # documentation-only change. Every other scope requires success.
+          if [ "$DOCS_ONLY" = "true" ]; then
+            for result in "$WEB_RESULT" "$BACKEND_RESULT" "$PHASE_ONE_RESULT"; do
+              test "$result" = "success" || test "$result" = "skipped"
+            done
+          else
+            test "$WEB_RESULT" = "success"
+            test "$BACKEND_RESULT" = "success"
+            test "$PHASE_ONE_RESULT" = "success"
+          fi

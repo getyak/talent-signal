@@ -253,6 +253,14 @@ test("automatic releases classify all changes since the last trusted receipt", (
   );
 
   assert.ok(prepareJob, "expected the release preparation job");
+
+  const releaseTrigger = releaseWorkflow.match(
+    /(?:^|\n)on:\n([\s\S]*?)\npermissions:/,
+  );
+  assert.ok(releaseTrigger, "expected the release trigger block");
+  assert.match(releaseTrigger[1], /workflows: \[CI\]/);
+  assert.match(releaseTrigger[1], /branches: \[main\]/);
+  assert.match(releaseTrigger[1], /workflow_dispatch:/);
   assert.match(prepareJob[1], /actions\/github-script@[0-9a-f]{40} # v9\.0\.0/);
   assert.match(prepareJob[1], /process\.env\.VERIFIED_SHA !== releaseSha/);
   assert.match(prepareJob[1], /repos\.listReleases/);
