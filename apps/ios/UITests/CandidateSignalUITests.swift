@@ -992,11 +992,11 @@ final class CandidateSignalUITests: XCTestCase {
         app.buttons["close-capture-review"].tap()
 
         XCTAssertTrue(app.buttons["Keep for later"].waitForExistence(timeout: 3))
-        let discard = app.buttons["Remove local copy"]
+        let discard = app.buttons["Delete this source"]
         XCTAssertTrue(discard.exists)
         XCTAssertTrue(
             app.staticTexts[
-                "Review progress stays on this device for up to 30 days. Removing the local copy does not delete an uploaded source."
+                "Review progress stays on this device for up to 30 days. Deleting removes the governed preprocessing upload first, then this device's local copy."
             ].exists
         )
         XCTAssertFalse(app.buttons["submit-reviewed-capture"].isHittable)

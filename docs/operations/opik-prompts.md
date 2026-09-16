@@ -39,6 +39,7 @@ including historical Opik snapshots. New tasks use the installed local text.
 | `capture/contact` | `capture-contact.ts` |
 | `capture/transcription` | `capture-transcription.ts` |
 | `capture/screenshot` | `capture-screenshot.ts` |
+| `capture/screenshot-preprocess` | `capture-screenshot-preprocess.ts` |
 | `capture/text` | `capture-text.ts` |
 | `pursuit/proposal` | `pursuit-proposal.ts` |
 | `research/company` | `research-company.ts` |

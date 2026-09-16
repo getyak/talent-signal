@@ -1,4 +1,16 @@
 import Foundation
+import ImageIO
+import UIKit
+
+struct ScreenshotPreprocessingTaskReceipt: Equatable, Sendable {
+    let taskID: String
+    let revision: Int
+}
+
+typealias ScreenshotPreprocessingReceiptHandler = @MainActor @Sendable (
+    ScreenshotPreprocessingTaskReceipt
+) async throws -> Void
+typealias ScreenshotPreprocessingRequestHandler = @MainActor @Sendable () async throws -> Void
 
 protocol RelationshipCaptureServing {
     var runtimeScope: String? { get }
@@ -10,6 +22,39 @@ protocol RelationshipCaptureServing {
         seed: PendingCaptureSeed,
         draft: RecognizedCaptureDraft
     ) async throws -> ResourceCaptureResult
+
+    func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
+    func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
+    func resumeScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft
+    func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws
+    func linkScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        captureID: String,
+        sourceResourceID: String
+    ) async throws -> Int
 
     func createProposedCapture(
         seed: PendingCaptureSeed,
@@ -41,6 +86,142 @@ extension RelationshipCaptureServing {
         draft: RecognizedCaptureDraft
     ) async throws -> ResourceCaptureResult {
         try await createCapture(seed: seed, draft: draft)
+    }
+
+    func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        throw ConversationRecognitionError.sharedPreprocessingUnavailable
+    }
+
+    func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(seed: seed)
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(seed: seed)
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await resumeScreenshotPreprocessing(seed: seed)
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(seed: seed, onTaskReceipt: onTaskReceipt)
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await resumeScreenshotPreprocessing(seed: seed, onTaskReceipt: onTaskReceipt)
+    }
+
+    func resumeScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        throw ConversationRecognitionError.sharedPreprocessingUnavailable
+    }
+
+    func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
+        throw ConversationRecognitionError.sharedPreprocessingUnavailable
+    }
+
+    func linkScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        captureID: String,
+        sourceResourceID: String
+    ) async throws -> Int {
+        throw ConversationRecognitionError.sharedPreprocessingUnavailable
+    }
+}
+
+enum ScreenshotPreprocessingUploadNormalizer {
+    static let maximumByteCount = 10_000_000
+    private static let maximumPixelDimension: CGFloat = 4_096
+    private static let supportedMediaTypes = Set(["image/png", "image/jpeg", "image/webp"])
+
+    static func normalize(data: Data, mediaType: String) throws -> (data: Data, mediaType: String) {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) > 0 else {
+            throw ConversationRecognitionError.unreadableImage
+        }
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let sourceWidth = (properties?[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue ?? 0
+        let sourceHeight = (properties?[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue ?? 0
+        if supportedMediaTypes.contains(mediaType),
+           data.count <= maximumByteCount,
+           sourceWidth > 0,
+           sourceHeight > 0,
+           max(sourceWidth, sourceHeight) <= maximumPixelDimension,
+           CGImageSourceGetCount(source) == 1 {
+            return (data, mediaType)
+        }
+
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int(maximumPixelDimension),
+            kCGImageSourceShouldCacheImmediately: false,
+        ]
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            thumbnailOptions as CFDictionary
+        ) else {
+            throw ConversationRecognitionError.unreadableImage
+        }
+        let image = UIImage(cgImage: thumbnail, scale: 1, orientation: .up)
+        var rendered = render(image, maximumDimension: maximumPixelDimension)
+        for quality in [CGFloat(0.92), 0.82, 0.70, 0.55] {
+            guard let jpeg = rendered.jpegData(compressionQuality: quality) else { continue }
+            if jpeg.count <= maximumByteCount { return (jpeg, "image/jpeg") }
+        }
+
+        for _ in 0..<4 {
+            let prior = rendered.jpegData(compressionQuality: 0.70)?.count ?? (maximumByteCount * 2)
+            let ratio = min(0.85, sqrt(CGFloat(maximumByteCount) / CGFloat(prior)) * 0.92)
+            rendered = render(
+                rendered,
+                maximumDimension: max(640, max(rendered.size.width, rendered.size.height) * ratio)
+            )
+            if let jpeg = rendered.jpegData(compressionQuality: 0.70),
+               jpeg.count <= maximumByteCount {
+                return (jpeg, "image/jpeg")
+            }
+        }
+        throw ConversationRecognitionError.sharedPreprocessingFailed
+    }
+
+    private static func render(_ image: UIImage, maximumDimension: CGFloat) -> UIImage {
+        // UIImage.size is already orientation-aware; cgImage dimensions are not.
+        let sourceWidth = max(1, image.size.width * image.scale)
+        let sourceHeight = max(1, image.size.height * image.scale)
+        let scale = min(1, maximumDimension / max(sourceWidth, sourceHeight))
+        let size = CGSize(
+            width: max(1, floor(sourceWidth * scale)),
+            height: max(1, floor(sourceHeight * scale))
+        )
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
     }
 }
 
@@ -78,6 +259,273 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         )
     }
 
+    func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: false,
+            onRemoteRequestStarted: {},
+            onTaskReceipt: { _ in }
+        )
+    }
+
+    func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: true,
+            onRemoteRequestStarted: {},
+            onTaskReceipt: { _ in }
+        )
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: false,
+            onRemoteRequestStarted: {},
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func resumeScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        var task: ScreenshotContactTask = try await request(
+            path: "v1/contact-agent/tasks/\(taskID)",
+            method: "GET",
+            body: Optional<EmptyBody>.none
+        )
+        guard task.taskID == taskID, task.revision >= expectedRevision else {
+            throw RelationshipCaptureClientError.invalidResponse
+        }
+        try await onTaskReceipt(.init(taskID: task.taskID, revision: task.revision))
+        if ["waiting_for_user", "failed", "cancelled"].contains(task.status) {
+            task = try await request(
+                path: "v1/contact-agent/tasks/\(taskID)/resume",
+                method: "POST",
+                body: ScreenshotContactResumeBody(expectedRevision: task.revision)
+            )
+            try await onTaskReceipt(.init(taskID: task.taskID, revision: task.revision))
+        }
+        return try await finishPreprocessingTask(task, onTaskReceipt: onTaskReceipt)
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: true,
+            onRemoteRequestStarted: {},
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: false,
+            onRemoteRequestStarted: onRemoteRequestStarted,
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await preprocessScreenshot(
+            seed: seed,
+            resumeFailedTask: true,
+            onRemoteRequestStarted: onRemoteRequestStarted,
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
+        let deleted: ScreenshotContactTask = try await request(
+            path: "v1/contact-agent/tasks/\(taskID)/preprocessing-source/delete",
+            method: "POST",
+            body: ScreenshotContactDeleteBody(expectedRevision: expectedRevision)
+        )
+        guard deleted.taskID == taskID,
+              deleted.status == "deleted",
+              deleted.revision >= expectedRevision else {
+            throw RelationshipCaptureClientError.invalidResponse
+        }
+    }
+
+    func linkScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        captureID: String,
+        sourceResourceID: String
+    ) async throws -> Int {
+        let linked: ScreenshotContactCaptureLink = try await request(
+            path: "v1/contact-agent/tasks/\(taskID)/capture-link",
+            method: "POST",
+            body: ScreenshotContactCaptureLinkBody(
+                expectedRevision: expectedRevision,
+                captureID: captureID,
+                sourceResourceID: sourceResourceID
+            )
+        )
+        guard linked.taskID == taskID,
+              linked.captureID == captureID,
+              linked.sourceResourceID == sourceResourceID,
+              linked.revision >= expectedRevision else {
+            throw RelationshipCaptureClientError.invalidResponse
+        }
+        return linked.revision
+    }
+
+    private func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        resumeFailedTask: Bool,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        let upload = try ScreenshotPreprocessingUploadNormalizer.normalize(
+            data: seed.imageData,
+            mediaType: seed.mediaType
+        )
+        let body = ScreenshotContactTaskBody(
+            idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):preprocess-v3",
+            objective: "Preprocess this recruiter-selected screenshot into reviewable, unconfirmed source evidence.",
+            data: upload.data,
+            mediaType: upload.mediaType,
+            personID: nil,
+            contextID: nil,
+            capturedAt: seed.createdAt,
+            preprocessOnly: true,
+            allowPublicResearch: false
+        )
+        try await onRemoteRequestStarted()
+        var task: ScreenshotContactTask = try await request(
+            path: "v1/contact-agent/tasks",
+            method: "POST",
+            body: body
+        )
+        try await onTaskReceipt(.init(taskID: task.taskID, revision: task.revision))
+        // A repeated create is the durable lookup for this source. Only the
+        // explicit resume entry point, called from the recruiter's Retry
+        // action, may authorize another provider attempt at this revision.
+        if resumeFailedTask && ["waiting_for_user", "failed", "cancelled"].contains(task.status) {
+            task = try await request(
+                path: "v1/contact-agent/tasks/\(task.taskID)/resume",
+                method: "POST",
+                body: ScreenshotContactResumeBody(expectedRevision: task.revision)
+            )
+            try await onTaskReceipt(.init(taskID: task.taskID, revision: task.revision))
+        }
+        return try await finishPreprocessingTask(task, onTaskReceipt: onTaskReceipt)
+    }
+
+    private func finishPreprocessingTask(
+        _ initialTask: ScreenshotContactTask,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        var task = initialTask
+        for _ in 0..<240 where task.status == "running" {
+            try await Task.sleep(nanoseconds: 500_000_000)
+            task = try await request(
+                path: "v1/contact-agent/tasks/\(task.taskID)",
+                method: "GET",
+                body: Optional<EmptyBody>.none
+            )
+            try await onTaskReceipt(.init(taskID: task.taskID, revision: task.revision))
+        }
+        guard task.status == "completed" || task.status == "waiting_for_user",
+              let extraction = task.extraction else {
+            throw ConversationRecognitionError.sharedPreprocessingFailed
+        }
+        let messages = extraction.messages.map {
+            PreprocessedCaptureMessage(
+                messageID: $0.messageID,
+                sequence: $0.sequence,
+                text: $0.text,
+                speakerSide: $0.speakerSide,
+                speakerLabel: $0.speakerLabel,
+                timeText: $0.timeText,
+                sourceImageIndex: $0.sourceImageIndex ?? 0
+            )
+        }
+        let preprocessingIssues = Self.preprocessingIssues(task: task, extraction: extraction)
+        guard !messages.isEmpty else {
+            let pendingSourceIndices = Set(task.preprocessingPendingSourceIndices ?? [])
+            let hasAuthorizedFollowUpRegion = task.preprocessing?.sources.contains {
+                pendingSourceIndices.contains($0.sourceImageIndex) && !$0.followUpRegions.isEmpty
+            } == true
+            let profileHasNoSourceBlocker = extraction.uncertainties.isEmpty
+                && (task.preprocessing?.sources.allSatisfy {
+                    !$0.followUpRequired && $0.followUpRegions.isEmpty
+                } ?? true)
+            let isDisposableProfile = ["profile", "not_chat"].contains(extraction.conversationKind ?? "")
+                && profileHasNoSourceBlocker
+            if !isDisposableProfile {
+                var draft = RecognizedCaptureDraft.empty
+                draft.displayNameHint = extraction.contactName ?? ""
+                draft.sourceParserName = "shared-screenshot-preprocess"
+                draft.sourceParserVersion = "screenshot-preprocess.v3"
+                draft.preprocessingUncertainties = preprocessingIssues.isEmpty
+                    ? ["No conversation messages were readable. Inspect the original before entering evidence."]
+                    : preprocessingIssues
+                draft.preprocessingTaskID = task.taskID
+                draft.preprocessingTaskRevision = task.revision
+                // The immutable packet keeps historical regions after they
+                // have been read. Only the server's pending projection can
+                // authorize another bounded source retry; source-level gaps
+                // and completed regions open the editable human review.
+                draft.preprocessingRetryRequired = task.status == "waiting_for_user"
+                    && hasAuthorizedFollowUpRegion
+                return draft
+            }
+            // There is no reviewable conversation draft that could carry this
+            // receipt into local recovery. Delete and verify the server source
+            // before returning the fail-closed result so its original cannot
+            // outlive the rejected import.
+            try await deleteScreenshotPreprocessing(
+                taskID: task.taskID,
+                expectedRevision: task.revision
+            )
+            throw ConversationRecognitionError.noConversationEvidence
+        }
+        let text = messages.map(\.text).joined(separator: "\n")
+        var draft = CaptureDraftBuilder.makeDraft(from: text)
+        draft.displayNameHint = extraction.contactName ?? draft.displayNameHint
+        // Generic message parsing may find a third party's phone/email in the
+        // conversation body. Shared preprocessing has no typed identity-handle
+        // contract, so message text never authorizes automatic identity match.
+        draft.handleValue = ""
+        let hasUntypedHandle = extraction.identityClues?.contains(where: { $0.kind == "handle" }) == true
+        draft.sourceParserName = "shared-screenshot-preprocess"
+        draft.sourceParserVersion = "screenshot-preprocess.v3"
+        var draftPreprocessingIssues = preprocessingIssues
+        if hasUntypedHandle {
+            draftPreprocessingIssues.append(
+                "A visible platform handle remains untyped and must be reviewed before identity matching."
+            )
+        }
+        draft.preprocessingUncertainties = draftPreprocessingIssues.isEmpty
+            ? nil
+            : draftPreprocessingIssues
+        draft.preprocessingTaskID = task.taskID
+        draft.preprocessingTaskRevision = task.revision
+        draft.preprocessingRetryRequired = false
+        draft.preprocessedMessages = messages.isEmpty ? nil : messages
+        return draft
+    }
+
     func createProposedCapture(
         seed: PendingCaptureSeed,
         draft: RecognizedCaptureDraft
@@ -102,6 +550,66 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
     ) async throws -> ResourceCaptureResult {
         let clientResourceID = "ios-share:\(seed.id.uuidString.lowercased())"
         let reviewedSpeaker = draft.speaker ?? .unknown
+        let sharedPreprocessing = draft.sourceParserName == "shared-screenshot-preprocess"
+        let fragments: [ResourceCaptureBody.Fragment]
+        if let messages = draft.preprocessedMessages, !messages.isEmpty {
+            fragments = messages.enumerated().map { index, message in
+                .init(
+                    clientResourceID: clientResourceID,
+                    kind: "message",
+                    sequence: index,
+                    text: message.text,
+                    locator: .init(
+                        kind: "message",
+                        sourceMessageID: message.messageID,
+                        sequence: message.sequence,
+                        speakerSide: message.speakerSide,
+                        speakerLabel: message.speakerLabel,
+                        visibleTimeText: message.timeText,
+                        sourceImageIndex: message.sourceImageIndex,
+                        messageTimestamp: nil
+                    ),
+                    attribution: .init(actorKind: "unknown", status: "proposed"),
+                    reviewStatus: reviewStatus,
+                    parser: .init(
+                        name: draft.sourceParserName ?? "shared-screenshot-preprocess",
+                        version: draft.sourceParserVersion ?? "screenshot-preprocess.v3"
+                    )
+                )
+            }
+        } else {
+            fragments = [
+                .init(
+                    clientResourceID: clientResourceID,
+                    kind: "message",
+                    sequence: 0,
+                    text: draft.reviewedText,
+                    locator: .init(
+                        kind: "message",
+                        sourceMessageID: sharedPreprocessing && reviewStatus == "proposed"
+                            ? "shared-preprocess-proposed-1"
+                            : sharedPreprocessing ? "shared-preprocess-reviewed-1" : "legacy-reviewed-draft-1",
+                        sequence: 0,
+                        speakerSide: "unknown",
+                        speakerLabel: nil,
+                        visibleTimeText: nil,
+                        sourceImageIndex: nil,
+                        messageTimestamp: draft.messageTimestamp.map(Self.timestamp)
+                    ),
+                    attribution: .init(
+                        actorKind: reviewedSpeaker.rawValue,
+                        status: reviewStatus == "proposed" || draft.speaker == nil
+                            ? "proposed"
+                            : reviewedSpeaker.attributionStatus
+                    ),
+                    reviewStatus: reviewStatus,
+                    parser: .init(
+                        name: draft.sourceParserName ?? "legacy-reviewed-screenshot-draft",
+                        version: draft.sourceParserVersion ?? "1"
+                    )
+                )
+            ]
+        }
         let body = ResourceCaptureBody(
             contractVersion: TalentSignalAPIContract.version,
             idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):capture",
@@ -138,34 +646,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                     sourceScope: sourceScope
                 )
             ),
-            fragments: [
-                .init(
-                    clientResourceID: clientResourceID,
-                    kind: "message",
-                    sequence: 0,
-                    text: draft.reviewedText,
-                    locator: .init(
-                        kind: "message",
-                        sourceMessageID: reviewStatus == "proposed"
-                            ? "ocr-proposed-1"
-                            : "ocr-reviewed-1",
-                        sequence: 0,
-                        speakerSide: "unknown",
-                        messageTimestamp: draft.messageTimestamp.map(Self.timestamp)
-                    ),
-                    attribution: .init(
-                        actorKind: reviewedSpeaker.rawValue,
-                        status: reviewStatus == "proposed" || draft.speaker == nil
-                            ? "proposed"
-                            : reviewedSpeaker.attributionStatus
-                    ),
-                    reviewStatus: reviewStatus,
-                    parser: .init(
-                        name: "ios-vision-text-recognition",
-                        version: "1.0.0"
-                    )
-                )
-            ]
+            fragments: fragments
         )
         return try await request(
             path: "v1/resource-captures",
@@ -321,6 +802,36 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         // to a retry after decoding the protected recovery record.
         ISO8601DateFormatter.captureFormatter.string(from: Date(timeIntervalSince1970: floor(date.timeIntervalSince1970)))
     }
+
+    private static func preprocessingIssues(
+        task: ScreenshotContactTask,
+        extraction: ScreenshotContactTask.Extraction
+    ) -> [String] {
+        var issues = extraction.uncertainties
+        if task.status == "waiting_for_user", let question = task.question?.nonEmpty {
+            issues.append(question)
+        }
+        if task.status == "waiting_for_user" {
+            let pendingSourceIndices = Set(task.preprocessingPendingSourceIndices ?? [])
+            for source in task.preprocessing?.sources ?? [] {
+                guard pendingSourceIndices.contains(source.sourceImageIndex) else { continue }
+                for followUp in source.followUpRegions {
+                    issues.append(
+                        "Source image \(source.sourceImageIndex + 1) needs a \(followUp.field) check for \(followUp.reason) at region (\(followUp.region.left), \(followUp.region.top), \(followUp.region.width), \(followUp.region.height))."
+                    )
+                }
+                if source.followUpRequired && source.followUpRegions.isEmpty {
+                    issues.append("Source image \(source.sourceImageIndex + 1) still requires an original-pixel check.")
+                }
+            }
+        }
+        if task.status == "waiting_for_user" && issues.isEmpty {
+            issues.append("Shared preprocessing is waiting for an unresolved original-image check.")
+        }
+        return issues.reduce(into: []) { unique, issue in
+            if !unique.contains(issue) { unique.append(issue) }
+        }
+    }
 }
 
 enum RelationshipCaptureClientError: LocalizedError, Equatable {
@@ -347,6 +858,35 @@ enum RelationshipCaptureClientError: LocalizedError, Equatable {
 }
 
 private struct EmptyBody: Encodable {}
+
+private struct ScreenshotContactDeleteBody: Encodable {
+    let expectedRevision: Int
+    enum CodingKeys: String, CodingKey { case expectedRevision = "expected_revision" }
+}
+
+private struct ScreenshotContactCaptureLinkBody: Encodable {
+    let expectedRevision: Int
+    let captureID: String
+    let sourceResourceID: String
+    enum CodingKeys: String, CodingKey {
+        case expectedRevision = "expected_revision"
+        case captureID = "capture_id"
+        case sourceResourceID = "source_resource_id"
+    }
+}
+
+private struct ScreenshotContactCaptureLink: Decodable {
+    let taskID: String
+    let revision: Int
+    let captureID: String
+    let sourceResourceID: String
+    enum CodingKeys: String, CodingKey {
+        case taskID = "task_id"
+        case revision
+        case captureID = "capture_id"
+        case sourceResourceID = "source_resource_id"
+    }
+}
 
 private struct ClaimDecisionBody: Encodable {
     let idempotency_key: String
@@ -535,6 +1075,9 @@ private struct ResourceCaptureBody: Encodable {
         let sourceMessageID: String
         let sequence: Int
         let speakerSide: String
+        let speakerLabel: String?
+        let visibleTimeText: String?
+        let sourceImageIndex: Int?
         let messageTimestamp: String?
 
         enum CodingKeys: String, CodingKey {
@@ -542,6 +1085,9 @@ private struct ResourceCaptureBody: Encodable {
             case sourceMessageID = "source_message_id"
             case sequence
             case speakerSide = "speaker_side"
+            case speakerLabel = "speaker_label"
+            case visibleTimeText = "visible_time_text"
+            case sourceImageIndex = "source_image_index"
             case messageTimestamp = "message_timestamp"
         }
     }

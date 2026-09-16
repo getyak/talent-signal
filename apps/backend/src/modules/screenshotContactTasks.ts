@@ -3,14 +3,20 @@ import { saveProductRunOutput, productRunSink } from "./productRunStorage.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import {
+  ARK_SCREENSHOT_PREPROCESS_MODEL, ArkScreenshotPreprocessor,
+  SCREENSHOT_PREPROCESS_CONTRACT, SCREENSHOT_PREPROCESS_PROMPT_VERSION,
+  SCREENSHOT_PREPROCESS_SCHEMA_VERSION, SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT,
   CONTACT_INTAKE_TOOLS, CONTACT_RESEARCH_CONTRACT, ContactProfileFieldSchema,
   ScreenshotContactTaskRequestSchema, ScreenshotContactTaskResponseSchema, TextContactTaskRequestSchema,
   ZhipuContactAgentModel, groundContactTextExtraction, contactDocumentBlocks,
   ClaudeContactAgentModel, claudeHarnessConfiguration, ContactChatExtractionSchema,
   ContactProfileConfirmationSchema,
+  ScreenshotPreprocessPacketSchema, assertScreenshotPreprocessAgreement,
+  extractionFromPreprocess, preprocessNeedsOriginalMultimodalRead,
   resolveProductPrompt, type PromptSnapshot,
   type ContactAgentModel, type ContactAgentToolCall, type ContactIntakeToolName,
   type ContactPublicSource, type ContactProfileField,
+  type ScreenshotPreprocessor, type ScreenshotPreprocessResult,
   type ScreenshotContactTaskRequest, type ScreenshotContactTaskResponse, type TextContactTaskRequest,
 } from "@talent-signal/agent";
 import { CONTRACT_VERSION, type ResourceCaptureRequest } from "@talent-signal/contracts";
@@ -19,10 +25,11 @@ import { deleteCapture } from "./captures.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
 import type { AuthContext } from "./auth.js";
+import { lockContactTaskPerson } from "./contactTaskConcurrency.js";
 import { searchPeople, getRelationshipScope } from "./people.js";
 import { createResourceCaptureInTransaction } from "./resourceIntake.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
-import { contactImages, validateContactImage, reserveContactImages, persistContactImages, readContactImage, purgeExpiredContactImages, type ContactImageManifest } from "./contactTaskImages.js";
+import { contactImages, validateContactImage, reserveContactImages, persistContactImages, readContactImage, purgeExpiredContactImages, purgeContactImagesForTask, type ContactImageManifest } from "./contactTaskImages.js";
 import { mergeContactExtractions } from "./mergeContactExtractions.js";
 import { profileUnderstanding, saveReviewedContactProfile } from "./contactProfileDraft.js";
 import { LocalContactResearchClient, type ContactResearchClient } from "./contactResearchClient.js";
@@ -31,7 +38,15 @@ type Response = ScreenshotContactTaskResponse;
 type Manifest = Omit<ScreenshotContactTaskRequest, "image" | "additional_images"> & { image?: ContactImageManifest; additional_images?: ContactImageManifest[]; text?: string };
 interface TaskState {
   deletion_requested?: boolean;
+  preprocessing_deletion_requested?: boolean;
   extraction_parts?: NonNullable<Response["extraction"]>[];
+  preprocessing_required?: boolean;
+  preprocessing_inflight?: number;
+  preprocessing_parts?: ScreenshotPreprocessResult[];
+  preprocessing_follow_up_abstained?: boolean;
+  preprocessing_refinement_abstained_indices?: number[];
+  preprocessing_refined_indices?: number[];
+  preprocessing_refinement_unresolved?: boolean;
   batch_conflict?: boolean;
   prompts?: { transcription: PromptSnapshot; contact: PromptSnapshot };
   response: Response;
@@ -45,15 +60,71 @@ interface TaskState {
   user_contact_label?: string;
 }
 interface Row {
-  id: string; account_id: string; created_by_user_id: string; request_hash: string;
+  id: string; account_id: string; created_by_user_id: string; idempotency_key: string; request_hash: string;
   input_manifest: Manifest; state: TaskState; status: Response["status"];
   revision: number; lease_epoch: number; expires_at: Date;
-  capture_id: string | null; subject_id: string | null;
+  capture_id: string | null; source_resource_id: string | null; subject_id: string | null; assignment_id: string | null;
   created_at: Date; updated_at: Date;
 }
-export interface ScreenshotContactDependencies { model: ContactAgentModel; research: ContactResearchClient | null }
+export interface ScreenshotContactDependencies {
+  model: ContactAgentModel;
+  preprocessor?: ScreenshotPreprocessor;
+  research: ContactResearchClient | null;
+}
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const normalized = (value: string) => value.normalize("NFKC").toLocaleLowerCase().trim();
+const normalizedEvidence = (value: string) => normalized(value).replace(/\s+/gu," ");
+const searchableIdentityKinds = new Set(["name","handle","profile_url"]);
+const identityWords = (value: string) => normalizedEvidence(value).match(/[\p{L}\p{N}]+/gu)??[];
+const identityHandleTokens = (value: string) => normalizedEvidence(value).match(/[\p{L}\p{N}_.+@-]+/gu)??[];
+const identityAdjacency = /[\p{L}\p{N}_.+@/\\?&=#%-]/u;
+function hasStandaloneVisibleName(value:string,sourceExcerpt:string):boolean{
+  const expected=normalizedEvidence(value),excerpt=normalizedEvidence(sourceExcerpt);
+  if(!expected)return false;
+  for(let index=excerpt.indexOf(expected);index>=0;index=excerpt.indexOf(expected,index+expected.length)){
+    const before=Array.from(excerpt.slice(0,index)).at(-1)??"";
+    const after=Array.from(excerpt.slice(index+expected.length))[0]??"";
+    if(!identityAdjacency.test(before)&&!identityAdjacency.test(after))return true;
+  }
+  return false;
+}
+function canonicalProfileURL(value:string):string|null{
+  try{
+    const url=new URL(value);if(!["http:","https:"].includes(url.protocol))return null;
+    url.hash="";url.hostname=url.hostname.toLocaleLowerCase();
+    url.pathname=url.pathname.replace(/\/+$/u,"")||"/";
+    return url.toString();
+  }catch{return null;}
+}
+function isGroundedIdentityClue(clue:NonNullable<Response["extraction"]>["identity_clues"][number]):boolean{
+  const value=normalizedEvidence(clue.value),excerpt=normalizedEvidence(clue.source_excerpt);
+  if(!value||!excerpt)return false;
+  if(clue.kind==="profile_url"){
+    const expected=canonicalProfileURL(value);if(!expected)return false;
+    return (excerpt.match(/https?:\/\/[^\s<>"']+/giu)??[]).some(candidate=>canonicalProfileURL(
+      candidate.replace(/[),.;!?]+$/u,""))===expected);
+  }
+  if(clue.kind==="handle"){
+    const expected=value.replace(/^@/u,"");
+    return identityHandleTokens(excerpt).some(token=>token.replace(/^@/u,"")===expected);
+  }
+  if(clue.kind==="name")return hasStandaloneVisibleName(value,excerpt);
+  const expected=identityWords(value),visible=identityWords(excerpt);
+  if(!expected.length)return false;
+  return visible.some((_,index)=>expected.every((word,offset)=>visible[index+offset]===word));
+}
+function automaticIdentityEvidence(row:Row){
+  const extraction=row.state.response.extraction;
+  // Clarification is intentionally available before understanding exists.
+  if(!extraction)return {contactName:null,clues:[]};
+  if(!row.state.response.preprocessing)return {contactName:extraction.contact_name,clues:extraction.identity_clues};
+  // Preserve every provider clue in its original position for target-bound
+  // follow-up correction. Only project grounded values at action boundaries.
+  const clues=extraction.identity_clues.filter(isGroundedIdentityClue);
+  const contactName=extraction.contact_name&&clues.some(clue=>clue.kind==="name"&&
+    normalizedEvidence(clue.value)===normalizedEvidence(extraction.contact_name!))?extraction.contact_name:null;
+  return {contactName,clues};
+}
 function deny(code: string): never { throw new ApiError(409, code, code); }
 function codeOf(error: unknown): string {
   if (error instanceof ApiError) return error.code;
@@ -73,11 +144,29 @@ async function rowFor(client: Pool | PoolClient, auth: AuthContext, id: string, 
   return result.rows[0];
 }
 
+const sourceDeletionRequested = (row: Row) =>
+  row.state.deletion_requested === true || row.state.preprocessing_deletion_requested === true;
+
 async function assertSourceCurrent(client: Pool | PoolClient, row: Row): Promise<void> {
-  if (row.expires_at.getTime() <= Date.now() || row.status === "deleted") deny("CONTACT_TASK_SOURCE_UNAVAILABLE");
+  if (row.expires_at.getTime() <= Date.now() || row.status === "deleted" || sourceDeletionRequested(row))
+    deny("CONTACT_TASK_SOURCE_UNAVAILABLE");
   const directory=(await client.query<{available:boolean}>("SELECT contact_task_directory_available($1,$2::jsonb) AS available",[row.account_id,JSON.stringify(row.state)])).rows[0];
   if(!directory?.available)deny("CONTACT_DIRECTORY_CHANGED_SEARCH_AGAIN");
   if (!row.capture_id) return;
+  if(row.input_manifest.preprocess_only===true){
+    const linked=await client.query(`SELECT 1 FROM captures c
+      JOIN subjects s ON s.account_id=c.account_id AND s.id=c.subject_id
+      JOIN assignments a ON a.account_id=c.account_id AND a.id=c.assignment_id AND a.subject_id=c.subject_id
+      JOIN source_resources r ON r.account_id=c.account_id AND r.capture_id=c.id
+      JOIN source_retention_receipts sr ON sr.account_id=c.account_id AND sr.capture_id=c.id
+      WHERE c.account_id=$1 AND c.id=$2 AND c.status='active' AND s.status='active' AND c.subject_id=$3
+        AND c.assignment_id=$4 AND a.status='active' AND r.id=$5 AND r.processing_state<>'deleted'
+        AND sr.authorization_state='authorized'
+        AND (sr.authorization_expires_at IS NULL OR sr.authorization_expires_at>statement_timestamp())`,
+      [row.account_id,row.capture_id,row.subject_id,row.assignment_id,row.source_resource_id]);
+    if(!linked.rowCount)deny("CONTACT_TASK_SOURCE_UNAVAILABLE");
+    return;
+  }
   const found = await client.query(`SELECT 1 FROM captures c JOIN subjects s ON s.account_id=c.account_id AND s.id=c.subject_id
     JOIN source_retention_receipts r ON r.account_id=c.account_id AND r.capture_id=c.id
     WHERE c.account_id=$1 AND c.id=$2 AND c.status='active' AND s.status='active'
@@ -89,18 +178,25 @@ async function assertSourceCurrent(client: Pool | PoolClient, row: Row): Promise
 
 async function save(client: PoolClient, row: Row) {
   const response = row.state.response;
+  const linkedPreprocessing = row.input_manifest.preprocess_only===true && row.capture_id!==null;
+  const subjectID=linkedPreprocessing?row.subject_id:response.contact?.person_id??null;
+  const assignmentID=linkedPreprocessing?row.assignment_id:response.contact?.relationship_context_id??null;
+  const captureID=linkedPreprocessing?row.capture_id:response.capture_id;
+  const sourceResourceID=linkedPreprocessing?row.source_resource_id:response.source_resource_id;
   response.limitations=response.limitations.slice(-20);
   const result = await client.query<{revision:number;updated_at:Date}>(`UPDATE screenshot_contact_tasks
     SET state=$3::jsonb,status=$4,revision=revision+1,subject_id=$5,assignment_id=$6,capture_id=$7,source_resource_id=$8,
       updated_at=now(),lease_until=CASE WHEN $4='running' THEN now()+interval '90 seconds' ELSE NULL END
     WHERE account_id=$1 AND id=$2 AND status <> 'deleted' AND lease_epoch=$9
     RETURNING revision,updated_at`,[row.account_id,row.id,JSON.stringify(row.state),response.status,
-      response.contact?.person_id??null,response.contact?.relationship_context_id??null,response.capture_id,response.source_resource_id,row.lease_epoch]);
+      subjectID,assignmentID,captureID,sourceResourceID,row.lease_epoch]);
   if (!result.rows[0]) deny("CONTACT_TASK_LEASE_LOST");
   row.revision=result.rows[0].revision;
   row.status=response.status;
-  row.capture_id=response.capture_id;
-  row.subject_id=response.contact?.person_id??null;
+  row.capture_id=captureID;
+  row.source_resource_id=sourceResourceID;
+  row.subject_id=subjectID;
+  row.assignment_id=assignmentID;
   response.revision=row.revision;response.updated_at=result.rows[0].updated_at.toISOString();
   await saveProductRunOutput(client,{accountID:row.account_id,taskID:row.id},response as unknown as Record<string,unknown>,response.status);
 }
@@ -114,7 +210,9 @@ export async function loadScreenshotContactTask(pool: Pool, auth: AuthContext, i
     // A failed availability lookup is not evidence that the source was deleted.
     throw error;
   }
-  return ScreenshotContactTaskResponseSchema.parse({...row.state.response,revision:row.revision,updated_at:row.updated_at.toISOString()});
+  return ScreenshotContactTaskResponseSchema.parse({...row.state.response,
+    preprocessing_pending_source_indices:pendingPreprocessRefinementIndices(row),
+    revision:row.revision,updated_at:row.updated_at.toISOString()});
 }
 
 export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:string,input:{
@@ -122,8 +220,17 @@ export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:
   new_contact_name?:string; image?:ScreenshotContactTaskRequest["image"];
 }):Promise<Response>{
   await inTransaction(pool,async client=>{
-    const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
-    if(row.state.deletion_requested)deny("CONTACT_SOURCE_DELETION_PENDING");
+    const observed=await rowFor(client,auth,id);
+    const personIDs=[...new Set([
+      input.selected_person_id,
+      observed.state.selected?.person_id,
+      observed.subject_id??undefined,
+      observed.state.response.contact?.person_id,
+    ].filter((value):value is string=>Boolean(value)))].sort();
+    for(const personID of personIDs)await lockContactTaskPerson(client,auth.accountId,personID);
+    const row=await rowFor(client,auth,id,true);
+    if(sourceDeletionRequested(row))deny("CONTACT_SOURCE_DELETION_PENDING");
+    await assertSourceCurrent(client,row);
     if(row.revision!==input.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
     if(!["waiting_for_user","partial","failed","cancelled"].includes(row.status))deny("CONTACT_TASK_NOT_RESUMABLE");
     if(Boolean(input.selected_person_id)!==Boolean(input.selected_relationship_context_id))deny("CONTACT_TASK_SCOPE_INCOMPLETE");
@@ -137,19 +244,29 @@ export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:
     if(row.state.response.contact_draft)deny("CONTACT_PROFILE_REVIEW_REQUIRED");
     if(input.new_contact_name){
       if(row.state.response.capture_id)deny("CONTACT_TASK_ALREADY_FILED");
+      if(row.state.response.contact)deny("CONTACT_TASK_SCOPE_AMBIGUOUS");
       row.state.user_contact_label=input.new_contact_name.trim();
     }
     if(input.selected_person_id){
       if(row.state.response.capture_id)deny("CONTACT_TASK_ALREADY_FILED");
+      const checkpointed=row.state.response.contact;
+      if(checkpointed&&(checkpointed.person_id!==input.selected_person_id||
+        checkpointed.relationship_context_id!==input.selected_relationship_context_id))deny("CONTACT_TASK_SCOPE_AMBIGUOUS");
       await getRelationshipScope(client,auth,input.selected_person_id,input.selected_relationship_context_id!);
       row.state.selected={person_id:input.selected_person_id,relationship_context_id:input.selected_relationship_context_id!};
+    }
+    const unknownPreprocessIndex=row.state.preprocessing_inflight;
+    if(unknownPreprocessIndex!==undefined){
+      delete row.state.preprocessing_inflight;
+      row.state.response.events.push({sequence:row.state.response.events.length+1,tool:"preprocess_screenshot_retry_authorized",status:"completed",occurred_at:new Date().toISOString()});
     }
     row.state.response.status="running";row.state.response.question=null;row.state.turns=0;row.state.tokens=0;
     row.state.model_receipts=row.state.model_receipts.slice(-50);
     row.state.response.events=row.state.response.events.slice(-60).map((event,index)=>({...event,sequence:index+1}));
     await save(client,row);
     await client.query("UPDATE screenshot_contact_tasks SET lease_until=NULL,lease_epoch=lease_epoch+1 WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
-    await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.resumed","screenshot_contact_task",id,{selected_person_id:input.selected_person_id??null});
+    await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.resumed","screenshot_contact_task",id,
+      {selected_person_id:input.selected_person_id??null,preprocess_retry_authorized_for_image:unknownPreprocessIndex??null});
   });
   return loadScreenshotContactTask(pool,auth,id);
 }
@@ -159,8 +276,18 @@ export async function confirmScreenshotContactProfile(pool:Pool,auth:AuthContext
   const parsed=ContactProfileConfirmationSchema.safeParse(raw);
   if(!parsed.success)throw new ApiError(422,"CONTACT_PROFILE_REVIEW_INVALID","请核对姓名和资料字段后再保存。");
   const review=parsed.data;
+  const observed=await rowFor(pool,auth,id);
+  const personIDs=[...new Set([
+    review.selected_person_id,
+    observed.state.selected?.person_id,
+    observed.subject_id??undefined,
+    observed.state.response.contact?.person_id,
+  ].filter((value):value is string=>Boolean(value)))].sort();
   await inTransaction(pool,async client=>{
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`${auth.accountId}:reviewed-profile-admission`]);
+    for(const personID of personIDs)await lockContactTaskPerson(client,auth.accountId,personID);
     const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
+    if(row.input_manifest.preprocess_only===true)deny("CONTACT_PREPROCESS_PROFILE_FILING_FORBIDDEN");
     if(row.revision!==review.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
     if(row.status!=="waiting_for_user"||!row.state.response.contact_draft||!row.state.response.extraction||row.state.batch_conflict)deny("CONTACT_PROFILE_NOT_REVIEWABLE");
     const response=row.state.response;
@@ -182,7 +309,14 @@ export async function confirmScreenshotContactProfile(pool:Pool,auth:AuthContext
   return loadScreenshotContactTask(pool,auth,id);
 }
 
-export async function cancelScreenshotContactTask(pool:Pool,auth:AuthContext,id:string,expectedRevision:number){
+export async function cancelScreenshotContactTask(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,
+  onCancellationRequested?:()=>void){
+  // Authenticate exact task ownership and the observed revision before an
+  // in-memory abort can affect a concurrent owner request. The transaction
+  // below repeats the checks under the task row lock.
+  const preflight=await rowFor(pool,auth,id);
+  if(preflight.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
+  onCancellationRequested?.();
   await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
     if(row.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
@@ -218,7 +352,9 @@ export async function loadContactIntelligence(pool:Pool,auth:AuthContext,personI
     AND t.status<>'deleted' AND t.expires_at>now() AND c.status='active' AND c.retention_until>now()
     AND r.authorization_state='authorized' AND r.source_access_state='available'
     ORDER BY t.created_at DESC LIMIT 20`,[auth.accountId,personID,contextID,auth.userId]);
-  return {scope,archive:null,person_revision:person.rows[0]?.version,tasks:tasks.rows.map(row=>ScreenshotContactTaskResponseSchema.parse({...row.state.response,revision:row.revision,updated_at:row.updated_at.toISOString()}))};
+  return {scope,archive:null,person_revision:person.rows[0]?.version,tasks:tasks.rows.map(row=>ScreenshotContactTaskResponseSchema.parse({...row.state.response,
+    preprocessing_pending_source_indices:pendingPreprocessRefinementIndices(row),
+    revision:row.revision,updated_at:row.updated_at.toISOString()}))};
 }
 
 /** Recovery reads only the caller's operation identity; no pixels, model run or write. */
@@ -240,27 +376,106 @@ export async function listScreenshotContactTasks(pool:Pool,auth:AuthContext){
   return {tasks};
 }
 
-export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,storage?:ChatMediaStorage){
+export async function deleteContactCaptureTask(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,
+  storage?:ChatMediaStorage,onDeletionFenced?:()=>void){
   const captureID=await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);
     if(row.status==="deleted")return row.capture_id;
-    if(row.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
-    // Fence in-flight model work before removing governed evidence. A partial
-    // failure leaves this same task cancelled and allows a fresh delete retry.
-    row.state.deletion_requested=true;row.state.response.status="cancelled";row.state.response.limitations.push("CONTACT_SOURCE_DELETION_PENDING");await save(client,row);
-    await client.query("UPDATE screenshot_contact_tasks SET lease_epoch=lease_epoch+1,lease_until=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
+    if(!row.state.deletion_requested){
+      if(row.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
+      // Fence in-flight model work before removing governed evidence. Once the
+      // intent commits, the same user may continue deletion with the original
+      // revision after a later phase fails; the intent itself is irreversible.
+      row.state.deletion_requested=true;row.state.response.status="cancelled";
+      row.state.response.limitations.push("CONTACT_SOURCE_DELETION_PENDING");await save(client,row);
+      await client.query("UPDATE screenshot_contact_tasks SET lease_epoch=lease_epoch+1,lease_until=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
+    }
     return row.capture_id;
   });
+  onDeletionFenced?.();
   if(captureID)await deleteCapture(pool,auth,captureID,{idempotency_key:`delete-contact-source:${id}`,reason:"User deleted this captured source and its derived analysis."});
   await inTransaction(pool,async client=>{
-    await rowFor(client,auth,id,true);
+    const row=await rowFor(client,auth,id,true);
+    if(row.status==="deleted")return;
     await client.query("DELETE FROM contact_profile_observations WHERE account_id=$1 AND task_id=$2",[auth.accountId,id]);
     await client.query(`UPDATE screenshot_contact_tasks SET state='{}'::jsonb,input_manifest='{}'::jsonb,status='deleted',
       revision=revision+1,lease_epoch=lease_epoch+1,lease_until=NULL,updated_at=now() WHERE account_id=$1 AND id=$2 AND status<>'deleted'`,[auth.accountId,id]);
     await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.deleted","screenshot_contact_task",id,{});
   });
-  if(storage)await purgeExpiredContactImages(pool,storage);
+  if(storage)await purgeContactImagesForTask(pool,auth.accountId,id,storage);
   return loadScreenshotContactTask(pool,auth,id);
+}
+
+/** Remove a preprocessing task's retained copy without deleting a canonical
+ * capture that was linked after the copy was created. Full task deletion is a
+ * separate user operation and continues to cascade through deleteCapture. */
+export async function deleteScreenshotPreprocessingSource(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,
+  storage?:ChatMediaStorage,onDeletionFenced?:()=>void){
+  await inTransaction(pool,async client=>{
+    const row=await rowFor(client,auth,id,true);
+    if(row.status==="deleted")return;
+    if(row.input_manifest.preprocess_only!==true)deny("CONTACT_PREPROCESS_DELETE_REQUIRED");
+    if(!row.state.preprocessing_deletion_requested){
+      if(row.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
+      row.state.preprocessing_deletion_requested=true;row.state.response.status="cancelled";
+      row.state.response.limitations.push("CONTACT_PREPROCESS_SOURCE_DELETION_PENDING");await save(client,row);
+      await client.query("UPDATE screenshot_contact_tasks SET lease_epoch=lease_epoch+1,lease_until=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,id]);
+    }
+  });
+  onDeletionFenced?.();
+  await inTransaction(pool,async client=>{
+    const row=await rowFor(client,auth,id,true);
+    if(row.status==="deleted")return;
+    await client.query("DELETE FROM contact_profile_observations WHERE account_id=$1 AND task_id=$2",[auth.accountId,id]);
+    await client.query(`UPDATE screenshot_contact_tasks SET state='{}'::jsonb,input_manifest='{}'::jsonb,status='deleted',
+      revision=revision+1,lease_epoch=lease_epoch+1,lease_until=NULL,updated_at=now() WHERE account_id=$1 AND id=$2 AND status<>'deleted'`,[auth.accountId,id]);
+    await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.preprocessing_source_deleted","screenshot_contact_task",id,{});
+  });
+  if(storage)await purgeContactImagesForTask(pool,auth.accountId,id,storage);
+  return loadScreenshotContactTask(pool,auth,id);
+}
+
+export async function linkScreenshotContactTaskCapture(pool:Pool,auth:AuthContext,id:string,input:{
+  expected_revision:number;capture_id:string;source_resource_id:string;
+}){
+  return inTransaction(pool,async client=>{
+    const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
+    if(row.input_manifest.preprocess_only!==true)deny("CONTACT_PREPROCESS_LINK_REQUIRED");
+    if(row.capture_id){
+      if(row.capture_id!==input.capture_id||row.source_resource_id!==input.source_resource_id)
+        deny("CONTACT_PREPROCESS_CAPTURE_CONFLICT");
+      return {task_id:id,revision:row.revision,capture_id:row.capture_id,source_resource_id:input.source_resource_id};
+    }
+    if(row.revision!==input.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
+    if(!["completed","waiting_for_user"].includes(row.status))deny("CONTACT_PREPROCESS_NOT_LINKABLE");
+    // New tasks use v3. Keep exact v2 linkage for retained receipts created
+    // before the baseline_text contract upgrade; they are never replayed as v3.
+    const seed=/^ios:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):preprocess-v(?:2|3)$/u.exec(row.idempotency_key)?.[1];
+    if(!seed)deny("CONTACT_PREPROCESS_SOURCE_MISMATCH");
+    const capture=await client.query<{subject_id:string;assignment_id:string}>(`SELECT c.subject_id,c.assignment_id
+      FROM captures c JOIN source_resources r ON r.account_id=c.account_id AND r.capture_id=c.id
+      JOIN subjects s ON s.account_id=c.account_id AND s.id=c.subject_id
+      JOIN assignments a ON a.account_id=c.account_id AND a.id=c.assignment_id AND a.subject_id=c.subject_id
+      JOIN source_retention_receipts sr ON sr.account_id=c.account_id AND sr.capture_id=c.id
+      JOIN idempotency_records k ON k.account_id=c.account_id AND k.actor_user_id=c.created_by_user_id
+      WHERE c.account_id=$1 AND c.id=$2 AND c.created_by_user_id=$3 AND c.status='active'
+        AND r.id=$4 AND r.processing_state<>'deleted' AND c.source_kind='conversation_screenshot'
+        AND r.resource_kind='conversation_screenshot' AND r.input_channel='ios_share' AND r.client_resource_id=$5
+        AND k.operation_scope='create_resource_capture' AND k.idempotency_key=$6 AND k.status='completed'
+        AND k.response_body->>'capture_id'=c.id::text AND s.status='active' AND a.status='active'
+        AND sr.authorization_state='authorized'
+        AND (sr.authorization_expires_at IS NULL OR sr.authorization_expires_at>statement_timestamp())
+      FOR UPDATE OF c,r,s,a,sr,k`,[auth.accountId,input.capture_id,auth.userId,input.source_resource_id,`ios-share:${seed}`,`ios:${seed}:capture`]);
+    if(!capture.rows[0])deny("CONTACT_PREPROCESS_SOURCE_MISMATCH");
+    const linked=await client.query<{revision:number}>(`UPDATE screenshot_contact_tasks SET capture_id=$4,source_resource_id=$5,
+      subject_id=$6,assignment_id=$7,revision=revision+1,updated_at=now()
+      WHERE account_id=$1 AND id=$2 AND created_by_user_id=$3 AND status<>'deleted' RETURNING revision`,
+      [auth.accountId,id,auth.userId,input.capture_id,input.source_resource_id,capture.rows[0].subject_id,capture.rows[0].assignment_id]);
+    const revision=linked.rows[0]!.revision;
+    await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.capture_linked","screenshot_contact_task",id,
+      {capture_id:input.capture_id,source_resource_id:input.source_resource_id});
+    return {task_id:id,revision,capture_id:input.capture_id,source_resource_id:input.source_resource_id};
+  });
 }
 
 export async function loadBrowserCaptureTask(pool: Pool, auth: AuthContext, requestID: string) {
@@ -293,7 +508,8 @@ export async function assertScreenshotContactImageCurrent(pool:Pool,auth:AuthCon
   [auth.accountId,id,index,hash])).rowCount) deny("CONTACT_IMAGE_UNAVAILABLE");
 }
 
-export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,raw: unknown, storage?:ChatMediaStorage): Promise<{body:Response;replayed:boolean}> {
+export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,raw: unknown, storage?:ChatMediaStorage,
+  options: { preprocessingRequired?: boolean } = {}): Promise<{body:Response;replayed:boolean}> {
   const parsed=ScreenshotContactTaskRequestSchema.or(TextContactTaskRequestSchema).safeParse(raw);
   if (!parsed.success) throw new ApiError(422,"CONTACT_TASK_INPUT_INVALID","请选择最多 10 张截图，每张不超过 10 MB，总计不超过 30 MB。");
   const request=parsed.data;const images="image" in request?contactImages(request):[];const manifest=imageManifest(request);const hash=digest(JSON.stringify(manifest));
@@ -314,12 +530,16 @@ export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,r
                 AND task.idempotency_key=$4 AND COALESCE(active.payload->'screenshotTaskIDs','[]'::jsonb) ? task.id::text)))
       LIMIT 1`,[auth.accountId,auth.userId,digest(request.idempotency_key),request.idempotency_key]);
     if(removedSession.rowCount) throw new ApiError(410,"CONTACT_TASK_SESSION_DELETED","The Session for this screenshot request was deleted or expired.");
-    if(request.selected_person_id) await getRelationshipScope(client,auth,request.selected_person_id,request.selected_relationship_context_id!);
+    if(request.selected_person_id){
+      await lockContactTaskPerson(client,auth.accountId,request.selected_person_id);
+      await getRelationshipScope(client,auth,request.selected_person_id,request.selected_relationship_context_id!);
+    }
     const id=randomUUID();const now=new Date().toISOString();
     const response:Response={...(request.source?{source:request.source,source_captured_at:request.captured_at}:{}),...("text" in request?{source_text:request.text}:{}),...(storage?{source_images:images.map((image,image_index)=>({...validateContactImage(image),image_index}))}:{}),task_id:id,revision:1,status:"running",contact:null,capture_id:null,source_resource_id:null,
       message_count:0,extraction:null,summary:"",findings:[],profile_fields:[],public_sources:[],question:null,candidates:[],
       limitations:[],events:[],external_effects:[],created_at:now,updated_at:now};
-    const state:TaskState={response,searches:[],observations:[],model_receipts:[],turns:0,tokens:0,pending_research:null,
+    const state:TaskState={response,preprocessing_required:options.preprocessingRequired===true&&"image" in request,
+      searches:[],observations:[],model_receipts:[],turns:0,tokens:0,pending_research:null,
       selected:request.selected_person_id?{person_id:request.selected_person_id,relationship_context_id:request.selected_relationship_context_id!}:null};
     const result=await client.query(`INSERT INTO screenshot_contact_tasks(id,account_id,created_by_user_id,idempotency_key,request_hash,input_manifest,state,status)
       VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,'running') ON CONFLICT(account_id,created_by_user_id,idempotency_key) DO NOTHING RETURNING id`,
@@ -332,7 +552,9 @@ export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,r
     }
     if(storage) await reserveContactImages(client,auth,id,images.map(validateContactImage),storage);
     await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.created","screenshot_contact_task",id,
-      {image_content_hashes:images.map(image=>image.content_hash),raw_image_storage_requested:Boolean(storage),automatic_internal_filing:true,public_research:request.allow_public_research});
+      {image_content_hashes:images.map(image=>image.content_hash),raw_image_storage_requested:Boolean(storage),
+        automatic_internal_filing:!("preprocess_only" in request&&request.preprocess_only===true),
+        preprocess_only:"preprocess_only" in request&&request.preprocess_only===true,public_research:request.allow_public_research});
     return {body:response,replayed:false};
   });
   if(storage && images.length) {
@@ -344,6 +566,8 @@ export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,r
 
 function toolsFor(row: Row): ContactIntakeToolName[] {
   const response=row.state.response;
+  if(row.input_manifest.preprocess_only||row.state.preprocessing_refinement_unresolved) return [];
+  if(pendingPreprocessRefinementIndices(row).length) return [];
   if (!response.contact) return ["search_contacts","read_contact","create_contact","ask_contact_clarification"];
   if (!response.capture_id) return ["save_contact_chat","ask_contact_clarification"];
   const tools:ContactIntakeToolName[]=["update_contact","finish_contact_task","ask_contact_clarification"];
@@ -352,13 +576,111 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
   return tools;
 }
 
+function personAuthoritiesForCall(call:ContactAgentToolCall):string[]{
+  if(!["read_contact","save_contact_chat","update_contact"].includes(call.name))return [];
+  const personID=(call.arguments as {person_id?:unknown}).person_id;
+  return typeof personID==="string"?[personID]:[];
+}
+
 function currentToolState(row: Row) {
   const response=row.state.response, extraction=response.extraction;
-  return { allowed_tools:response.status!=="running" ? [] : !extraction ? ["record_screenshot_understanding"] : toolsFor(row), contact:response.contact, capture_id:response.capture_id,
+  const identity=extraction?automaticIdentityEvidence(row):null;
+  return { allowed_tools:response.status!=="running" ? [] : !extraction ? ["record_screenshot_understanding"]
+    : pendingPreprocessRefinementIndices(row).length ? ["record_screenshot_corrections"] : toolsFor(row), contact:response.contact, capture_id:response.capture_id,
     message_count:response.message_count,
-    public_query_tokens:extraction ? [extraction.contact_name,...extraction.identity_clues
+    public_query_tokens:identity ? [identity.contactName,...identity.clues
       .filter(clue=>["name","handle","company","job_title"].includes(clue.kind)).map(clue=>clue.value)].filter(Boolean) : [],
     query_rule:"Combine only these literal public identity tokens, with spaces. Do not add career keywords, translations, private messages, or contact details." };
+}
+
+function pendingPreprocessRefinementIndices(row: Row): number[] {
+  const completed=new Set(row.state.preprocessing_refined_indices??[]);
+  const abstained=new Set(row.state.preprocessing_refinement_abstained_indices??[]);
+  return row.state.response.preprocessing?.sources
+    .filter(source=>source.follow_up_regions.length>0&&!completed.has(source.source_image_index)&&
+      !abstained.has(source.source_image_index))
+    .map(source=>source.source_image_index)??[];
+}
+
+function hasHumanOnlyPreprocessUncertainty(row:Row):boolean{
+  return row.state.response.preprocessing?.sources.some(source=>{
+    const regionBound=new Set(source.follow_up_regions.map(region=>region.uncertainty_index));
+    return source.uncertainties.some((_,index)=>!regionBound.has(index));
+  })??false;
+}
+
+function boundedRefinementStillUnresolved(row:Row,sourceImageIndex:number,
+  part:NonNullable<Response["extraction"]>):boolean{
+  const source=row.state.response.preprocessing?.sources.find(item=>item.source_image_index===sourceImageIndex);
+  if(!source)return false;
+  const baseline=new Set(source.uncertainties);
+  const bounded=new Set(source.follow_up_regions.map(region=>source.uncertainties[region.uncertainty_index]).filter(Boolean));
+  // A new uncertainty is necessarily backed by one of this Run's declared
+  // region receipts. Baseline uncertainties without a region stay human-only.
+  return part.uncertainties.some(item=>bounded.has(item)||!baseline.has(item));
+}
+
+function normalizeRefinedExtraction(part:NonNullable<Response["extraction"]>,sourceImageIndex:number):NonNullable<Response["extraction"]>{
+  return ContactChatExtractionSchema.parse({...part,
+    messages:part.messages.map(message=>({...message,source_image_index:sourceImageIndex})),
+    identity_clues:part.identity_clues.map(clue=>({...clue,source_image_index:sourceImageIndex}))});
+}
+
+async function summarizeExtractionParts(client:PoolClient,auth:AuthContext,row:Row):Promise<void>{
+  const parts=row.state.extraction_parts??[];
+  if(!parts.length)deny("CONTACT_UNDERSTANDING_REQUIRED");
+  delete row.state.response.contact_draft;
+  delete row.state.batch_conflict;
+  row.state.response.question=null;
+  if(row.state.preprocessing_refinement_unresolved){
+    const merged=parts.length===1?{extraction:parts[0]!}:mergeContactExtractions(parts);
+    row.state.response.extraction=merged.extraction;row.state.response.status="waiting_for_user";
+    row.state.response.question="限定原图补读后仍有无法可靠确认的字段。请核对原图并重新发送更清晰或范围更完整的截图。";
+    return;
+  }
+  if(hasHumanOnlyPreprocessUncertainty(row)){
+    const merged=parts.length===1?{extraction:parts[0]!}:mergeContactExtractions(parts);
+    row.state.response.extraction=merged.extraction;row.state.response.status="waiting_for_user";
+    row.state.response.question="预处理仍有未声明可复读区域的不确定字段。为避免扩大原图暴露，请人工核对或重新发送更清晰、范围更完整的截图。";
+    row.state.response.summary=row.input_manifest.preprocess_only
+      ? "截图已完成共享预处理，但仍有仅供人工核对的字段；未执行联系人或证据写入。"
+      : "截图预处理已保留；未授权额外模型读取，等待人工核对。";
+    return;
+  }
+  if(parts.every(part=>!part.contact_name&&!part.identity_clues.length&&!part.messages.length)){
+    row.state.response.extraction=parts[0]!;row.state.response.status="completed";
+    row.state.response.summary="未发现可归档的人物。来源已保存，可检查原图或删除本次采集。";return;
+  }
+  if(row.input_manifest.preprocess_only===true){
+    const merged=parts.length===1?{extraction:parts[0]!,question:null as string|null,identityConflict:false}:mergeContactExtractions(parts);
+    const mergedExtraction=merged.extraction??parts[0]!;
+    row.state.response.extraction=mergedExtraction;
+    const unresolved=Boolean(merged.question)||parts.some(part=>part.uncertainties.length>0);
+    row.state.response.status=unresolved?"waiting_for_user":"completed";
+    row.state.response.question=merged.question??(unresolved
+      ? "共享预处理仍有无法可靠确认的字段；请核对原图或重新发送更清晰、范围更完整的截图。"
+      : null);
+    row.state.response.summary=unresolved
+      ? "截图已完成共享预处理，但仍有具体字段需要人工核对；未执行联系人或证据写入。"
+      : "截图已完成共享预处理；结构化结果仍需用户核对，未执行联系人或证据写入。";
+    return;
+  }
+  const profile=profileUnderstanding(parts);
+  if(profile){
+    row.state.response.extraction=profile.extraction;row.state.response.contact_draft=profile.draft;
+    row.state.response.status="waiting_for_user";row.state.response.question="请核对联系人资料，修改后保存。";
+    if(row.state.selected){
+      const scope=await getRelationshipScope(client,auth,row.state.selected.person_id,row.state.selected.relationship_context_id);
+      row.state.response.candidates=[{...row.state.selected,display_name:scope.person.display_label,relationship_label:scope.relationship_context.display_label}];
+    }
+    return;
+  }
+  const merged=parts.length===1?{extraction:parts[0]!,question:null as string|null,identityConflict:false}:mergeContactExtractions(parts);
+  if(parts.every(part=>["profile","not_chat"].includes(part.conversation_kind)))
+    merged.question="无法把这些资料截图核对为同一平台的同一联系人，请按联系人和平台分别发送。";
+  row.state.response.extraction=merged.extraction;
+  if(merged.question){row.state.response.status="waiting_for_user";row.state.response.question=merged.question;row.state.batch_conflict=merged.identityConflict;}
+  else row.state.response.status="running";
 }
 
 function sourceExcerpt(row:Row,refs:string[],quote:string,publicAllowed:boolean) {
@@ -411,7 +733,9 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
       retention:{requested_mode:"evidence_crop",source_scope:"proposed_extracted_text",requested_retention_until:row.expires_at.toISOString()}},
     fragments:extraction.messages.map(m=>({client_resource_id:clientResourceID,kind:extraction.conversation_kind==="not_chat"?"document_text":"message",sequence:m.sequence,text:m.text,
       locator:extraction.conversation_kind==="not_chat"?{kind:"document_text",paragraph:documentBlocks?.[m.sequence]?.paragraph??m.sequence+1,
-        ...(documentBlocks?.[m.sequence]?{section_label:`UTF-16 [${documentBlocks[m.sequence]!.start},${documentBlocks[m.sequence]!.end})`}:{})}:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side},
+        ...(documentBlocks?.[m.sequence]?{section_label:`UTF-16 [${documentBlocks[m.sequence]!.start},${documentBlocks[m.sequence]!.end})`}:{})}:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side,
+          ...(m.source_image_index===undefined?{}:{source_image_index:m.source_image_index}),
+          ...(m.speaker_label?{speaker_label:m.speaker_label}:{}),...(m.time_text?{visible_time_text:m.time_text}:{})},
       attribution:{actor_kind:"unknown",status:"unknown"},review_status:"proposed",parser:{name:"screenshot-contact-agent",version:"1"}})),
   };
   const result=await createResourceCaptureInTransaction(client,auth,request);
@@ -426,13 +750,26 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
 
 async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:ContactAgentToolCall):Promise<unknown> {
   const response=row.state.response;const extraction=response.extraction!;
+  const identity=automaticIdentityEvidence(row);
   switch(call.name){
     case "search_contacts":{
       const args=CONTACT_INTAKE_TOOLS.search_contacts.schema.parse(call.arguments);
-      const clues=[row.state.user_contact_label,extraction.contact_name,...extraction.identity_clues.filter(c=>["name","handle","profile_url"].includes(c.kind)).map(c=>c.value)].filter((v):v is string=>Boolean(v));
-      if(!clues.some(c=>normalized(c)===normalized(args.query)))deny("CONTACT_SEARCH_NOT_AN_IDENTITY_CLUE");
+      const strictPreprocessing=Boolean(response.preprocessing);
+      const exactUserLabel=Boolean(row.state.user_contact_label&&normalized(row.state.user_contact_label)===normalized(args.query));
+      const exactVisibleName=Boolean(identity.contactName&&normalized(identity.contactName)===normalized(args.query)&&
+        (!strictPreprocessing||identity.clues.some(clue=>clue.kind==="name"&&normalized(clue.value)===normalized(args.query))));
+      const exactProfileURL=strictPreprocessing&&identity.clues.some(clue=>clue.kind==="profile_url"&&normalized(clue.value)===normalized(args.query));
+      const ordinaryClue=!strictPreprocessing&&identity.clues.some(clue=>searchableIdentityKinds.has(clue.kind)&&
+        normalized(clue.value)===normalized(args.query));
+      // For a preprocessing projection, a bare handle is not a typed directory
+      // query: searchPeople would treat it as a display-label substring and
+      // could bind @lin to Linda. Require an exact visible name or confirmed URL.
+      if(!exactUserLabel&&!exactVisibleName&&!exactProfileURL&&!ordinaryClue)deny("CONTACT_SEARCH_NOT_AN_IDENTITY_CLUE");
       const found=await searchPeople(client,auth,args.query);
-      const candidates=found.people.flatMap(p=>p.contexts.map(c=>({person_id:p.id,display_name:p.display_label,relationship_context_id:c.id,relationship_label:c.display_label}))).slice(0,10);
+      const eligiblePeople=strictPreprocessing?found.people.filter(person=>exactProfileURL
+        ? person.identity_matches.some(match=>match.kind==="confirmed_handle")
+        : normalized(person.display_label)===normalized(args.query)):found.people;
+      const candidates=eligiblePeople.flatMap(p=>p.contexts.map(c=>({person_id:p.id,display_name:p.display_label,relationship_context_id:c.id,relationship_label:c.display_label}))).slice(0,10);
       response.candidates=candidates;row.state.searches.push({query:args.query,candidates});
       return {query:args.query,candidates,unique:candidates.length===1,selected:row.state.selected};
     }
@@ -455,7 +792,7 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
     case "create_contact":{
       const args=CONTACT_INTAKE_TOOLS.create_contact.schema.parse(call.arguments);
       if(row.state.selected)deny("CONTACT_SELECTED_REUSE_REQUIRED");
-      const filingName=row.state.user_contact_label??extraction.contact_name;
+      const filingName=row.state.user_contact_label??identity.contactName;
       if(!filingName||normalized(filingName)!==normalized(args.display_name))deny("CONTACT_CREATE_REQUIRES_VISIBLE_NAME");
       if(!row.state.searches.some(s=>normalized(s.query)===normalized(args.display_name)&&s.candidates.length===0))deny("CONTACT_CREATE_REQUIRES_EMPTY_SEARCH");
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`${auth.accountId}:contact:${normalized(args.display_name)}`]);
@@ -480,16 +817,16 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
         // A public name match alone does not establish that the source describes this contact.
         const publicSources=field.source_refs.map(ref=>response.public_sources.find(s=>s.source_id===ref)).filter((s):s is ContactPublicSource=>Boolean(s));
         if(field.field==="public_profile"){
-          const urls=[...publicSources.map(s=>s.url),...extraction.identity_clues.filter(c=>c.kind==="profile_url").map(c=>c.value)];
+          const urls=[...publicSources.map(s=>s.url),...identity.clues.filter(c=>c.kind==="profile_url").map(c=>c.value)];
           const suppliedURL=field.value.match(/https:\/\/[^\s<>]+/u)?.[0];
           const citedURL=suppliedURL?urls.find(url=>comparableProfileURL(url)!==null&&comparableProfileURL(url)===comparableProfileURL(suppliedURL)):undefined;
           if(!citedURL)deny("CONTACT_PROFILE_REQUIRES_EXACT_CITED_URL");
           field.value=citedURL;field.epistemic_status="source_statement";
         }
         for(const source of publicSources){
-          const visibleProfile=extraction.identity_clues.some(c=>c.kind==="profile_url"&&normalized(c.value)===normalized(source.url));
-          const corroborated=extraction.contact_name&&normalized(`${source.title} ${source.text}`).includes(normalized(extraction.contact_name))&&
-            extraction.identity_clues.some(c=>["company","handle"].includes(c.kind)&&normalized(`${source.title} ${source.text} ${source.url}`).includes(normalized(c.value)));
+          const visibleProfile=identity.clues.some(c=>c.kind==="profile_url"&&normalized(c.value)===normalized(source.url));
+          const corroborated=identity.contactName&&normalized(`${source.title} ${source.text}`).includes(normalized(identity.contactName))&&
+            identity.clues.some(c=>["company","handle"].includes(c.kind)&&normalized(`${source.title} ${source.text} ${source.url}`).includes(normalized(c.value)));
           if(!visibleProfile&&!corroborated)deny("CONTACT_PUBLIC_IDENTITY_UNCORROBORATED");
         }
         await client.query(`INSERT INTO contact_profile_observations(id,account_id,subject_id,assignment_id,task_id,capture_id,observation_hash,observation)
@@ -536,6 +873,12 @@ export class ScreenshotContactTaskRunner {
     const controller=new AbortController();this.controllers.set(key,controller);
     const operation=this.observedRun(auth,id,image,controller.signal).finally(()=>{this.active.delete(key);this.controllers.delete(key);});this.active.set(key,operation);return operation;
   }
+  fenceSourceDeletion(auth:AuthContext,id:string):void{
+    this.fenceTaskCancellation(auth,id,"CONTACT_SOURCE_DELETION_PENDING");
+  }
+  fenceTaskCancellation(auth:AuthContext,id:string,reason="CONTACT_TASK_CANCELLED"):void{
+    this.controllers.get(`${auth.accountId}:${id}`)?.abort(new Error(reason));
+  }
   private async observedRun(auth:AuthContext,id:string,image:ScreenshotContactTaskRequest["image"]|undefined,signal:AbortSignal) {
     const result=await this.pool.query<{id:string;source_generation:string|null}>("SELECT id,source_generation FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3 ORDER BY created_at LIMIT 1",[auth.accountId,auth.userId,id]);
     const runID=result.rows[0]?.id;
@@ -545,11 +888,108 @@ export class ScreenshotContactTaskRunner {
   }
   async drain(){await Promise.allSettled(this.active.values());}
   async close(){for(const controller of this.controllers.values())controller.abort(new Error("CONTACT_AGENT_SERVER_STOPPED"));await this.drain();}
-  private async checkpoint<T>(auth:AuthContext,id:string,epoch:number,operation:(client:PoolClient,row:Row)=>Promise<T>):Promise<T>{
+  private async checkpoint<T>(auth:AuthContext,id:string,epoch:number,operation:(client:PoolClient,row:Row)=>Promise<T>,personIDs:string[]=[]):Promise<T>{
     return inTransaction(this.pool,async client=>{
+      for(const personID of [...new Set(personIDs)].sort())await lockContactTaskPerson(client,auth.accountId,personID);
       const row=await rowFor(client,auth,id,true);
       if(row.lease_epoch!==epoch||row.status!=="running")deny("CONTACT_TASK_LEASE_LOST");
       await assertSourceCurrent(client,row);const result=await operation(client,row);await save(client,row);return result;
+    });
+  }
+  private async preprocess(auth:AuthContext,id:string,epoch:number,image:ScreenshotContactTaskRequest["image"]|undefined,signal:AbortSignal):Promise<void>{
+    let row=await rowFor(this.pool,auth,id);
+    if(!row.state.preprocessing_required||row.state.response.preprocessing)return;
+    const preprocessor=this.dependencies.preprocessor;
+    if(!preprocessor)deny("SCREENSHOT_PREPROCESSOR_NOT_CONFIGURED");
+    assertScreenshotPreprocessAgreement({provider:preprocessor.provider,model:preprocessor.model,
+      contractVersion:SCREENSHOT_PREPROCESS_CONTRACT,schemaVersion:SCREENSHOT_PREPROCESS_SCHEMA_VERSION,
+      promptVersion:SCREENSHOT_PREPROCESS_PROMPT_VERSION});
+    const manifests=row.input_manifest.image?[row.input_manifest.image,...row.input_manifest.additional_images??[]]:[];
+    if(!manifests.length)deny("SCREENSHOT_PREPROCESS_SOURCE_REQUIRED");
+    for(let index=0;index<manifests.length;index++){
+      row=await rowFor(this.pool,auth,id);
+      if(row.state.preprocessing_parts?.some(part=>part.source.source_image_index===index))continue;
+      // A process loss after dispatch has an unknown provider receipt. Do not
+      // silently repeat a possibly billed request; a fresh user intent is required.
+      if(row.state.preprocessing_inflight!==undefined)deny("SCREENSHOT_PREPROCESS_RESPONSE_UNKNOWN");
+      await assertSourceCurrent(this.pool,row);
+      const stored=this.storage?await readContactImage(this.pool,auth,id,index,this.storage):null;
+      const current=stored??(index===0?image:undefined);
+      if(!current)deny("CONTACT_ORIGINAL_IMAGE_REQUIRED");
+      validateContactImage(current);
+      if(current.content_hash!==manifests[index]!.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
+      await this.checkpoint(auth,id,epoch,async(_,latest)=>{latest.state.preprocessing_inflight=index;});
+      const output=await preprocessor.preprocess(current,index,signal,async()=>{
+        signal.throwIfAborted();
+        // Hold the task row while source/directory authority is checked. A
+        // concurrent Stop/archive then commits only after this check and its
+        // route aborts the same controller before the request can continue.
+        await inTransaction(this.pool,async client=>{
+          const authorized=await rowFor(client,auth,id,true);
+          if(authorized.lease_epoch!==epoch||authorized.status!=="running")deny("CONTACT_TASK_LEASE_LOST");
+          await assertSourceCurrent(client,authorized);
+          signal.throwIfAborted();
+        });
+        signal.throwIfAborted();
+      });
+      if(output.source.source_image_index!==index||output.source.source_hash!==current.content_hash||output.model!==preprocessor.model)
+        deny("SCREENSHOT_PREPROCESS_RECEIPT_MISMATCH");
+      const committedRegionCount=(row.state.preprocessing_parts??[]).reduce(
+        (count,part)=>count+part.source.follow_up_regions.length,0);
+      const alreadyAbstained=row.state.preprocessing_follow_up_abstained===true;
+      const overRegionBudget=alreadyAbstained||committedRegionCount+output.source.follow_up_regions.length>
+        SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT;
+      await this.checkpoint(auth,id,epoch,async(_,latest)=>{
+        latest.state.preprocessing_parts??=[];
+        // The provider call already happened. If its region proposals would
+        // exceed the packet-wide budget, checkpoint the useful baseline and
+        // receipt but remove those extra original-pixel permissions. Its
+        // uncertainties then remain human-review-only, so Resume cannot
+        // repeat the same deterministic, billed preprocessing request.
+        const committed=overRegionBudget?{...output,source:{...output.source,
+          follow_up_required:false,follow_up_regions:[]}}:output;
+        if(overRegionBudget){
+          latest.state.preprocessing_follow_up_abstained=true;
+          latest.state.preprocessing_parts=latest.state.preprocessing_parts.map(part=>({...part,source:{...part.source,
+            follow_up_required:false,follow_up_regions:[]}}));
+        }
+        if(!latest.state.preprocessing_parts.some(part=>part.source.source_image_index===index))latest.state.preprocessing_parts.push(committed);
+        delete latest.state.preprocessing_inflight;
+        latest.state.tokens+=output.input_tokens+output.output_tokens;
+        latest.state.model_receipts.push({model:output.model,request_id:output.request_id,input_tokens:output.input_tokens,output_tokens:output.output_tokens});
+        latest.state.response.events.push({sequence:latest.state.response.events.length+1,tool:"preprocess_screenshot",status:"completed",occurred_at:new Date().toISOString()});
+        if(overRegionBudget&&!alreadyAbstained){
+          latest.state.response.limitations.push("SCREENSHOT_PREPROCESS_FOLLOW_UP_BUDGET");
+          latest.state.response.events.push({sequence:latest.state.response.events.length+1,
+            tool:"authorize_screenshot_follow_up_regions",status:"denied",occurred_at:new Date().toISOString()});
+        }
+      });
+    }
+    await this.checkpoint(auth,id,epoch,async(client,latest)=>{
+      const parts=[...(latest.state.preprocessing_parts??[])].sort((a,b)=>a.source.source_image_index-b.source.source_image_index);
+      if(parts.length!==manifests.length||parts.some((part,index)=>part.source.source_image_index!==index))deny("SCREENSHOT_PREPROCESS_CHECKPOINT_INCOMPLETE");
+      const packet=ScreenshotPreprocessPacketSchema.parse({
+        contract_version:SCREENSHOT_PREPROCESS_CONTRACT,
+        schema_version:SCREENSHOT_PREPROCESS_SCHEMA_VERSION,
+        prompt_version:SCREENSHOT_PREPROCESS_PROMPT_VERSION,
+        provider:"volcano_ark",
+        model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+        request_receipts:parts.map(part=>({source_image_index:part.source.source_image_index,request_id:part.request_id,
+          input_tokens:part.input_tokens,output_tokens:part.output_tokens})),
+        usage:{input_tokens:parts.reduce((sum,part)=>sum+part.input_tokens,0),output_tokens:parts.reduce((sum,part)=>sum+part.output_tokens,0)},
+        sources:parts.map(part=>part.source),
+      });
+      latest.state.response.preprocessing=packet;
+      const extractions=parts.map(part=>extractionFromPreprocess(part.source));
+      latest.state.extraction_parts=extractions;
+      if(preprocessNeedsOriginalMultimodalRead(packet)){
+        const merged=extractions.length===1?{extraction:extractions[0]!}:mergeContactExtractions(extractions);
+        latest.state.response.extraction=merged.extraction;
+        latest.state.response.status="running";
+        latest.state.response.question=null;
+        return;
+      }
+      await summarizeExtractionParts(client,auth,latest);
     });
   }
   private async run(auth:AuthContext,id:string,image?:ScreenshotContactTaskRequest["image"],shutdown?:AbortSignal):Promise<void>{
@@ -565,8 +1005,49 @@ export class ScreenshotContactTaskRunner {
         await this.checkpoint(auth,id,epoch,async(_,r)=>{r.state.prompts??={transcription,contact};});
         row=await rowFor(this.pool,auth,id);
       }
+      await this.preprocess(auth,id,epoch,image,signal);
+      row=await rowFor(this.pool,auth,id);
+      if(row.status!=="running")return;
+      const refinementIndices=pendingPreprocessRefinementIndices(row);
+      if(row.state.response.preprocessing&&!refinementIndices.length&&
+        (row.state.preprocessing_refinement_unresolved||hasHumanOnlyPreprocessUncertainty(row))){
+        await this.checkpoint(auth,id,epoch,async(client,latest)=>{await summarizeExtractionParts(client,auth,latest);});
+        return;
+      }
+      if(row.input_manifest.preprocess_only&&!pendingPreprocessRefinementIndices(row).length){
+        await this.checkpoint(auth,id,epoch,async(_,latest)=>{
+          if(latest.state.response.status==="running"){
+            latest.state.response.status="completed";latest.state.response.question=null;
+          }
+          latest.state.response.summary=latest.state.response.status==="waiting_for_user"
+            ? "截图已完成共享预处理，但仍有具体字段无法可靠确认；未执行联系人或证据写入。"
+            : "截图已完成共享预处理；结构化结果仍需用户核对，未执行联系人或证据写入。";
+        });
+        return;
+      }
       if (this.dependencies.model.run) {
         await this.runSDK(auth, id, epoch, row, image, signal);
+        return;
+      }
+      if(refinementIndices.length){
+        // The plain Chat Completions vision adapter cannot enforce native
+        // region receipts or field patches. Keep the Ark baseline intact and
+        // abstain instead of re-sending a full original and accepting a full
+        // model replacement. Claude SDK mode above owns bounded follow-up.
+        await this.checkpoint(auth,id,epoch,async(_,latest)=>{
+          latest.state.preprocessing_refinement_unresolved=true;
+          latest.state.preprocessing_refinement_abstained_indices=[...new Set([
+            ...(latest.state.preprocessing_refinement_abstained_indices??[]),...refinementIndices,
+          ])].sort((a,b)=>a-b);
+          latest.state.response.status="waiting_for_user";
+          latest.state.response.question="共享预处理标记了需要核对的原图字段；当前处理器不支持受限区域回执。请在原图中核对，或重新发送更清晰的截图。";
+          latest.state.response.summary=latest.input_manifest.preprocess_only
+            ? "截图已完成共享预处理，但仍有具体字段需要人工核对；未执行联系人或证据写入。"
+            : "截图预处理已保留，受限原图补读未执行；等待人工核对。";
+          this.observe(latest,"refine_screenshot_preprocessing",{
+            image_indices:refinementIndices,reason:"BOUNDED_REGION_RECEIPTS_UNAVAILABLE",
+          },"denied");
+        });
         return;
       }
       if(!row.state.response.extraction){
@@ -636,7 +1117,7 @@ export class ScreenshotContactTaskRunner {
             const result=await captureProductStep(call.name,"tool",call.arguments,()=>executeLocalTool(client,auth,r,call));this.observe(r,call.name,result,"completed");
             await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.tool_completed","screenshot_contact_task",id,
               {tool:call.name,model:reply.model,provider_request_id:reply.providerRequestID,turn:r.state.turns});
-          });
+          },personAuthoritiesForCall(call));
         }catch(error){
           if(codeOf(error)==="CONTACT_TASK_LEASE_LOST")return;
           await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,call.name,{error:codeOf(error)},error instanceof ApiError?"denied":"failed");r.state.pending_research=null;});
@@ -683,22 +1164,26 @@ export class ScreenshotContactTaskRunner {
       })().catch(()=>controller.abort(new Error("CONTACT_TASK_LEASE_LOST"))).finally(()=>{renewal=null;});
     },20_000);
     try{
-      const manifests=row.input_manifest.image?[row.input_manifest.image,...row.input_manifest.additional_images??[]]:[];
+      const allManifests=row.input_manifest.image?[row.input_manifest.image,...row.input_manifest.additional_images??[]]:[];
+      const imageSourceIndices=row.state.response.preprocessing
+        ? pendingPreprocessRefinementIndices(row)
+        : allManifests.map((_,index)=>index);
       const images:ScreenshotContactTaskRequest["image"][]=[];
-      for(let index=0;index<manifests.length;index++){
+      for(const index of imageSourceIndices){
         await current();
         const source=this.storage?await readContactImage(this.pool,auth,id,index,this.storage):null;
         const original=source??(index===0?image:undefined);
         if(!original)throw new Error("CONTACT_ORIGINAL_IMAGE_REQUIRED");
         validateContactImage(original);
-        if(original.content_hash!==manifests[index]!.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
+        if(original.content_hash!==allManifests[index]!.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
         images.push(original);
       }
       await this.checkpoint(auth,id,epoch,async(_,r)=>{
         if(r.state.pending_research){r.state.observations.push({tool:r.state.pending_research,result:{error:"CONTACT_RESEARCH_RESPONSE_UNKNOWN"}});r.state.pending_research=null;}
       });
       const result=await this.dependencies.model.run!({
-        objective:row.input_manifest.objective,images,...(row.input_manifest.text?{text:row.input_manifest.text}:{}),systemPrompt:row.state.prompts!.contact.text,
+        objective:row.input_manifest.objective,images,imageSourceIndices,...(row.input_manifest.text?{text:row.input_manifest.text}:{}),
+        ...(row.state.response.preprocessing?{preprocessing:row.state.response.preprocessing}:{}),systemPrompt:row.state.prompts!.contact.text,
         state:{response:row.state.response,selected:row.state.selected,current_state:currentToolState(row),observations:row.state.observations.slice(-12)},
         assertCurrent:current,
         readImage:(operation,executionSignal)=>serial(async()=>{
@@ -713,6 +1198,30 @@ export class ScreenshotContactTaskRunner {
           if(raw.length!==(row.input_manifest.text?1:images.length))deny("CONTACT_IMAGE_REFERENCE_INVALID");
           const parts=raw.map(part=>ContactChatExtractionSchema.parse(part));
           if(r.input_manifest.text)parts.forEach(part=>groundContactTextExtraction(r.input_manifest.text!,part));
+          if(r.state.response.preprocessing){
+            const mergedParts=[...(r.state.extraction_parts??[])];
+            parts.forEach((part,slot)=>{const sourceIndex=imageSourceIndices[slot];if(sourceIndex===undefined)deny("CONTACT_IMAGE_REFERENCE_INVALID");mergedParts[sourceIndex]=normalizeRefinedExtraction(part,sourceIndex);});
+            r.state.extraction_parts=mergedParts;
+            const unresolvedIndices=imageSourceIndices.filter((sourceIndex,slot)=>
+              Boolean(parts[slot]&&boundedRefinementStillUnresolved(r,sourceIndex,parts[slot]!)));
+            const unresolved=new Set(unresolvedIndices);
+            r.state.preprocessing_refinement_unresolved=parts.some(part=>part.uncertainties.length>0);
+            r.state.preprocessing_refined_indices=[...new Set([
+              ...(r.state.preprocessing_refined_indices??[]).filter(index=>!unresolved.has(index)),
+              ...imageSourceIndices.filter(index=>!unresolved.has(index)),
+            ])].sort((a,b)=>a-b);
+            await summarizeExtractionParts(client,auth,r);
+            if(r.input_manifest.preprocess_only){
+              if(r.state.response.status==="running"){
+                r.state.response.status="completed";r.state.response.question=null;
+              }
+              r.state.response.summary=r.state.response.status==="waiting_for_user"
+                ? "截图已完成共享预处理和限定补读，但仍有具体字段无法可靠确认；未执行联系人或证据写入。"
+                : "截图已完成共享预处理和限定补读；结构化结果仍需用户核对，未执行联系人或证据写入。";
+            }
+            this.observe(r,"refine_screenshot_preprocessing",{status:r.state.response.status,image_indices:imageSourceIndices},"completed");
+            return {status:r.state.response.status,extraction:r.state.response.extraction,question:r.state.response.question,current_state:currentToolState(r)};
+          }
           if(parts.every(part=>!part.contact_name&&!part.identity_clues.length&&!part.messages.length)){r.state.response.extraction=parts[0]!;r.state.response.status="completed";r.state.response.summary="未发现可归档的人物。来源已保存，可检查原文或删除本次采集。";return {status:"completed",contact:null};}
           const profile=r.input_manifest.text?null:profileUnderstanding(parts);
           if(profile){
@@ -753,7 +1262,7 @@ export class ScreenshotContactTaskRunner {
               if(!toolsFor(r).includes(name))deny("CONTACT_TOOL_NOT_AUTHORIZED");
               const value=await executeLocalTool(client,auth,r,call);
               this.observe(r,name,value,"completed");return {...value as Record<string,unknown>,current_state:currentToolState(r)};
-            });
+            },personAuthoritiesForCall(call));
           }catch(error){
             if(signal.aborted||executionSignal.aborted||codeOf(error)==="CONTACT_TASK_LEASE_LOST")throw error;
             const state=await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,name,{error:codeOf(error)},"denied");return currentToolState(r);});
@@ -789,13 +1298,13 @@ export class ScreenshotContactTaskRunner {
     if(!this.dependencies.research)deny("CONTACT_RESEARCH_NOT_CONFIGURED");
     const input=await this.checkpoint(auth,id,epoch,async(_,row)=>{
       if(!row.state.response.capture_id||!row.input_manifest.allow_public_research)deny("CONTACT_RESEARCH_NOT_AUTHORIZED");
-      const extraction=row.state.response.extraction!;
-      const anchors=[extraction.contact_name,...extraction.identity_clues.filter(c=>["name","handle","company"].includes(c.kind)).map(c=>c.value)].filter((v):v is string=>Boolean(v)).slice(0,5);
+      const identity=automaticIdentityEvidence(row);
+      const anchors=[identity.contactName,...identity.clues.filter(c=>["name","handle","company"].includes(c.kind)).map(c=>c.value)].filter((v):v is string=>Boolean(v)).slice(0,5);
       let operation;
       if(call.name==="search_contact_public"){
         const args=CONTACT_INTAKE_TOOLS.search_contact_public.schema.parse(call.arguments);
         // A query is assembled solely from visible public identity tokens; no IM sentences leave this boundary.
-        const permitted=[...anchors,...extraction.identity_clues.filter(c=>c.kind==="job_title").map(c=>c.value),"linkedin","LinkedIn","抖音","微博","douyin","tiktok","threads","weibo"];
+        const permitted=[...anchors,...identity.clues.filter(c=>c.kind==="job_title").map(c=>c.value),"linkedin","LinkedIn","抖音","微博","douyin","tiktok","threads","weibo"];
         let remaining=normalized(args.query);
         for(const token of permitted.sort((a,b)=>b.length-a.length))remaining=remaining.replaceAll(normalized(token),"");
         if(remaining.replace(/[\s,，、@|]+/gu,"").length)deny("CONTACT_PUBLIC_QUERY_NOT_IDENTITY_ONLY");
@@ -820,10 +1329,13 @@ export class ScreenshotContactTaskRunner {
 export function environmentScreenshotContactDependencies(environment:NodeJS.ProcessEnv=process.env):ScreenshotContactDependencies|null {
   if(environment.TALENT_SIGNAL_SCREENSHOT_CONTACT_AGENT_ENABLED!=="true")return null;
   if(environment.TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING!=="true")throw new Error("CONTACT_AGENT_SENSITIVE_AI_NOT_ENABLED");
+  const preprocessor=new ArkScreenshotPreprocessor({apiKey:environment.ARK_API_KEY??""});
   if(environment.TALENT_SIGNAL_AGENT_PROVIDER==="claude")return {
     model:new ClaudeContactAgentModel(claudeHarnessConfiguration(environment)),
+    preprocessor,
     research:environment.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET?new LocalContactResearchClient(environment.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET):null};
   return {model:new ZhipuContactAgentModel({apiKey:environment.ZHIPU_API_KEY??"",model:environment.TALENT_SIGNAL_CHAT_MODEL??"glm-5.3",
     visionModel:environment.TALENT_SIGNAL_AGENT_VISION_MODEL??"glm-4.6v-flash",...(environment.ZHIPU_BASE_URL?{baseUrl:environment.ZHIPU_BASE_URL}:{})}),
+    preprocessor,
     research:environment.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET?new LocalContactResearchClient(environment.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET):null};
 }

@@ -13,7 +13,6 @@ final class RelationshipCaptureStore: ObservableObject {
     @Published var reviewedSpeaker: TextSignalSpeaker?
     @Published private(set) var originalAvailable: Bool
     let seed: PendingCaptureSeed
-    private let recognizer: ConversationTextRecognizing
     private let service: RelationshipCaptureServing
     private let inbox: PendingCaptureInbox
     private var task: Task<Void, Never>?
@@ -28,11 +27,9 @@ final class RelationshipCaptureStore: ObservableObject {
     private var removedFromInbox = false
 
     init(seed: PendingCaptureSeed,
-         recognizer: ConversationTextRecognizing = VisionConversationTextRecognizer(),
          service: RelationshipCaptureServing, initialDraft: RecognizedCaptureDraft? = nil,
          inbox: PendingCaptureInbox = .shared) {
         self.seed = seed
-        self.recognizer = recognizer
         self.service = service
         self.inbox = inbox
         draft = initialDraft ?? .empty
@@ -63,6 +60,31 @@ final class RelationshipCaptureStore: ObservableObject {
         let date = formatter.date(from: text)
         draft.messageTimestamp = date.flatMap { formatter.string(from: $0) == text ? $0 : nil }
     }
+    func updatePreprocessedMessageText(id: String, text: String) {
+        guard let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?[index].text = text
+        draft.reviewedText = draft.preprocessedMessages?.map(\.text).joined(separator: "\n") ?? draft.reviewedText
+    }
+    func updatePreprocessedMessageSpeakerSide(id: String, speakerSide: String) {
+        guard ["left", "right", "unknown"].contains(speakerSide),
+              let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?[index].speakerSide = speakerSide
+    }
+    func updatePreprocessedMessageSpeakerLabel(id: String, speakerLabel: String) {
+        guard let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?[index].speakerLabel = speakerLabel
+            .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+    func updatePreprocessedMessageTimeText(id: String, timeText: String) {
+        guard let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?[index].timeText = timeText
+            .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+    func removePreprocessedMessage(id: String) {
+        guard let index = draft.preprocessedMessages?.firstIndex(where: { $0.id == id }) else { return }
+        draft.preprocessedMessages?.remove(at: index)
+        draft.reviewedText = draft.preprocessedMessages?.map(\.text).joined(separator: "\n") ?? ""
+    }
     var canCreatePerson: Bool {
         identityCase?.hasCurrentCandidate != true && draft.displayNameHint.nonEmpty != nil &&
         draft.relationshipLabel.nonEmpty != nil && draft.relationshipPurpose.nonEmpty != nil
@@ -87,12 +109,12 @@ final class RelationshipCaptureStore: ObservableObject {
         }
         recognize()
     }
-    func recognize() {
+    func recognize(resumeFailedPreprocessing: Bool = false) {
         run(stage: .recognizing, recoveryStage: .recognition) {
             try await LabClientDiagnostics.measure(.captureReviewPreparation) {
                 if let saved = try await self.inbox.loadDraft(for: self.seed.id, scope: self.service.runtimeScope) {
                     self.draft = saved
-                    self.hasInitialDraft = true
+                    self.hasInitialDraft = !(resumeFailedPreprocessing && saved.preprocessingRetryRequired == true)
                 }
                 if let saved = try await self.inbox.loadRecovery(for: self.seed.id, scope: self.service.runtimeScope) {
                     self.recovery = saved
@@ -106,13 +128,73 @@ final class RelationshipCaptureStore: ObservableObject {
                     }
                 }
                 if !self.hasInitialDraft {
-                    guard self.originalAvailable else {
+                    let retainedReceipt = resumeFailedPreprocessing
+                        ? self.draft.preprocessingTaskID.flatMap { taskID in
+                            self.draft.preprocessingTaskRevision.map { (taskID, $0) }
+                        }
+                        : nil
+                    guard self.originalAvailable || retainedReceipt != nil else {
                         self.fail("The original image is no longer available. Import it again to recognize text.", at: .recognition)
                         return
                     }
-                    self.draft = CaptureDraftBuilder.makeDraft(from: try await self.recognizer.recognizeText(in: self.seed.imageData))
+                    let persistReceipt: ScreenshotPreprocessingReceiptHandler = { receipt in
+                        var checkpoint = self.draft
+                        checkpoint.sourceParserName = "shared-screenshot-preprocess"
+                        checkpoint.sourceParserVersion = "screenshot-preprocess.v3"
+                        checkpoint.preprocessingTaskID = receipt.taskID
+                        checkpoint.preprocessingTaskRevision = receipt.revision
+                        checkpoint.preprocessingRetryRequired = true
+                        checkpoint.preprocessingUncertainties = checkpoint.preprocessingUncertainties ?? [
+                            "Shared screenshot preprocessing has not completed. Retry preserves its task receipt."
+                        ]
+                        self.draft = checkpoint
+                        try await self.inbox.saveReview(
+                            seed: self.seed,
+                            draft: checkpoint,
+                            recovery: self.recovery,
+                            scope: self.service.runtimeScope
+                        )
+                    }
+                    if let retainedReceipt {
+                        self.draft = try await self.service.resumeScreenshotPreprocessing(
+                            taskID: retainedReceipt.0,
+                            expectedRevision: retainedReceipt.1,
+                            onTaskReceipt: persistReceipt
+                        )
+                    } else {
+                        self.draft = try await (resumeFailedPreprocessing
+                            ? self.service.resumeScreenshotPreprocessing(
+                            seed: self.seed,
+                            onRemoteRequestStarted: {
+                                try await self.inbox.markPreprocessingRemoteRequestMayExist(
+                                    id: self.seed.id,
+                                    scope: self.service.runtimeScope
+                                )
+                            },
+                            onTaskReceipt: persistReceipt
+                        )
+                            : self.service.preprocessScreenshot(
+                            seed: self.seed,
+                            onRemoteRequestStarted: {
+                                try await self.inbox.markPreprocessingRemoteRequestMayExist(
+                                    id: self.seed.id,
+                                    scope: self.service.runtimeScope
+                                )
+                            },
+                            onTaskReceipt: persistReceipt
+                        ))
+                    }
+                    self.hasInitialDraft = true
                 }
                 try await self.saveRecovery()
+                if self.draft.preprocessingRetryRequired == true {
+                    self.fail(
+                        self.draft.preprocessingUncertainties?.joined(separator: " ")
+                            ?? "The screenshot still needs a bounded original-image check. Retry preserves the task receipt.",
+                        at: .recognition
+                    )
+                    return
+                }
                 self.stage = .reviewing
             }
         }
@@ -175,6 +257,8 @@ final class RelationshipCaptureStore: ObservableObject {
             try Task.checkCancellation()
             self.recovery.capture = result
             try await self.saveRecovery()
+            try await self.linkPreprocessingIfNeeded(to: result)
+            try await self.saveRecovery()
             try await self.continueAfterCapture(result)
         }
     }
@@ -202,7 +286,7 @@ final class RelationshipCaptureStore: ObservableObject {
     func retry() {
         guard case let .failed(failure) = stage else { return }
         switch failure.recoveryStage {
-        case .recognition: recognize()
+        case .recognition: recognize(resumeFailedPreprocessing: true)
         case .submission: submitReviewedDraft()
         case .identity: run(stage: .submitting, recoveryStage: .identity) { try await self.resumeCanonical() }
         case .changes:
@@ -219,7 +303,13 @@ final class RelationshipCaptureStore: ObservableObject {
     func discard() async -> Bool {
         guard !isBusy, recovery.pendingClaim == nil, recovery.pendingSpeaker == nil else { return false }
         draftTask?.cancel()
-        do { try await inbox.remove(id: seed.id); originalAvailable = false; removedFromInbox = true; return true }
+        do {
+            try await deletePreprocessingOriginalIfNeeded()
+            try await inbox.remove(id: seed.id)
+            originalAvailable = false
+            removedFromInbox = true
+            return true
+        }
         catch { fail(error.localizedDescription, at: .recognition); return false }
     }
     func refreshChanges() {
@@ -316,7 +406,12 @@ final class RelationshipCaptureStore: ObservableObject {
             try Task.checkCancellation()
             let completion = self.completion(capture: capture, wiki: wiki)
             if completion.needsReview { try await self.saveRecovery() }
-            else { try await self.inbox.remove(id: self.seed.id); self.originalAvailable = false; self.removedFromInbox = true }
+            else {
+                try await self.deletePreprocessingOriginalIfNeeded()
+                try await self.inbox.remove(id: self.seed.id)
+                self.originalAvailable = false
+                self.removedFromInbox = true
+            }
             self.stage = .completed(completion)
         }
     }
@@ -327,6 +422,8 @@ final class RelationshipCaptureStore: ObservableObject {
             throw RelationshipCaptureClientError.invalidResponse
         }
         recovery.capture = current
+        try await saveRecovery()
+        try await linkPreprocessingIfNeeded(to: current)
         try await saveRecovery()
         try await continueAfterCapture(current)
     }
@@ -402,6 +499,30 @@ final class RelationshipCaptureStore: ObservableObject {
         recovery.claimEdits = claimEdits
         try await inbox.saveReview(seed: seed, draft: draft, recovery: recovery, scope: service.runtimeScope)
         if draft.keepOriginalForReview == false || Date().timeIntervalSince(seed.createdAt) >= 7 * 86_400 { originalAvailable = false }
+    }
+    private func deletePreprocessingOriginalIfNeeded() async throws {
+        guard let receipt = try await inbox.preprocessingDeletionReceipt(
+            for: seed.id,
+            scope: service.runtimeScope,
+            fallbackSource: recovery.submittedDraft ?? draft
+        ) else { return }
+        try await service.deleteScreenshotPreprocessing(
+            taskID: receipt.taskID,
+            expectedRevision: receipt.revision
+        )
+    }
+    private func linkPreprocessingIfNeeded(to capture: ResourceCaptureResult) async throws {
+        let source = recovery.submittedDraft ?? draft
+        guard let taskID = source.preprocessingTaskID,
+              let revision = source.preprocessingTaskRevision else { return }
+        let linkedRevision = try await service.linkScreenshotPreprocessing(
+            taskID: taskID,
+            expectedRevision: revision,
+            captureID: capture.captureID,
+            sourceResourceID: capture.resource.id
+        )
+        recovery.submittedDraft?.preprocessingTaskRevision = linkedRevision
+        draft.preprocessingTaskRevision = linkedRevision
     }
     func checkLocalRetention() async {
         guard !removedFromInbox else { return }

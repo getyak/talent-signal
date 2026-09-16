@@ -17,7 +17,6 @@ struct AskMediaDraft: Identifiable {
     let mediaType: String
     let width: Int
     let height: Int
-    var routingText: String
     var remoteAsset: ChatMediaAsset?
     var phase: Phase
 
