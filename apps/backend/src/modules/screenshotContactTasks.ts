@@ -25,6 +25,7 @@ import { deleteCapture } from "./captures.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
 import type { AuthContext } from "./auth.js";
+import { lockContactTaskPerson } from "./contactTaskConcurrency.js";
 import { searchPeople, getRelationshipScope } from "./people.js";
 import { createResourceCaptureInTransaction } from "./resourceIntake.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
@@ -219,6 +220,14 @@ export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:
   new_contact_name?:string; image?:ScreenshotContactTaskRequest["image"];
 }):Promise<Response>{
   await inTransaction(pool,async client=>{
+    const observed=await rowFor(client,auth,id);
+    const personIDs=[...new Set([
+      input.selected_person_id,
+      observed.state.selected?.person_id,
+      observed.subject_id??undefined,
+      observed.state.response.contact?.person_id,
+    ].filter((value):value is string=>Boolean(value)))].sort();
+    for(const personID of personIDs)await lockContactTaskPerson(client,auth.accountId,personID);
     const row=await rowFor(client,auth,id,true);
     if(sourceDeletionRequested(row))deny("CONTACT_SOURCE_DELETION_PENDING");
     await assertSourceCurrent(client,row);
@@ -235,10 +244,14 @@ export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:
     if(row.state.response.contact_draft)deny("CONTACT_PROFILE_REVIEW_REQUIRED");
     if(input.new_contact_name){
       if(row.state.response.capture_id)deny("CONTACT_TASK_ALREADY_FILED");
+      if(row.state.response.contact)deny("CONTACT_TASK_SCOPE_AMBIGUOUS");
       row.state.user_contact_label=input.new_contact_name.trim();
     }
     if(input.selected_person_id){
       if(row.state.response.capture_id)deny("CONTACT_TASK_ALREADY_FILED");
+      const checkpointed=row.state.response.contact;
+      if(checkpointed&&(checkpointed.person_id!==input.selected_person_id||
+        checkpointed.relationship_context_id!==input.selected_relationship_context_id))deny("CONTACT_TASK_SCOPE_AMBIGUOUS");
       await getRelationshipScope(client,auth,input.selected_person_id,input.selected_relationship_context_id!);
       row.state.selected={person_id:input.selected_person_id,relationship_context_id:input.selected_relationship_context_id!};
     }
@@ -263,7 +276,16 @@ export async function confirmScreenshotContactProfile(pool:Pool,auth:AuthContext
   const parsed=ContactProfileConfirmationSchema.safeParse(raw);
   if(!parsed.success)throw new ApiError(422,"CONTACT_PROFILE_REVIEW_INVALID","请核对姓名和资料字段后再保存。");
   const review=parsed.data;
+  const observed=await rowFor(pool,auth,id);
+  const personIDs=[...new Set([
+    review.selected_person_id,
+    observed.state.selected?.person_id,
+    observed.subject_id??undefined,
+    observed.state.response.contact?.person_id,
+  ].filter((value):value is string=>Boolean(value)))].sort();
   await inTransaction(pool,async client=>{
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`${auth.accountId}:reviewed-profile-admission`]);
+    for(const personID of personIDs)await lockContactTaskPerson(client,auth.accountId,personID);
     const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
     if(row.input_manifest.preprocess_only===true)deny("CONTACT_PREPROCESS_PROFILE_FILING_FORBIDDEN");
     if(row.revision!==review.expected_revision)deny("CONTACT_TASK_REVISION_CHANGED");
@@ -287,7 +309,14 @@ export async function confirmScreenshotContactProfile(pool:Pool,auth:AuthContext
   return loadScreenshotContactTask(pool,auth,id);
 }
 
-export async function cancelScreenshotContactTask(pool:Pool,auth:AuthContext,id:string,expectedRevision:number){
+export async function cancelScreenshotContactTask(pool:Pool,auth:AuthContext,id:string,expectedRevision:number,
+  onCancellationRequested?:()=>void){
+  // Authenticate exact task ownership and the observed revision before an
+  // in-memory abort can affect a concurrent owner request. The transaction
+  // below repeats the checks under the task row lock.
+  const preflight=await rowFor(pool,auth,id);
+  if(preflight.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
+  onCancellationRequested?.();
   await inTransaction(pool,async client=>{
     const row=await rowFor(client,auth,id,true);await assertSourceCurrent(client,row);
     if(row.revision!==expectedRevision)deny("CONTACT_TASK_REVISION_CHANGED");
@@ -501,7 +530,10 @@ export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,r
                 AND task.idempotency_key=$4 AND COALESCE(active.payload->'screenshotTaskIDs','[]'::jsonb) ? task.id::text)))
       LIMIT 1`,[auth.accountId,auth.userId,digest(request.idempotency_key),request.idempotency_key]);
     if(removedSession.rowCount) throw new ApiError(410,"CONTACT_TASK_SESSION_DELETED","The Session for this screenshot request was deleted or expired.");
-    if(request.selected_person_id) await getRelationshipScope(client,auth,request.selected_person_id,request.selected_relationship_context_id!);
+    if(request.selected_person_id){
+      await lockContactTaskPerson(client,auth.accountId,request.selected_person_id);
+      await getRelationshipScope(client,auth,request.selected_person_id,request.selected_relationship_context_id!);
+    }
     const id=randomUUID();const now=new Date().toISOString();
     const response:Response={...(request.source?{source:request.source,source_captured_at:request.captured_at}:{}),...("text" in request?{source_text:request.text}:{}),...(storage?{source_images:images.map((image,image_index)=>({...validateContactImage(image),image_index}))}:{}),task_id:id,revision:1,status:"running",contact:null,capture_id:null,source_resource_id:null,
       message_count:0,extraction:null,summary:"",findings:[],profile_fields:[],public_sources:[],question:null,candidates:[],
@@ -542,6 +574,12 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
   if(row.input_manifest.allow_public_research && row.state.turns<14 && response.public_sources.length<25) tools.push("search_contact_public");
   if(response.public_sources.length>0 && row.state.turns<15)tools.push("fetch_contact_source","browse_contact_source");
   return tools;
+}
+
+function personAuthoritiesForCall(call:ContactAgentToolCall):string[]{
+  if(!["read_contact","save_contact_chat","update_contact"].includes(call.name))return [];
+  const personID=(call.arguments as {person_id?:unknown}).person_id;
+  return typeof personID==="string"?[personID]:[];
 }
 
 function currentToolState(row: Row) {
@@ -836,7 +874,10 @@ export class ScreenshotContactTaskRunner {
     const operation=this.observedRun(auth,id,image,controller.signal).finally(()=>{this.active.delete(key);this.controllers.delete(key);});this.active.set(key,operation);return operation;
   }
   fenceSourceDeletion(auth:AuthContext,id:string):void{
-    this.controllers.get(`${auth.accountId}:${id}`)?.abort(new Error("CONTACT_SOURCE_DELETION_PENDING"));
+    this.fenceTaskCancellation(auth,id,"CONTACT_SOURCE_DELETION_PENDING");
+  }
+  fenceTaskCancellation(auth:AuthContext,id:string,reason="CONTACT_TASK_CANCELLED"):void{
+    this.controllers.get(`${auth.accountId}:${id}`)?.abort(new Error(reason));
   }
   private async observedRun(auth:AuthContext,id:string,image:ScreenshotContactTaskRequest["image"]|undefined,signal:AbortSignal) {
     const result=await this.pool.query<{id:string;source_generation:string|null}>("SELECT id,source_generation FROM product_runs WHERE account_id=$1 AND user_id=$2 AND task_id=$3 ORDER BY created_at LIMIT 1",[auth.accountId,auth.userId,id]);
@@ -847,8 +888,9 @@ export class ScreenshotContactTaskRunner {
   }
   async drain(){await Promise.allSettled(this.active.values());}
   async close(){for(const controller of this.controllers.values())controller.abort(new Error("CONTACT_AGENT_SERVER_STOPPED"));await this.drain();}
-  private async checkpoint<T>(auth:AuthContext,id:string,epoch:number,operation:(client:PoolClient,row:Row)=>Promise<T>):Promise<T>{
+  private async checkpoint<T>(auth:AuthContext,id:string,epoch:number,operation:(client:PoolClient,row:Row)=>Promise<T>,personIDs:string[]=[]):Promise<T>{
     return inTransaction(this.pool,async client=>{
+      for(const personID of [...new Set(personIDs)].sort())await lockContactTaskPerson(client,auth.accountId,personID);
       const row=await rowFor(client,auth,id,true);
       if(row.lease_epoch!==epoch||row.status!=="running")deny("CONTACT_TASK_LEASE_LOST");
       await assertSourceCurrent(client,row);const result=await operation(client,row);await save(client,row);return result;
@@ -877,7 +919,19 @@ export class ScreenshotContactTaskRunner {
       validateContactImage(current);
       if(current.content_hash!==manifests[index]!.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
       await this.checkpoint(auth,id,epoch,async(_,latest)=>{latest.state.preprocessing_inflight=index;});
-      const output=await preprocessor.preprocess(current,index,signal);
+      const output=await preprocessor.preprocess(current,index,signal,async()=>{
+        signal.throwIfAborted();
+        // Hold the task row while source/directory authority is checked. A
+        // concurrent Stop/archive then commits only after this check and its
+        // route aborts the same controller before the request can continue.
+        await inTransaction(this.pool,async client=>{
+          const authorized=await rowFor(client,auth,id,true);
+          if(authorized.lease_epoch!==epoch||authorized.status!=="running")deny("CONTACT_TASK_LEASE_LOST");
+          await assertSourceCurrent(client,authorized);
+          signal.throwIfAborted();
+        });
+        signal.throwIfAborted();
+      });
       if(output.source.source_image_index!==index||output.source.source_hash!==current.content_hash||output.model!==preprocessor.model)
         deny("SCREENSHOT_PREPROCESS_RECEIPT_MISMATCH");
       const committedRegionCount=(row.state.preprocessing_parts??[]).reduce(
@@ -1063,7 +1117,7 @@ export class ScreenshotContactTaskRunner {
             const result=await captureProductStep(call.name,"tool",call.arguments,()=>executeLocalTool(client,auth,r,call));this.observe(r,call.name,result,"completed");
             await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.tool_completed","screenshot_contact_task",id,
               {tool:call.name,model:reply.model,provider_request_id:reply.providerRequestID,turn:r.state.turns});
-          });
+          },personAuthoritiesForCall(call));
         }catch(error){
           if(codeOf(error)==="CONTACT_TASK_LEASE_LOST")return;
           await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,call.name,{error:codeOf(error)},error instanceof ApiError?"denied":"failed");r.state.pending_research=null;});
@@ -1208,7 +1262,7 @@ export class ScreenshotContactTaskRunner {
               if(!toolsFor(r).includes(name))deny("CONTACT_TOOL_NOT_AUTHORIZED");
               const value=await executeLocalTool(client,auth,r,call);
               this.observe(r,name,value,"completed");return {...value as Record<string,unknown>,current_state:currentToolState(r)};
-            });
+            },personAuthoritiesForCall(call));
           }catch(error){
             if(signal.aborted||executionSignal.aborted||codeOf(error)==="CONTACT_TASK_LEASE_LOST")throw error;
             const state=await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,name,{error:codeOf(error)},"denied");return currentToolState(r);});

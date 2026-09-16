@@ -2570,7 +2570,8 @@ export async function buildApp(
     async request=>loadContactIntelligence(pool,request.auth,request.params.id,request.query.relationship_context_id));
   app.post<{Params:{id:string};Body:{expected_revision:number;idempotency_key:string;decision:"archive"}}>("/v1/people/:id/archive",{preHandler:authenticate,
     schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1}),idempotency_key:Type.String({minLength:1,maxLength:128}),decision:Type.Literal("archive")},{additionalProperties:false})}},
-    async request=>executeGrantedContactArchive(pool,request.auth,{person_id:request.params.id,...request.body}));
+    async request=>executeGrantedContactArchive(pool,request.auth,{person_id:request.params.id,...request.body},
+      taskIDs=>taskIDs.forEach(taskID=>screenshotRunner?.fenceTaskCancellation(request.auth,taskID,"CONTACT_ARCHIVED"))));
   app.post<{Params:{id:string}}>("/v1/contact-archives/:id/restore",{preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},
     async request=>restoreContactArchive(pool,request.auth,request.params.id));
 

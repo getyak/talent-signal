@@ -34,6 +34,26 @@ function sdkModel(run: NonNullable<ContactAgentModel["run"]>): ContactAgentModel
 }
 const sdkReceipt = () => ({ providerRequestID:randomUUID(),model:"synthetic-sdk",inputTokens:10,outputTokens:10 });
 
+function observePersonLock(base:Pool,personID:string,hooks:{before?:()=>void;after?:()=>void|Promise<void>}):Pool{
+  const lockKey=`${auth.accountId}:screenshot-contact-person:${personID}`;
+  return new Proxy(base,{get(target,key){
+    if(key!=="connect"){const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;}
+    return async()=>{
+      const client=await target.connect();
+      return new Proxy(client,{get(connection,property){
+        if(property!=="query"){const value=Reflect.get(connection,property);return typeof value==="function"?value.bind(connection):value;}
+        return async(...args:any[])=>{
+          const matches=typeof args[0]==="string"&&args[0].includes("pg_advisory_xact_lock")&&args[1]?.[0]===lockKey;
+          if(matches)hooks.before?.();
+          const result=await (connection.query as (...input:any[])=>Promise<unknown>)(...args);
+          if(matches)await hooks.after?.();
+          return result;
+        };
+      }});
+    };
+  }}) as Pool;
+}
+
 describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
   it("denies queued original-image reads after a clarification while permitting final SDK usage bookkeeping", async () => {
     const request=input();const created=await createScreenshotContactTask(pool!,auth,request);
@@ -106,6 +126,36 @@ describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
     expect(scrubbed).toEqual({status:"deleted",state:{},input_manifest:{}});
     expect((await pool!.query("SELECT count(*)::int AS count FROM contact_profile_observations WHERE task_id=$1",[done.task_id])).rows[0].count).toBe(0);
     const deleted=await deleteContactCaptureTask(pool!,auth,done.task_id,done.revision);expect(deleted.status).toBe("deleted");
+  });
+
+  it("rejects selecting a different person after read_contact is checkpointed",async()=>{
+    const name=`Checkpointed scope ${randomUUID().slice(0,8)}`,seed=input();
+    const seeded=await createScreenshotContactTask(pool!,auth,seed);
+    await new ScreenshotContactTaskRunner(pool!,{model:model(name),research:null}).start(auth,seeded.body.task_id,seed.image);
+    const person=await loadScreenshotContactTask(pool!,auth,seeded.body.task_id);
+    const request=input(),base=model(name);
+    const staged:ContactAgentModel={...base,next:async(arg,signal)=>{
+      if((arg.state as {contact:unknown}).contact)return {calls:[{id:randomUUID(),name:"ask_contact_clarification",
+        arguments:{question:"Confirm the relationship before saving."}}],providerRequestID:randomUUID(),model:"fixture-tools",inputTokens:10,outputTokens:10};
+      return base.next(arg,signal);
+    }};
+    const created=await createScreenshotContactTask(pool!,auth,request);
+    await new ScreenshotContactTaskRunner(pool!,{model:staged,research:null}).start(auth,created.body.task_id,request.image);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting).toMatchObject({status:"waiting_for_user",capture_id:null,
+      contact:{person_id:person.contact!.person_id,relationship_context_id:person.contact!.relationship_context_id}});
+    const cancelled=await cancelScreenshotContactTask(pool!,auth,waiting.task_id,waiting.revision);
+    const otherPerson=randomUUID(),otherContext=randomUUID();
+    await pool!.query("INSERT INTO subjects(id,account_id,external_ref,display_label) VALUES($1::uuid,$2,$1::text,'Other person')",
+      [otherPerson,auth.accountId]);
+    await pool!.query("INSERT INTO assignments(id,account_id,subject_id,external_ref,display_label) VALUES($1::uuid,$2,$3,$1::text,'Other context')",
+      [otherContext,auth.accountId,otherPerson]);
+    await expect(resumeScreenshotContactTask(pool!,auth,cancelled.task_id,{expected_revision:cancelled.revision,
+      selected_person_id:otherPerson,selected_relationship_context_id:otherContext}))
+      .rejects.toMatchObject({code:"CONTACT_TASK_SCOPE_AMBIGUOUS"});
+    const persisted=(await pool!.query("SELECT status,state FROM screenshot_contact_tasks WHERE id=$1",[cancelled.task_id])).rows[0]!;
+    expect(persisted.status).toBe("cancelled");expect(persisted.state.response.capture_id).toBeNull();
+    expect(persisted.state.response.contact.person_id).toBe(person.contact!.person_id);
   });
 
   it("requires human selection before filing text against a single substring namesake",async()=>{
@@ -503,12 +553,22 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
     const task=await loadScreenshotContactTask(pool!,auth,created.body.task_id);expect(task.status,JSON.stringify(task)).toBe("completed");
     await expect(executeGrantedContactArchive(pool!,auth,{person_id:task.contact!.person_id,expected_revision:99,idempotency_key:randomUUID(),decision:"archive"})).rejects.toMatchObject({code:"CONTACT_ARCHIVE_TARGET_CHANGED"});
     const current=await loadContactIntelligence(pool!,auth,task.contact!.person_id,task.contact!.relationship_context_id);
-    const archived=await executeGrantedContactArchive(pool!,auth,{person_id:task.contact!.person_id,expected_revision:current.person_revision!,idempotency_key:randomUUID(),decision:"archive"});
+    const archiveIntent={person_id:task.contact!.person_id,expected_revision:current.person_revision!,idempotency_key:randomUUID(),decision:"archive" as const};
+    const archived=await executeGrantedContactArchive(pool!,auth,archiveIntent);
     expect((await loadScreenshotContactTask(pool!,auth,created.body.task_id)).status).toBe("deleted");
     const archivedReadback=await loadContactIntelligence(pool!,auth,task.contact!.person_id,task.contact!.relationship_context_id);
     expect(archivedReadback.tasks).toEqual([]);expect(archivedReadback.archive?.operation_id).toBe(archived.operation_id);
     await restoreContactArchive(pool!,auth,archived.operation_id);
     expect((await loadScreenshotContactTask(pool!,auth,created.body.task_id)).contact?.person_id).toBe(task.contact!.person_id);
+    const replayTask=await createScreenshotContactTask(pool!,auth,input());
+    await pool!.query(`UPDATE screenshot_contact_tasks SET state=jsonb_set(state,'{selected}',$2::jsonb)
+      WHERE id=$1`,[replayTask.body.task_id,JSON.stringify({person_id:task.contact!.person_id,
+        relationship_context_id:task.contact!.relationship_context_id})]);
+    const replayFences:string[]=[];
+    const replay=await executeGrantedContactArchive(pool!,auth,archiveIntent,taskIDs=>replayFences.push(...taskIDs));
+    expect(replay).toMatchObject({operation_id:archived.operation_id,status:"restored",replayed:true});
+    expect(replayFences).toEqual([]);
+    expect((await pool!.query("SELECT status FROM screenshot_contact_tasks WHERE id=$1",[replayTask.body.task_id])).rows[0]?.status).toBe("running");
     await pool!.query("UPDATE evidence_fragments SET review_status='rejected' WHERE capture_id=$1",[task.capture_id]);
     expect((await loadScreenshotContactTask(pool!,auth,created.body.task_id)).extraction).toBeNull();
     expect((await pool!.query("SELECT * FROM contact_profile_observations WHERE task_id=$1",[task.task_id])).rowCount).toBe(0);
@@ -668,6 +728,262 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
       ()=>runner.fenceSourceDeletion(auth,active.task_id));
     await operation;
     expect(deleted.status).toBe("deleted");expect(providerDispatches).toBe(0);
+  });
+
+  it("rechecks task authority after preprocessing preparation and before provider dispatch",async()=>{
+    const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const};
+    let entered!:()=>void,release!:()=>void;const preparing=new Promise<void>(resolve=>{entered=resolve;});
+    const prepared=new Promise<void>(resolve=>{release=resolve;});let providerDispatches=0;
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(_source,_index,_signal,authorizeDispatch)=>{
+        entered();await prepared;await authorizeDispatch();providerDispatches++;
+        throw new Error("PROVIDER_DISPATCH_MUST_NOT_RUN");
+      }};
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:model("unused"),preprocessor,research:null},storage);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    const operation=runner.start(auth,created.body.task_id);await preparing;
+    const active=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    await cancelScreenshotContactTask(pool!,auth,active.task_id,active.revision);
+    release();await operation;
+    const cancelled=await loadScreenshotContactTask(pool!,auth,active.task_id);
+    expect(cancelled.status).toBe("cancelled");expect(providerDispatches).toBe(0);
+  });
+
+  it("does not let another workspace member abort the owner's active task",async()=>{
+    const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const};
+    let entered!:()=>void;const preparing=new Promise<void>(resolve=>{entered=resolve;});
+    let observedSignal:AbortSignal|undefined,providerDispatches=0;
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(_source,_index,signal)=>{
+        observedSignal=signal;entered();
+        await new Promise<void>((_resolve,reject)=>{
+          if(signal.aborted){reject(signal.reason);return;}
+          signal.addEventListener("abort",()=>reject(signal.reason),{once:true});
+        });
+        providerDispatches++;
+        throw new Error("PROVIDER_DISPATCH_MUST_NOT_RUN");
+      }};
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:model("unused"),preprocessor,research:null},storage);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    const operation=runner.start(auth,created.body.task_id);await preparing;
+    const active=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    const other={...auth,userId:randomUUID(),sessionId:randomUUID()};let unauthorizedFence=false;
+    await expect(cancelScreenshotContactTask(pool!,other,active.task_id,active.revision,()=>{
+      unauthorizedFence=true;runner.fenceTaskCancellation(other,active.task_id);
+    })).rejects.toMatchObject({code:"CONTACT_TASK_NOT_FOUND"});
+    expect(unauthorizedFence).toBe(false);expect(observedSignal?.aborted).toBe(false);
+    const cancelled=await cancelScreenshotContactTask(pool!,auth,active.task_id,active.revision,
+      ()=>runner.fenceTaskCancellation(auth,active.task_id));
+    await operation;
+    expect(cancelled.status).toBe("cancelled");expect(providerDispatches).toBe(0);
+  });
+
+  it("aborts dispatch when Stop arrives between the locked row and source checks",async()=>{
+    const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const};
+    let authorizationStarted=false,entered!:()=>void,release!:()=>void;
+    const checkingSource=new Promise<void>(resolve=>{entered=resolve;});
+    const continueSourceCheck=new Promise<void>(resolve=>{release=resolve;});
+    const guardedPool=new Proxy(pool!,{get(target,key){
+      if(key!=="connect"){const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;}
+      return async()=>{
+        const client=await target.connect();
+        return new Proxy(client,{get(connection,property){
+          if(property!=="query"){const value=Reflect.get(connection,property);return typeof value==="function"?value.bind(connection):value;}
+          return async(...args:any[])=>{
+            if(authorizationStarted&&typeof args[0]==="string"&&args[0].includes("contact_task_directory_available")){
+              entered();await continueSourceCheck;
+            }
+            return (connection.query as (...input:any[])=>unknown)(...args);
+          };
+        }});
+      };
+    }}) as Pool;
+    let providerDispatches=0;
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(_source,_index,_signal,authorizeDispatch)=>{
+        authorizationStarted=true;await authorizeDispatch();providerDispatches++;
+        throw new Error("PROVIDER_DISPATCH_MUST_NOT_RUN");
+      }};
+    const runner=new ScreenshotContactTaskRunner(guardedPool,{model:model("unused"),preprocessor,research:null},storage);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    const operation=runner.start(auth,created.body.task_id);await checkingSource;
+    const active=await loadScreenshotContactTask(pool!,auth,created.body.task_id);let fenced=false,fenceReached!:()=>void;
+    const fenceRequested=new Promise<void>(resolve=>{fenceReached=resolve;});
+    const cancellation=cancelScreenshotContactTask(pool!,auth,active.task_id,active.revision,()=>{
+      fenced=true;runner.fenceTaskCancellation(auth,active.task_id);fenceReached();
+    });
+    await fenceRequested;expect(fenced).toBe(true);release();await Promise.all([operation,cancellation]);
+    const cancelled=await loadScreenshotContactTask(pool!,auth,active.task_id);
+    expect(cancelled.status).toBe("cancelled");expect(providerDispatches).toBe(0);
+  });
+
+  it("fences selected-person preprocessing before archive waits on dispatch authorization",async()=>{
+    const filedRequest=input();const filedCreated=await createScreenshotContactTask(pool!,auth,filedRequest);
+    await new ScreenshotContactTaskRunner(pool!,{model:model(`Archive dispatch ${randomUUID().slice(0,8)}`),research:null})
+      .start(auth,filedCreated.body.task_id,filedRequest.image);
+    const filed=await loadScreenshotContactTask(pool!,auth,filedCreated.body.task_id);
+    const intelligence=await loadContactIntelligence(pool!,auth,filed.contact!.person_id,filed.contact!.relationship_context_id);
+    const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const};
+    let authorizationStarted=false,entered!:()=>void,release!:()=>void;
+    const checkingSource=new Promise<void>(resolve=>{entered=resolve;});
+    const continueSourceCheck=new Promise<void>(resolve=>{release=resolve;});
+    const guardedPool=new Proxy(pool!,{get(target,key){
+      if(key!=="connect"){const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;}
+      return async()=>{
+        const client=await target.connect();
+        return new Proxy(client,{get(connection,property){
+          if(property!=="query"){const value=Reflect.get(connection,property);return typeof value==="function"?value.bind(connection):value;}
+          return async(...args:any[])=>{
+            if(authorizationStarted&&typeof args[0]==="string"&&args[0].includes("contact_task_directory_available")){
+              entered();await continueSourceCheck;
+            }
+            return (connection.query as (...input:any[])=>unknown)(...args);
+          };
+        }});
+      };
+    }}) as Pool;
+    let providerDispatches=0;
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(_source,_index,_signal,authorizeDispatch)=>{
+        authorizationStarted=true;await authorizeDispatch();providerDispatches++;
+        throw new Error("PROVIDER_DISPATCH_MUST_NOT_RUN");
+      }};
+    const runner=new ScreenshotContactTaskRunner(guardedPool,{model:model("unused"),preprocessor,research:null},storage);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    await pool!.query(`UPDATE screenshot_contact_tasks SET state=jsonb_set(state,'{selected}',$2::jsonb)
+      WHERE id=$1`,[created.body.task_id,JSON.stringify({person_id:filed.contact!.person_id,
+        relationship_context_id:filed.contact!.relationship_context_id})]);
+    const operation=runner.start(auth,created.body.task_id);await checkingSource;
+    let fenced!:()=>void;const archiveFence=new Promise<void>(resolve=>{fenced=resolve;});
+    const archive=executeGrantedContactArchive(pool!,auth,{person_id:filed.contact!.person_id,
+      expected_revision:intelligence.person_revision!,idempotency_key:randomUUID(),decision:"archive"},taskIDs=>{
+        taskIDs.forEach(taskID=>runner.fenceTaskCancellation(auth,taskID,"CONTACT_ARCHIVED"));fenced();
+      });
+    await archiveFence;release();const [archived]=await Promise.all([archive,operation]);
+    expect(providerDispatches).toBe(0);
+    expect((await pool!.query("SELECT status FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id])).rows[0]?.status).toBe("cancelled");
+    await restoreContactArchive(pool!,auth,archived.operation_id);
+  });
+
+  it("rejects selected-person task admission queued after archive authority is locked",async()=>{
+    const filedRequest=input();const filedCreated=await createScreenshotContactTask(pool!,auth,filedRequest);
+    await new ScreenshotContactTaskRunner(pool!,{model:model(`Archive admission ${randomUUID().slice(0,8)}`),research:null})
+      .start(auth,filedCreated.body.task_id,filedRequest.image);
+    const filed=await loadScreenshotContactTask(pool!,auth,filedCreated.body.task_id);
+    const intelligence=await loadContactIntelligence(pool!,auth,filed.contact!.person_id,filed.contact!.relationship_context_id);
+    let archiveLocked!:()=>void,releaseArchive!:()=>void,admissionQueued!:()=>void;
+    const locked=new Promise<void>(resolve=>{archiveLocked=resolve;});
+    const release=new Promise<void>(resolve=>{releaseArchive=resolve;});
+    const queued=new Promise<void>(resolve=>{admissionQueued=resolve;});
+    const archivePool=observePersonLock(pool!,filed.contact!.person_id,{after:async()=>{archiveLocked();await release;}});
+    const admissionPool=observePersonLock(pool!,filed.contact!.person_id,{before:admissionQueued});
+    const archive=executeGrantedContactArchive(archivePool,auth,{person_id:filed.contact!.person_id,
+      expected_revision:intelligence.person_revision!,idempotency_key:randomUUID(),decision:"archive"});
+    await locked;
+    const request={...input(),selected_person_id:filed.contact!.person_id,
+      selected_relationship_context_id:filed.contact!.relationship_context_id};
+    const admission=createScreenshotContactTask(admissionPool,auth,request).then(()=>null,error=>error);
+    await queued;releaseArchive();
+    const [archived,error]=await Promise.all([archive,admission]);
+    expect(error).toMatchObject({code:"RELATIONSHIP_CONTEXT_NOT_FOUND"});
+    expect((await pool!.query("SELECT 1 FROM screenshot_contact_tasks WHERE account_id=$1 AND idempotency_key=$2",
+      [auth.accountId,request.idempotency_key])).rowCount).toBe(0);
+    await restoreContactArchive(pool!,auth,archived.operation_id);
+  });
+
+  it("rejects selected-person resume queued after archive authority is locked",async()=>{
+    const filedRequest=input();const filedCreated=await createScreenshotContactTask(pool!,auth,filedRequest);
+    await new ScreenshotContactTaskRunner(pool!,{model:model(`Archive resume ${randomUUID().slice(0,8)}`),research:null})
+      .start(auth,filedCreated.body.task_id,filedRequest.image);
+    const filed=await loadScreenshotContactTask(pool!,auth,filedCreated.body.task_id);
+    const intelligence=await loadContactIntelligence(pool!,auth,filed.contact!.person_id,filed.contact!.relationship_context_id);
+    const candidate=await createScreenshotContactTask(pool!,auth,input());
+    const cancelled=await cancelScreenshotContactTask(pool!,auth,candidate.body.task_id,candidate.body.revision);
+    let archiveLocked!:()=>void,releaseArchive!:()=>void,resumeQueued!:()=>void;
+    const locked=new Promise<void>(resolve=>{archiveLocked=resolve;});
+    const release=new Promise<void>(resolve=>{releaseArchive=resolve;});
+    const queued=new Promise<void>(resolve=>{resumeQueued=resolve;});
+    const archivePool=observePersonLock(pool!,filed.contact!.person_id,{after:async()=>{archiveLocked();await release;}});
+    const resumePool=observePersonLock(pool!,filed.contact!.person_id,{before:resumeQueued});
+    const archive=executeGrantedContactArchive(archivePool,auth,{person_id:filed.contact!.person_id,
+      expected_revision:intelligence.person_revision!,idempotency_key:randomUUID(),decision:"archive"});
+    await locked;
+    const resume=resumeScreenshotContactTask(resumePool,auth,cancelled.task_id,{expected_revision:cancelled.revision,
+      selected_person_id:filed.contact!.person_id,
+      selected_relationship_context_id:filed.contact!.relationship_context_id}).then(()=>null,error=>error);
+    await queued;releaseArchive();
+    const [archived,error]=await Promise.all([archive,resume]);
+    expect(error).toMatchObject({code:"RELATIONSHIP_CONTEXT_NOT_FOUND"});
+    expect((await loadScreenshotContactTask(pool!,auth,cancelled.task_id)).status).toBe("cancelled");
+    await restoreContactArchive(pool!,auth,archived.operation_id);
+  });
+
+  it("rejects no-argument resume of an auto-bound capture queued after archive scan",async()=>{
+    const request=input();const created=await createScreenshotContactTask(pool!,auth,request);
+    await new ScreenshotContactTaskRunner(pool!,{model:model(`Archive bound resume ${randomUUID().slice(0,8)}`),research:null})
+      .start(auth,created.body.task_id,request.image);
+    const filed=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    const persisted=(await pool!.query("SELECT state,subject_id,capture_id FROM screenshot_contact_tasks WHERE id=$1",
+      [filed.task_id])).rows[0]!;
+    expect(persisted.state.selected).toBeNull();expect(persisted.subject_id).toBe(filed.contact!.person_id);
+    expect(persisted.capture_id).toBe(filed.capture_id);
+    const cancelled=await cancelScreenshotContactTask(pool!,auth,filed.task_id,filed.revision);
+    const intelligence=await loadContactIntelligence(pool!,auth,filed.contact!.person_id,filed.contact!.relationship_context_id);
+    let archiveLocked!:()=>void,releaseArchive!:()=>void,resumeQueued!:()=>void;
+    const locked=new Promise<void>(resolve=>{archiveLocked=resolve;});
+    const release=new Promise<void>(resolve=>{releaseArchive=resolve;});
+    const queued=new Promise<void>(resolve=>{resumeQueued=resolve;});
+    const archivePool=observePersonLock(pool!,filed.contact!.person_id,{after:async()=>{archiveLocked();await release;}});
+    const resumePool=observePersonLock(pool!,filed.contact!.person_id,{before:resumeQueued});
+    const archive=executeGrantedContactArchive(archivePool,auth,{person_id:filed.contact!.person_id,
+      expected_revision:intelligence.person_revision!,idempotency_key:randomUUID(),decision:"archive"});
+    await locked;
+    let runnerStarts=0;
+    const resume=resumeScreenshotContactTask(resumePool,auth,cancelled.task_id,{expected_revision:cancelled.revision})
+      .then(result=>{runnerStarts++;return result;},error=>error);
+    await queued;releaseArchive();
+    const [archived,error]=await Promise.all([archive,resume]);
+    expect(error).toMatchObject({code:"CONTACT_DIRECTORY_CHANGED_SEARCH_AGAIN"});expect(runnerStarts).toBe(0);
+    expect((await pool!.query("SELECT status FROM screenshot_contact_tasks WHERE id=$1",[cancelled.task_id])).rows[0]?.status).toBe("cancelled");
+    await restoreContactArchive(pool!,auth,archived.operation_id);
+  });
+
+  it("serializes canonical filing ahead of the task row when archive owns person authority",async()=>{
+    const name=`Archive filing ${randomUUID().slice(0,8)}`,seed=input();
+    const seeded=await createScreenshotContactTask(pool!,auth,seed);
+    await new ScreenshotContactTaskRunner(pool!,{model:model(name),research:null}).start(auth,seeded.body.task_id,seed.image);
+    const person=await loadScreenshotContactTask(pool!,auth,seeded.body.task_id);
+    const intelligence=await loadContactIntelligence(pool!,auth,person.contact!.person_id,person.contact!.relationship_context_id);
+    let readyToSave!:()=>void,releaseSave!:()=>void,archiveLocked!:()=>void,releaseArchive!:()=>void,saveQueued!:()=>void;
+    const ready=new Promise<void>(resolve=>{readyToSave=resolve;});
+    const saveGate=new Promise<void>(resolve=>{releaseSave=resolve;});
+    const locked=new Promise<void>(resolve=>{archiveLocked=resolve;});
+    const archiveGate=new Promise<void>(resolve=>{releaseArchive=resolve;});
+    const queued=new Promise<void>(resolve=>{saveQueued=resolve;});let saving=false;
+    const runnerPool=observePersonLock(pool!,person.contact!.person_id,{before:()=>{if(saving)saveQueued();}});
+    const request=input();const scope={person_id:person.contact!.person_id,
+      relationship_context_id:person.contact!.relationship_context_id};
+    const sdk=sdkModel(async(admission,signal)=>{
+      await admission.recordUnderstanding([{platform:"Synthetic IM",conversation_kind:"direct",contact_name:name,
+        identity_clues:[{kind:"name",value:name,source_excerpt:name}],messages:[{message_id:"m1",sequence:0,
+          text:"I can talk next Tuesday.",speaker_side:"left",speaker_label:name,time_text:null}],uncertainties:[]}],signal);
+      await admission.invoke("search_contacts",{query:name},signal);
+      await admission.invoke("read_contact",scope,signal);
+      readyToSave();await saveGate;saving=true;
+      await admission.invoke("save_contact_chat",scope,signal);
+      return sdkReceipt();
+    });
+    const created=await createScreenshotContactTask(pool!,auth,request);
+    const runner=new ScreenshotContactTaskRunner(runnerPool,{model:sdk,research:null});
+    const operation=runner.start(auth,created.body.task_id,request.image);await ready;
+    const archivePool=observePersonLock(pool!,person.contact!.person_id,{after:async()=>{archiveLocked();await archiveGate;}});
+    const archive=executeGrantedContactArchive(archivePool,auth,{person_id:person.contact!.person_id,
+      expected_revision:intelligence.person_revision!,idempotency_key:randomUUID(),decision:"archive"});
+    await locked;releaseSave();await queued;releaseArchive();
+    const [archived]=await Promise.all([archive,operation]);
+    const stored=(await pool!.query("SELECT status,capture_id FROM screenshot_contact_tasks WHERE id=$1",[created.body.task_id])).rows[0]!;
+    expect(stored.status).toBe("cancelled");expect(stored.capture_id).toBeNull();
+    await restoreContactArchive(pool!,auth,archived.operation_id);
   });
 
   it("keeps unbounded uncertainty human-only even when the SDK is available",async()=>{

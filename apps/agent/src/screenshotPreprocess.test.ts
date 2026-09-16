@@ -64,7 +64,7 @@ describe("screenshot-preprocess.v3",()=>{
     }) as typeof fetch;
     const result=await withProductRunCapture({async append(span){spans.push(span);}},()=>
       new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher})
-        .preprocess(source,0,new AbortController().signal));
+        .preprocess(source,0,new AbortController().signal,async()=>{}));
     expect(result).toMatchObject({request_id:"ark-request-1",model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:12,output_tokens:8,
       source:{source_image_index:0,source_hash:source.content_hash,platform:"WeChat",follow_up_required:false}});
     expect(extractionFromPreprocess(result.source)).toMatchObject({messages:[{message_id:"m1",sequence:0,
@@ -78,6 +78,14 @@ describe("screenshot-preprocess.v3",()=>{
     expect(JSON.stringify(spans)).not.toContain("Exact synthetic source");
   });
 
+  it("rechecks dispatch authority after local view preparation",async()=>{
+    const source=await image();const fetcher=vi.fn(async()=>{throw new Error("PROVIDER_MUST_NOT_RUN");}) as typeof fetch;
+    const authorizeDispatch=vi.fn(async()=>{throw new Error("SCREENSHOT_AUTHORITY_REVOKED");});
+    await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher})
+      .preprocess(source,0,new AbortController().signal,authorizeDispatch)).rejects.toThrow("SCREENSHOT_AUTHORITY_REVOKED");
+    expect(authorizeDispatch).toHaveBeenCalledOnce();expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("preserves provider identity positions for target-bound correction",async()=>{
     const source=await image();
     const output={...modelOutput,contact_name:"Alice",identity_clues:[
@@ -89,7 +97,7 @@ describe("screenshot-preprocess.v3",()=>{
     const fetcher=vi.fn(async()=>new Response(JSON.stringify({id:"ark-identity-grounding",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
       choices:[{message:{content:JSON.stringify(output)}}]}))) as typeof fetch;
     const result=await new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher})
-      .preprocess(source,0,new AbortController().signal);
+      .preprocess(source,0,new AbortController().signal,async()=>{});
     expect(result.source).toMatchObject({contact_name:"Alice",identity_clues:output.identity_clues});
     expect(extractionFromPreprocess(result.source)).toMatchObject({contact_name:"Alice",identity_clues:[
       {kind:"handle",value:"@alice",source_excerpt:"Visible handle: @bob",source_image_index:0},
@@ -104,20 +112,20 @@ describe("screenshot-preprocess.v3",()=>{
     const response=(output:unknown,model:string=ARK_SCREENSHOT_PREPROCESS_MODEL)=>vi.fn(async()=>new Response(JSON.stringify({
       id:"ark-request-1",model,choices:[{message:{content:JSON.stringify(output)}}]}))) as typeof fetch;
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response(modelOutput,"latest")})
-      .preprocess(source,0,new AbortController().signal)).rejects.toThrow("PROVIDER_IDENTITY_MISMATCH");
+      .preprocess(source,0,new AbortController().signal,async()=>{})).rejects.toThrow("PROVIDER_IDENTITY_MISMATCH");
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       uncertainties:["Message text is unclear."],follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
         target:{kind:"message",message_index:0},baseline_text:"source",left:100,top:0,width:40,height:20}]})})
-      .preprocess(source,0,new AbortController().signal)).rejects.toThrow("REGION_OUT_OF_BOUNDS");
+      .preprocess(source,0,new AbortController().signal,async()=>{})).rejects.toThrow("REGION_OUT_OF_BOUNDS");
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       uncertainties:["Message text is unclear."],follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
         target:{kind:"message",message_index:0},baseline_text:"source",left:0,top:0,width:120,height:1401}]})})
-      .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+      .preprocess(source,0,new AbortController().signal,async()=>{})).rejects.toThrow();
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       messages:[{...modelOutput.messages[0],text:"aaa"}],uncertainties:["Message text is unclear."],
       follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
         target:{kind:"message",message_index:0},baseline_text:"aa",left:0,top:0,width:40,height:20}]})})
-      .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+      .preprocess(source,0,new AbortController().signal,async()=>{})).rejects.toThrow();
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       messages:[{...modelOutput.messages[0],text:"abcdef"}],uncertainties:["First text is unclear.","Second text is unclear."],
       follow_up_regions:[
@@ -125,11 +133,11 @@ describe("screenshot-preprocess.v3",()=>{
           target:{kind:"message",message_index:0},baseline_text:"abcd",left:0,top:0,width:40,height:20},
         {reason:"illegible_text",field:"text",uncertainty_index:1,
           target:{kind:"message",message_index:0},baseline_text:"cdef",left:40,top:0,width:40,height:20},
-      ]})}).preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+      ]})}).preprocess(source,0,new AbortController().signal,async()=>{})).rejects.toThrow();
     await expect(new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher:response({...modelOutput,
       uncertainties:["Whole message is unclear."],follow_up_regions:[{reason:"illegible_text",field:"text",uncertainty_index:0,
         target:{kind:"message",message_index:0},baseline_text:modelOutput.messages[0]!.text,left:0,top:0,width:40,height:20}]})})
-      .preprocess(source,0,new AbortController().signal)).rejects.toThrow();
+      .preprocess(source,0,new AbortController().signal,async()=>{})).rejects.toThrow();
   });
 
   it("fails the observed provider span before invalid private output can be retained",async()=>{
@@ -142,7 +150,7 @@ describe("screenshot-preprocess.v3",()=>{
     const spans:ProductRunSpan[]=[];
     await expect(withProductRunCapture({async append(span){spans.push(span);}},()=>
       new ArkScreenshotPreprocessor({apiKey:"synthetic",fetcher})
-        .preprocess(source,0,new AbortController().signal)))
+        .preprocess(source,0,new AbortController().signal,async()=>{})))
       .rejects.toThrow();
     expect(spans).toHaveLength(1);
     expect(spans[0]).toMatchObject({name:"contact.screenshot.preprocess",status:"failed",error:"Operation failed"});

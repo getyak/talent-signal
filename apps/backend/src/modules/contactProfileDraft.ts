@@ -55,9 +55,8 @@ export async function saveReviewedContactProfile(client:PoolClient,auth:AuthCont
   });
   const handles=reviewed.map(c=>handleFor(extraction.platform,c.kind,c.value)).filter((h):h is IdentityHandleHint=>Boolean(h));
   if(handles.length>5)throw new ApiError(422,"CONTACT_PROFILE_TOO_MANY_HANDLES","每次最多确认五个账号线索。");
-  // Serialize profile admissions and recheck identity in this same transaction.
-  // No model search result or previous draft grants identity authority.
-  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`${auth.accountId}:reviewed-profile-admission`]);
+  // The caller holds reviewed-profile admission authority before its task row,
+  // so identity discovery and canonical binding share archive-safe lock order.
   const matches=new Map<string,{person_id:string;relationship_context_id:string;display_name:string;relationship_label:string}>();
   for(const handle of handles){
     const result=await searchPeople(client,auth,`${handle.type==="source_native_id"?"source":"profile"}:${handle.value}`);

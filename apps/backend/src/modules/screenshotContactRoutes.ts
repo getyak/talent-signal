@@ -197,6 +197,7 @@ export function registerScreenshotContactRoutes(
       request.auth,
       request.params.id,
       request.body.expected_revision,
+      () => screenshotRunner?.fenceTaskCancellation(request.auth, request.params.id),
     ),
   );
 }

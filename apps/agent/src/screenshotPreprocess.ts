@@ -200,7 +200,8 @@ export interface ScreenshotPreprocessResult {
 export interface ScreenshotPreprocessor {
   readonly provider: "volcano_ark";
   readonly model: string;
-  preprocess(image: ScreenshotPreprocessImage, imageIndex: number, signal: AbortSignal): Promise<ScreenshotPreprocessResult>;
+  preprocess(image: ScreenshotPreprocessImage, imageIndex: number, signal: AbortSignal,
+    authorizeDispatch:()=>Promise<void>): Promise<ScreenshotPreprocessResult>;
 }
 
 /** Reject any model/provider/schema drift before a result can be persisted. */

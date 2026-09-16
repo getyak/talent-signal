@@ -81,7 +81,8 @@ export class ArkScreenshotPreprocessor implements ScreenshotPreprocessor {
     this.fetcher = options.fetcher ?? fetch;
   }
 
-  async preprocess(image: ScreenshotPreprocessImage, imageIndex: number, signal: AbortSignal): Promise<ScreenshotPreprocessResult> {
+  async preprocess(image: ScreenshotPreprocessImage, imageIndex: number, signal: AbortSignal,
+    authorizeDispatch:()=>Promise<void>): Promise<ScreenshotPreprocessResult> {
     signal.throwIfAborted();
     const views = await prepareScreenshotViews(image, imageIndex);
     assertPreprocessViewBudget(views);
@@ -102,6 +103,10 @@ export class ArkScreenshotPreprocessor implements ScreenshotPreprocessor {
         prepared_view_hash: views.overview.content_hash,
         coordinate_space: "EXIF-oriented original pixels" },
       async () => {
+        // Rendering can be expensive. Revalidate the task after it finishes
+        // and immediately before the first remote byte is dispatched.
+        await authorizeDispatch();
+        signal.throwIfAborted();
         const payload = await this.request(content, signal);
         const raw = ModelOutputSchema.parse(parseJSON(payload.choices![0]!.message!.content ?? ""));
         const validated = ScreenshotPreprocessSourceSchema.parse({
