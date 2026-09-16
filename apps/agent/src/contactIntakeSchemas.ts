@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ContactPublicSourceSchema, ContactResearchChannelSchema } from "./contactResearchSchemas.js";
+import { ScreenshotPreprocessPacketSchema } from "./screenshotPreprocess.js";
 
 const Text = z.string().trim().min(1);
 const ID = z.uuid();
@@ -134,6 +135,8 @@ export const TextContactTaskRequestSchema = z.strictObject({
 
 export const ScreenshotContactTaskRequestSchema = z.strictObject({
   ...ContactTaskInputShape,
+  /** Stop after the shared image preprocessing/correction stage; never file. */
+  preprocess_only: z.literal(true).optional(),
   image: ScreenshotContactImageSchema,
   additional_images: z.array(ScreenshotContactImageSchema).max(9).optional(),
 }).refine(request => [request.image, ...(request.additional_images ?? [])].reduce((total, image) => total + image.byte_size, 0) <= 30_000_000, "Screenshots must total at most 30 MB.");
@@ -179,6 +182,11 @@ export const ScreenshotContactTaskResponseSchema = z.strictObject({
   source_resource_id: ID.nullable(),
   message_count: z.number().int().nonnegative(),
   extraction: ContactChatExtractionSchema.nullable(),
+  preprocessing: ScreenshotPreprocessPacketSchema.optional(),
+  // The packet is immutable provenance and keeps historical regions. This
+  // response projection names only sources that still authorize another
+  // bounded original-image read.
+  preprocessing_pending_source_indices: z.array(z.number().int().min(0).max(9)).max(10).optional(),
   contact_draft: ContactProfileDraftSchema.optional(),
   reviewed_profile: ContactProfileDraftSchema.optional(),
   summary: z.string().max(2_000),

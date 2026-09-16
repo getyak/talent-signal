@@ -1,5 +1,7 @@
 import Foundation
+import ImageIO
 import UIKit
+import UniformTypeIdentifiers
 import XCTest
 @testable import TalentSignal
 
@@ -144,31 +146,127 @@ final class RelationshipCaptureTests: XCTestCase {
         }
     }
 
-    @MainActor
-    func testVisionRecognizerReadsSyntheticConversationImageOnDevice() async throws {
-        let renderer = UIGraphicsImageRenderer(
-            size: CGSize(width: 1_200, height: 520)
-        )
+    func testScreenshotPreprocessingUploadNormalizerHonorsServerImageContract() throws {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64))
         let image = renderer.image { context in
-            UIColor.white.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 1_200, height: 520))
-            let text = "WeChat: alex_test_2026\nNext Thursday works"
-            text.draw(
-                in: CGRect(x: 70, y: 80, width: 1_060, height: 360),
-                withAttributes: [
-                    .font: UIFont.systemFont(ofSize: 72, weight: .semibold),
-                    .foregroundColor: UIColor.black,
-                ]
-            )
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
         }
-        let imageData = try XCTUnwrap(image.pngData())
+        let png = try XCTUnwrap(image.pngData())
+        let unchanged = try ScreenshotPreprocessingUploadNormalizer.normalize(
+            data: png,
+            mediaType: "image/png"
+        )
+        XCTAssertEqual(unchanged.data, png)
+        XCTAssertEqual(unchanged.mediaType, "image/png")
 
-        let recognized = try await VisionConversationTextRecognizer()
-            .recognizeText(in: imageData)
-            .lowercased()
+        let animatedBytes = NSMutableData()
+        let animatedDestination = try XCTUnwrap(CGImageDestinationCreateWithData(
+            animatedBytes,
+            UTType.png.identifier as CFString,
+            2,
+            nil
+        ))
+        CGImageDestinationAddImage(animatedDestination, try XCTUnwrap(image.cgImage), nil)
+        CGImageDestinationAddImage(animatedDestination, try XCTUnwrap(image.cgImage), nil)
+        XCTAssertTrue(CGImageDestinationFinalize(animatedDestination))
+        let animatedPNG = animatedBytes as Data
+        XCTAssertEqual(
+            CGImageSourceGetCount(try XCTUnwrap(CGImageSourceCreateWithData(animatedPNG as CFData, nil))),
+            2
+        )
+        let flattened = try ScreenshotPreprocessingUploadNormalizer.normalize(
+            data: animatedPNG,
+            mediaType: "image/png"
+        )
+        XCTAssertEqual(flattened.mediaType, "image/jpeg")
+        XCTAssertEqual(
+            CGImageSourceGetCount(try XCTUnwrap(CGImageSourceCreateWithData(flattened.data as CFData, nil))),
+            1
+        )
 
-        XCTAssertTrue(recognized.contains("wechat"))
-        XCTAssertTrue(recognized.contains("thursday"))
+        let generic = try ScreenshotPreprocessingUploadNormalizer.normalize(
+            data: png,
+            mediaType: "application/octet-stream"
+        )
+        XCTAssertEqual(generic.mediaType, "image/jpeg")
+        XCTAssertLessThanOrEqual(generic.data.count, ScreenshotPreprocessingUploadNormalizer.maximumByteCount)
+        XCTAssertEqual(Array(generic.data.prefix(3)), [0xff, 0xd8, 0xff])
+        XCTAssertNotNil(UIImage(data: generic.data))
+
+        let longPNG = try XCTUnwrap(UIGraphicsImageRenderer(
+            size: CGSize(width: 64, height: 5_000)
+        ).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 64, height: 5_000))
+        }.pngData())
+        XCTAssertLessThan(longPNG.count, ScreenshotPreprocessingUploadNormalizer.maximumByteCount)
+        let resizedLongPNG = try ScreenshotPreprocessingUploadNormalizer.normalize(
+            data: longPNG,
+            mediaType: "image/png"
+        )
+        let resizedLongImage = try XCTUnwrap(UIImage(data: resizedLongPNG.data))
+        XCTAssertEqual(resizedLongPNG.mediaType, "image/jpeg")
+        XCTAssertLessThanOrEqual(
+            max(resizedLongImage.size.width, resizedLongImage.size.height),
+            4_096
+        )
+
+        let portrait = UIGraphicsImageRenderer(size: CGSize(width: 40, height: 80)).image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 40, height: 80))
+        }
+        let heicBytes = NSMutableData()
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithData(
+            heicBytes,
+            UTType.heic.identifier as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(
+            destination,
+            try XCTUnwrap(portrait.cgImage),
+            [kCGImagePropertyOrientation: 6] as CFDictionary
+        )
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        let heic = heicBytes as Data
+        let normalizedHEIC = try ScreenshotPreprocessingUploadNormalizer.normalize(
+            data: heic,
+            mediaType: "image/heic"
+        )
+        let decodedHEIC = try XCTUnwrap(UIImage(data: normalizedHEIC.data))
+        XCTAssertEqual(normalizedHEIC.mediaType, "image/jpeg")
+        XCTAssertGreaterThan(decodedHEIC.size.width, decodedHEIC.size.height)
+
+        let width = 2_048, height = 2_048
+        var pixels = Data(count: width * height * 4)
+        pixels.withUnsafeMutableBytes { bytes in
+            if let baseAddress = bytes.baseAddress {
+                arc4random_buf(baseAddress, bytes.count)
+            }
+        }
+        let provider = try XCTUnwrap(CGDataProvider(data: pixels as CFData))
+        let noisyImage = try XCTUnwrap(CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        ))
+        let oversized = try XCTUnwrap(UIImage(cgImage: noisyImage).pngData())
+        XCTAssertGreaterThan(oversized.count, ScreenshotPreprocessingUploadNormalizer.maximumByteCount)
+        let compressed = try ScreenshotPreprocessingUploadNormalizer.normalize(
+            data: oversized,
+            mediaType: "image/png"
+        )
+        XCTAssertEqual(compressed.mediaType, "image/jpeg")
+        XCTAssertLessThanOrEqual(compressed.data.count, ScreenshotPreprocessingUploadNormalizer.maximumByteCount)
     }
 
     func testDraftBuilderExtractsEmailBeforePhone() {
@@ -317,6 +415,53 @@ final class RelationshipCaptureTests: XCTestCase {
         let removedDraft = try await inbox.loadDraft(for: seed.id)
         XCTAssertNil(removed)
         XCTAssertNil(removedDraft)
+    }
+
+    func testScreenshotPreprocessRequestIsStableAcrossInboxRoundTrip() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-inbox-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]),
+            fileName: "conversation.png",
+            mediaType: "image/png",
+            origin: .photosPicker
+        )
+        let restoredInbox = PendingCaptureInbox(directoryURL: directory)
+        let loadedSeed = try await restoredInbox.load(id: seed.id, scope: nil)
+        let restoredSeed = try XCTUnwrap(loadedSeed)
+
+        func encodedRequest(for value: PendingCaptureSeed) throws -> Data {
+            let body = ScreenshotContactTaskBody(
+                idempotencyKey: "ios:\(value.id.uuidString.lowercased()):preprocess-v3",
+                objective: "Preprocess this recruiter-selected screenshot into reviewable, unconfirmed source evidence.",
+                data: value.imageData,
+                mediaType: value.mediaType,
+                personID: nil,
+                contextID: nil,
+                capturedAt: value.createdAt,
+                preprocessOnly: true,
+                allowPublicResearch: false
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            return try encoder.encode(body)
+        }
+
+        let initialRequest = try encodedRequest(for: seed)
+        let restoredRequest = try encodedRequest(for: restoredSeed)
+        XCTAssertEqual(initialRequest, restoredRequest)
+
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: initialRequest) as? [String: Any]
+        )
+        let expectedCapturedAt = ISO8601DateFormatter().string(
+            from: Date(
+                timeIntervalSince1970: floor(seed.createdAt.timeIntervalSince1970)
+            )
+        )
+        XCTAssertEqual(json["captured_at"] as? String, expectedCapturedAt.replacingOccurrences(of: "Z", with: ".000Z"))
     }
 
     func testContactDraftMapsOnlyReviewedContactFields() {
@@ -755,7 +900,9 @@ final class RelationshipCaptureTests: XCTestCase {
                 resourceProcessingState: "needs_fact_review"
             ),
             wiki: Self.goldWiki(),
-            captureCandidatePersonIDs: [Self.currentPersonID]
+            captureCandidatePersonIDs: [Self.currentPersonID],
+            preprocessingTaskID: "99999999-9999-4999-8999-999999999998",
+            preprocessingTaskRevision: 4
         )
         let handoff = CaptureHandoffStore(inbox: inbox)
         let sessions = AgentSessionStore()
@@ -763,10 +910,7 @@ final class RelationshipCaptureTests: XCTestCase {
         await handoff.restorePendingCapture()
         await handoff.processPendingCaptures(
             sessionStore: sessions,
-            service: service,
-            recognizer: CaptureSessionRecognizerStub(
-                text: "Alex Chen\nWeChat: alexchen\nAvailable next Tuesday"
-            )
+            service: service
         )
 
         XCTAssertTrue(handoff.inboxItems.isEmpty)
@@ -789,15 +933,529 @@ final class RelationshipCaptureTests: XCTestCase {
         }
         XCTAssertEqual(candidate.personID, Self.currentPersonID)
         XCTAssertEqual(context.id, Self.currentContextID)
+        let links = await service.preprocessingLinks
+        XCTAssertEqual(links.count, 1)
+        XCTAssertEqual(links.first?.taskID, "99999999-9999-4999-8999-999999999998")
+        XCTAssertEqual(links.first?.expectedRevision, 4)
+        XCTAssertEqual(links.first?.captureID, "99999999-9999-4999-8999-999999999999")
+        XCTAssertEqual(links.first?.sourceResourceID, Self.oneCurrentOwnerCase().source.resourceID)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.count, 1)
+        XCTAssertEqual(deletes.first?.taskID, "99999999-9999-4999-8999-999999999998")
+        XCTAssertEqual(deletes.first?.revision, 5)
 
         await handoff.processPendingCaptures(
             sessionStore: sessions,
-            service: service,
-            recognizer: CaptureSessionRecognizerStub(text: "unused")
+            service: service
         )
         XCTAssertEqual(sessions.session(id: sessionID)?.turns.count, 1)
         let finalCreateCount = await service.createCount
         XCTAssertEqual(finalCreateCount, 1)
+    }
+
+    @MainActor
+    func testCaptureProcessingReconcilesACommittedPreprocessingLinkAfterResponseLoss() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-capture-link-recovery-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]),
+            fileName: "link-response-loss.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+        let summaries = try await inbox.summaries()
+        let sessionID = try XCTUnwrap(summaries.first?.sessionID)
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.oneCurrentOwnerCase(),
+            decisionResult: IdentityDecisionResult(
+                decision: "bind_existing",
+                identityStatus: "bound",
+                personID: Self.currentPersonID,
+                relationshipContextID: Self.currentContextID,
+                resourceProcessingState: "needs_fact_review"
+            ),
+            wiki: Self.goldWiki(),
+            captureCandidatePersonIDs: [Self.currentPersonID],
+            preprocessingTaskID: "99999999-9999-4999-8999-999999999993",
+            preprocessingTaskRevision: 4,
+            loseFirstPreprocessingLinkResponse: true
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        XCTAssertEqual(handoff.inboxItems.first?.processingState, .failed)
+        let firstLinks = await service.preprocessingLinks
+        XCTAssertEqual(firstLinks.count, 1)
+        XCTAssertEqual(
+            sessions.session(id: sessionID)?.turns.first?.response.taskID,
+            "capture-\(seed.id.uuidString.lowercased())-failed"
+        )
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        XCTAssertTrue(handoff.inboxItems.isEmpty)
+        let links = await service.preprocessingLinks
+        XCTAssertEqual(links.count, 2)
+        XCTAssertEqual(links.map(\.expectedRevision), [4, 4])
+        XCTAssertEqual(links.map(\.captureID), Array(repeating: "99999999-9999-4999-8999-999999999999", count: 2))
+        XCTAssertTrue(sessions.session(id: sessionID)?.turns.contains(where: {
+            $0.response.taskID == "capture-\(seed.id.uuidString.lowercased())"
+        }) == true)
+        XCTAssertFalse(sessions.session(id: sessionID)?.isUnread ?? true)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.count, 1)
+        XCTAssertEqual(deletes.first?.revision, 5)
+    }
+
+    @MainActor
+    func testCaptureProcessingBlocksReadableDraftWithPreprocessingUncertainty() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-readable-preprocess-blocker-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "readable-but-unresolved.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        var draft = CaptureDraftBuilder.makeDraft(from: "Readable proposed message")
+        draft.preprocessingTaskID = "99999999-9999-4999-8999-999999999988"
+        draft.preprocessingTaskRevision = 3
+        draft.preprocessingRetryRequired = false
+        draft.preprocessingUncertainties = ["The speaker for message m1 still needs an original-pixel check."]
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.oneCurrentOwnerCase(),
+            decisionResult: .init(
+                decision: "bind_existing", identityStatus: "bound",
+                personID: Self.currentPersonID,
+                relationshipContextID: Self.currentContextID,
+                resourceProcessingState: "needs_fact_review"
+            ),
+            wiki: Self.goldWiki(),
+            captureCandidatePersonIDs: [Self.currentPersonID],
+            preprocessedDraftOverride: draft
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+
+        let item = try XCTUnwrap(handoff.inboxItems.first)
+        XCTAssertEqual(item.id, seed.id)
+        XCTAssertEqual(item.processingState, .needsDecision)
+        let itemSessionID = try XCTUnwrap(item.sessionID)
+        XCTAssertTrue(sessions.session(id: itemSessionID)?.isUnread == true)
+        let createCount = await service.createCount
+        let links = await service.preprocessingLinks
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(createCount, 0)
+        XCTAssertTrue(links.isEmpty)
+        XCTAssertTrue(deletes.isEmpty)
+    }
+
+    @MainActor
+    func testCaptureProcessingRetriesPreprocessingCleanupBeforeLocalRemoval() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-background-preprocess-delete-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "cleanup-retry.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        let summaries = try await inbox.summaries(scope: nil)
+        let sessionID = try XCTUnwrap(summaries.first?.sessionID)
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.oneCurrentOwnerCase(),
+            decisionResult: .init(
+                decision: "bind_existing", identityStatus: "bound",
+                personID: Self.currentPersonID,
+                relationshipContextID: Self.currentContextID,
+                resourceProcessingState: "needs_fact_review"
+            ),
+            wiki: Self.goldWiki(),
+            captureCandidatePersonIDs: [Self.currentPersonID],
+            preprocessingDeleteFailuresBeforeSuccess: 2,
+            preprocessingTaskID: "99999999-9999-4999-8999-999999999987",
+            preprocessingTaskRevision: 6
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        XCTAssertEqual(handoff.inboxItems.first?.processingState, .processing)
+        let retainedSeed = try await inbox.load(id: seed.id, scope: nil)
+        XCTAssertNotNil(retainedSeed)
+        let firstCreateCount = await service.createCount
+        let firstLinks = await service.preprocessingLinks
+        let firstDeletes = await service.preprocessingDeletes
+        XCTAssertEqual(firstCreateCount, 1)
+        XCTAssertEqual(firstLinks.count, 1)
+        XCTAssertEqual(firstDeletes.map(\.revision), [7, 7])
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        XCTAssertTrue(handoff.inboxItems.isEmpty)
+        let removedSeed = try await inbox.load(id: seed.id, scope: nil)
+        XCTAssertNil(removedSeed)
+        let finalCreateCount = await service.createCount
+        let finalLinks = await service.preprocessingLinks
+        let finalDeletes = await service.preprocessingDeletes
+        XCTAssertEqual(finalCreateCount, 1)
+        XCTAssertEqual(finalLinks.count, 1)
+        XCTAssertEqual(finalDeletes.map(\.revision), [7, 7, 7])
+        XCTAssertEqual(sessions.session(id: sessionID)?.turns.filter {
+            $0.response.taskID == "capture-\(seed.id.uuidString.lowercased())"
+        }.count, 1)
+        XCTAssertFalse(sessions.session(id: sessionID)?.isUnread ?? true)
+    }
+
+    @MainActor
+    func testCaptureProcessingPreservesWaitingZeroMessageReceiptForRetryAndDiscard() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-waiting-zero-message-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "waiting-zero.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        var waitingDraft = RecognizedCaptureDraft.empty
+        waitingDraft.preprocessingTaskID = "99999999-9999-4999-8999-999999999989"
+        waitingDraft.preprocessingTaskRevision = 2
+        waitingDraft.preprocessingRetryRequired = true
+        waitingDraft.preprocessingUncertainties = ["Inspect the unreadable bubble in source image 1."]
+        var resumedDraft = CaptureDraftBuilder.makeDraft(from: "Visible after bounded retry")
+        resumedDraft.preprocessingTaskID = waitingDraft.preprocessingTaskID
+        resumedDraft.preprocessingTaskRevision = 3
+        resumedDraft.preprocessingRetryRequired = false
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            preprocessedDraftOverride: waitingDraft,
+            resumedPreprocessedDraft: resumedDraft
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        XCTAssertEqual(handoff.inboxItems.first?.processingState, .needsDecision)
+        let createCount = await service.createCount
+        let deletesBeforeReview = await service.preprocessingDeletes
+        XCTAssertEqual(createCount, 0)
+        XCTAssertTrue(deletesBeforeReview.isEmpty)
+        let savedDraft = try await inbox.loadDraft(for: seed.id)
+        XCTAssertEqual(savedDraft?.preprocessingTaskID, waitingDraft.preprocessingTaskID)
+        XCTAssertEqual(savedDraft?.preprocessingTaskRevision, 2)
+        XCTAssertEqual(savedDraft?.preprocessingRetryRequired, true)
+
+        let review = RelationshipCaptureStore(seed: seed, service: service, inbox: inbox)
+        review.start()
+        try await waitUntil {
+            guard case let .failed(failure) = review.stage else { return false }
+            return failure.recoveryStage == .recognition
+        }
+        review.retry()
+        try await waitUntil { review.stage == .reviewing }
+        XCTAssertEqual(review.draft.reviewedText, "Visible after bounded retry")
+        XCTAssertEqual(review.draft.preprocessingTaskRevision, 3)
+
+        let didDiscard = await review.discard()
+        XCTAssertTrue(didDiscard)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.map(\.revision), [3])
+        let remaining = try await inbox.count()
+        XCTAssertEqual(remaining, 0)
+    }
+
+    @MainActor
+    func testCaptureProcessingPersistsTaskReceiptBeforePollingFailureAndScrubsOnRemoval() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-preprocess-receipt-failure-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "polling-failure.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        let taskID = "99999999-9999-4999-8999-999999999986"
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            preprocessingTaskID: taskID,
+            preprocessingTaskRevision: 4,
+            failPreprocessingAfterReceipt: true
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+
+        XCTAssertEqual(handoff.inboxItems.first?.processingState, .failed)
+        let savedDraft = try await inbox.loadDraft(for: seed.id)
+        XCTAssertEqual(savedDraft?.preprocessingTaskID, taskID)
+        XCTAssertEqual(savedDraft?.preprocessingTaskRevision, 4)
+        XCTAssertEqual(savedDraft?.preprocessingRetryRequired, true)
+
+        try await handoff.removeFromInbox(id: seed.id, service: service)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.map(\.taskID), [taskID])
+        XCTAssertEqual(deletes.map(\.revision), [4])
+        let remaining = try await inbox.count()
+        XCTAssertEqual(remaining, 0)
+    }
+
+    @MainActor
+    func testCaptureRemovalWaitsForActivePreprocessingBeforeExactCleanup() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-preprocess-active-removal-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "active-preprocessing.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        let taskID = "99999999-9999-4999-8999-999999999985"
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            preprocessingTaskID: taskID,
+            preprocessingTaskRevision: 5,
+            preprocessingReceiptDelayNanoseconds: 500_000_000
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        let processing = Task {
+            await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        }
+        try await waitUntil {
+            handoff.inboxItems.first?.processingState == .processing
+        }
+        do {
+            try await handoff.removeFromInbox(id: seed.id, service: service)
+            XCTFail("An active preprocessing request must serialize removal.")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("still processing"))
+        }
+        let retainedWhileProcessing = try await inbox.count()
+        XCTAssertEqual(retainedWhileProcessing, 1)
+
+        await processing.value
+        try await handoff.removeFromInbox(id: seed.id, service: service)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.map(\.taskID), [taskID])
+        XCTAssertEqual(deletes.map(\.revision), [5])
+        let remainingAfterActiveCleanup = try await inbox.count()
+        XCTAssertEqual(remainingAfterActiveCleanup, 0)
+    }
+
+    @MainActor
+    func testCaptureRemovalRetainsResponseLossWithoutCleanupReceiptUntilRetryRecoversIt() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-preprocess-response-loss-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "response-loss.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        let taskID = "99999999-9999-4999-8999-999999999984"
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            preprocessingTaskID: taskID,
+            preprocessingTaskRevision: 6,
+            preprocessingFailuresBeforeReceipt: 1
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        XCTAssertEqual(handoff.inboxItems.first?.processingState, .failed)
+        let missingReceiptDraft = try await inbox.loadDraft(for: seed.id)
+        XCTAssertNil(missingReceiptDraft)
+        do {
+            try await handoff.removeFromInbox(id: seed.id)
+            XCTFail("A failed request without a cleanup receipt must retain local recovery.")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("receipt has not been recovered"))
+        }
+        let retainedAfterResponseLoss = try await inbox.count()
+        XCTAssertEqual(retainedAfterResponseLoss, 1)
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        let recovered = try await inbox.loadDraft(for: seed.id)
+        XCTAssertEqual(recovered?.preprocessingTaskID, taskID)
+        XCTAssertEqual(recovered?.preprocessingTaskRevision, 6)
+        try await handoff.removeFromInbox(id: seed.id, service: service)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.map(\.taskID), [taskID])
+        XCTAssertEqual(deletes.map(\.revision), [6])
+        let remainingAfterRecoveryCleanup = try await inbox.count()
+        XCTAssertEqual(remainingAfterRecoveryCleanup, 0)
+    }
+
+    @MainActor
+    func testCaptureRemovalAllowsLocalPreflightFailureBeforeAnyRemoteRequest() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-preprocess-local-failure-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data("not-an-image".utf8), fileName: "invalid.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer {
+            network.invalidateAndCancel()
+            RelationshipCaptureURLProtocol.handler = nil
+        }
+        RelationshipCaptureURLProtocol.handler = { _ in
+            XCTFail("Local image normalization must fail before any HTTP request.")
+            return (500, Data())
+        }
+        let service = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!,
+            session: network,
+            accessToken: "access-token"
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        let failed = try XCTUnwrap(handoff.inboxItems.first)
+        XCTAssertEqual(failed.processingState, .failed)
+        XCTAssertFalse(failed.preprocessingRemoteRequestMayExist)
+
+        try await handoff.removeFromInbox(id: seed.id)
+        let remaining = try await inbox.count()
+        XCTAssertEqual(remaining, 0)
+    }
+
+    @MainActor
+    func testForegroundDiscardRetainsResponseLossUntilRetryRecoversCleanupReceipt() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-foreground-response-loss-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "foreground-response-loss.png",
+            mediaType: "image/png", origin: .photosPicker
+        )
+        let taskID = "99999999-9999-4999-8999-999999999983"
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            preprocessingTaskID: taskID,
+            preprocessingTaskRevision: 7,
+            preprocessingFailuresBeforeReceipt: 1
+        )
+        let store = RelationshipCaptureStore(seed: seed, service: service, inbox: inbox)
+
+        store.start()
+        try await waitUntil {
+            guard case let .failed(failure) = store.stage else { return false }
+            return failure.recoveryStage == .recognition
+        }
+        let discardedWithoutReceipt = await store.discard()
+        XCTAssertFalse(discardedWithoutReceipt)
+        let retained = try await inbox.count()
+        XCTAssertEqual(retained, 1)
+
+        store.retry()
+        try await waitUntil { store.stage == .reviewing }
+        let recovered = try await inbox.loadDraft(for: seed.id)
+        XCTAssertEqual(recovered?.preprocessingTaskID, taskID)
+        XCTAssertEqual(recovered?.preprocessingTaskRevision, 7)
+        let discardedAfterRecovery = await store.discard()
+        XCTAssertTrue(discardedAfterRecovery)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.map(\.taskID), [taskID])
+        XCTAssertEqual(deletes.map(\.revision), [7])
+        let remaining = try await inbox.count()
+        XCTAssertEqual(remaining, 0)
+    }
+
+    @MainActor
+    func testBackgroundPreprocessingCannotCrossRuntimeScopeDuringDelayedReceipt() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-preprocess-scope-switch-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "scope-a.png",
+            mediaType: "image/png", origin: .appShortcut
+        )
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            preprocessingTaskID: "99999999-9999-4999-8999-999999999982",
+            preprocessingTaskRevision: 8,
+            preprocessingReceiptDelayNanoseconds: 500_000_000,
+            runtimeScope: "scope-a"
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+        await handoff.changeRuntimeScope("scope-a")
+
+        let processing = Task {
+            await handoff.processPendingCaptures(sessionStore: sessions, service: service)
+        }
+        for _ in 0..<100 {
+            if await service.preprocessingRemoteRequestStartCount == 1 { break }
+            try await Task<Never, Never>.sleep(nanoseconds: 20_000_000)
+        }
+        let remoteRequestStarts = await service.preprocessingRemoteRequestStartCount
+        XCTAssertEqual(remoteRequestStarts, 1)
+        await handoff.changeRuntimeScope("scope-b")
+        await processing.value
+
+        XCTAssertTrue(handoff.inboxItems.isEmpty)
+        let scopeBDraft = try await inbox.loadDraft(for: seed.id, scope: "scope-b")
+        let scopeADraft = try await inbox.loadDraft(for: seed.id, scope: "scope-a")
+        XCTAssertNil(scopeBDraft)
+        XCTAssertNil(scopeADraft)
+        let scopeAItems = try await inbox.summaries(scope: "scope-a")
+        XCTAssertEqual(scopeAItems.map(\.id), [seed.id])
+        XCTAssertEqual(scopeAItems.first?.processingState, .processing)
+        XCTAssertEqual(scopeAItems.first?.preprocessingRemoteRequestMayExist, true)
+        let createCount = await service.createCount
+        let links = await service.preprocessingLinks
+        XCTAssertEqual(createCount, 0)
+        XCTAssertTrue(links.isEmpty)
     }
 
     @MainActor
@@ -821,7 +1479,10 @@ final class RelationshipCaptureTests: XCTestCase {
                 relationshipContextID: nil,
                 resourceProcessingState: "needs_identity_review"
             ),
-            wiki: Self.goldWiki()
+            wiki: Self.goldWiki(),
+            preprocessedText: "Shared phone number",
+            preprocessingTaskID: "99999999-9999-4999-8999-999999999981",
+            preprocessingTaskRevision: 9
         )
         let handoff = CaptureHandoffStore(inbox: inbox)
         let sessions = AgentSessionStore()
@@ -829,8 +1490,7 @@ final class RelationshipCaptureTests: XCTestCase {
         await handoff.restorePendingCapture()
         await handoff.processPendingCaptures(
             sessionStore: sessions,
-            service: service,
-            recognizer: CaptureSessionRecognizerStub(text: "Shared phone number")
+            service: service
         )
 
         let item = try XCTUnwrap(handoff.inboxItems.first)
@@ -844,7 +1504,7 @@ final class RelationshipCaptureTests: XCTestCase {
             session.turns[0].response.blocks.contains(where: \.requiresUserDecision)
         )
 
-        try await handoff.removeFromInbox(id: seed.id)
+        try await handoff.removeFromInbox(id: seed.id, service: service)
 
         let resolvedSession = try XCTUnwrap(sessions.session(id: item.sessionID))
         XCTAssertFalse(resolvedSession.isUnread)
@@ -856,7 +1516,594 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertTrue(handoff.inboxItems.isEmpty)
     }
 
-    func testURLCaptureClientKeepsAutomaticOCRAndAttributionProposed() async throws {
+    func testURLCaptureClientUsesSharedPreprocessingWithoutFiling() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        RelationshipCaptureURLProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+            let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["preprocess_only"] as? Bool, true)
+            XCTAssertEqual(json["allow_public_research"] as? Bool, false)
+            let timestamp = "2026-09-15T09:00:00.000Z"
+            let response: [String: Any] = [
+                "task_id": "99999999-9999-4999-8999-999999999991", "revision": 2, "status": "completed",
+                "contact": NSNull(), "capture_id": NSNull(), "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": ["platform": "WeChat", "conversation_kind": "direct", "contact_name": "Alex Chen",
+                    "identity_clues": [["kind": "name", "value": "Alex Chen", "source_excerpt": "Alex Chen", "source_image_index": 0]],
+                    "messages": [["message_id": "m1", "sequence": 0, "text": "Email Bob at bob@example.com next Tuesday", "speaker_side": "left",
+                        "speaker_label": "Alex Chen", "time_text": NSNull(), "source_image_index": 0]], "uncertainties": []],
+                "summary": "Preprocessed only", "findings": [], "profile_fields": [], "public_sources": [], "question": NSNull(),
+                "candidates": [], "limitations": [], "events": [], "external_effects": [], "created_at": timestamp, "updated_at": timestamp,
+            ]
+            return (201, try JSONSerialization.data(withJSONObject: response))
+        }
+        let client = URLRelationshipCaptureClient(baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token")
+        let draft = try await client.preprocessScreenshot(seed: PendingCaptureSeed(
+            imageData: try Self.screenshotPNG(), fileName: "conversation.png",
+            mediaType: "image/png", origin: .photosPicker
+        ))
+        XCTAssertEqual(draft.reviewedText, "Email Bob at bob@example.com next Tuesday")
+        XCTAssertEqual(draft.displayNameHint, "Alex Chen")
+        XCTAssertTrue(draft.handleValue.isEmpty)
+        XCTAssertEqual(draft.sourceParserName, "shared-screenshot-preprocess")
+        XCTAssertNil(draft.preprocessingUncertainties)
+        XCTAssertEqual(draft.preprocessingTaskID, "99999999-9999-4999-8999-999999999991")
+        XCTAssertEqual(draft.preprocessingTaskRevision, 2)
+        XCTAssertEqual(draft.preprocessedMessages, [
+            .init(messageID: "m1", sequence: 0, text: "Email Bob at bob@example.com next Tuesday",
+                  speakerSide: "left", speakerLabel: "Alex Chen", timeText: nil, sourceImageIndex: 0),
+        ])
+    }
+
+    func testURLCaptureClientRecoversCompletedReceiptWithoutResumingStaleRevision() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        let taskID = "99999999-9999-4999-8999-999999999988"
+        let timestamp = "2026-09-15T09:00:00.000Z"
+        var requestCount = 0
+        RelationshipCaptureURLProtocol.handler = { request in
+            requestCount += 1
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks/\(taskID)")
+            let running = requestCount == 1
+            let extraction: Any = running ? NSNull() : [
+                "platform": "WeChat", "conversation_kind": "direct", "contact_name": "Alex Chen",
+                "identity_clues": [], "messages": [["message_id": "m1", "sequence": 0,
+                    "text": "Recovered after response loss", "speaker_side": "left",
+                    "speaker_label": "Alex Chen", "time_text": NSNull(), "source_image_index": 0]],
+                "uncertainties": [],
+            ]
+            let response: [String: Any] = [
+                "task_id": taskID, "revision": running ? 8 : 9,
+                "status": running ? "running" : "completed", "contact": NSNull(),
+                "capture_id": NSNull(), "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": extraction, "summary": "Recovered retained preprocessing",
+                "findings": [], "profile_fields": [], "public_sources": [], "question": NSNull(),
+                "candidates": [], "limitations": [], "events": [], "external_effects": [],
+                "created_at": timestamp, "updated_at": timestamp,
+            ]
+            return (200, try JSONSerialization.data(withJSONObject: response))
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token"
+        )
+        var receipts: [ScreenshotPreprocessingTaskReceipt] = []
+
+        let draft = try await client.resumeScreenshotPreprocessing(
+            taskID: taskID,
+            expectedRevision: 7,
+            onTaskReceipt: { receipts.append($0) }
+        )
+
+        XCTAssertEqual(draft.reviewedText, "Recovered after response loss")
+        XCTAssertEqual(receipts, [
+            .init(taskID: taskID, revision: 8),
+            .init(taskID: taskID, revision: 9),
+        ])
+        XCTAssertEqual(requestCount, 2)
+    }
+
+    @MainActor
+    func testPreprocessedMessageReviewCanCorrectSpeakerAndVisibleTime() {
+        let seed = PendingCaptureSeed(
+            imageData: Data([1]), fileName: "metadata.png",
+            mediaType: "image/png", origin: .deterministicTest
+        )
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki()
+        )
+        var draft = RecognizedCaptureDraft.empty
+        draft.reviewedText = "Original text"
+        draft.preprocessedMessages = [
+            .init(messageID: "m1", sequence: 0, text: "Original text",
+                  speakerSide: "left", speakerLabel: "Wrong", timeText: "Tuesday", sourceImageIndex: 0),
+            .init(messageID: "m2", sequence: 1, text: "Spurious text",
+                  speakerSide: "unknown", speakerLabel: nil, timeText: nil, sourceImageIndex: 0),
+        ]
+        let store = RelationshipCaptureStore(seed: seed, service: service, initialDraft: draft)
+
+        store.updatePreprocessedMessageSpeakerSide(id: "0:m1", speakerSide: "right")
+        store.updatePreprocessedMessageSpeakerLabel(id: "0:m1", speakerLabel: "Recruiter")
+        store.updatePreprocessedMessageTimeText(id: "0:m1", timeText: "Thursday 09:30")
+        store.removePreprocessedMessage(id: "0:m2")
+
+        XCTAssertEqual(store.draft.preprocessedMessages?.first?.speakerSide, "right")
+        XCTAssertEqual(store.draft.preprocessedMessages?.first?.speakerLabel, "Recruiter")
+        XCTAssertEqual(store.draft.preprocessedMessages?.first?.timeText, "Thursday 09:30")
+        XCTAssertEqual(store.draft.preprocessedMessages?.map(\.messageID), ["m1"])
+        XCTAssertEqual(store.draft.reviewedText, "Original text")
+    }
+
+    @MainActor
+    func testRetryUsesRetainedPreprocessingReceiptAfterLocalOriginalExpires() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "capture-retained-preprocess-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let taskID = "99999999-9999-4999-8999-999999999989"
+        let oldSeed = PendingCaptureSeed(
+            imageData: Data([1, 2, 3]), fileName: "expired-original.png",
+            mediaType: "image/png", createdAt: Date().addingTimeInterval(-8 * 86_400),
+            origin: .deterministicTest
+        )
+        var waiting = RecognizedCaptureDraft.empty
+        waiting.sourceParserName = "shared-screenshot-preprocess"
+        waiting.sourceParserVersion = "screenshot-preprocess.v3"
+        waiting.preprocessingTaskID = taskID
+        waiting.preprocessingTaskRevision = 7
+        waiting.preprocessingRetryRequired = true
+        waiting.preprocessingUncertainties = ["Retry the retained task."]
+        try await inbox.saveReview(
+            seed: oldSeed,
+            draft: waiting,
+            recovery: CaptureReviewRecovery(),
+            scope: nil
+        )
+        let restored = try await inbox.load()
+        let restoredSeed = try XCTUnwrap(restored)
+        XCTAssertTrue(restoredSeed.imageData.isEmpty)
+
+        var resumed = waiting
+        resumed.reviewedText = "Recovered retained source"
+        resumed.preprocessingTaskRevision = 8
+        resumed.preprocessingRetryRequired = false
+        resumed.preprocessingUncertainties = nil
+        resumed.preprocessedMessages = [
+            .init(messageID: "m1", sequence: 0, text: resumed.reviewedText,
+                  speakerSide: "unknown", speakerLabel: nil, timeText: nil, sourceImageIndex: 0),
+        ]
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            preprocessedDraftOverride: waiting,
+            resumedPreprocessedDraft: resumed
+        )
+        let store = RelationshipCaptureStore(seed: restoredSeed, service: service, inbox: inbox)
+        store.start()
+        try await waitUntil { if case .failed = store.stage { return true }; return false }
+        store.retry()
+        try await waitUntil { store.stage == .reviewing }
+
+        let resumes = await service.preprocessingReceiptResumes
+        XCTAssertEqual(resumes.count, 1)
+        XCTAssertEqual(resumes.first?.taskID, taskID)
+        XCTAssertEqual(resumes.first?.revision, 7)
+        XCTAssertEqual(store.draft.reviewedText, "Recovered retained source")
+    }
+
+    func testURLCaptureClientRejectsProfileCluesWithoutConversationMessages() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        var requestCount = 0
+        RelationshipCaptureURLProtocol.handler = { request in
+            requestCount += 1
+            let timestamp = "2026-09-15T09:00:00.000Z"
+            if requestCount == 2 {
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(
+                    request.url?.path,
+                    "/v1/contact-agent/tasks/99999999-9999-4999-8999-999999999990/preprocessing-source/delete"
+                )
+                let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
+                let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(json["expected_revision"] as? Int, 2)
+                return (200, try JSONSerialization.data(withJSONObject: [
+                    "task_id": "99999999-9999-4999-8999-999999999990", "revision": 3, "status": "deleted",
+                    "contact": NSNull(), "capture_id": NSNull(), "source_resource_id": NSNull(), "message_count": 0,
+                    "extraction": NSNull(), "summary": "", "findings": [], "profile_fields": [], "public_sources": [],
+                    "question": NSNull(), "candidates": [], "limitations": [], "events": [], "external_effects": [],
+                    "created_at": timestamp, "updated_at": timestamp,
+                ]))
+            }
+            XCTAssertEqual(requestCount, 1)
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+            let response: [String: Any] = [
+                "task_id": "99999999-9999-4999-8999-999999999990", "revision": 2, "status": "waiting_for_user",
+                "contact": NSNull(), "capture_id": NSNull(), "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": ["platform": "LinkedIn", "conversation_kind": "profile", "contact_name": "Alex Chen",
+                    "identity_clues": [
+                        ["kind": "company", "value": "Acme", "source_excerpt": "Acme", "source_image_index": 0],
+                        ["kind": "handle", "value": "alexchen", "source_excerpt": "linkedin.com/in/alexchen", "source_image_index": 0],
+                    ],
+                    "messages": [], "uncertainties": []],
+                "summary": "Profile evidence only", "findings": [], "profile_fields": [], "public_sources": [],
+                "question": "Please review this profile.", "candidates": [], "limitations": [], "events": [], "external_effects": [],
+                "created_at": timestamp, "updated_at": timestamp,
+            ]
+            return (201, try JSONSerialization.data(withJSONObject: response))
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token"
+        )
+
+        do {
+            _ = try await client.preprocessScreenshot(seed: PendingCaptureSeed(
+                imageData: try Self.screenshotPNG(), fileName: "profile.png",
+                mediaType: "image/png", origin: .photosPicker
+            ))
+            XCTFail("Profile clues must not be promoted into synthetic conversation messages.")
+        } catch ConversationRecognitionError.noConversationEvidence { }
+        XCTAssertEqual(requestCount, 2)
+    }
+
+    func testURLCaptureClientPreservesWaitingZeroMessageReceiptForExplicitRetry() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        let taskID = "99999999-9999-4999-8999-999999999989"
+        let timestamp = "2026-09-15T09:00:00.000Z"
+        func response(waiting: Bool) throws -> Data {
+            let extraction: [String: Any] = [
+                "platform": "WeChat", "conversation_kind": "direct", "contact_name": "Alex Chen",
+                "identity_clues": [],
+                "messages": waiting ? [] : [[
+                    "message_id": "m1", "sequence": 0, "text": "Visible after bounded retry",
+                    "speaker_side": "left", "speaker_label": "Alex Chen", "time_text": NSNull(),
+                    "source_image_index": 0,
+                ]],
+                "uncertainties": [],
+            ]
+            return try JSONSerialization.data(withJSONObject: [
+                "task_id": taskID, "revision": waiting ? 2 : 3,
+                "status": waiting ? "waiting_for_user" : "completed",
+                "contact": NSNull(), "capture_id": NSNull(), "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": extraction,
+                "preprocessing_pending_source_indices": waiting ? [0] : [],
+                "preprocessing": ["sources": [["source_image_index": 0, "follow_up_required": waiting,
+                    "follow_up_regions": waiting ? [["reason": "illegible_text", "field": "text",
+                        "region": ["left": 4, "top": 8, "width": 20, "height": 12]]] : []]]],
+                "summary": "Bounded preprocessing", "findings": [], "profile_fields": [], "public_sources": [],
+                "question": waiting ? "Inspect the unreadable bubble." : NSNull(), "candidates": [],
+                "limitations": [], "events": [], "external_effects": [],
+                "created_at": timestamp, "updated_at": timestamp,
+            ])
+        }
+        var requestCount = 0
+        RelationshipCaptureURLProtocol.handler = { request in
+            requestCount += 1
+            switch requestCount {
+            case 1, 2:
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+                return (requestCount == 1 ? 201 : 200, try response(waiting: true))
+            case 3:
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks/\(taskID)/resume")
+                let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
+                let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(json["expected_revision"] as? Int, 2)
+                return (200, try response(waiting: false))
+            default:
+                XCTFail("Waiting preprocessing must not issue an implicit delete.")
+                return (500, Data())
+            }
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token"
+        )
+        let seed = PendingCaptureSeed(
+            imageData: try Self.screenshotPNG(), fileName: "waiting-zero.png",
+            mediaType: "image/png", origin: .photosPicker
+        )
+
+        let waiting = try await client.preprocessScreenshot(seed: seed)
+        XCTAssertFalse(waiting.canSubmit)
+        XCTAssertEqual(waiting.preprocessingTaskID, taskID)
+        XCTAssertEqual(waiting.preprocessingTaskRevision, 2)
+        XCTAssertEqual(waiting.preprocessingRetryRequired, true)
+        XCTAssertEqual(waiting.preprocessingUncertainties, [
+            "Inspect the unreadable bubble.",
+            "Source image 1 needs a text check for illegible_text at region (4, 8, 20, 12).",
+        ])
+        XCTAssertEqual(requestCount, 1)
+
+        let recovered = try await client.resumeScreenshotPreprocessing(seed: seed)
+        XCTAssertEqual(recovered.reviewedText, "Visible after bounded retry")
+        XCTAssertEqual(recovered.preprocessingTaskRevision, 3)
+        XCTAssertEqual(recovered.preprocessingRetryRequired, false)
+        XCTAssertEqual(requestCount, 3)
+    }
+
+    func testURLCaptureClientSurfacesFollowUpRegionOnlyWhileWaiting() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        var requestCount = 0
+        RelationshipCaptureURLProtocol.handler = { request in
+            requestCount += 1
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+            let timestamp = "2026-09-15T09:00:00.000Z"
+            let waiting = requestCount == 1
+            let response: [String: Any] = [
+                "task_id": "99999999-9999-4999-8999-999999999993", "revision": 3,
+                "status": waiting ? "waiting_for_user" : "completed", "contact": NSNull(), "capture_id": NSNull(),
+                "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": ["platform": "WeChat", "conversation_kind": "direct",
+                    "contact_name": NSNull(), "identity_clues": [],
+                    "messages": [["message_id": "m1", "sequence": 0, "text": "Maybe Tuesday",
+                        "speaker_side": "unknown", "speaker_label": NSNull(), "time_text": NSNull(),
+                    "source_image_index": 0]], "uncertainties": []],
+                "preprocessing_pending_source_indices": waiting ? [0] : [],
+                "preprocessing": ["sources": [["source_image_index": 0, "follow_up_required": true,
+                    "follow_up_regions": [["reason": "ambiguous_time", "field": "time",
+                        "region": ["left": 10, "top": 20, "width": 30, "height": 40]]]]]],
+                "summary": "Waiting for review", "findings": [], "profile_fields": [],
+                "public_sources": [], "question": waiting ? "Check the visible date in the original." : NSNull(),
+                "candidates": [], "limitations": [], "events": [], "external_effects": [],
+                "created_at": timestamp, "updated_at": timestamp,
+            ]
+            return (201, try JSONSerialization.data(withJSONObject: response))
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token"
+        )
+        let draft = try await client.preprocessScreenshot(seed: PendingCaptureSeed(
+            imageData: try Self.screenshotPNG(), fileName: "waiting.png", mediaType: "image/png", origin: .photosPicker
+        ))
+        XCTAssertEqual(draft.preprocessingUncertainties, [
+            "Check the visible date in the original.",
+            "Source image 1 needs a time check for ambiguous_time at region (10, 20, 30, 40).",
+        ])
+        let completedDraft = try await client.preprocessScreenshot(seed: PendingCaptureSeed(
+            imageData: try Self.screenshotPNG(background: .systemBlue), fileName: "resolved.png",
+            mediaType: "image/png", origin: .photosPicker
+        ))
+        XCTAssertNil(completedDraft.preprocessingUncertainties)
+    }
+
+    @MainActor
+    func testWaitingDraftWithoutAuthorizedFollowUpOpensManualReview() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-human-only-preprocess-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: try Self.screenshotPNG(), fileName: "human-only.png",
+            mediaType: "image/png", origin: .photosPicker
+        )
+        var requestCount = 0
+        RelationshipCaptureURLProtocol.handler = { request in
+            requestCount += 1
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+            let timestamp = "2026-09-15T09:00:00.000Z"
+            let response: [String: Any] = [
+                "task_id": "99999999-9999-4999-8999-999999999977", "revision": 2,
+                "status": "waiting_for_user", "contact": NSNull(), "capture_id": NSNull(),
+                "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": ["platform": "WeChat", "conversation_kind": "direct",
+                    "contact_name": NSNull(), "identity_clues": [], "messages": [],
+                    "uncertainties": ["A source-level gap needs human review."]],
+                "preprocessing_pending_source_indices": [],
+                "preprocessing": ["sources": [["source_image_index": 0, "follow_up_required": true,
+                    "follow_up_regions": [["reason": "resolved_text", "field": "text",
+                        "region": ["left": 4, "top": 8, "width": 20, "height": 12]]]]]],
+                "summary": "Waiting for human review", "findings": [], "profile_fields": [],
+                "public_sources": [], "question": "Inspect the original and enter only supported text.",
+                "candidates": [], "limitations": [], "events": [], "external_effects": [],
+                "created_at": timestamp, "updated_at": timestamp,
+            ]
+            return (201, try JSONSerialization.data(withJSONObject: response))
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token"
+        )
+        let store = RelationshipCaptureStore(seed: seed, service: client, inbox: inbox)
+
+        store.start()
+        try await waitUntil { store.stage == .reviewing }
+
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertEqual(store.draft.preprocessingRetryRequired, false)
+        XCTAssertEqual(store.draft.preprocessingTaskRevision, 2)
+        XCTAssertTrue(store.draft.reviewedText.isEmpty)
+        XCTAssertEqual(store.draft.preprocessingUncertainties, [
+            "A source-level gap needs human review.",
+            "Inspect the original and enter only supported text.",
+        ])
+    }
+
+    func testURLCaptureClientDeletesPreprocessingTaskWithExactRevision() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        let taskID = "99999999-9999-4999-8999-999999999994"
+        RelationshipCaptureURLProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks/\(taskID)/preprocessing-source/delete")
+            let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["expected_revision"] as? Int, 4)
+            let timestamp = "2026-09-15T09:00:00.000Z"
+            let response: [String: Any] = [
+                "task_id": taskID, "revision": 5, "status": "deleted", "contact": NSNull(),
+                "capture_id": NSNull(), "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": NSNull(), "summary": "", "findings": [], "profile_fields": [],
+                "public_sources": [], "question": NSNull(), "candidates": [], "limitations": [],
+                "events": [], "external_effects": [], "created_at": timestamp, "updated_at": timestamp,
+            ]
+            return (200, try JSONSerialization.data(withJSONObject: response))
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token"
+        )
+        try await client.deleteScreenshotPreprocessing(taskID: taskID, expectedRevision: 4)
+    }
+
+    func testURLCaptureClientLinksPreprocessingTaskToCanonicalCapture() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        let taskID = "99999999-9999-4999-8999-999999999994"
+        let captureID = "88888888-8888-4888-8888-888888888888"
+        let resourceID = "77777777-7777-4777-8777-777777777777"
+        RelationshipCaptureURLProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks/\(taskID)/capture-link")
+            let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["expected_revision"] as? Int, 4)
+            XCTAssertEqual(json["capture_id"] as? String, captureID)
+            XCTAssertEqual(json["source_resource_id"] as? String, resourceID)
+            return (200, try JSONSerialization.data(withJSONObject: [
+                "task_id": taskID,
+                "revision": 5,
+                "capture_id": captureID,
+                "source_resource_id": resourceID,
+            ]))
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token"
+        )
+        let revision = try await client.linkScreenshotPreprocessing(
+            taskID: taskID,
+            expectedRevision: 4,
+            captureID: captureID,
+            sourceResourceID: resourceID
+        )
+        XCTAssertEqual(revision, 5)
+    }
+
+    @MainActor
+    func testURLCaptureClientResumesFailedPreprocessingOnlyAfterUserRetry() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        let taskID = "99999999-9999-4999-8999-999999999992"
+        let timestamp = "2026-09-15T09:00:00.000Z"
+        func response(status: String, revision: Int, extraction: [String: Any]? = nil) throws -> Data {
+            let value: [String: Any] = [
+                "task_id": taskID, "revision": revision, "status": status,
+                "contact": NSNull(), "capture_id": NSNull(), "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": extraction ?? NSNull(), "summary": "Synthetic preprocessing state", "findings": [],
+                "profile_fields": [], "public_sources": [], "question": status == "waiting_for_user"
+                    ? "Check the unresolved field." : NSNull(), "candidates": [], "limitations": [], "events": [],
+                "external_effects": [], "created_at": timestamp, "updated_at": timestamp,
+            ]
+            return try JSONSerialization.data(withJSONObject: value)
+        }
+        var call = 0
+        RelationshipCaptureURLProtocol.handler = { request in
+            call += 1
+            switch call {
+            case 1:
+                XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+                return (201, try response(status: "running", revision: 1))
+            case 2:
+                XCTAssertEqual(request.httpMethod, "GET")
+                XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks/\(taskID)")
+                return (200, try response(status: "failed", revision: 2))
+            case 3:
+                XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+                return (200, try response(status: "failed", revision: 2))
+            case 4:
+                XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+                return (200, try response(status: "failed", revision: 2))
+            case 5:
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks/\(taskID)/resume")
+                let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
+                let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(json["expected_revision"] as? Int, 2)
+                let extraction: [String: Any] = [
+                    "platform": "WeChat", "conversation_kind": "direct", "contact_name": "Alex Chen",
+                    "identity_clues": [], "messages": [["message_id": "m1", "sequence": 0,
+                        "text": "Retry succeeded", "speaker_side": "unknown", "speaker_label": NSNull(),
+                        "time_text": NSNull(), "source_image_index": 0]],
+                    "uncertainties": ["Speaker remains unreadable in original image 1."],
+                ]
+                return (200, try response(status: "waiting_for_user", revision: 3, extraction: extraction))
+            default:
+                XCTFail("Unexpected preprocessing request \(call): \(request.url?.path ?? "nil")")
+                return (500, Data())
+            }
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!,
+            session: network,
+            accessToken: "access-token"
+        )
+        let seed = PendingCaptureSeed(
+            imageData: try Self.screenshotPNG(),
+            fileName: "retry.png",
+            mediaType: "image/png",
+            origin: .photosPicker
+        )
+        var taskReceipts: [ScreenshotPreprocessingTaskReceipt] = []
+        do {
+            _ = try await client.preprocessScreenshot(
+                seed: seed,
+                onTaskReceipt: { taskReceipts.append($0) }
+            )
+            XCTFail("The initial failed run must stop before resume.")
+        } catch ConversationRecognitionError.sharedPreprocessingFailed { }
+        XCTAssertEqual(taskReceipts, [
+            .init(taskID: taskID, revision: 1),
+            .init(taskID: taskID, revision: 2),
+        ])
+        do {
+            _ = try await client.preprocessScreenshot(seed: seed)
+            XCTFail("An automatic repeated lookup must not resume a failed task.")
+        } catch ConversationRecognitionError.sharedPreprocessingFailed { }
+        let draft = try await client.resumeScreenshotPreprocessing(seed: seed)
+        XCTAssertEqual(draft.reviewedText, "Retry succeeded")
+        XCTAssertEqual(draft.preprocessingUncertainties, [
+            "Speaker remains unreadable in original image 1.",
+            "Check the unresolved field.",
+        ])
+        XCTAssertEqual(call, 5)
+    }
+
+    func testURLCaptureClientKeepsSharedPreprocessingAttributionProposed() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
         let network = URLSession(configuration: configuration)
@@ -884,6 +2131,7 @@ final class RelationshipCaptureTests: XCTestCase {
                 "proposed_extracted_text"
             )
             let fragments = try XCTUnwrap(json["fragments"] as? [[String: Any]])
+            XCTAssertEqual(fragments.count, 2)
             let fragment = try XCTUnwrap(fragments.first)
             XCTAssertEqual(fragment["review_status"] as? String, "proposed")
             let attribution = try XCTUnwrap(
@@ -893,8 +2141,18 @@ final class RelationshipCaptureTests: XCTestCase {
             let locator = try XCTUnwrap(fragment["locator"] as? [String: Any])
             XCTAssertEqual(
                 locator["source_message_id"] as? String,
-                "ocr-proposed-1"
+                "m1"
             )
+            XCTAssertEqual(locator["source_image_index"] as? Int, 0)
+            XCTAssertEqual(locator["speaker_side"] as? String, "left")
+            XCTAssertEqual(locator["speaker_label"] as? String, "Alex Chen")
+            XCTAssertEqual(locator["visible_time_text"] as? String, "09:30")
+            let secondLocator = try XCTUnwrap(fragments[1]["locator"] as? [String: Any])
+            XCTAssertEqual(secondLocator["source_message_id"] as? String, "m2")
+            XCTAssertEqual(secondLocator["source_image_index"] as? Int, 1)
+            XCTAssertEqual(secondLocator["speaker_side"] as? String, "right")
+            let parser = try XCTUnwrap(fragment["parser"] as? [String: Any])
+            XCTAssertEqual(parser["name"] as? String, "shared-screenshot-preprocess")
             let response: [String: Any] = [
                 "capture_id": "99999999-9999-4999-8999-999999999999",
                 "identity": [
@@ -908,7 +2166,7 @@ final class RelationshipCaptureTests: XCTestCase {
                     "id": "22222222-2222-4222-8222-222222222222",
                     "processing_state": "needs_identity_review",
                     "duplicate_of_resource_id": NSNull(),
-                    "fragment_count": 1,
+                    "fragment_count": 2,
                 ],
             ]
             return (201, try JSONSerialization.data(withJSONObject: response))
@@ -928,6 +2186,15 @@ final class RelationshipCaptureTests: XCTestCase {
             from: "Alex Chen\nWeChat: alexchen\nAvailable next Tuesday"
         )
         draft.speaker = .candidate
+        draft.sourceParserName = "shared-screenshot-preprocess"
+        draft.sourceParserVersion = "screenshot-preprocess.v3"
+        draft.preprocessedMessages = [
+            .init(messageID: "m1", sequence: 0, text: "Available next Tuesday",
+                  speakerSide: "left", speakerLabel: "Alex Chen", timeText: "09:30", sourceImageIndex: 0),
+            .init(messageID: "m2", sequence: 1, text: "I will confirm",
+                  speakerSide: "right", speakerLabel: "Me", timeText: nil, sourceImageIndex: 1),
+        ]
+        draft.reviewedText = draft.preprocessedMessages!.map(\.text).joined(separator: "\n")
 
         let result = try await client.createProposedCapture(
             seed: seed,
@@ -1049,6 +2316,133 @@ final class RelationshipCaptureTests: XCTestCase {
     }
 
     @MainActor
+    func testDiscardDeletesServerPreprocessingSourceBeforeLocalInboxEntry() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "capture-preprocess-delete-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "discard.png",
+            mediaType: "image/png", origin: .deterministicTest
+        )
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki()
+        )
+        var draft = RecognizedCaptureDraft.empty
+        draft.reviewedText = "Synthetic review"
+        draft.preprocessingTaskID = "99999999-9999-4999-8999-999999999995"
+        draft.preprocessingTaskRevision = 7
+        let store = RelationshipCaptureStore(
+            seed: seed, service: service, initialDraft: draft, inbox: inbox
+        )
+
+        let didDiscard = await store.discard()
+        XCTAssertTrue(didDiscard)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.count, 1)
+        XCTAssertEqual(deletes.first?.taskID, draft.preprocessingTaskID)
+        XCTAssertEqual(deletes.first?.revision, 7)
+        let remainingInboxEntries = try await inbox.count()
+        XCTAssertEqual(remainingInboxEntries, 0)
+    }
+
+    @MainActor
+    func testDiscardKeepsLocalInboxEntryWhenServerPreprocessingDeleteFails() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "capture-preprocess-delete-retry-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "discard-retry.png",
+            mediaType: "image/png", origin: .deterministicTest
+        )
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            preprocessingDeleteFailuresBeforeSuccess: 1
+        )
+        var draft = RecognizedCaptureDraft.empty
+        draft.reviewedText = "Synthetic review"
+        draft.preprocessingTaskID = "99999999-9999-4999-8999-999999999997"
+        draft.preprocessingTaskRevision = 9
+        let store = RelationshipCaptureStore(
+            seed: seed, service: service, initialDraft: draft, inbox: inbox
+        )
+
+        let firstDiscard = await store.discard()
+        XCTAssertFalse(firstDiscard)
+        let entriesAfterFailure = try await inbox.count()
+        XCTAssertEqual(entriesAfterFailure, 1)
+
+        let retriedDiscard = await store.discard()
+        XCTAssertTrue(retriedDiscard)
+        let entriesAfterRetry = try await inbox.count()
+        XCTAssertEqual(entriesAfterRetry, 0)
+        let deletes = await service.preprocessingDeletes
+        XCTAssertEqual(deletes.map(\.revision), [9, 9])
+    }
+
+    @MainActor
+    func testForegroundCaptureLinksPreprocessingBeforeIdentityReviewAndRecoversLostResponse() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "capture-preprocess-link-retry-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]), fileName: "foreground-link.png",
+            mediaType: "image/png", origin: .deterministicTest
+        )
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(
+                decision: "leave_unresolved", identityStatus: "unresolved",
+                personID: nil, relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki(),
+            loseFirstPreprocessingLinkResponse: true
+        )
+        var draft = RecognizedCaptureDraft.empty
+        draft.reviewedText = "Synthetic review"
+        draft.preprocessingTaskID = "99999999-9999-4999-8999-999999999992"
+        draft.preprocessingTaskRevision = 4
+        let store = RelationshipCaptureStore(
+            seed: seed, service: service, initialDraft: draft, inbox: inbox
+        )
+
+        store.submitReviewedDraft()
+        try await waitUntil {
+            guard case let .failed(failure) = store.stage else { return false }
+            return failure.recoveryStage == .submission
+        }
+        let persistedCapture = try await inbox.loadRecovery(for: seed.id)?.capture
+        XCTAssertEqual(persistedCapture?.captureID, "99999999-9999-4999-8999-999999999999")
+        let firstLinks = await service.preprocessingLinks
+        XCTAssertEqual(firstLinks.map(\.expectedRevision), [4])
+
+        store.retry()
+        try await waitUntil { store.stage == .resolvingIdentity }
+        let links = await service.preprocessingLinks
+        XCTAssertEqual(links.map(\.expectedRevision), [4, 4])
+        XCTAssertEqual(links.map(\.captureID), Array(
+            repeating: "99999999-9999-4999-8999-999999999999", count: 2
+        ))
+        let recovered = try await inbox.loadRecovery(for: seed.id)
+        XCTAssertEqual(recovered?.submittedDraft?.preprocessingTaskRevision, 5)
+    }
+
+    @MainActor
     func testCurrentAndHistoricalCandidatesRequireExplicitCurrentSelection() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "capture-current-owner-\(UUID())")
@@ -1076,6 +2470,8 @@ final class RelationshipCaptureTests: XCTestCase {
         draft.reviewedText = "Phone: +6580805531"
         draft.displayNameHint = "Current owner"
         draft.handleValue = "+6580805531"
+        draft.preprocessingTaskID = "99999999-9999-4999-8999-999999999996"
+        draft.preprocessingTaskRevision = 8
         let store = RelationshipCaptureStore(
             seed: seed,
             service: service,
@@ -1120,6 +2516,10 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertEqual(completion.captureID, "99999999-9999-4999-8999-999999999999")
         XCTAssertEqual(completion.personDisplayLabel, "Current owner 080e5531")
         XCTAssertEqual(completion.relationshipDisplayLabel, "Current client relationship")
+        let preprocessingDeletes = await service.preprocessingDeletes
+        XCTAssertEqual(preprocessingDeletes.count, 1)
+        XCTAssertEqual(preprocessingDeletes.first?.taskID, draft.preprocessingTaskID)
+        XCTAssertEqual(preprocessingDeletes.first?.revision, 9)
     }
 
     @MainActor
@@ -1227,6 +2627,14 @@ final class RelationshipCaptureTests: XCTestCase {
         let compileCount = await service.compileCount
         XCTAssertEqual(decisions.count, 1)
         XCTAssertEqual(compileCount, 2)
+    }
+
+    private static func screenshotPNG(background: UIColor = .white) throws -> Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 64))
+        return try XCTUnwrap(renderer.image { context in
+            background.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 32, height: 64))
+        }.pngData())
     }
 
     @MainActor
@@ -1485,14 +2893,6 @@ private struct LegacyPendingMetadata: Encodable {
     let origin: CaptureOrigin
 }
 
-private struct CaptureSessionRecognizerStub: ConversationTextRecognizing {
-    let text: String
-
-    func recognizeText(in imageData: Data) async throws -> String {
-        text
-    }
-}
-
 private final class RelationshipCaptureURLProtocol: URLProtocol, @unchecked Sendable {
     static var handler: ((URLRequest) throws -> (Int, Data))?
 
@@ -1540,6 +2940,7 @@ private final class RelationshipCaptureURLProtocol: URLProtocol, @unchecked Send
 }
 
 private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
+    nonisolated let runtimeScope: String?
     private let identityCase: IdentityResolutionCase
     private let decisionResult: IdentityDecisionResult
     private let wiki: WikiCompilationReceipt
@@ -1550,9 +2951,22 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
     private var claims: [CaptureChangeReview.Claim]
     private let loseFirstClaimResponse: Bool
     private let captureCandidatePersonIDs: [String]?
+    private let preprocessedDraft: RecognizedCaptureDraft
+    private let resumedPreprocessedDraft: RecognizedCaptureDraft?
+    private let preprocessingDeleteFailuresBeforeSuccess: Int
+    private var preprocessingDeleteAttemptCount = 0
     private(set) var createCount = 0
     private(set) var claimDecisions: [CaptureClaimDecision] = []
     private(set) var reviewFingerprints: [String] = []
+    private(set) var preprocessingDeletes: [(taskID: String, revision: Int)] = []
+    private(set) var preprocessingLinks: [(taskID: String, expectedRevision: Int, captureID: String, sourceResourceID: String)] = []
+    private var preprocessingLinkRevisions: [String: Int] = [:]
+    private let loseFirstPreprocessingLinkResponse: Bool
+    private let failPreprocessingAfterReceipt: Bool
+    private let preprocessingReceiptDelayNanoseconds: UInt64
+    private var preprocessingFailuresBeforeReceipt: Int
+    private(set) var preprocessingRemoteRequestStartCount = 0
+    private(set) var preprocessingReceiptResumes: [(taskID: String, revision: Int)] = []
     private var claimReceipts: [String: String] = [:]
 
     func loadCapture(id: String) async throws -> ResourceCaptureResult {
@@ -1590,8 +3004,20 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
         compileFailuresBeforeSuccess: Int = 0,
         claims: [CaptureChangeReview.Claim] = [],
         loseFirstClaimResponse: Bool = false,
-        captureCandidatePersonIDs: [String]? = nil
+        captureCandidatePersonIDs: [String]? = nil,
+        preprocessedText: String = "Alex Chen\nWeChat: alexchen\nAvailable next Tuesday",
+        preprocessingDeleteFailuresBeforeSuccess: Int = 0,
+        preprocessingTaskID: String? = nil,
+        preprocessingTaskRevision: Int? = nil,
+        loseFirstPreprocessingLinkResponse: Bool = false,
+        failPreprocessingAfterReceipt: Bool = false,
+        preprocessingReceiptDelayNanoseconds: UInt64 = 0,
+        preprocessingFailuresBeforeReceipt: Int = 0,
+        runtimeScope: String? = nil,
+        preprocessedDraftOverride: RecognizedCaptureDraft? = nil,
+        resumedPreprocessedDraft: RecognizedCaptureDraft? = nil
     ) {
+        self.runtimeScope = runtimeScope
         self.identityCase = identityCase
         self.decisionResult = decisionResult
         self.wiki = wiki
@@ -1599,6 +3025,123 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
         self.claims = claims
         self.loseFirstClaimResponse = loseFirstClaimResponse
         self.captureCandidatePersonIDs = captureCandidatePersonIDs
+        var draft = CaptureDraftBuilder.makeDraft(from: preprocessedText)
+        draft.preprocessingTaskID = preprocessingTaskID
+        draft.preprocessingTaskRevision = preprocessingTaskRevision
+        self.preprocessedDraft = preprocessedDraftOverride ?? draft
+        self.resumedPreprocessedDraft = resumedPreprocessedDraft
+        self.preprocessingDeleteFailuresBeforeSuccess = preprocessingDeleteFailuresBeforeSuccess
+        self.loseFirstPreprocessingLinkResponse = loseFirstPreprocessingLinkResponse
+        self.failPreprocessingAfterReceipt = failPreprocessingAfterReceipt
+        self.preprocessingReceiptDelayNanoseconds = preprocessingReceiptDelayNanoseconds
+        self.preprocessingFailuresBeforeReceipt = preprocessingFailuresBeforeReceipt
+    }
+
+    func preprocessScreenshot(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        preprocessedDraft
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        if preprocessingReceiptDelayNanoseconds > 0 {
+            try await Task<Never, Never>.sleep(
+                nanoseconds: preprocessingReceiptDelayNanoseconds
+            )
+        }
+        if preprocessingFailuresBeforeReceipt > 0 {
+            preprocessingFailuresBeforeReceipt -= 1
+            throw URLError(.networkConnectionLost)
+        }
+        if let taskID = preprocessedDraft.preprocessingTaskID,
+           let revision = preprocessedDraft.preprocessingTaskRevision {
+            try await onTaskReceipt(.init(taskID: taskID, revision: revision))
+        }
+        if failPreprocessingAfterReceipt {
+            throw ConversationRecognitionError.sharedPreprocessingFailed
+        }
+        return preprocessedDraft
+    }
+
+    func preprocessScreenshot(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await onRemoteRequestStarted()
+        preprocessingRemoteRequestStartCount += 1
+        return try await preprocessScreenshot(
+            seed: seed,
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func resumeScreenshotPreprocessing(seed: PendingCaptureSeed) async throws -> RecognizedCaptureDraft {
+        resumedPreprocessedDraft ?? preprocessedDraft
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        let draft = resumedPreprocessedDraft ?? preprocessedDraft
+        if let taskID = draft.preprocessingTaskID,
+           let revision = draft.preprocessingTaskRevision {
+            try await onTaskReceipt(.init(taskID: taskID, revision: revision))
+        }
+        return draft
+    }
+
+    func resumeScreenshotPreprocessing(
+        seed: PendingCaptureSeed,
+        onRemoteRequestStarted: ScreenshotPreprocessingRequestHandler,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        try await onRemoteRequestStarted()
+        preprocessingRemoteRequestStartCount += 1
+        return try await resumeScreenshotPreprocessing(
+            seed: seed,
+            onTaskReceipt: onTaskReceipt
+        )
+    }
+
+    func resumeScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        onTaskReceipt: ScreenshotPreprocessingReceiptHandler
+    ) async throws -> RecognizedCaptureDraft {
+        preprocessingReceiptResumes.append((taskID, expectedRevision))
+        let draft = resumedPreprocessedDraft ?? preprocessedDraft
+        try await onTaskReceipt(.init(
+            taskID: draft.preprocessingTaskID ?? taskID,
+            revision: draft.preprocessingTaskRevision ?? expectedRevision
+        ))
+        return draft
+    }
+
+    func deleteScreenshotPreprocessing(taskID: String, expectedRevision: Int) async throws {
+        preprocessingDeletes.append((taskID, expectedRevision))
+        preprocessingDeleteAttemptCount += 1
+        if preprocessingDeleteAttemptCount <= preprocessingDeleteFailuresBeforeSuccess {
+            throw URLError(.networkConnectionLost)
+        }
+    }
+
+    func linkScreenshotPreprocessing(
+        taskID: String,
+        expectedRevision: Int,
+        captureID: String,
+        sourceResourceID: String
+    ) async throws -> Int {
+        preprocessingLinks.append((taskID, expectedRevision, captureID, sourceResourceID))
+        let receiptKey = "\(taskID):\(captureID):\(sourceResourceID)"
+        let revision = preprocessingLinkRevisions[receiptKey] ?? (expectedRevision + 1)
+        preprocessingLinkRevisions[receiptKey] = revision
+        if loseFirstPreprocessingLinkResponse, preprocessingLinks.count == 1 {
+            throw URLError(.networkConnectionLost)
+        }
+        return revision
     }
 
     func createCapture(

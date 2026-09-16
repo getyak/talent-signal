@@ -273,7 +273,7 @@ Filing never confirms actors, dates, real-world identity, or interpreted claims.
 An ordered image set is one immutable import intent. Each message retains image
 provenance; conflicting visible identities stop filing, and overlapping messages
 are not repeated commitments. Private originals stay outside model/task state
-and expire with the task. Recovery reuses stored images and extraction checkpoints.
+and expire with the task. New tasks run the pinned, no-OCR `screenshot-preprocess.v3` contract first; recovery reuses stored originals and per-image provider checkpoints, downstream models receive an original again only for a recorded multimodal follow-up region, and the authenticated monitor shows this unconfirmed packet beside the bounded seven-day visual Memory. A packet can request at most 24 follow-up regions across all source images, and each region names the exact baseline uncertainty plus the message, identity clue, contact name, or source gap that it may refine; a text region also binds the exact unique proper old substring it may replace, never the entire message. Reviewed iOS capture preserves the preprocessing message and source-image locators, while discard or completion deletes only the preprocessing copy at its exact revision before local source removal; a linked canonical capture and its derived review remain intact.
 Source invalidation denies access and queues retryable permanent cleanup;
 reversible archive hides sources without extending retention. See the
 [storage playbook](operations/backend-production.md#chat-media-object-storage).

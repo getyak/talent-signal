@@ -6,7 +6,6 @@ import ActivityKit
 import CryptoKit
 import PhotosUI
 import UniformTypeIdentifiers
-import Vision
 
 private struct VoiceQuickControlFramePreferenceKey: PreferenceKey {
     static var defaultValue: CGRect = .zero
@@ -3174,38 +3173,13 @@ struct RelationshipAskView: View {
             mediaType: mediaType,
             width: max(1, Int(preview.size.width * scale)),
             height: max(1, Int(preview.size.height * scale)),
-            routingText: "",
             remoteAsset: nil,
             phase: .waitingForContext
         )
         mediaDrafts.append(mediaDraft)
-        Task {
-            let recognizedText = await Task.detached(priority: .utility) {
-                Self.routingText(in: data)
-            }.value
-            guard let index = mediaDrafts.firstIndex(where: { $0.id == id }) else {
-                return
-            }
-            mediaDrafts[index].routingText = recognizedText
-        }
         mediaNotice = nil
         if let selectedScope, !hasPendingScreenshotAdmission {
             uploadMediaDraft(id, scope: selectedScope)
-        }
-    }
-
-    nonisolated private static func routingText(in data: Data) -> String {
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.recognitionLanguages = ["zh-Hans", "en-US"]
-        do {
-            try VNImageRequestHandler(data: data).perform([request])
-            return (request.results ?? [])
-                .compactMap { $0.topCandidates(1).first?.string }
-                .joined(separator: "\n")
-        } catch {
-            return ""
         }
     }
 
@@ -3673,11 +3647,12 @@ struct RelationshipAskView: View {
             revision: 1, status: "completed", contact: nil, captureID: nil,
             sourceResourceID: nil, messageCount: 2,
             extraction: .init(messages: [
-                .init(messageID: "synthetic-message-1", text: "Could we review the draft on Friday?",
-                      speakerSide: "left", timeText: nil, sourceImageIndex: nil),
-                .init(messageID: "synthetic-message-2", text: "I will check and reply.",
-                      speakerSide: "right", timeText: nil, sourceImageIndex: nil)
+                .init(messageID: "synthetic-message-1", sequence: 0, text: "Could we review the draft on Friday?",
+                      speakerSide: "left", speakerLabel: nil, timeText: nil, sourceImageIndex: nil),
+                .init(messageID: "synthetic-message-2", sequence: 1, text: "I will check and reply.",
+                      speakerSide: "right", speakerLabel: nil, timeText: nil, sourceImageIndex: nil)
             ], uncertainties: ["Friday has no confirmed date or time zone."]),
+            preprocessing: nil,
             summary: "The source proposes reviewing a draft on Friday. **No action has been taken.**",
             findings: [], profileFields: [], publicSources: [], question: nil,
             candidates: [], limitations: ["Synthetic preview. No contact, source, or calendar was changed."],

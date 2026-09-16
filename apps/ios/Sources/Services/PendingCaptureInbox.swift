@@ -93,9 +93,27 @@ actor PendingCaptureInbox {
                     ),
                     sessionID: metadata.sessionID,
                     processingState: metadata.processingState ?? .queued,
-                    processingDetail: metadata.processingDetail
+                    processingDetail: metadata.processingDetail,
+                    preprocessingRemoteRequestMayExist: metadata.preprocessingRemoteRequestMayExist ?? false
                 )
             }
+    }
+
+    func markPreprocessingRemoteRequestMayExist(id: UUID, scope: String?) throws {
+        try prepareQueue()
+        guard var metadata = try queuedMetadata().first(where: {
+            $0.id == id && ($0.runtimeScope == nil || $0.runtimeScope == scope)
+        }) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        if let scope {
+            metadata.runtimeScope = scope
+        }
+        metadata.preprocessingRemoteRequestMayExist = true
+        try writeProtected(
+            JSONEncoder.captureEncoder.encode(metadata),
+            to: metadataURL(for: id)
+        )
     }
 
     func updateSessionProcessing(
@@ -147,6 +165,15 @@ actor PendingCaptureInbox {
         removedCaptureIDs.insert(id)
     }
 
+    func remove(id: UUID, scope: String?) throws {
+        try prepareQueue()
+        guard try permits(id: id, scope: scope) else {
+            throw AppSessionError.scopeMismatch
+        }
+        try removeFiles(id: id)
+        removedCaptureIDs.insert(id)
+    }
+
     private func removeFiles(id: UUID) throws {
         guard FileManager.default.fileExists(
             atPath: metadataURL(for: id).path
@@ -171,7 +198,7 @@ actor PendingCaptureInbox {
 
     func saveDraft(_ draft: RecognizedCaptureDraft, for id: UUID, scope: String? = nil) throws {
         try prepareQueue()
-        guard try load(id: id) != nil else { return }
+        guard try load(id: id) != nil else { throw CocoaError(.fileNoSuchFile) }
         guard try permits(id: id, scope: scope) else { throw AppSessionError.scopeMismatch }
         try writeProtected(
             JSONEncoder.captureEncoder.encode(
@@ -221,6 +248,38 @@ actor PendingCaptureInbox {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         let saved = try JSONDecoder.captureDecoder.decode(SavedDraft.self, from: Data(contentsOf: url))
         return saved.seedID == id ? saved.recovery : nil
+    }
+
+    func preprocessingDeletionReceipt(
+        for id: UUID,
+        scope: String?,
+        fallbackSource: RecognizedCaptureDraft? = nil
+    ) throws -> ScreenshotPreprocessingTaskReceipt? {
+        try prepareQueue()
+        guard let metadata = try queuedMetadata().first(where: {
+            $0.id == id && ($0.runtimeScope == nil || $0.runtimeScope == scope)
+        }) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let saved: SavedDraft?
+        let url = draftURL(for: id)
+        if FileManager.default.fileExists(atPath: url.path) {
+            saved = try JSONDecoder.captureDecoder.decode(
+                SavedDraft.self,
+                from: Data(contentsOf: url)
+            )
+        } else {
+            saved = nil
+        }
+        let source = saved?.recovery?.submittedDraft ?? saved?.draft ?? fallbackSource
+        if let taskID = source?.preprocessingTaskID,
+           let revision = source?.preprocessingTaskRevision {
+            return .init(taskID: taskID, revision: revision)
+        }
+        if metadata.preprocessingRemoteRequestMayExist == true {
+            throw ConversationRecognitionError.preprocessingCleanupReceiptUnavailable
+        }
+        return nil
     }
 
     func removeOriginal(id: UUID) throws {
@@ -438,6 +497,7 @@ actor PendingCaptureInbox {
         var sessionID: UUID? = nil
         var processingState: CaptureSessionProcessingState? = nil
         var processingDetail: String? = nil
+        var preprocessingRemoteRequestMayExist: Bool? = nil
 
         var queueOrder: Int64 {
             enqueueOrder
@@ -483,6 +543,7 @@ final class CaptureHandoffStore: ObservableObject {
     private var runtimeScope: String?
     private var generation = UUID()
     private var processingIDs: Set<UUID> = []
+    private var deletingIDs: Set<UUID> = []
     private weak var processingSessionStore: AgentSessionStore?
 
     init(inbox: PendingCaptureInbox = .shared) {
@@ -556,15 +617,15 @@ final class CaptureHandoffStore: ObservableObject {
 
     func processPendingCaptures(
         sessionStore: AgentSessionStore,
-        service: RelationshipCaptureServing? = nil,
-        recognizer: ConversationTextRecognizing = VisionConversationTextRecognizer()
+        service: RelationshipCaptureServing? = nil
     ) async {
         processingSessionStore = sessionStore
         await refreshInbox()
         let generation = generation
+        let operationScope = runtimeScope
 
         for item in inboxItems where item.processingState != .completed {
-            guard generation == self.generation else { return }
+            guard generation == self.generation, operationScope == runtimeScope else { return }
             if item.sessionID.flatMap({ sessionStore.session(id: $0) }) == nil {
                 let objective = "Process conversation screenshot: \(item.fileName)"
                 let durableSessionID = item.sessionID ?? UUID()
@@ -582,8 +643,9 @@ final class CaptureHandoffStore: ObservableObject {
                         sessionID: sessionID,
                         state: .queued,
                         detail: "Agent Session created. Waiting for on-device processing.",
-                        scope: runtimeScope
+                        scope: operationScope
                     )
+                    try ensureCurrentOperation(generation: generation, scope: operationScope)
                 } catch {
                     _ = sessionStore.delete(sessionID)
                     inboxLoadError = error.localizedDescription
@@ -593,13 +655,16 @@ final class CaptureHandoffStore: ObservableObject {
 
         await refreshInbox()
         for item in inboxItems where
-            item.processingState == .queued || item.processingState == .processing {
-            guard generation == self.generation else { return }
+            item.processingState == .queued
+                || item.processingState == .processing
+                || item.processingState == .failed {
+            guard generation == self.generation, operationScope == runtimeScope else { return }
             await process(
                 item,
                 sessionStore: sessionStore,
                 service: service,
-                recognizer: recognizer
+                operationGeneration: generation,
+                operationScope: operationScope
             )
         }
         await refreshInbox()
@@ -609,9 +674,14 @@ final class CaptureHandoffStore: ObservableObject {
         _ item: PendingCaptureSummary,
         sessionStore: AgentSessionStore,
         service: RelationshipCaptureServing?,
-        recognizer: ConversationTextRecognizing
+        operationGeneration: UUID,
+        operationScope: String?
     ) async {
-        guard !processingIDs.contains(item.id),
+        guard generation == operationGeneration,
+              runtimeScope == operationScope,
+              service == nil || service?.runtimeScope == operationScope,
+              !processingIDs.contains(item.id),
+              !deletingIDs.contains(item.id),
               let sessionID = item.sessionID,
               sessionStore.session(id: sessionID) != nil else { return }
         processingIDs.insert(item.id)
@@ -620,23 +690,41 @@ final class CaptureHandoffStore: ObservableObject {
         let objective = sessionStore.session(id: sessionID)?.pendingObjective
             ?? "Process conversation screenshot: \(item.fileName)"
         do {
+            if let operationScope {
+                try await inbox.claim(id: item.id, scope: operationScope)
+                try ensureCurrentOperation(
+                    generation: operationGeneration,
+                    scope: operationScope
+                )
+            }
             if let existingTurn = processingTurn(
                 captureID: item.id,
                 sessionID: sessionID,
                 sessionStore: sessionStore
             ) {
                 let needsDecision = existingTurn.response.blocks.contains(where: \.requiresUserDecision)
+                if !needsDecision {
+                    try await deletePreprocessingSourceIfNeeded(
+                        captureID: item.id,
+                        service: service,
+                        operationScope: operationScope
+                    )
+                    try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
+                }
                 try await inbox.updateSessionProcessing(
                     id: item.id,
                     sessionID: sessionID,
                     state: needsDecision ? .needsDecision : .completed,
                     detail: existingTurn.response.blocks.first?.body,
-                    scope: runtimeScope
+                    scope: operationScope
                 )
+                try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
                 if needsDecision {
                     sessionStore.markUnread(sessionID)
                 } else {
-                    try await removeCompletedCapture(id: item.id)
+                    sessionStore.markRead(sessionID)
+                    try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
+                    try await removeCompletedCapture(id: item.id, scope: operationScope)
                 }
                 return
             }
@@ -644,28 +732,83 @@ final class CaptureHandoffStore: ObservableObject {
                 id: item.id,
                 sessionID: sessionID,
                 state: .processing,
-                detail: "Reading the screenshot on this device.",
-                scope: runtimeScope
+                detail: "Running shared screenshot preprocessing.",
+                scope: operationScope
             )
+            try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
             await refreshInbox()
-            guard let seed = try await inbox.load(id: item.id, scope: runtimeScope),
+            try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
+            guard let seed = try await inbox.load(id: item.id, scope: operationScope),
                   !seed.imageData.isEmpty else {
                 throw ConversationRecognitionError.unreadableImage
             }
+            try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
             let draft: RecognizedCaptureDraft
-            if let saved = try await inbox.loadDraft(for: item.id, scope: runtimeScope) {
+            if let saved = try await inbox.loadDraft(for: item.id, scope: operationScope) {
                 draft = saved
             } else {
-                let text = try await recognizer.recognizeText(in: seed.imageData)
-                draft = CaptureDraftBuilder.makeDraft(from: text)
-                try await inbox.saveDraft(draft, for: item.id, scope: runtimeScope)
+                guard let service else {
+                    throw ConversationRecognitionError.sharedPreprocessingUnavailable
+                }
+                draft = try await service.preprocessScreenshot(
+                    seed: seed,
+                    onRemoteRequestStarted: {
+                        try self.ensureCurrentOperation(
+                            generation: operationGeneration,
+                            scope: operationScope
+                        )
+                        try await self.inbox.markPreprocessingRemoteRequestMayExist(
+                            id: item.id,
+                            scope: operationScope
+                        )
+                        try self.ensureCurrentOperation(
+                            generation: operationGeneration,
+                            scope: operationScope
+                        )
+                    },
+                    onTaskReceipt: { receipt in
+                        try self.ensureCurrentOperation(
+                            generation: operationGeneration,
+                            scope: operationScope
+                        )
+                        var checkpoint = RecognizedCaptureDraft.empty
+                        checkpoint.sourceParserName = "shared-screenshot-preprocess"
+                        checkpoint.sourceParserVersion = "screenshot-preprocess.v3"
+                        checkpoint.preprocessingTaskID = receipt.taskID
+                        checkpoint.preprocessingTaskRevision = receipt.revision
+                        checkpoint.preprocessingRetryRequired = true
+                        checkpoint.preprocessingUncertainties = [
+                            "Shared screenshot preprocessing has not completed. Retry preserves its task receipt."
+                        ]
+                        try await self.inbox.saveDraft(
+                            checkpoint,
+                            for: item.id,
+                            scope: operationScope
+                        )
+                        try self.ensureCurrentOperation(
+                            generation: operationGeneration,
+                            scope: operationScope
+                        )
+                    }
+                )
+                try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
+                try await inbox.saveDraft(draft, for: item.id, scope: operationScope)
             }
+            try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
             let blockers: [String]
-            if let service {
+            let preprocessingBlockers = draft.preprocessingUncertainties ?? []
+            if draft.preprocessingRetryRequired == true
+                || !preprocessingBlockers.isEmpty
+                || !draft.canSubmit {
+                blockers = preprocessingBlockers.isEmpty
+                    ? ["The protected screenshot needs review before any evidence can be saved."]
+                    : preprocessingBlockers
+            } else if let service {
                 var recovery = try await inbox.loadRecovery(
                     for: item.id,
-                    scope: runtimeScope
+                    scope: operationScope
                 ) ?? CaptureReviewRecovery()
+                try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
                 var capture: ResourceCaptureResult
                 if let savedCapture = recovery.capture {
                     capture = savedCapture
@@ -679,33 +822,37 @@ final class CaptureHandoffStore: ObservableObject {
                         seed: seed,
                         draft: submittedDraft,
                         recovery: recovery,
-                        scope: runtimeScope
+                        scope: operationScope
                     )
+                    try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
                     capture = try await service.createProposedCapture(
                         seed: seed,
                         draft: submittedDraft
                     )
+                    try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
                     recovery.capture = capture
                     try await inbox.saveReview(
                         seed: seed,
                         draft: submittedDraft,
                         recovery: recovery,
-                        scope: runtimeScope
+                        scope: operationScope
                     )
                 }
                 var identityCase: IdentityResolutionCase?
                 if capture.identity.status != "bound",
                    let caseID = capture.identity.resolutionCaseID {
                     let loadedCase = try await service.loadIdentityCase(id: caseID)
+                    try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
                     identityCase = loadedCase
                     if loadedCase.status != "pending" {
                         capture = try await service.loadCapture(id: capture.captureID)
+                        try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
                         recovery.capture = capture
                         try await inbox.saveReview(
                             seed: seed,
                             draft: recovery.submittedDraft ?? draft,
                             recovery: recovery,
-                            scope: runtimeScope
+                            scope: operationScope
                         )
                     } else if let binding = CaptureSessionDecisionPolicy.automaticBinding(
                         for: loadedCase
@@ -719,6 +866,7 @@ final class CaptureHandoffStore: ObservableObject {
                             seed: seed,
                             draft: recovery.submittedDraft ?? draft
                         )
+                        try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
                         if result.identityStatus == "bound" {
                             capture = ResourceCaptureResult(
                                 captureID: capture.captureID,
@@ -743,9 +891,30 @@ final class CaptureHandoffStore: ObservableObject {
                                 seed: seed,
                                 draft: recovery.submittedDraft ?? draft,
                                 recovery: recovery,
-                                scope: runtimeScope
+                                scope: operationScope
                             )
                         }
+                    }
+                }
+                if capture.identity.status == "bound" {
+                    var linkedDraft = recovery.submittedDraft ?? draft
+                    if let taskID = linkedDraft.preprocessingTaskID,
+                       let revision = linkedDraft.preprocessingTaskRevision {
+                        linkedDraft.preprocessingTaskRevision = try await service.linkScreenshotPreprocessing(
+                            taskID: taskID,
+                            expectedRevision: revision,
+                            captureID: capture.captureID,
+                            sourceResourceID: capture.resource.id
+                        )
+                        try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
+                        recovery.submittedDraft = linkedDraft
+                        recovery.capture = capture
+                        try await inbox.saveReview(
+                            seed: seed,
+                            draft: linkedDraft,
+                            recovery: recovery,
+                            scope: operationScope
+                        )
                     }
                 }
                 blockers = CaptureSessionDecisionPolicy.blockers(
@@ -759,6 +928,7 @@ final class CaptureHandoffStore: ObservableObject {
                 captureID: item.id,
                 blockers: blockers
             )
+            try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
             guard sessionStore.recordUnscopedChat(
                 sessionID: sessionID,
                 objective: objective,
@@ -767,6 +937,14 @@ final class CaptureHandoffStore: ObservableObject {
                 throw CaptureSessionProcessingError.sessionPersistenceUnavailable
             }
             let needsDecision = !blockers.isEmpty
+            if !needsDecision {
+                    try await deletePreprocessingSourceIfNeeded(
+                        captureID: item.id,
+                        service: service,
+                        operationScope: operationScope
+                    )
+                    try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
+                }
             try await inbox.updateSessionProcessing(
                 id: item.id,
                 sessionID: sessionID,
@@ -774,16 +952,19 @@ final class CaptureHandoffStore: ObservableObject {
                 detail: needsDecision
                     ? blockers.joined(separator: " ")
                     : "The screenshot was attached as proposed evidence without a blocking decision.",
-                scope: runtimeScope
+                scope: operationScope
             )
+            try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
             if needsDecision {
                 sessionStore.markUnread(sessionID)
             } else {
-                try await removeCompletedCapture(id: item.id)
+                sessionStore.markRead(sessionID)
+                try await removeCompletedCapture(id: item.id, scope: operationScope)
             }
         } catch is CancellationError {
             return
         } catch {
+            guard generation == operationGeneration, runtimeScope == operationScope else { return }
             if let existingTurn = processingTurn(
                 captureID: item.id,
                 sessionID: sessionID,
@@ -793,17 +974,27 @@ final class CaptureHandoffStore: ObservableObject {
                     where: \.requiresUserDecision
                 )
                 do {
+                    if !needsDecision {
+                        try await deletePreprocessingSourceIfNeeded(
+                            captureID: item.id,
+                            service: service,
+                            operationScope: operationScope
+                        )
+                        try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
+                    }
                     try await inbox.updateSessionProcessing(
                         id: item.id,
                         sessionID: sessionID,
                         state: needsDecision ? .needsDecision : .completed,
                         detail: existingTurn.response.blocks.first?.body,
-                        scope: runtimeScope
+                        scope: operationScope
                     )
+                    try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
                     if needsDecision {
                         sessionStore.markUnread(sessionID)
                     } else {
-                        try await removeCompletedCapture(id: item.id)
+                        sessionStore.markRead(sessionID)
+                        try await removeCompletedCapture(id: item.id, scope: operationScope)
                     }
                 } catch {
                     inboxLoadError = error.localizedDescription
@@ -822,9 +1013,27 @@ final class CaptureHandoffStore: ObservableObject {
                 sessionID: sessionID,
                 state: .failed,
                 detail: "Agent processing stopped. Open this decision to retry from the protected screenshot.",
-                scope: runtimeScope
+                scope: operationScope
             )
         }
+    }
+
+    private func deletePreprocessingSourceIfNeeded(
+        captureID: UUID,
+        service: RelationshipCaptureServing?,
+        operationScope: String?
+    ) async throws {
+        guard let receipt = try await inbox.preprocessingDeletionReceipt(
+            for: captureID,
+            scope: operationScope
+        ) else { return }
+        guard let service else {
+            throw ConversationRecognitionError.sharedPreprocessingUnavailable
+        }
+        try await service.deleteScreenshotPreprocessing(
+            taskID: receipt.taskID,
+            expectedRevision: receipt.revision
+        )
     }
 
     private func processingTurn(
@@ -834,12 +1043,12 @@ final class CaptureHandoffStore: ObservableObject {
     ) -> AgentSessionTurn? {
         let taskID = "capture-\(captureID.uuidString.lowercased())"
         return sessionStore.session(id: sessionID)?.turns.first(where: {
-            $0.response.taskID == taskID || $0.response.taskID == "\(taskID)-failed"
+            $0.response.taskID == taskID
         })
     }
 
-    private func removeCompletedCapture(id: UUID) async throws {
-        try await inbox.remove(id: id)
+    private func removeCompletedCapture(id: UUID, scope: String?) async throws {
+        try await inbox.remove(id: id, scope: scope)
         if savedSeed?.id == id {
             savedSeed = nil
             initialDraft = nil
@@ -933,9 +1142,30 @@ final class CaptureHandoffStore: ObservableObject {
         }
     }
 
-    func removeFromInbox(id: UUID) async throws {
+    func removeFromInbox(
+        id: UUID,
+        service: RelationshipCaptureServing? = nil
+    ) async throws {
+        let operationGeneration = generation
+        let operationScope = runtimeScope
+        guard !processingIDs.contains(id), !deletingIDs.contains(id) else {
+            throw CaptureSessionProcessingError.preprocessingCleanupPending
+        }
+        deletingIDs.insert(id)
+        defer { deletingIDs.remove(id) }
+        guard try await inbox.summaries(scope: operationScope).contains(where: { $0.id == id }) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
+        try await deletePreprocessingSourceIfNeeded(
+            captureID: id,
+            service: service,
+            operationScope: operationScope
+        )
+        try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
         try resolveProcessingSession(captureID: id, resolution: .dismissed)
-        try await inbox.remove(id: id)
+        try await inbox.remove(id: id, scope: operationScope)
+        try ensureCurrentOperation(generation: operationGeneration, scope: operationScope)
         if savedSeed?.id == id || pendingSeed?.id == id {
             pendingSeed = nil
             savedSeed = nil
@@ -1163,7 +1393,7 @@ final class CaptureHandoffStore: ObservableObject {
             )
             UIColor(red: 0.72, green: 0.91, blue: 0.62, alpha: 1).setFill()
             boundary.fill()
-            "Review the original before saving OCR as evidence.".draw(
+            "Review the original before saving preprocessed text as evidence.".draw(
                 in: CGRect(x: 295, y: 930, width: 670, height: 120),
                 withAttributes: [
                     .font: UIFont.systemFont(ofSize: 34, weight: .medium),
@@ -1201,13 +1431,28 @@ final class CaptureHandoffStore: ObservableObject {
         }
         return arguments[index + 1]
     }
+
+    private func ensureCurrentOperation(
+        generation: UUID,
+        scope: String?
+    ) throws {
+        guard generation == self.generation, scope == runtimeScope else {
+            throw CancellationError()
+        }
+    }
 }
 
 private enum CaptureSessionProcessingError: LocalizedError {
     case sessionPersistenceUnavailable
+    case preprocessingCleanupPending
 
     var errorDescription: String? {
-        "The capture Session could not be protected on this device."
+        switch self {
+        case .sessionPersistenceUnavailable:
+            return "The capture Session could not be protected on this device."
+        case .preprocessingCleanupPending:
+            return "This capture is still processing. Wait for it to stop before removing it."
+        }
     }
 }
 

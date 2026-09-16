@@ -207,6 +207,15 @@ const SharedEvidenceLocatorSchemas = [
         Type.Literal("right"),
         Type.Literal("unknown"),
       ]),
+      source_image_index: Type.Optional(
+        Type.Integer({ minimum: 0, maximum: 9 }),
+      ),
+      speaker_label: Type.Optional(
+        Type.String({ minLength: 1, maxLength: 600 }),
+      ),
+      visible_time_text: Type.Optional(
+        Type.String({ minLength: 1, maxLength: 600 }),
+      ),
       bounding_box: Type.Optional(NormalizedBoundingBoxSchema),
     },
     { additionalProperties: false },

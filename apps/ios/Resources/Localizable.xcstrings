@@ -1,6 +1,66 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左侧"
+          }
+        }
+      }
+    },
+    "Omit this message": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忽略这条消息"
+          }
+        }
+      }
+    },
+    "Right": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右侧"
+          }
+        }
+      }
+    },
+    "Speaker side": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话方位置"
+          }
+        }
+      }
+    },
+    "Visible speaker label": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可见说话方标签"
+          }
+        }
+      }
+    },
+    "Visible time": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可见时间"
+          }
+        }
+      }
+    },
     "TALENT SIGNAL": {
       "localizations": {
         "zh-Hans": {
@@ -25321,12 +25381,12 @@
         }
       }
     },
-    "Remove local copy": {
+    "Delete this source": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "移除本地副本"
+            "value": "删除此来源"
           }
         }
       }
@@ -25341,12 +25401,12 @@
         }
       }
     },
-    "Review progress stays on this device for up to 30 days. Removing the local copy does not delete an uploaded source.": {
+    "Review progress stays on this device for up to 30 days. Deleting removes the governed preprocessing upload first, then this device's local copy.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "审阅进度在本机最多保留 30 天。移除本地副本不会删除已上传的来源。"
+            "value": "审阅进度在本机最多保留 30 天。删除时会先移除受管的预处理上传，再移除本机副本。"
           }
         }
       }
@@ -26787,12 +26847,12 @@
         }
       }
     },
-    "This removes the protected local screenshot and Session processing recovery. It does not delete proposed source text already accepted by the backend.": {
+    "This removes the protected local screenshot, its retained preprocessing copy, and Session processing recovery. It does not delete proposed source text already accepted by the backend.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这会移除本地受保护的截图和会话处理恢复数据，但不会删除后端已接收的候选来源文本。"
+            "value": "这会移除本地受保护的截图、保留的预处理副本和会话处理恢复数据，但不会删除后端已接收的候选来源文本。"
           }
         }
       }
@@ -30225,6 +30285,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "保存 "
+          }
+        }
+      }
+    },
+    "Correct what the original supports below. Anything you do not resolve remains unknown.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在下方仅修正原图能够支持的内容。无法解决的部分将保持未知。"
+          }
+        }
+      }
+    },
+    "Opens the original image for zooming before you correct the preprocessed text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在修正预处理文本前打开原图并支持缩放查看。"
+          }
+        }
+      }
+    },
+    "Pinch or double tap to zoom while checking the preprocessed text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核对预处理文本时，可捏合或双击缩放。"
+          }
+        }
+      }
+    },
+    "Pinch or double tap to zoom. Return to the review to correct preprocessing errors.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捏合或双击可缩放。返回核对页修正预处理错误。"
+          }
+        }
+      }
+    },
+    "Preparing the screenshot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在预处理截图"
+          }
+        }
+      }
+    },
+    "Preprocessing can be wrong. Speaker identity stays unknown until another source supports it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预处理可能有误。在其他来源提供支持前，说话者身份保持未知。"
+          }
+        }
+      }
+    },
+    "Shared preprocessing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享预处理"
+          }
+        }
+      }
+    },
+    "Still unresolved in the original": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图中仍无法确认"
+          }
+        }
+      }
+    },
+    "The original is sent to the private preprocessing service and archived for review. Nothing is attached to a person without the next governed step.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图会发送到私有预处理服务并归档以供核对。完成下一步受控操作前，不会关联到任何人物。"
+          }
+        }
+      }
+    },
+    "The protected local copy stays for up to 7 days, or until review is complete. The private service also retains the submitted original under the task retention policy so monitor review and deletion remain possible.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受保护的本地副本最多保留 7 天，或在核对完成后删除。私有服务也会按任务保留策略保存提交的原图，以支持监控核对和删除。"
           }
         }
       }

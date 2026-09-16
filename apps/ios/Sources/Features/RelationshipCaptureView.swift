@@ -24,7 +24,7 @@ private struct CaptureSourceInspectionView: View {
                     )
                     .accessibilityHint(
                         appLanguage.text(
-                            "Pinch or double tap to zoom while checking the recognized text."
+                            "Pinch or double tap to zoom while checking the preprocessed text."
                         )
                     )
                     .accessibilityIdentifier("capture-source-inspection")
@@ -44,7 +44,7 @@ private struct CaptureSourceInspectionView: View {
             .safeAreaInset(edge: .bottom) {
                 Text(
                     appLanguage.text(
-                        "Pinch or double tap to zoom. Return to the review to correct OCR errors."
+                        "Pinch or double tap to zoom. Return to the review to correct preprocessing errors."
                     )
                 )
                     .font(.caption)
@@ -195,10 +195,10 @@ struct RelationshipCaptureView: View {
                         switch store.stage {
                         case .recognizing:
                             progressCard(
-                                eyebrow: appLanguage.text("On-device recognition"),
-                                title: appLanguage.text("Reading the screenshot"),
+                                eyebrow: appLanguage.text("Shared preprocessing"),
+                                title: appLanguage.text("Preparing the screenshot"),
                                 detail: appLanguage.text(
-                                    "The image remains on this device. Nothing has been attached to a person."
+                                    "The original is sent to the private preprocessing service and archived for review. Nothing is attached to a person without the next governed step."
                                 )
                             )
                         case .reviewing:
@@ -290,7 +290,7 @@ struct RelationshipCaptureView: View {
                 Task { if await store.keepForLater() { onDismiss(.keepForLater) } }
             }
             .disabled(store.isBusy)
-            Button(appLanguage.text("Remove local copy"), role: .destructive) {
+            Button(appLanguage.text("Delete this source"), role: .destructive) {
                 Task {
                     if await store.discard() { onDismiss(.discard) }
                 }
@@ -300,7 +300,7 @@ struct RelationshipCaptureView: View {
         } message: {
             Text(
                 appLanguage.text(
-                    "Review progress stays on this device for up to 30 days. Removing the local copy does not delete an uploaded source."
+                    "Review progress stays on this device for up to 30 days. Deleting removes the governed preprocessing upload first, then this device's local copy."
                 )
             )
         }
@@ -327,7 +327,7 @@ struct RelationshipCaptureView: View {
             )
             .accessibilityHint(
                 appLanguage.text(
-                    "Opens the original image for zooming before you correct the recognized text."
+                    "Opens the original image for zooming before you correct the preprocessed text."
                 )
             )
             .accessibilityValue(store.seed.fileName)
@@ -405,36 +405,178 @@ struct RelationshipCaptureView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(
                     appLanguage.text(
-                        "OCR can be wrong. Speaker identity stays unknown until another source supports it."
+                        "Preprocessing can be wrong. Speaker identity stays unknown until another source supports it."
                     )
                 )
                     .font(.body)
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
 
-                TextEditor(text: $store.draft.reviewedText)
-                    .font(.body)
-                    .foregroundStyle(Color.tsInk)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 190)
+                if let uncertainties = store.draft.preprocessingUncertainties,
+                   !uncertainties.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(
+                            appLanguage.text("Still unresolved in the original"),
+                            systemImage: "exclamationmark.triangle"
+                        )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.tsWarning)
+                        ForEach(Array(uncertainties.enumerated()), id: \.offset) { _, uncertainty in
+                            Text(verbatim: "• \(uncertainty)")
+                                .font(.caption)
+                                .foregroundStyle(Color.tsMutedInk)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Text(
+                            appLanguage.text(
+                                "Correct what the original supports below. Anything you do not resolve remains unknown."
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                    }
                     .padding(12)
                     .background(
-                        Color.tsEvidence,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        Color.tsWarning.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                     )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.tsLine, lineWidth: 1)
-                    }
-                    .accessibilityLabel(
-                        appLanguage.text("Reviewed conversation text")
-                    )
-                    .accessibilityHint(
-                        appLanguage.text("Edit any text recognition errors before saving.")
-                    )
-                    .accessibilityIdentifier("reviewed-ocr-text")
+                    .accessibilityIdentifier("preprocessing-uncertainties")
+                }
 
-                speakerReviewControl
+                if let messages = store.draft.preprocessedMessages, !messages.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(messages) { message in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(verbatim: [
+                                    "Message \(message.sequence + 1)",
+                                    "source \(message.sourceImageIndex + 1)",
+                                ].compactMap { $0 }.joined(separator: " · "))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.tsMutedInk)
+                                Picker(
+                                    appLanguage.text("Speaker side"),
+                                    selection: Binding(
+                                        get: {
+                                            store.draft.preprocessedMessages?
+                                                .first(where: { $0.id == message.id })?.speakerSide
+                                                ?? "unknown"
+                                        },
+                                        set: {
+                                            store.updatePreprocessedMessageSpeakerSide(
+                                                id: message.id,
+                                                speakerSide: $0
+                                            )
+                                        }
+                                    )
+                                ) {
+                                    Text(appLanguage.text("Left")).tag("left")
+                                    Text(appLanguage.text("Right")).tag("right")
+                                    Text(appLanguage.text("Unknown")).tag("unknown")
+                                }
+                                .pickerStyle(.segmented)
+                                .accessibilityIdentifier("reviewed-preprocessed-speaker-side-\(message.id)")
+                                TextField(
+                                    appLanguage.text("Visible speaker label"),
+                                    text: Binding(
+                                        get: {
+                                            store.draft.preprocessedMessages?
+                                                .first(where: { $0.id == message.id })?.speakerLabel ?? ""
+                                        },
+                                        set: {
+                                            store.updatePreprocessedMessageSpeakerLabel(
+                                                id: message.id,
+                                                speakerLabel: $0
+                                            )
+                                        }
+                                    )
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("reviewed-preprocessed-speaker-label-\(message.id)")
+                                TextField(
+                                    appLanguage.text("Visible time"),
+                                    text: Binding(
+                                        get: {
+                                            store.draft.preprocessedMessages?
+                                                .first(where: { $0.id == message.id })?.timeText ?? ""
+                                        },
+                                        set: {
+                                            store.updatePreprocessedMessageTimeText(
+                                                id: message.id,
+                                                timeText: $0
+                                            )
+                                        }
+                                    )
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("reviewed-preprocessed-visible-time-\(message.id)")
+                                Button(role: .destructive) {
+                                    store.removePreprocessedMessage(id: message.id)
+                                } label: {
+                                    Label(
+                                        appLanguage.text("Omit this message"),
+                                        systemImage: "trash"
+                                    )
+                                }
+                                .font(.caption.weight(.semibold))
+                                .accessibilityIdentifier("remove-preprocessed-message-\(message.id)")
+                                TextEditor(text: Binding(
+                                    get: {
+                                        store.draft.preprocessedMessages?
+                                            .first(where: { $0.id == message.id })?.text ?? message.text
+                                    },
+                                    set: { store.updatePreprocessedMessageText(id: message.id, text: $0) }
+                                ))
+                                    .font(.body)
+                                    .foregroundStyle(Color.tsInk)
+                                    .scrollContentBackground(.hidden)
+                                    .frame(minHeight: 96)
+                                    .padding(10)
+                                    .background(
+                                        Color.tsEvidence,
+                                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    )
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .stroke(Color.tsLine, lineWidth: 1)
+                                    }
+                                    .accessibilityLabel(
+                                        appLanguage.text("Reviewed conversation text")
+                                    )
+                                    .accessibilityHint(
+                                        appLanguage.text("Edit any text recognition errors before saving.")
+                                    )
+                                    .accessibilityIdentifier("reviewed-preprocessed-message-\(message.id)")
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("reviewed-preprocessed-text")
+                } else {
+                    TextEditor(text: $store.draft.reviewedText)
+                        .font(.body)
+                        .foregroundStyle(Color.tsInk)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 190)
+                        .padding(12)
+                        .background(
+                            Color.tsEvidence,
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.tsLine, lineWidth: 1)
+                        }
+                        .accessibilityLabel(
+                            appLanguage.text("Reviewed conversation text")
+                        )
+                        .accessibilityHint(
+                            appLanguage.text("Edit any text recognition errors before saving.")
+                        )
+                        .accessibilityIdentifier("reviewed-preprocessed-text")
+                }
+
+                if store.draft.preprocessedMessages?.isEmpty != false {
+                    speakerReviewControl
+                }
 
                 Text(
                     appLanguage.text(
@@ -455,7 +597,7 @@ struct RelationshipCaptureView: View {
                     set: { store.draft.keepOriginalForReview = $0 }
                 ))
                 .accessibilityIdentifier("capture-retain-original")
-                Text(appLanguage.text("The original stays on this device for up to 7 days, or until review is complete. Turn off to keep only reviewed text when saved. The image is never uploaded."))
+                Text(appLanguage.text("The protected local copy stays for up to 7 days, or until review is complete. The private service also retains the submitted original under the task retention policy so monitor review and deletion remain possible."))
                     .font(.caption).foregroundStyle(Color.tsMutedInk)
                 Toggle(appLanguage.text("The message date is visible"), isOn: Binding(
                     get: { store.draft.messageTimestampInput != nil },

@@ -98,3 +98,40 @@ export async function purgeExpiredContactImages(pool: Pool, storage: ChatMediaSt
   }
   if (failed) throw new Error("CONTACT_IMAGE_PURGE_INCOMPLETE");
 }
+
+async function purgeContactImageAssets(pool: Pool, assets: Array<Asset & {account_id:string;task_id:string}>,
+  storage: ChatMediaStorage): Promise<void> {
+  let failed = false;
+  for (const asset of assets) {
+    try {
+      if (asset.storage_scope !== storage.labScopeID) throw new Error("CONTACT_IMAGE_STORAGE_MISMATCH");
+      if (!storage.purge) throw new Error("CONTACT_IMAGE_PERMANENT_PURGE_REQUIRED");
+      await storage.purge(asset.object_key);
+      await pool.query(`UPDATE contact_task_images SET status='deleted' WHERE account_id=$1 AND task_id=$2
+        AND image_index=$3 AND status='purge_pending'`,[asset.account_id,asset.task_id,asset.image_index]);
+    } catch { failed = true; }
+  }
+  if (failed) throw new Error("CONTACT_IMAGE_PURGE_INCOMPLETE");
+}
+
+export async function purgeContactImagesForTask(pool: Pool, accountID: string,
+  taskID: string, storage: ChatMediaStorage): Promise<void> {
+  const assets = await pool.query<Asset & {account_id:string;task_id:string}>(`SELECT * FROM contact_task_images
+    WHERE account_id=$1 AND task_id=$2 AND status='purge_pending'`,[accountID,taskID]);
+  await purgeContactImageAssets(pool,assets.rows,storage);
+}
+
+export async function purgeContactImagesForCapture(pool: Pool, accountID: string,
+  captureID: string, storage: ChatMediaStorage): Promise<void> {
+  const assets = await pool.query<Asset & {account_id:string;task_id:string}>(`WITH RECURSIVE capture_tree(capture_id) AS (
+      VALUES($2::uuid)
+      UNION
+      SELECT child.capture_id FROM capture_tree tree
+      JOIN source_resources parent ON parent.account_id=$1 AND parent.capture_id=tree.capture_id
+      JOIN source_resources child ON child.account_id=parent.account_id AND child.discovered_from_resource_id=parent.id
+    ) SELECT i.* FROM contact_task_images i
+    JOIN screenshot_contact_tasks t ON t.account_id=i.account_id AND t.id=i.task_id
+    JOIN capture_tree tree ON tree.capture_id=t.capture_id
+    WHERE i.account_id=$1 AND i.status='purge_pending'`,[accountID,captureID]);
+  await purgeContactImageAssets(pool,assets.rows,storage);
+}

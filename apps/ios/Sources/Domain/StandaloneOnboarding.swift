@@ -490,7 +490,9 @@ struct StandaloneOnboardingState: Codable, Equatable {
         let initialText: String
         switch envelope.kind {
         case .image:
-            initialText = envelope.sourceText ?? envelope.recruiterNote ?? ""
+            // Image-derived text from legacy Share Extension OCR is never used.
+            // The original remains available for the shared preprocessing path.
+            initialText = envelope.recruiterNote ?? ""
         case .text:
             initialText = envelope.sourceText ?? envelope.recruiterNote ?? ""
         case .url:
@@ -512,7 +514,7 @@ struct StandaloneOnboardingState: Codable, Equatable {
             sharedEnvelopeID: envelope.id,
             sharedPayloadKind: envelope.kind,
             sharedPayloadFileName: envelope.payloadFileName,
-            sharedSourceText: envelope.sourceText,
+            sharedSourceText: envelope.kind == .image ? nil : envelope.sourceText,
             sharedRecruiterNote: envelope.recruiterNote,
             sharedSourceURL: envelope.url,
             state: initialText.isEmpty ? .draftCreated : .readyToProcess,

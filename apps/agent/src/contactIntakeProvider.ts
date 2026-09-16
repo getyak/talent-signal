@@ -5,6 +5,7 @@ import {
   CONTACT_INTAKE_TOOLS, ContactChatExtractionSchema,
   type ContactChatExtraction, type ContactIntakeToolName, type ScreenshotContactTaskRequest,
 } from "./contactIntakeSchemas.js";
+import type { ScreenshotPreprocessPacket } from "./screenshotPreprocess.js";
 
 export interface ContactAgentToolCall {
   id: string;
@@ -25,6 +26,10 @@ export interface ContactAgentModel {
   run?: (input: {
     objective: string;
     images: ScreenshotContactTaskRequest["image"][];
+    /** Original source indices when preprocessing selects a minimized follow-up subset. */
+    imageSourceIndices?: number[];
+    /** Structured, unconfirmed direct-image understanding from the pinned preprocessor. */
+    preprocessing?: ScreenshotPreprocessPacket;
     text?: string;
     systemPrompt: string;
     state: unknown;

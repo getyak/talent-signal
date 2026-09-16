@@ -913,7 +913,7 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertTrue(proposal.sourceSummary.contains("Share Sheet"))
     }
 
-    func testSharedImageUsesExtractedSourceTextWithoutMergingRecruiterNote() throws {
+    func testSharedImageIgnoresLegacyOCRTextAndUsesOnlyRecruiterNote() throws {
         var state = readyForSourceChoice()
         let envelope = SharedCaptureEnvelope(
             kind: .image,
@@ -925,10 +925,10 @@ final class StandaloneOnboardingTests: XCTestCase {
 
         XCTAssertTrue(state.importSharedCapture(envelope))
 
-        XCTAssertEqual(state.captureDraft?.text, "Candidate prefers remote work.")
-        XCTAssertEqual(state.captureDraft?.sharedSourceText, "Candidate prefers remote work.")
+        XCTAssertEqual(state.captureDraft?.text, "Recruiter should confirm time zone.")
+        XCTAssertNil(state.captureDraft?.sharedSourceText)
         XCTAssertEqual(state.captureDraft?.sharedRecruiterNote, "Recruiter should confirm time zone.")
-        XCTAssertFalse(state.captureDraft?.text.contains("Recruiter should") == true)
+        XCTAssertFalse(state.captureDraft?.text.contains("Candidate prefers") == true)
     }
 
     func testLegacySharedCapturePreservesTheOnlyRecoverableProvenanceRole() throws {

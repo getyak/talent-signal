@@ -326,6 +326,7 @@ private func screenshotTask(
         sourceResourceID: nil,
         messageCount: 0,
         extraction: nil,
+        preprocessing: nil,
         summary: "",
         findings: [],
         profileFields: [],

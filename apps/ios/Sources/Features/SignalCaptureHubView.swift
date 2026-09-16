@@ -379,7 +379,10 @@ struct CaptureInboxView: View {
                 deletingID = item.id
                 Task {
                     do {
-                        try await captureHandoff.removeFromInbox(id: item.id)
+                        try await captureHandoff.removeFromInbox(
+                            id: item.id,
+                            service: captureProcessingService
+                        )
                     } catch {
                         deletionFailure = error.localizedDescription
                     }
@@ -392,7 +395,7 @@ struct CaptureInboxView: View {
         } message: {
             Text(
                 appLanguage.text(
-                    "This removes the protected local screenshot and Session processing recovery. It does not delete proposed source text already accepted by the backend."
+                    "This removes the protected local screenshot, its retained preprocessing copy, and Session processing recovery. It does not delete proposed source text already accepted by the backend."
                 )
             )
         }
@@ -447,6 +450,14 @@ struct CaptureInboxView: View {
 
     private var effectiveBackendURL: URL {
         backendURL ?? URL(string: "http://127.0.0.1:4317")!
+    }
+
+    private var captureProcessingService: any RelationshipCaptureServing {
+        URLRelationshipCaptureClient(
+            baseURL: effectiveBackendURL,
+            accessToken: accessToken,
+            runtimeScope: runtimeScope
+        )
     }
 
     private var inboxHeader: some View {
@@ -573,7 +584,7 @@ struct CaptureInboxView: View {
                             .frame(width: 44, height: 44)
                     }
                 }
-                .disabled(deletingID != nil)
+                .disabled(deletingID != nil || item.processingState == .processing)
                 .accessibilityLabel(
                     appLanguage.text("Remove local capture") + ", " + item.fileName
                 )

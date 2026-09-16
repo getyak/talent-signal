@@ -54,6 +54,7 @@ struct PendingCaptureSummary: Identifiable, Equatable {
     let sessionID: UUID?
     let processingState: CaptureSessionProcessingState
     let processingDetail: String?
+    let preprocessingRemoteRequestMayExist: Bool
 
     var needsAttention: Bool {
         processingState == .needsDecision || processingState == .failed
@@ -92,6 +93,18 @@ enum IdentityHandleType: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+struct PreprocessedCaptureMessage: Identifiable, Codable, Equatable {
+    let messageID: String
+    let sequence: Int
+    var text: String
+    var speakerSide: String
+    var speakerLabel: String?
+    var timeText: String?
+    let sourceImageIndex: Int
+
+    var id: String { "\(sourceImageIndex):\(messageID)" }
+}
+
 struct RecognizedCaptureDraft: Codable, Equatable {
     var reviewedText: String
     var speaker: TextSignalSpeaker?
@@ -106,6 +119,13 @@ struct RecognizedCaptureDraft: Codable, Equatable {
     var keepOriginalForReview: Bool? = nil
     var sourceByteCount: Int? = nil
     var sourceTimezone: String? = nil
+    var sourceParserName: String? = nil
+    var sourceParserVersion: String? = nil
+    var preprocessingUncertainties: [String]? = nil
+    var preprocessingTaskID: String? = nil
+    var preprocessingTaskRevision: Int? = nil
+    var preprocessingRetryRequired: Bool? = nil
+    var preprocessedMessages: [PreprocessedCaptureMessage]? = nil
 
     static let empty = RecognizedCaptureDraft(
         reviewedText: "",
@@ -122,6 +142,9 @@ struct RecognizedCaptureDraft: Codable, Equatable {
         !reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && reviewedText.count <= 20_000
             && (messageTimestampInput == nil || messageTimestamp != nil)
+            && (preprocessedMessages?.allSatisfy {
+                !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            } ?? true)
     }
 }
 
