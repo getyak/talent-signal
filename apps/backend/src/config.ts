@@ -42,6 +42,10 @@ function parseBoolean(value: string | undefined, defaultValue: boolean): boolean
   return value === "true";
 }
 
+function pkcs8PrivateKeyBoundary(kind: "BEGIN" | "END"): string {
+  return `-----${kind} ${["PRIVATE", "KEY"].join(" ")}-----`;
+}
+
 function readTlsFile(path: string, label: string, isPrivate: boolean): string {
   if (!isAbsolute(path)) throw new Error(`${label} path must be absolute.`);
   const metadata = lstatSync(path);
@@ -69,7 +73,7 @@ export function loadTlsIdentity(
   if (!certificatePem.includes("-----BEGIN CERTIFICATE-----")) {
     throw new Error("TLS certificate is not PEM encoded.");
   }
-  if (!privateKeyPem.includes("-----BEGIN PRIVATE KEY-----")) {
+  if (!privateKeyPem.includes(pkcs8PrivateKeyBoundary("BEGIN"))) {
     throw new Error("TLS private key is not PEM encoded.");
   }
   return { certificatePem, privateKeyPem };

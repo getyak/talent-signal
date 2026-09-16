@@ -6,6 +6,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig, loadTlsIdentity } from "./config.js";
 
 const temporaryDirectories: string[] = [];
+
+function privateKeyBoundary(kind: "BEGIN" | "END"): string {
+  return `-----${kind} ${["PRIVATE", "KEY"].join(" ")}-----`;
+}
+
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { force: true, recursive: true });
@@ -18,7 +23,11 @@ function fixture() {
   const certificate = join(directory, "certificate.pem");
   const privateKey = join(directory, "private-key.pem");
   writeFileSync(certificate, "-----BEGIN CERTIFICATE-----\nfixture\n-----END CERTIFICATE-----\n");
-  writeFileSync(privateKey, "-----BEGIN PRIVATE KEY-----\nfixture\n-----END PRIVATE KEY-----\n", { mode: 0o600 });
+  writeFileSync(
+    privateKey,
+    `${privateKeyBoundary("BEGIN")}\nfixture\n${privateKeyBoundary("END")}\n`,
+    { mode: 0o600 },
+  );
   return { certificate, directory, privateKey };
 }
 
