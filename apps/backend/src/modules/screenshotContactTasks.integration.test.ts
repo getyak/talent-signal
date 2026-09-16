@@ -759,6 +759,7 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     await runner.start(auth,created.body.task_id);
     const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
     expect(waiting.status).toBe("waiting_for_user");
+    expect(waiting.preprocessing_pending_source_indices).toEqual([0]);
     const waitingState=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[waiting.task_id])).rows[0]!.state;
     expect(waitingState.preprocessing_refined_indices??[]).toEqual([]);
     expect(waitingState.preprocessing_refinement_unresolved).toBe(true);
@@ -766,6 +767,7 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     await runner.start(auth,waiting.task_id);
     const done=await loadScreenshotContactTask(pool!,auth,waiting.task_id);
     expect(done.status,JSON.stringify(done)).toBe("waiting_for_user");expect(done.extraction?.messages[0]?.text).toBe("resolved text");
+    expect(done.preprocessing_pending_source_indices).toEqual([]);
     const doneState=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[done.task_id])).rows[0]!.state;
     expect(doneState.preprocessing_refined_indices).toEqual([0]);expect(doneState.preprocessing_refinement_unresolved).toBe(true);
     expect(sdkCalls).toBe(2);

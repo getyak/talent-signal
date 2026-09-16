@@ -183,6 +183,10 @@ export const ScreenshotContactTaskResponseSchema = z.strictObject({
   message_count: z.number().int().nonnegative(),
   extraction: ContactChatExtractionSchema.nullable(),
   preprocessing: ScreenshotPreprocessPacketSchema.optional(),
+  // The packet is immutable provenance and keeps historical regions. This
+  // response projection names only sources that still authorize another
+  // bounded original-image read.
+  preprocessing_pending_source_indices: z.array(z.number().int().min(0).max(9)).max(10).optional(),
   contact_draft: ContactProfileDraftSchema.optional(),
   reviewed_profile: ContactProfileDraftSchema.optional(),
   summary: z.string().max(2_000),

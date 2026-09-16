@@ -1789,6 +1789,7 @@ final class RelationshipCaptureTests: XCTestCase {
                 "status": waiting ? "waiting_for_user" : "completed",
                 "contact": NSNull(), "capture_id": NSNull(), "source_resource_id": NSNull(), "message_count": 0,
                 "extraction": extraction,
+                "preprocessing_pending_source_indices": waiting ? [0] : [],
                 "preprocessing": ["sources": [["source_image_index": 0, "follow_up_required": waiting,
                     "follow_up_regions": waiting ? [["reason": "illegible_text", "field": "text",
                         "region": ["left": 4, "top": 8, "width": 20, "height": 12]]] : []]]],
@@ -1863,7 +1864,8 @@ final class RelationshipCaptureTests: XCTestCase {
                     "contact_name": NSNull(), "identity_clues": [],
                     "messages": [["message_id": "m1", "sequence": 0, "text": "Maybe Tuesday",
                         "speaker_side": "unknown", "speaker_label": NSNull(), "time_text": NSNull(),
-                        "source_image_index": 0]], "uncertainties": []],
+                    "source_image_index": 0]], "uncertainties": []],
+                "preprocessing_pending_source_indices": waiting ? [0] : [],
                 "preprocessing": ["sources": [["source_image_index": 0, "follow_up_required": true,
                     "follow_up_regions": [["reason": "ambiguous_time", "field": "time",
                         "region": ["left": 10, "top": 20, "width": 30, "height": 40]]]]]],
@@ -1889,6 +1891,62 @@ final class RelationshipCaptureTests: XCTestCase {
             mediaType: "image/png", origin: .photosPicker
         ))
         XCTAssertNil(completedDraft.preprocessingUncertainties)
+    }
+
+    @MainActor
+    func testWaitingDraftWithoutAuthorizedFollowUpOpensManualReview() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); RelationshipCaptureURLProtocol.handler = nil }
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-human-only-preprocess-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: try Self.screenshotPNG(), fileName: "human-only.png",
+            mediaType: "image/png", origin: .photosPicker
+        )
+        var requestCount = 0
+        RelationshipCaptureURLProtocol.handler = { request in
+            requestCount += 1
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/v1/contact-agent/tasks")
+            let timestamp = "2026-09-15T09:00:00.000Z"
+            let response: [String: Any] = [
+                "task_id": "99999999-9999-4999-8999-999999999977", "revision": 2,
+                "status": "waiting_for_user", "contact": NSNull(), "capture_id": NSNull(),
+                "source_resource_id": NSNull(), "message_count": 0,
+                "extraction": ["platform": "WeChat", "conversation_kind": "direct",
+                    "contact_name": NSNull(), "identity_clues": [], "messages": [],
+                    "uncertainties": ["A source-level gap needs human review."]],
+                "preprocessing_pending_source_indices": [],
+                "preprocessing": ["sources": [["source_image_index": 0, "follow_up_required": true,
+                    "follow_up_regions": [["reason": "resolved_text", "field": "text",
+                        "region": ["left": 4, "top": 8, "width": 20, "height": 12]]]]]],
+                "summary": "Waiting for human review", "findings": [], "profile_fields": [],
+                "public_sources": [], "question": "Inspect the original and enter only supported text.",
+                "candidates": [], "limitations": [], "events": [], "external_effects": [],
+                "created_at": timestamp, "updated_at": timestamp,
+            ]
+            return (201, try JSONSerialization.data(withJSONObject: response))
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!, session: network, accessToken: "access-token"
+        )
+        let store = RelationshipCaptureStore(seed: seed, service: client, inbox: inbox)
+
+        store.start()
+        try await waitUntil { store.stage == .reviewing }
+
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertEqual(store.draft.preprocessingRetryRequired, false)
+        XCTAssertEqual(store.draft.preprocessingTaskRevision, 2)
+        XCTAssertTrue(store.draft.reviewedText.isEmpty)
+        XCTAssertEqual(store.draft.preprocessingUncertainties, [
+            "A source-level gap needs human review.",
+            "Inspect the original and enter only supported text.",
+        ])
     }
 
     func testURLCaptureClientDeletesPreprocessingTaskWithExactRevision() async throws {

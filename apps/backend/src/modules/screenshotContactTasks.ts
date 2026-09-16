@@ -207,7 +207,9 @@ export async function loadScreenshotContactTask(pool: Pool, auth: AuthContext, i
     // A failed availability lookup is not evidence that the source was deleted.
     throw error;
   }
-  return ScreenshotContactTaskResponseSchema.parse({...row.state.response,revision:row.revision,updated_at:row.updated_at.toISOString()});
+  return ScreenshotContactTaskResponseSchema.parse({...row.state.response,
+    preprocessing_pending_source_indices:pendingPreprocessRefinementIndices(row),
+    revision:row.revision,updated_at:row.updated_at.toISOString()});
 }
 
 export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:string,input:{
@@ -319,7 +321,9 @@ export async function loadContactIntelligence(pool:Pool,auth:AuthContext,personI
     AND t.status<>'deleted' AND t.expires_at>now() AND c.status='active' AND c.retention_until>now()
     AND r.authorization_state='authorized' AND r.source_access_state='available'
     ORDER BY t.created_at DESC LIMIT 20`,[auth.accountId,personID,contextID,auth.userId]);
-  return {scope,archive:null,person_revision:person.rows[0]?.version,tasks:tasks.rows.map(row=>ScreenshotContactTaskResponseSchema.parse({...row.state.response,revision:row.revision,updated_at:row.updated_at.toISOString()}))};
+  return {scope,archive:null,person_revision:person.rows[0]?.version,tasks:tasks.rows.map(row=>ScreenshotContactTaskResponseSchema.parse({...row.state.response,
+    preprocessing_pending_source_indices:pendingPreprocessRefinementIndices(row),
+    revision:row.revision,updated_at:row.updated_at.toISOString()}))};
 }
 
 /** Recovery reads only the caller's operation identity; no pixels, model run or write. */

@@ -95,6 +95,7 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
     let messageCount: Int
     let extraction: Extraction?
     let preprocessing: Preprocessing?
+    var preprocessingPendingSourceIndices: [Int]? = nil
     var contactDraft: ProfileDraft? = nil
     var reviewedProfile: ProfileDraft? = nil
     let summary: String
@@ -108,7 +109,7 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
     var id: String { taskID }
     enum CodingKeys: String, CodingKey {
         case sourceImages = "source_images", taskID = "task_id", revision, status, contact, captureID = "capture_id", sourceResourceID = "source_resource_id", messageCount = "message_count"
-        case extraction, preprocessing, contactDraft = "contact_draft", reviewedProfile = "reviewed_profile", summary, findings, profileFields = "profile_fields", publicSources = "public_sources", question, candidates, limitations, events
+        case extraction, preprocessing, preprocessingPendingSourceIndices = "preprocessing_pending_source_indices", contactDraft = "contact_draft", reviewedProfile = "reviewed_profile", summary, findings, profileFields = "profile_fields", publicSources = "public_sources", question, candidates, limitations, events
     }
 }
 

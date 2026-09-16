@@ -462,6 +462,10 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         }
         let preprocessingIssues = Self.preprocessingIssues(task: task, extraction: extraction)
         guard !messages.isEmpty else {
+            let pendingSourceIndices = Set(task.preprocessingPendingSourceIndices ?? [])
+            let hasAuthorizedFollowUpRegion = task.preprocessing?.sources.contains {
+                pendingSourceIndices.contains($0.sourceImageIndex) && !$0.followUpRegions.isEmpty
+            } == true
             let profileHasNoSourceBlocker = extraction.uncertainties.isEmpty
                 && (task.preprocessing?.sources.allSatisfy {
                     !$0.followUpRequired && $0.followUpRegions.isEmpty
@@ -478,7 +482,12 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                     : preprocessingIssues
                 draft.preprocessingTaskID = task.taskID
                 draft.preprocessingTaskRevision = task.revision
+                // The immutable packet keeps historical regions after they
+                // have been read. Only the server's pending projection can
+                // authorize another bounded source retry; source-level gaps
+                // and completed regions open the editable human review.
                 draft.preprocessingRetryRequired = task.status == "waiting_for_user"
+                    && hasAuthorizedFollowUpRegion
                 return draft
             }
             // There is no reviewable conversation draft that could carry this
@@ -803,7 +812,9 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
             issues.append(question)
         }
         if task.status == "waiting_for_user" {
+            let pendingSourceIndices = Set(task.preprocessingPendingSourceIndices ?? [])
             for source in task.preprocessing?.sources ?? [] {
+                guard pendingSourceIndices.contains(source.sourceImageIndex) else { continue }
                 for followUp in source.followUpRegions {
                     issues.append(
                         "Source image \(source.sourceImageIndex + 1) needs a \(followUp.field) check for \(followUp.reason) at region (\(followUp.region.left), \(followUp.region.top), \(followUp.region.width), \(followUp.region.height))."
