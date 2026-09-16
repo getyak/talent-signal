@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 import { isAbsolute } from "node:path";
 
 export interface BackendConfig {
@@ -48,20 +48,35 @@ function pkcs8PrivateKeyBoundary(kind: "BEGIN" | "END"): string {
 
 function readTlsFile(path: string, label: string, isPrivate: boolean): string {
   if (!isAbsolute(path)) throw new Error(`${label} path must be absolute.`);
-  const metadata = lstatSync(path);
-  if (metadata.isSymbolicLink() || !metadata.isFile()) {
-    throw new Error(`${label} must be a regular file, not a symlink.`);
+
+  let descriptor: number;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ELOOP") {
+      throw new Error(`${label} must be a regular file, not a symlink.`);
+    }
+    throw error;
   }
-  if (metadata.size < 1 || metadata.size > 64 * 1024) {
-    throw new Error(`${label} must be between 1 byte and 64 KiB.`);
+
+  try {
+    const metadata = fstatSync(descriptor);
+    if (!metadata.isFile()) {
+      throw new Error(`${label} must be a regular file, not a symlink.`);
+    }
+    if (metadata.size < 1 || metadata.size > 64 * 1024) {
+      throw new Error(`${label} must be between 1 byte and 64 KiB.`);
+    }
+    if (typeof process.geteuid === "function" && metadata.uid !== process.geteuid()) {
+      throw new Error(`${label} must be owned by the backend user.`);
+    }
+    if (isPrivate && (metadata.mode & 0o077) !== 0) {
+      throw new Error(`${label} must not be group- or world-readable.`);
+    }
+    return readFileSync(descriptor, "utf8");
+  } finally {
+    closeSync(descriptor);
   }
-  if (typeof process.geteuid === "function" && metadata.uid !== process.geteuid()) {
-    throw new Error(`${label} must be owned by the backend user.`);
-  }
-  if (isPrivate && (metadata.mode & 0o077) !== 0) {
-    throw new Error(`${label} must not be group- or world-readable.`);
-  }
-  return readFileSync(path, "utf8");
 }
 
 export function loadTlsIdentity(
