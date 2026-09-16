@@ -43,6 +43,7 @@ interface TaskState {
   preprocessing_inflight?: number;
   preprocessing_parts?: ScreenshotPreprocessResult[];
   preprocessing_follow_up_abstained?: boolean;
+  preprocessing_refinement_abstained_indices?: number[];
   preprocessing_refined_indices?: number[];
   preprocessing_refinement_unresolved?: boolean;
   batch_conflict?: boolean;
@@ -556,8 +557,10 @@ function currentToolState(row: Row) {
 
 function pendingPreprocessRefinementIndices(row: Row): number[] {
   const completed=new Set(row.state.preprocessing_refined_indices??[]);
+  const abstained=new Set(row.state.preprocessing_refinement_abstained_indices??[]);
   return row.state.response.preprocessing?.sources
-    .filter(source=>source.follow_up_regions.length>0&&!completed.has(source.source_image_index))
+    .filter(source=>source.follow_up_regions.length>0&&!completed.has(source.source_image_index)&&
+      !abstained.has(source.source_image_index))
     .map(source=>source.source_image_index)??[];
 }
 
@@ -979,6 +982,9 @@ export class ScreenshotContactTaskRunner {
         // model replacement. Claude SDK mode above owns bounded follow-up.
         await this.checkpoint(auth,id,epoch,async(_,latest)=>{
           latest.state.preprocessing_refinement_unresolved=true;
+          latest.state.preprocessing_refinement_abstained_indices=[...new Set([
+            ...(latest.state.preprocessing_refinement_abstained_indices??[]),...refinementIndices,
+          ])].sort((a,b)=>a-b);
           latest.state.response.status="waiting_for_user";
           latest.state.response.question="共享预处理标记了需要核对的原图字段；当前处理器不支持受限区域回执。请在原图中核对，或重新发送更清晰的截图。";
           latest.state.response.summary=latest.input_manifest.preprocess_only

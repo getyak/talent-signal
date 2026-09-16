@@ -993,6 +993,31 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     expect(waiting.events).toContainEqual(expect.objectContaining({tool:"refine_screenshot_preprocessing",status:"denied"}));
     expect(waiting.contact).toBeNull();expect(waiting.capture_id).toBeNull();
   });
+  it("stops advertising zero-message refinement after the default adapter abstains",async()=>{
+    const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const};let preprocessCalls=0;
+    const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
+      preprocess:async(source,index)=>{preprocessCalls++;return {request_id:`ark-abstain-${index}`,model:ARK_SCREENSHOT_PREPROCESS_MODEL,input_tokens:3,output_tokens:2,
+        source:{source_image_index:index,source_hash:source.content_hash,platform:"WeChat",conversation_kind:"direct",contact_name:"Unclear identity",
+          participants:[],messages:[],identity_clues:[],uncertainties:["identity unclear"],follow_up_required:true,
+          follow_up_regions:[{reason:"ambiguous_identity",field:"identity",uncertainty_index:0,target:{kind:"contact_name"},baseline_text:null,
+            region:{left:0,top:0,width:50,height:80}}],width:100,height:200,
+          prepared_view:{transform:"auto-orient/native/webp92-v1",content_hash:"b".repeat(64),tile_count:0}}};}};
+    const base=model("unused"),extract=vi.fn(async()=>{throw new Error("FULL_IMAGE_REFINEMENT_MUST_NOT_RUN");});
+    const next=vi.fn(base.next);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage,{preprocessingRequired:true});
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:{...base,extract,next},preprocessor,research:null},storage);
+    await runner.start(auth,created.body.task_id);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting.status).toBe("waiting_for_user");expect(waiting.preprocessing_pending_source_indices).toEqual([]);
+    expect(waiting.extraction?.messages).toEqual([]);expect(preprocessCalls).toBe(1);
+    const state=(await pool!.query("SELECT state FROM screenshot_contact_tasks WHERE id=$1",[waiting.task_id])).rows[0]!.state;
+    expect(state.preprocessing_refinement_abstained_indices).toEqual([0]);
+    await resumeScreenshotContactTask(pool!,auth,waiting.task_id,{expected_revision:waiting.revision});
+    await runner.start(auth,waiting.task_id);
+    const resumed=await loadScreenshotContactTask(pool!,auth,waiting.task_id);
+    expect(resumed.status).toBe("waiting_for_user");expect(resumed.preprocessing_pending_source_indices).toEqual([]);
+    expect(preprocessCalls).toBe(1);expect(extract).not.toHaveBeenCalled();expect(next).not.toHaveBeenCalled();
+  });
   it("requires an explicit resume receipt before retrying an unknown preprocessing response",async()=>{
     const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const};let calls=0;
     const preprocessor:ScreenshotPreprocessor={provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL,
