@@ -27,6 +27,34 @@ afterEach(async () => {
 });
 
 describe("readiness rate limiting", () => {
+  it("keeps liveness database-free and returns the exact readiness contract", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: REQUIRED_SYSTEM_MIGRATIONS.map((version) => ({ version })),
+    });
+    const app = await buildApp({
+      config,
+      pool: { query } as unknown as Pool,
+    });
+    apps.push(app);
+
+    const live = await app.inject({ method: "GET", url: "/health/live" });
+    expect(live.statusCode).toBe(200);
+    expect(live.json()).toEqual({
+      status: "ok",
+      service: "talent-signal-backend",
+    });
+    expect(query).not.toHaveBeenCalled();
+
+    const ready = await app.inject({ method: "GET", url: "/health/ready" });
+    expect(ready.statusCode).toBe(200);
+    expect(ready.json()).toEqual({
+      status: "ready",
+      database: "ready",
+      migration: "070_meeting_drafts",
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   it("bounds repeated public database readiness probes", async () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
