@@ -139,6 +139,18 @@ Run budgets and provider readback. Do not configure silent cross-provider
 fallback because it changes ranking, data processing, cost, and attribution
 without changing the Run authorization.
 
+General public-page reads require `FIRECRAWL_API_KEY` from the same
+`/agent-host` boundary. This keeps the standalone Agent independent of the
+Talent Signal product runtime without relying on network-dependent anonymous
+access. `fetch_web` may send only the exact public HTTPS URL discovered in
+the current governed Run; it sends no cookies, private headers, conversation
+content, or product credentials. Firecrawl returns bounded main-content
+Markdown with PDF parsing while provider caching is disabled and zero data
+retention is requested only after the Firecrawl account has that capability and
+`TALENT_SIGNAL_FIRECRAWL_ZERO_DATA_RETENTION=true`. Keep this credential out of
+backend, Web, iOS, release, and model-visible configuration. The standalone
+Agent Host command does not require the Talent Signal product runtime.
+
 Screenshot-driven public-person research uses a separate Agent-host contract.
 Keep `EXA_API_KEY`, `TIKHUB_API_KEY`, and `TIKHUB_BASE_URL` in
 `<environment>:/agent-host`, pin
