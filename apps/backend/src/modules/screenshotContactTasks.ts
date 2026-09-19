@@ -6,7 +6,7 @@ import {
   ARK_SCREENSHOT_PREPROCESS_MODEL, ArkScreenshotPreprocessor,
   SCREENSHOT_PREPROCESS_CONTRACT, SCREENSHOT_PREPROCESS_PROMPT_VERSION,
   SCREENSHOT_PREPROCESS_SCHEMA_VERSION, SCREENSHOT_PREPROCESS_FOLLOW_UP_REGION_LIMIT,
-  CONTACT_INTAKE_TOOLS, CONTACT_RESEARCH_CONTRACT, ContactProfileFieldSchema,
+  CONTACT_INTAKE_TOOLS, CONTACT_RESEARCH_CONTRACT, CONTACT_TASK_PUBLIC_SOURCE_LIMIT, ContactProfileFieldSchema,
   ScreenshotContactTaskRequestSchema, ScreenshotContactTaskResponseSchema, TextContactTaskRequestSchema,
   ZhipuContactAgentModel, groundContactTextExtraction, contactDocumentBlocks,
   ClaudeContactAgentModel, claudeHarnessConfiguration, ContactChatExtractionSchema,
@@ -15,7 +15,7 @@ import {
   extractionFromPreprocess, preprocessNeedsOriginalMultimodalRead,
   resolveProductPrompt, type PromptSnapshot,
   type ContactAgentModel, type ContactAgentToolCall, type ContactIntakeToolName,
-  type ContactPublicSource, type ContactProfileField,
+  type ContactPublicSource, type ContactProfileField, type ContactResearchToolResponse,
   type ScreenshotPreprocessor, type ScreenshotPreprocessResult,
   type ScreenshotContactTaskRequest, type ScreenshotContactTaskResponse, type TextContactTaskRequest,
 } from "@talent-signal/agent";
@@ -571,9 +571,30 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
   if (!response.contact) return ["search_contacts","read_contact","create_contact","ask_contact_clarification"];
   if (!response.capture_id) return ["save_contact_chat","ask_contact_clarification"];
   const tools:ContactIntakeToolName[]=["update_contact","finish_contact_task","ask_contact_clarification"];
-  if(row.input_manifest.allow_public_research && row.state.turns<14 && response.public_sources.length<25) tools.push("search_contact_public");
+  if(row.input_manifest.allow_public_research && row.state.turns<14 && response.public_sources.length<CONTACT_TASK_PUBLIC_SOURCE_LIMIT) tools.push("search_contact_public");
   if(response.public_sources.length>0 && row.state.turns<15)tools.push("fetch_contact_source","browse_contact_source");
   return tools;
+}
+
+/** Keep the provider receipt and durable task projection identical at the task-wide source cap. */
+export function retainContactResearchResult(
+  existingSources: ContactPublicSource[],
+  result: ContactResearchToolResponse,
+): ContactResearchToolResponse {
+  const retained: ContactPublicSource[] = [];
+  for (const source of result.sources) {
+    const existingIndex=existingSources.findIndex(item=>item.source_id===source.source_id);
+    if(existingIndex>=0){existingSources[existingIndex]=source;retained.push(source);continue;}
+    if(existingSources.length<CONTACT_TASK_PUBLIC_SOURCE_LIMIT){existingSources.push(source);retained.push(source);}
+  }
+  const retainedByChannel=new Map<string,number>();
+  for(const source of retained)retainedByChannel.set(source.channel,(retainedByChannel.get(source.channel)??0)+1);
+  const channels=result.channels.map(outcome=>{
+    if(outcome.status==="failed")return outcome;
+    const resultCount=retainedByChannel.get(outcome.channel)??0;
+    return {...outcome,result_count:resultCount,truncated:outcome.truncated||resultCount<outcome.result_count};
+  });
+  return {...result,sources:retained,channels};
 }
 
 function personAuthoritiesForCall(call:ContactAgentToolCall):string[]{
@@ -1103,8 +1124,12 @@ export class ScreenshotContactTaskRunner {
             public_sources:row.state.response.public_sources.map((source,index)=>({...source,source_ref:`public${index+1}`,text:source.text.slice(0,8_000)})).slice(-5),
             profile_fields:row.state.response.profile_fields,remaining_turns:18-row.state.turns},observations:row.state.observations.slice(-12).map(observation=>{
               if(observation.tool!=="search_contact_public"&&observation.tool!=="fetch_contact_source"&&observation.tool!=="browse_contact_source")return observation;
-              const result=observation.result as {sources?:ContactPublicSource[]};
-              return result.sources?{tool:observation.tool,result:{sources:result.sources.map(source=>({source_id:source.source_id,title:source.title,url:source.url,stage:source.stage}))}}:observation;
+              const result=observation.result as {sources?:ContactPublicSource[];channels?:ContactResearchToolResponse["channels"]};
+              return result.sources?{tool:observation.tool,result:{
+                sources:result.sources.map(source=>({source_id:source.source_id,title:source.title,url:source.url,stage:source.stage})),
+                ...(result.channels?{channels:result.channels.map(outcome=>({channel:outcome.channel,provider:outcome.provider,
+                  status:outcome.status,result_count:outcome.result_count,truncated:outcome.truncated,error_code:outcome.error_code}))}:{}),
+              }}:observation;
             }),tools,
           remainingTokens:Math.min(4000,80_000-row.state.tokens)},signal);
         await this.checkpoint(auth,id,epoch,async(_,r)=>{r.state.turns++;r.state.tokens+=reply.inputTokens+reply.outputTokens;
@@ -1304,11 +1329,14 @@ export class ScreenshotContactTaskRunner {
       if(call.name==="search_contact_public"){
         const args=CONTACT_INTAKE_TOOLS.search_contact_public.schema.parse(call.arguments);
         // A query is assembled solely from visible public identity tokens; no IM sentences leave this boundary.
-        const permitted=[...anchors,...identity.clues.filter(c=>c.kind==="job_title").map(c=>c.value),"linkedin","LinkedIn","抖音","微博","douyin","tiktok","threads","weibo"];
+        const permitted=[...anchors,...identity.clues.filter(c=>c.kind==="job_title").map(c=>c.value),
+          "linkedin","LinkedIn","web","小红书","xiaohongshu","Reddit","reddit","抖音","微博",
+          "douyin","tiktok","threads","weibo","Instagram","instagram"];
         let remaining=normalized(args.query);
         for(const token of permitted.sort((a,b)=>b.length-a.length))remaining=remaining.replaceAll(normalized(token),"");
         if(remaining.replace(/[\s,，、@|]+/gu,"").length)deny("CONTACT_PUBLIC_QUERY_NOT_IDENTITY_ONLY");
-        operation={operation:"search" as const,channel:args.channel,query:args.query,maximum_results:3};
+        operation={operation:"search" as const,channels:args.channels,query:args.query,
+          maximum_results_per_channel:args.results_per_channel};
       }else{
         const args=CONTACT_INTAKE_TOOLS.fetch_contact_source.schema.parse(call.arguments);
         const source=row.state.response.public_sources.find(s=>s.source_id===canonicalSourceRef(row,args.source_id));if(!source)deny("CONTACT_SOURCE_NOT_DISCOVERED");
@@ -1318,11 +1346,18 @@ export class ScreenshotContactTaskRunner {
       return {contract_version:CONTACT_RESEARCH_CONTRACT,task_id:id,call_id:randomUUID(),anchors,input:operation};
     });
     const result=await this.dependencies.research.execute(input,signal);
-    await this.checkpoint(auth,id,epoch,async(_,row)=>{
-      for(const source of result.sources){const i=row.state.response.public_sources.findIndex(s=>s.source_id===source.source_id);if(i>=0)row.state.response.public_sources[i]=source;else row.state.response.public_sources.push(source);}
-      row.state.pending_research=null;this.observe(row,call.name,{sources:result.sources},"completed");
+    return this.checkpoint(auth,id,epoch,async(_,row)=>{
+      const retained=retainContactResearchResult(row.state.response.public_sources,result);
+      for(const outcome of retained.channels.filter(item=>item.status==="failed")){
+        const limitation=`CONTACT_PUBLIC_SEARCH_${outcome.channel.toUpperCase()}_${outcome.error_code}`;
+        if(!row.state.response.limitations.includes(limitation))row.state.response.limitations.push(limitation);
+      }
+      if(retained.channels.some(item=>item.status==="ok"&&item.truncated)&&
+        !row.state.response.limitations.includes("CONTACT_PUBLIC_SEARCH_RESULT_LIMIT"))
+        row.state.response.limitations.push("CONTACT_PUBLIC_SEARCH_RESULT_LIMIT");
+      row.state.pending_research=null;this.observe(row,call.name,{sources:retained.sources,channels:retained.channels},"completed");
+      return retained;
     });
-    return result;
   }
 }
 

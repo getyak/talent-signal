@@ -49,6 +49,19 @@ test("contracts reference declared paths and required names", () => {
   }
 });
 
+test("local person research requires both pinned search-provider credentials", () => {
+  assert.deepEqual(
+    manifest.contracts.localPersonResearchHost.required.filter((name) =>
+      ["EXA_API_KEY", "TIKHUB_API_KEY", "TIKHUB_BASE_URL"].includes(name)),
+    ["EXA_API_KEY", "TIKHUB_API_KEY", "TIKHUB_BASE_URL"],
+  );
+  const compose = readFileSync(join(repositoryRoot, "compose.yaml"), "utf8");
+  const service = compose.match(/\n  person-research-agent:\n([\s\S]*?)(?=\n  [a-z][a-z0-9-]*:\n|$)/u)?.[1] ?? "";
+  assert.match(service, /\n      EXA_API_KEY: \$\{EXA_API_KEY:-\}/u);
+  assert.match(service, /\n      TIKHUB_API_KEY: \$\{TIKHUB_API_KEY:-\}/u);
+  assert.match(service, /\n      TIKHUB_BASE_URL: \$\{TIKHUB_BASE_URL:-https:\/\/api\.tikhub\.dev\}/u);
+});
+
 test("GitHub OIDC is bound to the release contract boundary", () => {
   assert.equal(manifest.githubOidc.environment, "staging");
   assert.equal(manifest.githubOidc.path, manifest.groups.release.path);

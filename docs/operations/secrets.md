@@ -140,13 +140,15 @@ fallback because it changes ranking, data processing, cost, and attribution
 without changing the Run authorization.
 
 Screenshot-driven public-person research uses a separate Agent-host contract.
-Keep `TIKHUB_API_KEY` and `TIKHUB_BASE_URL` in `<environment>:/agent-host`, pin
+Keep `EXA_API_KEY`, `TIKHUB_API_KEY`, and `TIKHUB_BASE_URL` in
+`<environment>:/agent-host`, pin
 `TALENT_SIGNAL_AGENT_VISION_MODEL` in `<environment>:/shared`, and verify only the names
 with `pnpm secrets:check:person-research`. The command loads `/shared` and
-`/agent-host` into the Agent Host process or sidecar only; no API process, Web,
-iOS, release job, or model prompt receives the TikHub credential. Do not add TikHub as a fallback
-for Brave/Tavily or vice versa: the purposes, data paths, cost, and source
-semantics differ.
+`/agent-host` into the Agent Host process or sidecar only. Exa serves LinkedIn
+and general-Web contact discovery while TikHub serves the admitted social
+profile channels; no API process, Web, iOS, release job, or model prompt
+receives either credential. Neither provider is a fallback for the other: the
+purposes, data paths, cost, and source semantics differ.
 
 The runtime also requires `TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING=true`
 before it will send the intentional screenshot to the pinned vision provider.

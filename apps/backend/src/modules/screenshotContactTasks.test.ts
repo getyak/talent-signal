@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import type { AuthContext } from "./auth.js";
-import { environmentScreenshotContactDependencies, loadScreenshotContactTask } from "./screenshotContactTasks.js";
-import { ARK_SCREENSHOT_PREPROCESS_MODEL } from "@talent-signal/agent";
+import { environmentScreenshotContactDependencies, loadScreenshotContactTask, retainContactResearchResult } from "./screenshotContactTasks.js";
+import { ARK_SCREENSHOT_PREPROCESS_MODEL, CONTACT_RESEARCH_CONTRACT, CONTACT_TASK_PUBLIC_SOURCE_LIMIT,
+  type ContactPublicSource, type ContactResearchToolResponse } from "@talent-signal/agent";
 
 const row = {
   id: "synthetic-task", status: "completed", revision: 1,
@@ -44,5 +45,35 @@ describe("screenshot preprocessing configuration",()=>{
     const dependencies=environmentScreenshotContactDependencies({TALENT_SIGNAL_SCREENSHOT_CONTACT_AGENT_ENABLED:"true",
       TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING:"true",ARK_API_KEY:"synthetic-ark",ZHIPU_API_KEY:"synthetic-zhipu"});
     expect(dependencies?.preprocessor).toMatchObject({provider:"volcano_ark",model:ARK_SCREENSHOT_PREPROCESS_MODEL});
+  });
+});
+
+describe("task-wide public research capacity",()=>{
+  const publicSource=(index:number,channel:ContactPublicSource["channel"]="web"):ContactPublicSource=>({
+    source_id:index.toString(16).padStart(64,"0"),url:`https://example.com/profile/${index}`,
+    title:`Example ${index}`,text:"Public profile",channel,
+    provider_id:channel==="web"||channel==="linkedin"?"exa":"tikhub",
+    provider_request_id:"fixture",content_hash:(index+100).toString(16).padStart(64,"0"),
+    retrieved_at:"2026-09-19T00:00:00.000Z",stage:"discovered",
+  });
+  it("returns exactly the sources persisted when repeated multi-channel search reaches the task cap",()=>{
+    const existing=Array.from({length:24},(_,index)=>publicSource(index));
+    const channelNames=["linkedin","web","xiaohongshu","reddit","instagram"] as const;
+    const incoming=channelNames.flatMap((channel,channelIndex)=>
+      Array.from({length:5},(_,index)=>publicSource(100+channelIndex*5+index,channel)));
+    const result:ContactResearchToolResponse={contract_version:CONTACT_RESEARCH_CONTRACT,
+      task_id:"11111111-1111-4111-8111-111111111111",call_id:"22222222-2222-4222-8222-222222222222",
+      sources:incoming,channels:channelNames.map(channel=>({channel,
+        provider:channel==="linkedin"||channel==="web"?"exa" as const:"tikhub" as const,
+        status:"ok" as const,result_count:5,truncated:false,error_code:null})),external_effects:[]};
+    const retained=retainContactResearchResult(existing,result);
+    expect(existing).toHaveLength(CONTACT_TASK_PUBLIC_SOURCE_LIMIT);
+    expect(retained.sources).toHaveLength(6);
+    expect(retained.channels).toEqual([
+      expect.objectContaining({channel:"linkedin",result_count:5,truncated:false}),
+      expect.objectContaining({channel:"web",result_count:1,truncated:true}),
+      ...channelNames.slice(2).map(channel=>expect.objectContaining({channel,result_count:0,truncated:true})),
+    ]);
+    expect(retained.sources.every(source=>existing.some(item=>item.source_id===source.source_id))).toBe(true);
   });
 });

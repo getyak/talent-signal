@@ -167,9 +167,14 @@ and People returns it only while the linked source remains active and
 authorized. Manual source deletion or a reached retention deadline removes the
 reviewed profile derivative and records that removal in the source lineage.
 
-LinkedIn is not a current person-research adapter. Its official profile API is
-limited to an authenticated member with the required permission, and Talent
-Signal does not substitute scraping or an unofficial provider for that grant.
+LinkedIn discovery is available through the admitted Exa public-search adapter;
+it is not a LinkedIn account integration and grants no authenticated member
+profile API, private data, identity confirmation, or write authority. General
+Web discovery uses the same Exa boundary. Xiaohongshu, Reddit, Douyin, TikTok,
+Weibo, Threads, and Instagram profile discovery remain pinned to TikHub. One
+explicit multi-channel call may run these adapters concurrently, but each
+channel preserves its provider identity and failure; no provider silently
+falls back to another.
 
 ### Connectors
 

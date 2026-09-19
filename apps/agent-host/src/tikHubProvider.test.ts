@@ -104,6 +104,36 @@ describe("TikHubProvider", () => {
     expect(profiles[0]?.profileUrl).toBe("https://www.threads.net/@one");
   });
 
+  it.each([
+    {
+      platform: "xiaohongshu" as const,
+      path: "/api/v1/xiaohongshu/app_v2/search_users?keyword=Example%20Person&page=1&search_id=&source=explore_feed",
+      body: { data: { user_list: [{ user_id: "xhs-1", red_id: "example", nickname: "Example Person" }] } },
+      profileUrl: "https://www.xiaohongshu.com/user/profile/xhs-1",
+    },
+    {
+      platform: "reddit" as const,
+      path: "/api/v1/reddit/app/fetch_dynamic_search?query=Example%20Person&search_type=people&safe_search=strict&allow_nsfw=0&after=&need_format=false",
+      body: { data: { results: [{ id: "reddit-1", name: "example", display_name: "Example Person" }] } },
+      profileUrl: "https://www.reddit.com/user/example",
+    },
+    {
+      platform: "instagram" as const,
+      path: "/api/v1/instagram/v3/search_users?query=Example%20Person&rank_token=",
+      body: { data: { users: [{ pk: "ig-1", username: "example", full_name: "Example Person" }] } },
+      profileUrl: "https://www.instagram.com/example/",
+    },
+  ])("uses the official $platform user-search route and normalizes the profile",async({platform,path,body,profileUrl})=>{
+    const fetcher=vi.fn(async(url:string|URL|Request)=>{
+      expect(String(url)).toBe(`https://api.tikhub.dev${path}`);
+      return response({code:200,request_id:`${platform}-request`,...body});
+    });
+    const provider=new TikHubProvider({apiKey:"secret-value",fetcher:fetcher as typeof fetch});
+    const profiles=await provider.searchProfiles({platform,query:"Example Person",maximumResults:3},new AbortController().signal);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]).toMatchObject({platform,displayName:"Example Person",profileUrl,providerRequestID:`${platform}-request`});
+  });
+
   it("checks liveness and credential envelopes without exposing account fields", async () => {
     const fetcher = vi
       .fn()
@@ -125,6 +155,17 @@ describe("TikHubProvider", () => {
 
     await expect(provider.checkHealth()).resolves.toEqual({ status: "ok" });
     await expect(provider.checkCredential()).resolves.toEqual({ authorized: true });
+  });
+
+  it("rejects an unrecognized successful search envelope instead of reporting an empty result", async () => {
+    const provider = new TikHubProvider({
+      apiKey: "secret-value",
+      fetcher: (async () => response({ code: 200, data: { unexpected: [] } })) as typeof fetch,
+    });
+    await expect(provider.searchProfiles(
+      { platform: "xiaohongshu", query: "Example Person", maximumResults: 3 },
+      new AbortController().signal,
+    )).rejects.toMatchObject({ code: "TIKHUB_RESPONSE_INVALID" });
   });
 
   it("rejects unsafe origins, sensitive queries, auth failures, and oversized limits", async () => {

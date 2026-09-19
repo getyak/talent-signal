@@ -55,7 +55,7 @@ try {
     await input.invoke("search_contacts", { query: name }, signal);
     const filed = await input.invoke("create_contact", { display_name: name }, signal);
     assert(filed.contact);
-    await input.invoke("search_contact_public", { channel: "web", query: name }, signal);
+    await input.invoke("search_contact_public", { channels: ["web"], query: name, results_per_channel: 3 }, signal);
     try { report.browseResult = await input.invoke("browse_contact_source", { source_id: "public1" }, signal); }
     catch (error) { report.browseError = error.code ?? error.message; }
     return { providerRequestID: randomUUID(), model: "deterministic-rpc-revocation", inputTokens: 0, outputTokens: 0 };

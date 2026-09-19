@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import {
-  CONTACT_RESEARCH_CONTRACT, ContactResearchToolRequestSchema, ContactResearchToolResponseSchema,
-  type ContactPublicSource, type ContactResearchToolResponse,
+  CONTACT_RESEARCH_CONTRACT, CONTACT_RESEARCH_EXA_CHANNELS, CONTACT_RESEARCH_MAX_RESULTS,
+  ContactResearchToolRequestSchema, ContactResearchToolResponseSchema,
+  type ContactPublicSource, type ContactResearchChannel, type ContactResearchChannelOutcome,
+  type ContactResearchFailureCode, type ContactResearchToolResponse,
 } from "@talent-signal/agent";
 import { ExaProvider, type ExaSource } from "./exaProvider.js";
 import { TikHubProvider } from "./tikHubProvider.js";
@@ -28,6 +30,28 @@ function fromExa(source: ExaSource, channel: ContactPublicSource["channel"], sta
 
 function normalize(value: string) { return value.normalize("NFKC").toLowerCase().trim(); }
 
+function failureCode(error: unknown): ContactResearchFailureCode {
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
+    ? error.code : error instanceof Error ? error.message : "";
+  if (code.endsWith("AUTH_FAILED") || code.endsWith("CREDENTIAL_MISSING")) return "AUTH_FAILED";
+  if (code.endsWith("RATE_LIMITED")) return "RATE_LIMITED";
+  if (code.endsWith("UNAVAILABLE")) return "UNAVAILABLE";
+  if (code.includes("RESPONSE")) return "RESPONSE_INVALID";
+  if (code.includes("LIMIT")) return "LIMIT_INVALID";
+  if (code.includes("QUERY") || code.includes("PRIVATE_LOOKUP") || code.includes("SENSITIVE")) return "QUERY_REJECTED";
+  if (code.includes("REJECTED") || code.includes("REQUEST_FAILED") || code.includes("CREDIT")) return "REJECTED";
+  return "FAILED";
+}
+
+function tikhubSource(source: Awaited<ReturnType<TikHubProvider["searchProfiles"]>>[number], channel: ContactResearchChannel): ContactPublicSource {
+  return {
+    source_id: sourceID("tikhub", source.profileUrl), url: source.profileUrl,
+    title: source.displayName, text: [source.displayName, source.handle, source.biography].filter(Boolean).join("\n").slice(0, 16_000),
+    channel, provider_id: "tikhub", provider_request_id: source.providerRequestID,
+    content_hash: source.contentHash, retrieved_at: source.retrievedAt, stage: "profile_observation",
+  };
+}
+
 export async function runContactResearchTool(
   raw: unknown,
   environment: NodeJS.ProcessEnv = process.env,
@@ -39,6 +63,7 @@ export async function runContactResearchTool(
   signal.throwIfAborted();
   const exa = () => dependencies.exa ?? new ExaProvider({ apiKey: environment.EXA_API_KEY ?? "" });
   let sources: ContactPublicSource[];
+  let channels: ContactResearchChannelOutcome[] = [];
   const input = request.input;
   if (input.operation === "fetch" || input.operation === "browse") {
     if (input.source.source_id !== sourceID(input.source.provider_id, input.source.url)) {
@@ -76,30 +101,56 @@ export async function runContactResearchTool(
         /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu.test(query)) {
       throw new Error("CONTACT_RESEARCH_PRIVATE_LOOKUP_PROHIBITED");
     }
-    if (input.channel === "linkedin" || input.channel === "web") {
-      const observations = input.channel === "linkedin"
-        ? await exa().searchProfiles(input.query, input.maximum_results, signal)
-        : await exa().searchWeb(input.query, input.maximum_results, signal);
-      sources = observations.map((source) => fromExa(source, input.channel, "discovered"));
-    } else {
-      const tikhub = dependencies.tikhub ?? new TikHubProvider({
-        apiKey: environment.TIKHUB_API_KEY ?? "",
-        ...(environment.TIKHUB_BASE_URL ? { baseUrl: environment.TIKHUB_BASE_URL } : {}),
-      });
-      const observations = await tikhub.searchProfiles({
-        platform: input.channel, query: input.query, maximumResults: input.maximum_results,
-      }, signal);
-      sources = observations.map((source) => ({
-        source_id: sourceID("tikhub", source.profileUrl), url: source.profileUrl,
-        title: source.displayName, text: [source.displayName, source.handle, source.biography].filter(Boolean).join("\n").slice(0, 16_000),
-        channel: input.channel, provider_id: "tikhub", provider_request_id: source.providerRequestID,
-        content_hash: source.contentHash, retrieved_at: source.retrievedAt, stage: "profile_observation",
-      }));
+    const tikhub = () => dependencies.tikhub ?? new TikHubProvider({
+      apiKey: environment.TIKHUB_API_KEY ?? "",
+      ...(environment.TIKHUB_BASE_URL ? { baseUrl: environment.TIKHUB_BASE_URL } : {}),
+    });
+    const searched = await Promise.all(input.channels.map(async (channel) => {
+      const provider = CONTACT_RESEARCH_EXA_CHANNELS.includes(channel as "linkedin" | "web") ? "exa" as const : "tikhub" as const;
+      try {
+        const observations = provider === "exa"
+          ? channel === "linkedin"
+            ? await exa().searchProfiles(input.query, input.maximum_results_per_channel, signal)
+            : await exa().searchWeb(input.query, input.maximum_results_per_channel, signal)
+          : await tikhub().searchProfiles({
+              platform: channel as Exclude<ContactResearchChannel, "linkedin" | "web">,
+              query: input.query, maximumResults: input.maximum_results_per_channel,
+            }, signal);
+        signal.throwIfAborted();
+        const found = provider === "exa"
+          ? (observations as ExaSource[]).map((source) => fromExa(source, channel, "discovered"))
+          : (observations as Awaited<ReturnType<TikHubProvider["searchProfiles"]>>).map((source) => tikhubSource(source, channel));
+        return { sources: found, outcome: { channel, provider, status: "ok" as const,
+          result_count: found.length, truncated: false, error_code: null } };
+      } catch (error) {
+        signal.throwIfAborted();
+        return { sources: [] as ContactPublicSource[], outcome: { channel, provider, status: "failed" as const,
+          result_count: 0 as const, truncated: false as const, error_code: failureCode(error) } };
+      }
+    }));
+    const seen = new Set<string>();
+    sources = searched.flatMap((item) => item.sources).filter((source) => {
+      const identity = source.url.toLowerCase();
+      if (seen.has(identity)) return false;
+      seen.add(identity); return true;
+    }).slice(0, CONTACT_RESEARCH_MAX_RESULTS);
+    const returnedByChannel = new Map<ContactResearchChannel, number>();
+    for (const source of sources) {
+      returnedByChannel.set(source.channel, (returnedByChannel.get(source.channel) ?? 0) + 1);
     }
+    channels = searched.map((item) => {
+      if (item.outcome.status === "failed") return item.outcome;
+      const returned = returnedByChannel.get(item.outcome.channel) ?? 0;
+      return {
+        ...item.outcome,
+        result_count: returned,
+        truncated: returned < item.sources.length,
+      };
+    });
   }
   signal.throwIfAborted();
   return ContactResearchToolResponseSchema.parse({
     contract_version: CONTACT_RESEARCH_CONTRACT, task_id: request.task_id,
-    call_id: request.call_id, sources, external_effects: [],
+    call_id: request.call_id, sources, channels, external_effects: [],
   });
 }
