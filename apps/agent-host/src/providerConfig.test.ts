@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   LOCAL_PERSON_PROFILE_PROVIDER_REGISTRY,
   LOCAL_WEB_SEARCH_PROVIDER_REGISTRY,
+  configuredFirecrawlWebFetch,
   configuredLocalPersonProfileProvider,
   configuredLocalAgentProvider,
   configuredLocalVisionAgentProvider,
@@ -54,6 +55,12 @@ describe("local third-party Tool provider registry", () => {
         TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER: "brave",
       }),
     ).toThrow("BRAVE_SEARCH_API_KEY is required");
+    expect(() => configuredFirecrawlWebFetch({})).toThrow(
+      "FIRECRAWL_API_KEY is required",
+    );
+    expect(
+      configuredFirecrawlWebFetch({ FIRECRAWL_API_KEY: "synthetic" }),
+    ).toBeTypeOf("function");
   });
 
   it("keeps TikHub and the vision model in the local person-research boundary", () => {

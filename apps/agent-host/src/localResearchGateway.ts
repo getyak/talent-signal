@@ -7,28 +7,29 @@ import {
 } from "@talent-signal/agent";
 
 import { LocalResearchStore } from "./localResearchStore.js";
-import {
-  AgentSafeWebFetchError,
-  fetchDiscoveredPublicPage,
-} from "./safeWebFetch.js";
+import { AgentSafeWebFetchError } from "./safeWebFetch.js";
 import {
   AgentWebSearchProviderError,
   type AgentWebSearchProvider,
 } from "./webSearchProviders.js";
 
 export interface LocalResearchGatewayOptions {
-  fetchPage?: typeof fetchDiscoveredPublicPage;
+  fetchPage: (
+    scope: AgentPublicResearchScope,
+    result: AgentWebSearchResult,
+    signal: AbortSignal,
+  ) => Promise<Omit<AgentFetchedWebPage, "resultID">>;
 }
 
 export class LocalResearchGateway implements AgentPublicResearchGateway {
-  private readonly fetchPage: typeof fetchDiscoveredPublicPage;
+  private readonly fetchPage: LocalResearchGatewayOptions["fetchPage"];
 
   constructor(
     private readonly provider: AgentWebSearchProvider,
     private readonly store: LocalResearchStore,
-    options: LocalResearchGatewayOptions = {},
+    options: LocalResearchGatewayOptions,
   ) {
-    this.fetchPage = options.fetchPage ?? fetchDiscoveredPublicPage;
+    this.fetchPage = options.fetchPage;
   }
 
   async searchWeb(

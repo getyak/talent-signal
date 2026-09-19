@@ -9,8 +9,8 @@ over an owner-only Unix socket; it never calls the backend itself.
 
 ## Run
 
-Build and inject the model-provider values from `/shared` plus search-provider
-values from `/agent-host`:
+Build and inject the model-provider values from `/shared` plus search and fetch
+provider values from `/agent-host`:
 
 ```sh
 pnpm secrets:check:agent-host
@@ -26,6 +26,17 @@ Use one to five `--anchor` flags to bind every model-generated query to the
 authorized company or market subject. Use repeated `--allow-domain` flags for an allowlist. Unrestricted public-web
 discovery requires the explicit `--open-web` flag. The host rejects implicit
 open-web access and person, candidate, contact-detail, and profile queries.
+
+`fetch_web` sends only an exact same-Run `search_web` result to Firecrawl v2.
+Configure `FIRECRAWL_API_KEY` in `/agent-host`; the standalone command still
+requires no Talent Signal product runtime, while unreliable anonymous access is
+rejected at startup. No backend, Web, iOS, prompt, or standalone Run output
+receives the credential. The adapter requests main-content
+Markdown with PDF parsing, disables provider caching, requests zero data
+retention only when the provider account has been enabled for it and
+`TALENT_SIGNAL_FIRECRAWL_ZERO_DATA_RETENTION=true`, checks both the provider
+response and target-page status, and rejects source substitution. The standalone
+`pnpm agent:research` command still runs without a Talent Signal product runtime.
 
 Person research is a different definition; it does not weaken that
 company/market rule. With the Exa and TikHub values in `/agent-host`, a pinned vision
@@ -100,11 +111,12 @@ Raw screenshot bytes and credentials are not persisted. Drafts declare
 pnpm agent:check
 ```
 
-The deterministic suite verifies same-Run search/fetch handles, restart
+The deterministic suite verifies same-Run search/Firecrawl fetch handles, restart
 checkpoints, local draft creation, idempotent terminal replay, provider
 normalization, query privacy, budgets, claim-level citations, DNS/IP rejection,
-redirects, robots handling, and byte/content limits without using live vendor
-credentials.
+provider/target status, source readback, cancellation, and byte/content limits
+without using live vendor credentials. The isolated-browser resource broker
+retains its separate direct-fetch redirect and robots checks.
 
 The same suite covers autonomous platform-tool selection, photo-only
 abstention, hostile screenshot instructions, immutable image manifests,

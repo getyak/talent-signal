@@ -17,6 +17,7 @@ import {
 import { LocalResearchGateway } from "./localResearchGateway.js";
 import { LocalResearchStore } from "./localResearchStore.js";
 import {
+  configuredFirecrawlWebFetch,
   configuredLocalAgentProvider,
   configuredLocalWebSearchProvider,
 } from "./providerConfig.js";
@@ -202,7 +203,10 @@ export async function runLocalResearchCommand(
   const modelProvider =
     dependencies.modelProvider ?? configuredLocalAgentProvider(environment);
   const gateway =
-    dependencies.gateway ?? new LocalResearchGateway(searchProvider, store);
+    dependencies.gateway ??
+    new LocalResearchGateway(searchProvider, store, {
+      fetchPage: configuredFirecrawlWebFetch(environment),
+    });
   const budget: AgentBudget = {
     ...DEFAULT_AGENT_BUDGET,
     maxToolCalls: Math.min(

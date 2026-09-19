@@ -49,6 +49,17 @@ test("contracts reference declared paths and required names", () => {
   }
 });
 
+test("general Agent research isolates Firecrawl in the Agent Host contract", () => {
+  assert.equal(manifest.groups.agentHost.names.includes("FIRECRAWL_API_KEY"), true);
+  assert.equal(
+    manifest.contracts.localAgentHost.required.includes("FIRECRAWL_API_KEY"),
+    true,
+  );
+  for (const groupName of ["backend", "web", "release", "evaluation"]) {
+    assert.equal(manifest.groups[groupName].names.includes("FIRECRAWL_API_KEY"), false);
+  }
+});
+
 test("local person research requires both pinned search-provider credentials", () => {
   assert.deepEqual(
     manifest.contracts.localPersonResearchHost.required.filter((name) =>

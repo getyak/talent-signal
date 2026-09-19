@@ -13,6 +13,7 @@ import {
 } from "./webSearchProviders.js";
 import { TikHubProvider } from "./tikHubProvider.js";
 import { ExaProvider } from "./exaProvider.js";
+import { createFirecrawlWebFetch } from "./firecrawlWebFetch.js";
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
   const value = environment[name]?.trim();
@@ -177,6 +178,16 @@ export function configuredLocalWebSearchProvider(
   throw new Error(
     "TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER must be brave, tavily, or exa.",
   );
+}
+
+export function configuredFirecrawlWebFetch(
+  environment: NodeJS.ProcessEnv = process.env,
+) {
+  return createFirecrawlWebFetch({
+    apiKey: required(environment, "FIRECRAWL_API_KEY"),
+    zeroDataRetention:
+      environment.TALENT_SIGNAL_FIRECRAWL_ZERO_DATA_RETENTION === "true",
+  });
 }
 
 export interface LocalPersonProfileProviderRegistration {
