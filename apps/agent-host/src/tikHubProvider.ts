@@ -1,9 +1,16 @@
 import { createHash } from "node:crypto";
 
-export type TikHubProfilePlatform = "douyin" | "threads" | "tiktok" | "weibo";
+export type TikHubProfilePlatform =
+  | "douyin"
+  | "threads"
+  | "tiktok"
+  | "weibo"
+  | "xiaohongshu"
+  | "reddit"
+  | "instagram";
 
-export interface TikHubPublicProfileObservation {
-  platform: TikHubProfilePlatform;
+export interface TikHubPublicProfileObservation<T extends TikHubProfilePlatform = TikHubProfilePlatform> {
+  platform: T;
   providerID: "tikhub";
   providerRequestID: string | null;
   profileID: string;
@@ -90,11 +97,13 @@ function nestedAvatar(source: JsonRecord): string | null {
     "avatar_url",
     "avatar",
     "avatar_hd",
+    "icon",
+    "snoovatar_img",
   ]);
   if (direct) return direct;
-  for (const name of ["avatar_larger", "avatar_medium", "avatar_thumb"]) {
-    const value = record(source[name]);
-    const url = string(array(value?.url_list)[0]);
+  for (const name of ["avatar_larger", "avatar_medium", "avatar_thumb", "profile_pic_url_hd"]) {
+    const nested = record(source[name]);
+    const url = string(nested?.url ?? array(nested?.url_list)[0]);
     if (url) return url;
   }
   return null;
@@ -132,33 +141,53 @@ function profileUrl(
   if (platform === "weibo") {
     return `https://weibo.com/u/${encodeURIComponent(profileID)}`;
   }
+  if (platform === "xiaohongshu") {
+    return `https://www.xiaohongshu.com/user/profile/${encodeURIComponent(profileID)}`;
+  }
+  if (platform === "reddit") {
+    return `https://www.reddit.com/user/${encodeURIComponent(handle ?? profileID)}`;
+  }
+  if (platform === "instagram") {
+    return `https://www.instagram.com/${encodeURIComponent(handle ?? profileID)}/`;
+  }
   return `https://www.threads.net/@${encodeURIComponent(handle ?? profileID)}`;
 }
 
-function candidateRecords(payload: JsonRecord, platform: TikHubProfilePlatform) {
+function candidateRecords(payload: JsonRecord, platform: TikHubProfilePlatform): JsonRecord[] | null {
   const data = record(payload.data) ?? payload;
   const lists =
     platform === "threads"
       ? [data.users, record(data.data)?.users,
-          array(record(data.xdt_api__v1__users__search_connection)?.edges)
-            .map((edge) => record(edge)?.node)]
+          record(data.xdt_api__v1__users__search_connection)?.edges]
       : platform === "weibo"
         ? [data.users, data.user_list, data.list, record(data.data)?.users,
             record(data.parsed_data)?.users]
-        : [data.user_list, data.users, data.items, record(data.data)?.user_list];
+        : platform === "xiaohongshu"
+          ? [data.users, data.user_list, data.items, record(data.data)?.users,
+              record(data.data)?.user_list, record(data.data)?.items,
+              record(data.parsed_data)?.users, record(data.parsed_data)?.items]
+          : platform === "reddit"
+            ? [data.users, data.profiles, data.people, data.results, data.items, data.children,
+                record(data.data)?.users, record(data.data)?.people, record(data.data)?.results,
+                record(data.data)?.items, record(data.parsed_data)?.users]
+            : platform === "instagram"
+              ? [data.users, data.user_list, data.items, record(data.data)?.users,
+                  record(data.data)?.items, record(data.parsed_data)?.users]
+              : [data.user_list, data.users, data.items, record(data.data)?.user_list];
+  if (!lists.some(Array.isArray)) return null;
   const candidates = lists.flatMap(array).map((item) => {
     const wrapper = record(item);
-    return record(wrapper?.user_info) ?? record(wrapper?.user) ?? wrapper;
+    return record(wrapper?.node) ?? record(wrapper?.user_info) ?? record(wrapper?.user) ?? record(wrapper?.data) ?? wrapper;
   });
   return candidates.filter((item): item is JsonRecord => item !== null);
 }
 
-function normalizeProfile(
+function normalizeProfile<T extends TikHubProfilePlatform>(
   source: JsonRecord,
-  platform: TikHubProfilePlatform,
+  platform: T,
   providerRequestID: string | null,
   retrievedAt: string,
-): TikHubPublicProfileObservation | null {
+): TikHubPublicProfileObservation<T> | null {
   const profileID = firstString(source, [
     "uid",
     "user_id",
@@ -169,6 +198,10 @@ function normalizeProfile(
     "sec_user_id",
     "unique_id",
     "username",
+    "userid",
+    "red_id",
+    "id36",
+    "name",
   ]);
   const displayName = firstString(source, [
     "nickname",
@@ -178,6 +211,8 @@ function normalizeProfile(
     "name",
     "username",
     "unique_id",
+    "screen_name",
+    "display_name_prefixed",
   ]);
   if (!profileID || !displayName) return null;
   const handle = firstString(source, [
@@ -185,6 +220,9 @@ function normalizeProfile(
     "username",
     "screen_name",
     "user_name",
+    "red_id",
+    "name",
+    "display_name_prefixed",
   ]);
   const observedContent = {
     platform,
@@ -193,7 +231,7 @@ function normalizeProfile(
     profileID,
     displayName,
     handle,
-    biography: firstString(source, ["signature", "biography", "description", "bio"]),
+    biography: firstString(source, ["signature", "biography", "description", "bio", "subreddit", "about"]),
     profileUrl: profileUrl(platform, profileID, handle, source),
     avatarUrl: nestedAvatar(source),
     verified: firstBoolean(source, ["is_verified", "verified"]),
@@ -379,14 +417,14 @@ export class TikHubProvider {
     return { authorized: true };
   }
 
-  async searchProfiles(
+  async searchProfiles<T extends TikHubProfilePlatform>(
     input: {
-      platform: TikHubProfilePlatform;
+      platform: T;
       query: string;
       maximumResults: number;
     },
     signal: AbortSignal,
-  ): Promise<readonly TikHubPublicProfileObservation[]> {
+  ): Promise<readonly TikHubPublicProfileObservation<T>[]> {
     const query = validatedQuery(input.query);
     if (
       !Number.isInteger(input.maximumResults) ||
@@ -421,18 +459,40 @@ export class TikHubProvider {
                 path: `/api/v1/weibo/web_v2/fetch_user_search?query=${encoded}&page=1`,
                 init: { method: "GET" },
               }
-            : {
-                path: `/api/v1/threads/web/search_profiles?query=${encoded}`,
-                init: { method: "GET" },
-              };
+            : input.platform === "xiaohongshu"
+              ? {
+                  path: `/api/v1/xiaohongshu/app_v2/search_users?keyword=${encoded}&page=1&search_id=&source=explore_feed`,
+                  init: { method: "GET" },
+                }
+              : input.platform === "reddit"
+                ? {
+                    path: `/api/v1/reddit/app/fetch_dynamic_search?query=${encoded}&search_type=people&safe_search=strict&allow_nsfw=0&after=&need_format=false`,
+                    init: { method: "GET" },
+                  }
+                : input.platform === "instagram"
+                  ? {
+                      path: `/api/v1/instagram/v3/search_users?query=${encoded}&rank_token=`,
+                      init: { method: "GET" },
+                    }
+                  : {
+                      path: `/api/v1/threads/web/search_profiles?query=${encoded}`,
+                      init: { method: "GET" },
+                    };
     const retrievedAt = new Date().toISOString();
     const payload = await this.request(request.path, request.init, signal);
     const providerRequestID = firstString(payload, ["request_id"]);
-    return candidateRecords(payload, input.platform)
+    const candidates = candidateRecords(payload, input.platform);
+    if (candidates === null) {
+      throw new TikHubProviderError(
+        "TIKHUB_RESPONSE_INVALID",
+        "TikHub returned an unrecognized profile-search envelope.",
+      );
+    }
+    return candidates
       .map((item) =>
         normalizeProfile(item, input.platform, providerRequestID, retrievedAt),
       )
-      .filter((item): item is TikHubPublicProfileObservation => item !== null)
+      .filter((item): item is TikHubPublicProfileObservation<T> => item !== null)
       .slice(0, input.maximumResults);
   }
 }

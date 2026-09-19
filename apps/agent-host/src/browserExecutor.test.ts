@@ -6,6 +6,7 @@ import { startBrowserExecutorServer } from "./browserExecutorServer.js";
 import { browseViaExecutor } from "./browserExecutorClient.js";
 import { parseBrowserRequest, parseBrowserResponse, type BrowserExecutorRequest } from "./browserExecutorProtocol.js";
 import { runContactResearchTool } from "./contactResearchService.js";
+import { CONTACT_RESEARCH_CONTRACT } from "@talent-signal/agent";
 
 const token = "a".repeat(64);
 const source = (url = "https://example.com/"): BrowserExecutorRequest => ({ version: 1, task_id: randomUUID(),
@@ -64,7 +65,7 @@ describe("private browser executor protocol", () => {
   it("routes the production research service through RPC without sending anchors or credentials", async () => {
     const fixture = await start();
     const input = source();
-    const request = { contract_version: "contact-research-tools.v1", task_id: input.task_id, call_id: input.call_id,
+    const request = { contract_version: CONTACT_RESEARCH_CONTRACT, task_id: input.task_id, call_id: input.call_id,
       anchors: ["Synthetic private context"], input: { operation: "browse", source: {
         source_id: input.source_id, url: input.url, title: "Example", text: "", channel: "web", provider_id: "exa",
         provider_request_id: null, content_hash: "a".repeat(64), retrieved_at: new Date().toISOString(), stage: "discovered",

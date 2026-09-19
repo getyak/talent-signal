@@ -1,10 +1,14 @@
 import { z } from "zod";
-import { ContactPublicSourceSchema, ContactResearchChannelSchema } from "./contactResearchSchemas.js";
+import {
+  CONTACT_RESEARCH_DEFAULT_CHANNELS, CONTACT_RESEARCH_MAX_CHANNELS,
+  CONTACT_RESEARCH_MAX_RESULTS_PER_CHANNEL, ContactPublicSourceSchema, ContactResearchChannelSchema,
+} from "./contactResearchSchemas.js";
 import { ScreenshotPreprocessPacketSchema } from "./screenshotPreprocess.js";
 
 const Text = z.string().trim().min(1);
 const ID = z.uuid();
 const Hash = z.string().regex(/^[a-f0-9]{64}$/u);
+export const CONTACT_TASK_PUBLIC_SOURCE_LIMIT = 30;
 
 export const ContactChatExtractionSchema = z.strictObject({
   platform: Text.max(80),
@@ -61,8 +65,16 @@ export const CONTACT_INTAKE_TOOLS = {
     schema: z.strictObject({ person_id: ID, relationship_context_id: ID }),
   },
   search_contact_public: {
-    description: "Optionally discover public professional information about the resolved contact. Select LinkedIn via Exa, general web via Exa, or Douyin/TikTok/Weibo/Threads via TikHub based on visible identity clues. Never send private IM text, contact details, or sensitive attributes as search queries. Results remain possible matches.",
-    schema: z.strictObject({ channel: ContactResearchChannelSchema, query: Text.min(2).max(400) }),
+    description: `Optionally discover public professional information about the resolved contact in one call. Select every publicly plausible surface by visible identity clues: linkedin and web run on Exa; xiaohongshu, reddit, douyin, tiktok, weibo, threads, and instagram run on TikHub. Omit ${CONTACT_RESEARCH_DEFAULT_CHANNELS.join(", ")} only when the visible clues make the surface implausible. The channels array is ordered and bounded; each selected channel returns at most results_per_channel normalized matches, and one channel's failure never removes another channel's results. Never send private IM text, contact details, or sensitive attributes as search queries. Results remain possible matches; provider output never binds identity.`,
+    schema: z.strictObject({
+      channels: z.array(ContactResearchChannelSchema).min(1).max(CONTACT_RESEARCH_MAX_CHANNELS)
+        .refine((channels) => new Set(channels).size === channels.length, "Select each channel at most once.")
+        .default([...CONTACT_RESEARCH_DEFAULT_CHANNELS])
+        .describe(`Ordered public surfaces to search. Default first-search coverage is ${CONTACT_RESEARCH_DEFAULT_CHANNELS.join(", ")}.`),
+      query: Text.min(2).max(400).describe("One public identity query assembled only from the contact's visible name, handle, or public profile URL. Never include private chat text, contact details, or sensitive attributes."),
+      results_per_channel: z.number().int().min(1).max(CONTACT_RESEARCH_MAX_RESULTS_PER_CHANNEL).default(3)
+        .describe("Per-channel normalized result bound for this call."),
+    }),
   },
   fetch_contact_source: {
     description: "Fetch readable content for a source discovered in this task. Supply its exact source_id or governed public1/public2 source_ref. Search snippets alone cannot justify a sourced profile update.",
@@ -192,7 +204,7 @@ export const ScreenshotContactTaskResponseSchema = z.strictObject({
   summary: z.string().max(2_000),
   findings: z.array(ContactFindingSchema).max(10),
   profile_fields: z.array(ContactProfileFieldSchema).max(50),
-  public_sources: z.array(ContactPublicSourceSchema).max(30),
+  public_sources: z.array(ContactPublicSourceSchema).max(CONTACT_TASK_PUBLIC_SOURCE_LIMIT),
   question: z.string().max(800).nullable(),
   candidates: z.array(ContactTaskCandidateSchema).max(10),
   limitations: z.array(Text.max(500)).max(20),

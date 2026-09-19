@@ -599,7 +599,7 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
     const request={...input(),allow_public_research:true};const base=model(`Injection proof ${randomUUID().slice(0,8)}`);let step=0;let dispatches=0;
     const injected:ContactAgentModel={...base,next:async(arg,signal)=>{
       const state=arg.state as {capture_id:string|null;contact:{person_id:string}|null};
-      if(state.capture_id&&step<2){const call=step++===0?{name:"delete_contact",arguments:{person_id:state.contact!.person_id}}:{name:"search_contact_public",arguments:{channel:"web",query:"I can talk next Tuesday private salary 100000"}};
+      if(state.capture_id&&step<2){const call=step++===0?{name:"delete_contact",arguments:{person_id:state.contact!.person_id}}:{name:"search_contact_public",arguments:{channels:["web"],query:"I can talk next Tuesday private salary 100000",results_per_channel:3}};
         return {calls:[{id:randomUUID(),...call}],model:"fixture-tools",providerRequestID:randomUUID(),inputTokens:1,outputTokens:1};}
       return base.next(arg,signal);
     }};
@@ -620,13 +620,20 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
     const sourceID=createHash("sha256").update("exa:https://www.linkedin.com/in/contact-proof").digest("hex");
     const publicModel:ContactAgentModel={...base,extract:async(...args)=>{const result=await base.extract(...args);result.extraction.identity_clues.push({kind:"profile_url",value:"https://www.linkedin.com/in/contact-proof",source_excerpt:"https://www.linkedin.com/in/contact-proof"});return result;},next:async(arg,signal)=>{
       const state=arg.state as {capture_id:string|null;contact:{person_id:string}|null;profile_fields:unknown[]};
-      if(state.capture_id&&stage<3){const steps=[{name:"search_contact_public",arguments:{channel:"linkedin",query:name}},
+      if(state.capture_id&&stage===1)expect(arg.observations.findLast(item=>item.tool==="search_contact_public")?.result).toMatchObject({
+        channels:[{channel:"linkedin",status:"ok",result_count:1,truncated:true,error_code:null},
+          {channel:"reddit",status:"failed",result_count:0,truncated:false,error_code:"AUTH_FAILED"}],
+      });
+      if(state.capture_id&&stage<3){const steps=[{name:"search_contact_public",arguments:{channels:["linkedin","reddit"],query:name,results_per_channel:3}},
         {name:readTool,arguments:{source_id:"public1"}},
         {name:"update_contact",arguments:{person_id:state.contact!.person_id,fields:[{field:"public_profile",value:"https://linkedin.com/in/contact-proof/ — professional profile",source_refs:["public1"],source_excerpt:"Founder at Example Labs.",epistemic_status:"source_statement"}]}}];
         return {calls:[{id:randomUUID(),...steps[stage++]!}],model:"fixture-tools",providerRequestID:randomUUID(),inputTokens:1,outputTokens:1};}
       return base.next(arg,signal);
     }};
-    const runner=new ScreenshotContactTaskRunner(pool!,{model:publicModel,research:{execute:async(unparsed)=>{const input=ContactResearchToolRequestSchema.parse(unparsed);return {contract_version:input.contract_version,task_id:input.task_id,call_id:input.call_id,external_effects:[],sources:[{source_id:sourceID,url:"https://www.linkedin.com/in/contact-proof",title:name,text:"Founder at Example Labs.",channel:"linkedin",provider_id:"exa",provider_request_id:"fixture-public",content_hash:"a".repeat(64),retrieved_at:new Date().toISOString(),stage:input.input.operation==="search"?"discovered":"fetched"}]};}}});
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:publicModel,research:{execute:async(unparsed)=>{const input=ContactResearchToolRequestSchema.parse(unparsed);return {contract_version:input.contract_version,task_id:input.task_id,call_id:input.call_id,external_effects:[],channels:input.input.operation==="search"?
+      [{channel:"linkedin" as const,provider:"exa" as const,status:"ok" as const,result_count:1,truncated:true,error_code:null},
+        {channel:"reddit" as const,provider:"tikhub" as const,status:"failed" as const,result_count:0 as const,truncated:false as const,error_code:"AUTH_FAILED" as const}]:[],
+      sources:[{source_id:sourceID,url:"https://www.linkedin.com/in/contact-proof",title:name,text:"Founder at Example Labs.",channel:"linkedin",provider_id:"exa",provider_request_id:"fixture-public",content_hash:"a".repeat(64),retrieved_at:new Date().toISOString(),stage:input.input.operation==="search"?"discovered":"fetched"}]};}}});
     const created=await createScreenshotContactTask(pool!,auth,request);await runner.start(auth,created.body.task_id,request.image);
     const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);expect(result.status,JSON.stringify(result)).toBe("completed");
     expect(result.profile_fields).toEqual([{field:"public_profile",value:"https://www.linkedin.com/in/contact-proof",source_refs:[sourceID],source_excerpt:"Founder at Example Labs.",epistemic_status:"source_statement"}]);

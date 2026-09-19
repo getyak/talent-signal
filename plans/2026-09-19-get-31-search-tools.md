@@ -71,3 +71,34 @@ Code can make configuration gaps observable, but it cannot manufacture vendor
 credentials. Dev remains externally blocked until the owner restores TikHub
 authorization and writes a dedicated Exa key to `dev:/agent-host`. Staging is
 currently configured and TikHub-authorized.
+
+## Implemented
+
+- `contact-research-tools.v2` accepts an ordered unique channel list, defaults
+  the model tool to LinkedIn, Web, Xiaohongshu, and Reddit, and caps both each
+  channel and the combined response.
+- Agent Host fans selected channels out concurrently, keeps Exa pinned to
+  LinkedIn/Web and TikHub pinned to social profiles, deduplicates canonical
+  URLs, and returns schema-checked per-channel outcomes without provider text.
+- TikHub adapters cover the documented Xiaohongshu, Reddit people, and
+  Instagram user-search routes in addition to Douyin, TikTok, Weibo, and
+  Threads.
+- Backend task observations and limitations preserve partial channel failures;
+  repeated calls retain exactly the sources returned to the model at the
+  task-wide cap, and no provider result can confirm identity or authorize an
+  external write.
+- Local secret and Compose contracts now explicitly require and inject Exa
+  alongside TikHub.
+
+## Local verification
+
+- Agent: 29 files passed, 1 skipped; 266 tests passed, 1 skipped.
+- Agent Host: 14 files and 63 tests passed.
+- Backend: 59 files passed, 10 skipped; 450 tests passed, 165 skipped.
+- Agent, Agent Host, and Backend typechecks passed.
+- Secret contract suite: 21 tests passed, including explicit Exa/TikHub local
+  runtime coverage.
+- Documentation, wiki, architecture-boundary, architecture-diagram, and
+  whitespace checks passed.
+- Independent review closed the unknown-envelope, receipt visibility, and
+  single-call/task-wide truncation findings; final readback found no P0/P1.

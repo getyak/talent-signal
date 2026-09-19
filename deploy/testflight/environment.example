@@ -31,7 +31,8 @@ ARK_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
 TALENT_SIGNAL_PERSON_RESEARCH_ENABLED=false
 TALENT_SIGNAL_PERSON_RESEARCH_TIMEOUT_MS=65000
 
-# These two names belong only in Infisical staging:/agent-host.
+# These names belong only in Infisical staging:/agent-host.
+EXA_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
 TIKHUB_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
 TIKHUB_BASE_URL=https://api.tikhub.dev
 

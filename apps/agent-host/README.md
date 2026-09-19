@@ -28,7 +28,7 @@ discovery requires the explicit `--open-web` flag. The host rejects implicit
 open-web access and person, candidate, contact-detail, and profile queries.
 
 Person research is a different definition; it does not weaken that
-company/market rule. With the TikHub values in `/agent-host`, a pinned vision
+company/market rule. With the Exa and TikHub values in `/agent-host`, a pinned vision
 model in `/shared`, and the remote-sensitive-processing admission enabled, the
 caller supplies only one local screenshot:
 
@@ -39,7 +39,8 @@ pnpm secrets:check:person-research
 ```
 
 The model reads visible display-name, handle, profile-URL, or platform clues
-and chooses among bounded Douyin, TikTok, Weibo, and Threads search Tools. No
+and can search LinkedIn, Web, Xiaohongshu, Reddit, Douyin, TikTok, Weibo,
+Threads, and Instagram in one bounded call. No
 platform or candidate selection is required before the read-only Run. A
 photo-only input returns `no_action`: the host does not expose face recognition,
 reverse-face search, contact-detail lookup, private-account access, background
@@ -51,18 +52,19 @@ For Relationship Ask ingress, start the bounded local service instead:
 pnpm agent:person-research:serve
 ```
 
-The service accepts only `person-research-service.v1` JSON over the configured
+The service accepts only governed `person-research-service.v1` and
+`contact-research-tools.v2` JSON over the configured
 absolute Unix socket. The API sends one bound PNG/JPEG/WebP task asset and gets
 back a zero-effect receipt plus an unconfirmed draft, `no_action`, or an
-unavailable result. The API process never receives `TIKHUB_API_KEY`; Compose
+unavailable result. The API process never receives `EXA_API_KEY` or `TIKHUB_API_KEY`; Compose
 mounts only the socket between the API and Agent Host containers.
 
 Select exactly one model provider with `TALENT_SIGNAL_AGENT_PROVIDER` and one
-search provider with `TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER`. Search supports
-`brave` and `tavily`; model execution supports `claude`, `openrouter`, and
+search provider with `TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER`. General research search supports
+`brave`, `tavily`, and `exa`; model execution supports `claude`, `openrouter`, and
 `zhipu`. Providers never fall back silently.
 
-Screenshot person research uses `TIKHUB_API_KEY`, `TIKHUB_BASE_URL`, and the
+Screenshot person research uses `EXA_API_KEY`, `TIKHUB_API_KEY`, `TIKHUB_BASE_URL`, and the
 separately pinned `TALENT_SIGNAL_AGENT_VISION_MODEL`. It also fails closed
 unless `TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING=true`; configuring a vision
 model is not provider admission by itself. TikHub has no automatic fallback.
