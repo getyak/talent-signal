@@ -53,11 +53,16 @@ pnpm agent:person-research:serve
 ```
 
 The service accepts only governed `person-research-service.v1` and
-`contact-research-tools.v2` JSON over the configured
+`contact-research-tools.v3` JSON over the configured
 absolute Unix socket. The API sends one bound PNG/JPEG/WebP task asset and gets
 back a zero-effect receipt plus an unconfirmed draft, `no_action`, or an
 unavailable result. The API process never receives `EXA_API_KEY` or `TIKHUB_API_KEY`; Compose
 mounts only the socket between the API and Agent Host containers.
+
+The v3 contact-research contract batches at most five same-task Exa source
+reads into one contents request and returns one bounded outcome per source.
+TikHub profile observations never fall through to Exa; rendered social content
+continues through the anonymous isolated-browser boundary.
 
 Select exactly one model provider with `TALENT_SIGNAL_AGENT_PROVIDER` and one
 search provider with `TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER`. General research search supports

@@ -3,7 +3,7 @@ import {
   CONTACT_RESEARCH_CONTRACT, CONTACT_RESEARCH_EXA_CHANNELS, CONTACT_RESEARCH_MAX_RESULTS,
   ContactResearchToolRequestSchema, ContactResearchToolResponseSchema,
   type ContactPublicSource, type ContactResearchChannel, type ContactResearchChannelOutcome,
-  type ContactResearchFailureCode, type ContactResearchToolResponse,
+  type ContactResearchFailureCode, type ContactResearchFetchOutcome, type ContactResearchToolResponse,
 } from "@talent-signal/agent";
 import { ExaProvider, type ExaSource } from "./exaProvider.js";
 import { TikHubProvider } from "./tikHubProvider.js";
@@ -11,7 +11,7 @@ import { browseDiscoveredPublicPage } from "./isolatedPublicBrowser.js";
 import { browseViaExecutor } from "./browserExecutorClient.js";
 
 export interface ContactResearchDependencies {
-  exa?: Pick<ExaProvider, "searchProfiles" | "searchWeb" | "fetchContent">;
+  exa?: Pick<ExaProvider, "searchProfiles" | "searchWeb" | "fetchContents">;
   tikhub?: Pick<TikHubProvider, "searchProfiles">;
   browse?: typeof browseDiscoveredPublicPage;
 }
@@ -20,9 +20,9 @@ function sourceID(provider: string, url: string): string {
   return createHash("sha256").update(`${provider}:${url}`).digest("hex");
 }
 
-function fromExa(source: ExaSource, channel: ContactPublicSource["channel"], stage: ContactPublicSource["stage"]): ContactPublicSource {
+function fromExa(source: ExaSource, channel: ContactPublicSource["channel"], stage: ContactPublicSource["stage"], sourceIDOverride?: string): ContactPublicSource {
   return {
-    source_id: sourceID("exa", source.url), url: source.url, title: source.title,
+    source_id: sourceIDOverride ?? sourceID("exa", source.url), url: source.url, title: source.title,
     text: source.text, channel, provider_id: "exa", provider_request_id: source.providerRequestID,
     content_hash: source.contentHash, retrieved_at: source.retrievedAt, stage,
   };
@@ -52,6 +52,16 @@ function tikhubSource(source: Awaited<ReturnType<TikHubProvider["searchProfiles"
   };
 }
 
+/** One bounded per-source outcome; never widens a provider error into text. */
+function failedFetch(source: ContactPublicSource, batchError: unknown): ContactResearchFetchOutcome {
+  if (source.provider_id !== "exa") {
+    return { source_id: source.source_id, channel: source.channel, provider: source.provider_id,
+      status: "unsupported", error_code: "UNSUPPORTED" };
+  }
+  return { source_id: source.source_id, channel: source.channel, provider: "exa",
+    status: "failed", error_code: batchError ? failureCode(batchError) : "UNAVAILABLE" };
+}
+
 export async function runContactResearchTool(
   raw: unknown,
   environment: NodeJS.ProcessEnv = process.env,
@@ -62,36 +72,72 @@ export async function runContactResearchTool(
   const signal = AbortSignal.any([AbortSignal.timeout(30_000), ...(executionSignal ? [executionSignal] : [])]);
   signal.throwIfAborted();
   const exa = () => dependencies.exa ?? new ExaProvider({ apiKey: environment.EXA_API_KEY ?? "" });
-  let sources: ContactPublicSource[];
+  let sources: ContactPublicSource[] = [];
   let channels: ContactResearchChannelOutcome[] = [];
+  let fetchOutcomes: ContactResearchFetchOutcome[] = [];
   const input = request.input;
-  if (input.operation === "fetch" || input.operation === "browse") {
-    if (input.source.source_id !== sourceID(input.source.provider_id, input.source.url)) {
+  if (input.operation === "fetch") {
+    // Every provider/URL identity is schema-checked before dispatch. The caller
+    // owns same-task discovery resolution before constructing this request.
+    for (const source of input.sources) {
+      if (source.source_id !== sourceID(source.provider_id, source.url)) {
+        throw new Error("CONTACT_RESEARCH_SOURCE_ID_MISMATCH");
+      }
+    }
+    // Only discovered Exa sources are batchable; a TikHub observation can never
+    // fall through to Exa and receives an explicit bounded outcome.
+    const requested = input.sources;
+    const exaRequested = requested.filter((source) => source.provider_id === "exa");
+    const fetched = new Map<string, ExaSource>();
+    if (exaRequested.length > 0) {
+      let batch: ExaSource[] | null = null;
+      let batchError: unknown = null;
+      try {
+        batch = await exa().fetchContents(exaRequested.map((source) => source.url), signal);
+        signal.throwIfAborted();
+      } catch (error) {
+        signal.throwIfAborted();
+        batchError = error;
+      }
+      for (const source of batch ?? []) fetched.set(source.url, source);
+      fetchOutcomes = requested.map((source) => {
+        if (source.provider_id !== "exa") return failedFetch(source, null);
+        return fetched.has(source.url)
+          ? { source_id: source.source_id, channel: source.channel, provider: "exa", status: "ok", error_code: null }
+          : failedFetch(source, batchError);
+      });
+    } else {
+      fetchOutcomes = requested.map((source) => failedFetch(source, null));
+    }
+    // Preserve the requested order and every original source identity.
+    sources = requested.flatMap((source) => {
+      const page = fetched.get(source.url);
+      return page ? [fromExa(page, source.channel, "fetched", source.source_id)] : [];
+    });
+  } else if (input.operation === "browse") {
+    const source = input.source;
+    if (source.source_id !== sourceID(source.provider_id, source.url)) {
       throw new Error("CONTACT_RESEARCH_SOURCE_ID_MISMATCH");
     }
-    if (input.operation === "browse") {
-      const page = dependencies.browse
-        ? await dependencies.browse(input.source.url, signal, environment)
-        : environment.TALENT_SIGNAL_BROWSER_EXECUTOR_URL || environment.NODE_ENV === "production"
-          ? await browseViaExecutor({ version: 1, task_id: request.task_id, call_id: request.call_id,
-            source_id: input.source.source_id, provider_id: input.source.provider_id,
-            url: input.source.url, deadline: Date.now() + 28_000 }, signal, environment)
-          : await browseDiscoveredPublicPage(input.source.url, signal, environment);
-      signal.throwIfAborted();
-      sources = [{ source_id: sourceID("browser", page.url), url: page.url,
-        title: page.title || input.source.title, text: page.text, channel: input.source.channel,
-        provider_id: "browser", provider_request_id: request.call_id,
-        content_hash: createHash("sha256").update(page.text).digest("hex"),
-        retrieved_at: new Date().toISOString(), stage: "fetched",
-        browser_observation: { engine: page.engine, engine_version: page.engineVersion,
-          initial_url: input.source.url, final_url: page.url, requests: page.requests,
-          blocked_requests: page.blockedRequests, http_requests: page.httpRequests,
-          response_bytes: page.responseBytes, discovered_source_id: input.source.source_id } }];
-    } else {
-      const page = await exa().fetchContent(input.source.url, signal);
-      sources = [fromExa(page, input.source.channel, "fetched")];
-    }
-  } else {
+    const page = dependencies.browse
+      ? await dependencies.browse(source.url, signal, environment)
+      : environment.TALENT_SIGNAL_BROWSER_EXECUTOR_URL || environment.NODE_ENV === "production"
+        ? await browseViaExecutor({ version: 1, task_id: request.task_id, call_id: request.call_id,
+          source_id: source.source_id, provider_id: source.provider_id,
+          url: source.url, deadline: Date.now() + 28_000 }, signal, environment)
+        : await browseDiscoveredPublicPage(source.url, signal, environment);
+    signal.throwIfAborted();
+    sources = [{ source_id: sourceID("browser", page.url), url: page.url,
+      title: page.title || source.title, text: page.text, channel: source.channel,
+      provider_id: "browser", provider_request_id: request.call_id,
+      content_hash: createHash("sha256").update(page.text).digest("hex"),
+      retrieved_at: new Date().toISOString(), stage: "fetched",
+      browser_observation: { engine: page.engine, engine_version: page.engineVersion,
+        initial_url: source.url, final_url: page.url, requests: page.requests,
+        blocked_requests: page.blockedRequests, http_requests: page.httpRequests,
+        response_bytes: page.responseBytes, discovered_source_id: source.source_id } }];
+  }
+  if (input.operation === "search") {
     const query = normalize(input.query);
     if (!request.anchors.some((anchor) => query.includes(normalize(anchor)))) {
       throw new Error("CONTACT_RESEARCH_QUERY_OUT_OF_SCOPE");
@@ -151,6 +197,6 @@ export async function runContactResearchTool(
   signal.throwIfAborted();
   return ContactResearchToolResponseSchema.parse({
     contract_version: CONTACT_RESEARCH_CONTRACT, task_id: request.task_id,
-    call_id: request.call_id, sources, channels, external_effects: [],
+    call_id: request.call_id, sources, channels, fetch_outcomes: fetchOutcomes, external_effects: [],
   });
 }
