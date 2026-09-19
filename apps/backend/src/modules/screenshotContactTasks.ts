@@ -572,7 +572,9 @@ function toolsFor(row: Row): ContactIntakeToolName[] {
   if (!response.capture_id) return ["save_contact_chat","ask_contact_clarification"];
   const tools:ContactIntakeToolName[]=["update_contact","finish_contact_task","ask_contact_clarification"];
   if(row.input_manifest.allow_public_research && row.state.turns<14 && response.public_sources.length<CONTACT_TASK_PUBLIC_SOURCE_LIMIT) tools.push("search_contact_public");
-  if(response.public_sources.length>0 && row.state.turns<15)tools.push("fetch_contact_source","browse_contact_source");
+  // Text fetch requires an Exa-discovered source; social profiles use the isolated browse tool.
+  if(response.public_sources.some(source=>source.provider_id==="exa"&&source.stage==="discovered") && row.state.turns<15) tools.push("fetch_contact_source");
+  if(response.public_sources.length>0 && row.state.turns<15) tools.push("browse_contact_source");
   return tools;
 }
 
@@ -1124,11 +1126,13 @@ export class ScreenshotContactTaskRunner {
             public_sources:row.state.response.public_sources.map((source,index)=>({...source,source_ref:`public${index+1}`,text:source.text.slice(0,8_000)})).slice(-5),
             profile_fields:row.state.response.profile_fields,remaining_turns:18-row.state.turns},observations:row.state.observations.slice(-12).map(observation=>{
               if(observation.tool!=="search_contact_public"&&observation.tool!=="fetch_contact_source"&&observation.tool!=="browse_contact_source")return observation;
-              const result=observation.result as {sources?:ContactPublicSource[];channels?:ContactResearchToolResponse["channels"]};
+              const result=observation.result as {sources?:ContactPublicSource[];channels?:ContactResearchToolResponse["channels"];fetch_outcomes?:ContactResearchToolResponse["fetch_outcomes"]};
               return result.sources?{tool:observation.tool,result:{
                 sources:result.sources.map(source=>({source_id:source.source_id,title:source.title,url:source.url,stage:source.stage})),
                 ...(result.channels?{channels:result.channels.map(outcome=>({channel:outcome.channel,provider:outcome.provider,
                   status:outcome.status,result_count:outcome.result_count,truncated:outcome.truncated,error_code:outcome.error_code}))}:{}),
+                ...(result.fetch_outcomes?{fetch_outcomes:result.fetch_outcomes.map(outcome=>({source_id:outcome.source_id,channel:outcome.channel,
+                  provider:outcome.provider,status:outcome.status,error_code:outcome.error_code}))}:{}),
               }}:observation;
             }),tools,
           remainingTokens:Math.min(4000,80_000-row.state.tokens)},signal);
@@ -1337,10 +1341,20 @@ export class ScreenshotContactTaskRunner {
         if(remaining.replace(/[\s,，、@|]+/gu,"").length)deny("CONTACT_PUBLIC_QUERY_NOT_IDENTITY_ONLY");
         operation={operation:"search" as const,channels:args.channels,query:args.query,
           maximum_results_per_channel:args.results_per_channel};
-      }else{
+      }else if(call.name==="fetch_contact_source"){
         const args=CONTACT_INTAKE_TOOLS.fetch_contact_source.schema.parse(call.arguments);
+        // Resolve every short reference to its original durable source before dispatch.
+        const resolved=args.source_ids.map(ref=>{
+          const source=row.state.response.public_sources.find(s=>s.source_id===canonicalSourceRef(row,ref));
+          if(!source)deny("CONTACT_SOURCE_NOT_DISCOVERED");
+          return source;
+        });
+        if(new Set(resolved.map(source=>source.source_id)).size!==resolved.length)deny("CONTACT_FETCH_SOURCE_DUPLICATE");
+        operation={operation:"fetch" as const,sources:resolved};
+      }else{
+        const args=CONTACT_INTAKE_TOOLS.browse_contact_source.schema.parse(call.arguments);
         const source=row.state.response.public_sources.find(s=>s.source_id===canonicalSourceRef(row,args.source_id));if(!source)deny("CONTACT_SOURCE_NOT_DISCOVERED");
-        operation={operation:call.name==="browse_contact_source" ? "browse" as const : "fetch" as const,source};
+        operation={operation:"browse" as const,source};
       }
       row.state.pending_research=call.name;
       return {contract_version:CONTACT_RESEARCH_CONTRACT,task_id:id,call_id:randomUUID(),anchors,input:operation};
@@ -1355,7 +1369,12 @@ export class ScreenshotContactTaskRunner {
       if(retained.channels.some(item=>item.status==="ok"&&item.truncated)&&
         !row.state.response.limitations.includes("CONTACT_PUBLIC_SEARCH_RESULT_LIMIT"))
         row.state.response.limitations.push("CONTACT_PUBLIC_SEARCH_RESULT_LIMIT");
-      row.state.pending_research=null;this.observe(row,call.name,{sources:retained.sources,channels:retained.channels},"completed");
+      for(const outcome of retained.fetch_outcomes.filter(item=>item.status!=="ok")){
+        const limitation=`CONTACT_PUBLIC_FETCH_${outcome.status.toUpperCase()}_${outcome.channel.toUpperCase()}`;
+        if(!row.state.response.limitations.includes(limitation))row.state.response.limitations.push(limitation);
+      }
+      row.state.pending_research=null;this.observe(row,call.name,{sources:retained.sources,channels:retained.channels,
+        fetch_outcomes:retained.fetch_outcomes},"completed");
       return retained;
     });
   }

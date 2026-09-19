@@ -36,6 +36,35 @@ describe("Exa research", () => {
     await expect(provider.fetchContent("https://example.com/profile", signal())).rejects.toMatchObject({ code: "EXA_CONTENT_UNAVAILABLE" });
   });
 
+  it("reads several URLs in one contents request and returns only readable returned sources in requested order", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response([
+      { url: "https://example.com/two", title: "Two", text: "Second body" },
+      { url: "https://example.com/one", title: "One", text: "First body" },
+      { url: "https://example.com/three", title: "Three" },
+      { url: "https://example.com/other", title: "Unrequested", text: "Ignored" },
+    ]));
+    const provider = new ExaProvider({ apiKey: "test-secret", fetcher });
+    const urls = ["https://example.com/one", "https://example.com/two", "https://example.com/three"] as const;
+    const results = await provider.fetchContents(urls, signal());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))).toEqual({ urls: [...urls], text: { maxCharacters: 16_000 } });
+    expect(results.map((item) => item.url)).toEqual([urls[0], urls[1]]);
+    expect(results.map((item) => item.text)).toEqual(["First body", "Second body"]);
+  });
+
+  it("bounds batch contents input and rejects substituted or duplicate URLs before dispatch", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const provider = new ExaProvider({ apiKey: "test-secret", fetcher });
+    await expect(provider.fetchContents([], signal())).rejects.toMatchObject({ code: "EXA_FETCH_URL_INVALID" });
+    await expect(provider.fetchContents(Array.from({ length: 6 }, (_, index) => `https://example.com/${index}`), signal()))
+      .rejects.toMatchObject({ code: "EXA_FETCH_URL_INVALID" });
+    await expect(provider.fetchContents(["https://example.com/one", "https://example.com/one"], signal()))
+      .rejects.toMatchObject({ code: "EXA_FETCH_URL_INVALID" });
+    await expect(provider.fetchContents(["https://example.com/one", "https://127.0.0.1/"], signal()))
+      .rejects.toMatchObject({ code: "EXA_FETCH_URL_INVALID" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("keeps discovery domain policy when selected in the existing research runtime", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response([
       { url: "https://example.com/news", title: "Update", highlights: ["Published announcement"] },
@@ -59,6 +88,7 @@ describe("Exa research", () => {
       expect(publicExaUrl(url)).toBeNull();
       await expect(provider.fetchContent(url, signal())).rejects.toMatchObject({ code: "EXA_FETCH_URL_INVALID" });
     }
+    expect(publicExaUrl("https://example.com:443/")).toBe("https://example.com/");
     await expect(provider.searchProfiles("Example Person home address", 5, signal())).rejects.toMatchObject({ code: "EXA_PRIVATE_LOOKUP_PROHIBITED" });
     expect(fetcher).not.toHaveBeenCalled();
   });

@@ -65,7 +65,7 @@ describe("task-wide public research capacity",()=>{
       task_id:"11111111-1111-4111-8111-111111111111",call_id:"22222222-2222-4222-8222-222222222222",
       sources:incoming,channels:channelNames.map(channel=>({channel,
         provider:channel==="linkedin"||channel==="web"?"exa" as const:"tikhub" as const,
-        status:"ok" as const,result_count:5,truncated:false,error_code:null})),external_effects:[]};
+        status:"ok" as const,result_count:5,truncated:false,error_code:null})),fetch_outcomes:[],external_effects:[]};
     const retained=retainContactResearchResult(existing,result);
     expect(existing).toHaveLength(CONTACT_TASK_PUBLIC_SOURCE_LIMIT);
     expect(retained.sources).toHaveLength(6);

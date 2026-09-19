@@ -625,7 +625,7 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
           {channel:"reddit",status:"failed",result_count:0,truncated:false,error_code:"AUTH_FAILED"}],
       });
       if(state.capture_id&&stage<3){const steps=[{name:"search_contact_public",arguments:{channels:["linkedin","reddit"],query:name,results_per_channel:3}},
-        {name:readTool,arguments:{source_id:"public1"}},
+        {name:readTool,arguments:readTool==="fetch_contact_source"?{source_ids:["public1"]}:{source_id:"public1"}},
         {name:"update_contact",arguments:{person_id:state.contact!.person_id,fields:[{field:"public_profile",value:"https://linkedin.com/in/contact-proof/ — professional profile",source_refs:["public1"],source_excerpt:"Founder at Example Labs.",epistemic_status:"source_statement"}]}}];
         return {calls:[{id:randomUUID(),...steps[stage++]!}],model:"fixture-tools",providerRequestID:randomUUID(),inputTokens:1,outputTokens:1};}
       return base.next(arg,signal);
@@ -633,6 +633,8 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
     const runner=new ScreenshotContactTaskRunner(pool!,{model:publicModel,research:{execute:async(unparsed)=>{const input=ContactResearchToolRequestSchema.parse(unparsed);return {contract_version:input.contract_version,task_id:input.task_id,call_id:input.call_id,external_effects:[],channels:input.input.operation==="search"?
       [{channel:"linkedin" as const,provider:"exa" as const,status:"ok" as const,result_count:1,truncated:true,error_code:null},
         {channel:"reddit" as const,provider:"tikhub" as const,status:"failed" as const,result_count:0 as const,truncated:false as const,error_code:"AUTH_FAILED" as const}]:[],
+      fetch_outcomes:input.input.operation==="fetch"?input.input.sources.map(source=>({source_id:source.source_id,channel:source.channel,
+        provider:"exa" as const,status:"ok" as const,error_code:null})):[],
       sources:[{source_id:sourceID,url:"https://www.linkedin.com/in/contact-proof",title:name,text:"Founder at Example Labs.",channel:"linkedin",provider_id:"exa",provider_request_id:"fixture-public",content_hash:"a".repeat(64),retrieved_at:new Date().toISOString(),stage:input.input.operation==="search"?"discovered":"fetched"}]};}}});
     const created=await createScreenshotContactTask(pool!,auth,request);await runner.start(auth,created.body.task_id,request.image);
     const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);expect(result.status,JSON.stringify(result)).toBe("completed");

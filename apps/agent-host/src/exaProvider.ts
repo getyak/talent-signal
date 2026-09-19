@@ -202,15 +202,34 @@ export class ExaProvider implements AgentWebSearchProvider {
         publishedAt: source.publishedAt, providerID: source.providerID }));
   }
 
-  /** Caller must additionally bind this URL to a same-task discovery or explicit input. */
+  /**
+   * Bounded batch contents read. Every requested URL must be a distinct public
+   * HTTPS URL; returns only the readable sources actually returned, in
+   * requested order. Missing content is the caller's per-source outcome.
+   */
+  async fetchContents(rawUrls: readonly string[], signal: AbortSignal): Promise<ExaSource[]> {
+    if (!Number.isInteger(rawUrls.length) || rawUrls.length < 1 || rawUrls.length > 5) {
+      throw new ExaProviderError("EXA_FETCH_URL_INVALID", "Batch fetch requires 1-5 public HTTPS URLs.");
+    }
+    const urls = rawUrls.map((rawUrl) => publicExaUrl(rawUrl));
+    if (urls.some((url): url is null => url === null) || new Set(urls).size !== urls.length) {
+      throw new ExaProviderError("EXA_FETCH_URL_INVALID", "Batch fetch requires distinct public HTTPS URLs.");
+    }
+    const payload = await this.request("/contents", {
+      urls, text: { maxCharacters: MAX_TEXT_CHARACTERS },
+    }, signal);
+    const returned = new Map(this.sources(payload, 10).map((source) => [source.url, source]));
+    return urls
+      .map((url) => returned.get(url!))
+      .filter((source): source is ExaSource => Boolean(source?.text));
+  }
+
+  /** Compatibility wrapper for a single bounded URL read. */
   async fetchContent(rawUrl: string, signal: AbortSignal): Promise<ExaSource> {
     const url = publicExaUrl(rawUrl);
     if (!url) throw new ExaProviderError("EXA_FETCH_URL_INVALID", "Fetch requires one public HTTPS URL.");
-    const payload = await this.request("/contents", {
-      urls: [url], text: { maxCharacters: MAX_TEXT_CHARACTERS },
-    }, signal);
-    const source = this.sources(payload, 10).find((item) => item.url === url);
-    if (!source?.text) {
+    const source = (await this.fetchContents([url], signal))[0];
+    if (!source) {
       throw new ExaProviderError("EXA_CONTENT_UNAVAILABLE", "Exa returned no readable content for the requested source.");
     }
     return source;

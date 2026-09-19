@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CONTACT_RESEARCH_CONTRACT = "contact-research-tools.v2";
+export const CONTACT_RESEARCH_CONTRACT = "contact-research-tools.v3";
 
 /**
  * One ordered channel catalog. LinkedIn and Web remain Exa capabilities; every
@@ -44,6 +44,8 @@ export const CONTACT_RESEARCH_MAX_CHANNELS = 9;
 export const CONTACT_RESEARCH_MAX_RESULTS_PER_CHANNEL = 5;
 /** Combined normalized sources across every channel in one call. */
 export const CONTACT_RESEARCH_MAX_RESULTS = 25;
+/** One bounded fetch call reads an ordered, unique source list of this size. */
+export const CONTACT_RESEARCH_MAX_FETCH_SOURCES = 5;
 
 export const ContactResearchFailureCodeSchema = z.enum([
   "AUTH_FAILED",
@@ -78,6 +80,14 @@ export const ContactPublicSourceSchema = z.strictObject({
     response_bytes: z.number().int().min(1).max(8_000_000),
     discovered_source_id: z.string().regex(/^[a-f0-9]{64}$/u),
   }).optional(),
+}).superRefine((source, context) => {
+  if (source.provider_id === "browser") return;
+  const expected = CONTACT_RESEARCH_EXA_CHANNELS.includes(source.channel as "linkedin" | "web")
+    ? "exa"
+    : "tikhub";
+  if (source.provider_id !== expected) {
+    context.addIssue({ code: "custom", path: ["provider_id"], message: `${source.channel} must use ${expected}.` });
+  }
 });
 
 /**
@@ -113,6 +123,34 @@ export const ContactResearchChannelOutcomeSchema = z.discriminatedUnion("status"
   }
 });
 
+/**
+ * One ordered per-source fetch disposition. `provider` names the provider that
+ * owned the discovered source; `status` never carries provider text.
+ */
+const ContactResearchFetchOutcomeBase = {
+  source_id: z.string().regex(/^[a-f0-9]{64}$/u),
+  channel: ContactResearchChannelSchema,
+  provider: z.enum(["exa", "tikhub", "browser"]),
+};
+
+export const ContactResearchFetchOutcomeSchema = z.discriminatedUnion("status", [
+  z.strictObject({ ...ContactResearchFetchOutcomeBase, status: z.literal("ok"), error_code: z.null() }),
+  z.strictObject({ ...ContactResearchFetchOutcomeBase, status: z.literal("unsupported"), error_code: z.literal("UNSUPPORTED") }),
+  z.strictObject({
+    ...ContactResearchFetchOutcomeBase,
+    status: z.literal("failed"),
+    error_code: z.enum(["AUTH_FAILED", "RATE_LIMITED", "UNAVAILABLE", "REJECTED", "RESPONSE_INVALID", "LIMIT_INVALID", "QUERY_REJECTED", "FAILED"]),
+  }),
+]).superRefine((outcome, context) => {
+  const expected = CONTACT_RESEARCH_EXA_CHANNELS.includes(outcome.channel as "linkedin" | "web")
+    ? "exa"
+    : "tikhub";
+  if (outcome.provider !== "browser" && outcome.provider !== expected) {
+    context.addIssue({ code: "custom", path: ["provider"], message: `${outcome.channel} must use ${expected}.` });
+  }
+});
+export type ContactResearchFetchOutcome = z.infer<typeof ContactResearchFetchOutcomeSchema>;
+
 export const ContactResearchToolRequestSchema = z.strictObject({
   contract_version: z.literal(CONTACT_RESEARCH_CONTRACT),
   task_id: z.uuid(),
@@ -129,7 +167,15 @@ export const ContactResearchToolRequestSchema = z.strictObject({
       query: z.string().trim().min(2).max(400),
       maximum_results_per_channel: z.number().int().min(1).max(CONTACT_RESEARCH_MAX_RESULTS_PER_CHANNEL),
     }),
-    z.strictObject({ operation: z.literal("fetch"), source: ContactPublicSourceSchema }),
+    z.strictObject({
+      operation: z.literal("fetch"),
+      /** Ordered, unique same-task sources already resolved by the host. */
+      sources: z.array(ContactPublicSourceSchema)
+        .min(1)
+        .max(CONTACT_RESEARCH_MAX_FETCH_SOURCES)
+        .refine((sources) => new Set(sources.map((source) => source.source_id)).size === sources.length,
+          "Source references must be unique."),
+    }),
     z.strictObject({ operation: z.literal("browse"), source: ContactPublicSourceSchema }),
   ]),
 });
@@ -140,6 +186,7 @@ export const ContactResearchToolResponseSchema = z.strictObject({
   call_id: z.uuid(),
   sources: z.array(ContactPublicSourceSchema).max(CONTACT_RESEARCH_MAX_RESULTS),
   channels: z.array(ContactResearchChannelOutcomeSchema).max(CONTACT_RESEARCH_MAX_CHANNELS).default([]),
+  fetch_outcomes: z.array(ContactResearchFetchOutcomeSchema).max(CONTACT_RESEARCH_MAX_FETCH_SOURCES).default([]),
   external_effects: z.array(z.never()).max(0),
 });
 
