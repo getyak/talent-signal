@@ -39,13 +39,15 @@ type SystemHealthContextValue = {
 
 const SystemHealthContext = createContext<SystemHealthContextValue | null>(null);
 
-function HealthNotice({ value }: { value: SystemHealthContextValue }) {
+export function HealthNotice({ value }: { value: SystemHealthContextValue }) {
   const pathname = usePathname();
   if (
     pathname === "/workspace/settings/diagnostics" ||
     value.phase === "loading" ||
     value.phase === "session_expired" ||
-    (value.observation?.status === "healthy" && !value.stale)
+    // A diagnostic TTL expiring is not a product outage. Diagnostics still
+    // shows freshness, while ordinary reading stays quiet after a healthy probe.
+    value.observation?.status === "healthy"
   ) {
     return null;
   }

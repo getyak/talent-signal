@@ -251,7 +251,7 @@ describe("bounded directory continuity cache", () => {
     expect(workspaceDirectoryMutationInvalidates("POST", "/api/lab/sessions")).toBe(false);
     expect(workspaceDirectoryMutationInvalidates("POST", "/api/meeting-drafts/draft-1/dismiss")).toBe(false);
     expect(workspaceDirectoryMutationInvalidates("PUT", "/api/agent-preferences")).toBe(false);
-    expect(workspaceDirectoryMutationInvalidates("POST", "/api/workspace-chat")).toBe(false);
+    expect(workspaceDirectoryMutationInvalidates("POST", "/api/workspace-chat")).toBe(true);
     expect(workspaceDirectoryMutationInvalidates("POST", "/api/analyze")).toBe(false);
   });
 });
