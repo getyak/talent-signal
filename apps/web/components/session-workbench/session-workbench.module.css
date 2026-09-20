@@ -91,6 +91,14 @@
   color: var(--ink-soft);
 }
 
+.send {
+  border-radius: 50%;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  width: 44px;
+}
+
 .danger {
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
