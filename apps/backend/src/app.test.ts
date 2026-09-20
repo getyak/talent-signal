@@ -50,7 +50,7 @@ describe("readiness rate limiting", () => {
     expect(ready.json()).toEqual({
       status: "ready",
       database: "ready",
-      migration: "071_agent_session_list_snapshots",
+      migration: "072_mcp_extensions",
     });
     expect(query).toHaveBeenCalledTimes(1);
   });
@@ -65,6 +65,7 @@ describe("readiness rate limiting", () => {
         { version: "069_account_access_event_details" },
         { version: "070_meeting_drafts" },
         { version: "071_agent_session_list_snapshots" },
+        { version: "072_mcp_extensions" },
       ],
     });
     const app = await buildApp({
@@ -103,6 +104,7 @@ describe("readiness rate limiting", () => {
           "069_account_access_event_details",
           "070_meeting_drafts",
           "071_agent_session_list_snapshots",
+          "072_mcp_extensions",
         ]
           .filter(version => version !== missing).map(version => ({ version })),
       });
