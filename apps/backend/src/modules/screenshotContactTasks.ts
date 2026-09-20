@@ -1021,6 +1021,10 @@ export class ScreenshotContactTaskRunner {
       AND (lease_until IS NULL OR lease_until<now()) RETURNING lease_epoch`,[auth.accountId,id,auth.userId]);
     if(!claimed.rows[0])return;const epoch=claimed.rows[0].lease_epoch;
     const signal=AbortSignal.any([AbortSignal.timeout(300_000),...(shutdown?[shutdown]:[])]);
+    // The authenticated cancellation transaction owns its terminal write. Its
+    // early dispatch fence must not race runner failure bookkeeping into a new
+    // revision. Timeouts and server shutdown still use the recovery path.
+    const ownerCancellationFenced=()=>shutdown?.aborted===true&&codeOf(shutdown.reason)==="CONTACT_TASK_CANCELLED";
     try{
       let row=await rowFor(this.pool,auth,id);
       if(!row.state.prompts){
@@ -1148,13 +1152,13 @@ export class ScreenshotContactTaskRunner {
               {tool:call.name,model:reply.model,provider_request_id:reply.providerRequestID,turn:r.state.turns});
           },personAuthoritiesForCall(call));
         }catch(error){
-          if(codeOf(error)==="CONTACT_TASK_LEASE_LOST")return;
+          if(ownerCancellationFenced()||codeOf(error)==="CONTACT_TASK_LEASE_LOST")return;
           await this.checkpoint(auth,id,epoch,async(_,r)=>{this.observe(r,call.name,{error:codeOf(error)},error instanceof ApiError?"denied":"failed");r.state.pending_research=null;});
         }
       }
       deny("CONTACT_TASK_TIMEOUT");
     }catch(error){
-      if(codeOf(error)==="CONTACT_TASK_LEASE_LOST")return;
+      if(ownerCancellationFenced()||codeOf(error)==="CONTACT_TASK_LEASE_LOST")return;
       await this.checkpoint(auth,id,epoch,async(_,r)=>{
         r.state.response.status=r.state.response.capture_id?"partial":"failed";
         r.state.response.limitations.push(codeOf(error));

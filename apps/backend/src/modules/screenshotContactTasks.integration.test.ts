@@ -758,7 +758,7 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
     expect(cancelled.status).toBe("cancelled");expect(providerDispatches).toBe(0);
   });
 
-  it("does not let another workspace member abort the owner's active task",async()=>{
+  it.each([false,true])("keeps cancellation ownership when the runner exits first (independent revision: %s)",async(independentRevision)=>{
     const storage=new TestImageStorage();const request={...input(),preprocess_only:true as const};
     let entered!:()=>void;const preparing=new Promise<void>(resolve=>{entered=resolve;});
     let observedSignal:AbortSignal|undefined,providerDispatches=0;
@@ -781,10 +781,25 @@ describe.skipIf(!pool)("durable multi-image contact sources",()=>{
       unauthorizedFence=true;runner.fenceTaskCancellation(other,active.task_id);
     })).rejects.toMatchObject({code:"CONTACT_TASK_NOT_FOUND"});
     expect(unauthorizedFence).toBe(false);expect(observedSignal?.aborted).toBe(false);
-    const cancelled=await cancelScreenshotContactTask(pool!,auth,active.task_id,active.revision,
+    // Force the runner's abort cleanup to finish before cancellation locks the
+    // row. Its own failure bookkeeping must not invalidate the owner's CAS.
+    const cancellationPool=new Proxy(pool!,{get(target,key){
+      if(key==="connect")return async()=>{
+        await operation;
+        if(independentRevision)await target.query("UPDATE screenshot_contact_tasks SET revision=revision+1 WHERE id=$1",[active.task_id]);
+        return target.connect();
+      };
+      const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
+    }}) as Pool;
+    const cancellation=cancelScreenshotContactTask(cancellationPool,auth,active.task_id,active.revision,
       ()=>runner.fenceTaskCancellation(auth,active.task_id));
+    if(independentRevision){
+      await expect(cancellation).rejects.toMatchObject({code:"CONTACT_TASK_REVISION_CHANGED"});
+    }else{
+      expect((await cancellation).status).toBe("cancelled");
+    }
     await operation;
-    expect(cancelled.status).toBe("cancelled");expect(providerDispatches).toBe(0);
+    expect(providerDispatches).toBe(0);
   });
 
   it("aborts dispatch when Stop arrives between the locked row and source checks",async()=>{

@@ -5,8 +5,9 @@
 Audit every local branch and worktree against fetched origin/main, preserve
 uncommitted work, publish genuinely missing history, and merge reviewed P0/P1
 fixes through current-head CI. Do not restore superseded implementations or
-claim an archived branch is production code. No database changes or new releases
-are required by this source delivery.
+claim an archived branch is production code. No database schema changes or new native releases are required. The backend
+cancellation correction requires the repository-mandated local TestFlight
+backend rebuild and runtime readback.
 
 ## Baseline and audit method
 
@@ -79,6 +80,19 @@ findings cover those snapshots, Hono, and the macOS Hybrid Cargo dependency grap
 They remain outside these two confirmed production-path P1 fixes; no claim is
 made that all dependency advisories are resolved.
 
+## CI-discovered cancellation race
+
+PR #208 first-head CI failed the owner-cancellation PostgreSQL test. The early
+cancellation fence aborted the provider, whose runner then wrote a failure and
+advanced revision before the cancellation transaction could validate its CAS.
+An isolated PostgreSQL regression forced that ordering and failed before the
+fix. Explicit owner cancellation now leaves terminal persistence to the
+cancellation transaction; the runner skips failure bookkeeping in both catch
+paths only for its trusted parent cancellation signal. Timeouts and shutdown
+retain recovery, while ownership and both CAS checks remain intact. The
+independent reviewer closed the correction. Final screenshot authority suite:
+55 passed, including a real independent revision update that still rejects.
+
 ## Milestones and verification
 
 - Complete: baseline, branch/PR/patch audit, independent initial P1 review.
@@ -91,8 +105,8 @@ made that all dependency advisories are resolved.
 - Active: latest-head GitHub CI/Security, merge and main readback.
 
 The Firecrawl contract is checked against the upstream scraper metadata
-assignment (`sourceURL` original versus `url` final). No live paid-provider
-request or deployment is claimed. Server and competing browser draft tests use
+assignment (`sourceURL` original versus `url` final). No live Firecrawl request is claimed. Local TestFlight backend deployment
+is verified separately from these deterministic source tests. Server and competing browser draft tests use
 synthetic data, including legacy send records and inactive session readbacks.
 
 Retain original worktrees and uncommitted files. Archive refs are history only;
