@@ -2804,6 +2804,8 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
       await app.close();
     }
   });
+  // This verifies rate-limit authority across 31 serial PostgreSQL-backed
+  // requests, not a five-second performance budget on shared CI runners.
   it("does not charge cursor continuations against the first-page materialization limit", async () => {
     const records = Array.from({ length: 35 }, () => payload());
     await pool!.query(
@@ -2855,5 +2857,5 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
     } finally {
       await app.close();
     }
-  });
+  }, 15_000);
 });
