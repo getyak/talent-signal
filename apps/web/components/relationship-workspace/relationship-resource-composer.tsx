@@ -31,7 +31,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { ConversationTranscriptMessage } from "@/lib/conversation-transcript";
 import { ConversationTranscriptComposer } from "./conversation-transcript-composer";
-import { fieldLabel, formatDate, reviewLabel } from "./relationship-display";
+import { fieldLabel, formatDate, reviewLabel, resourceKindLabel, resourceStateLabel } from "./relationship-display";
 import {
   relationshipIntegrationFetch,
   relationshipIntegrationSessionExpired,
@@ -1228,7 +1228,7 @@ export function RelationshipResourceComposer({
                 <p>
                   <strong>{resource.display_name}</strong>
                   <small>
-                    {resource.kind.replaceAll("_", " ")} ·{" "}
+                    {resourceKindLabel(resource.kind)} ·{" "}
                     {resource.source_authorization_state === "revoked"
                       ? "访问已撤销 · 依据已从记忆中排除"
                       : resource.source_authorization_state === "expired"
@@ -1255,9 +1255,7 @@ export function RelationshipResourceComposer({
                   </small>
                 </p>
                 <i>
-                  {resource.source_authorization_state !== "authorized"
-                    ? resource.source_authorization_state
-                    : resource.processing_state.replaceAll("_", " ")}
+                  {resourceStateLabel(resource)}
                 </i>
               </button>
             ))}
@@ -1276,7 +1274,7 @@ export function RelationshipResourceComposer({
               <p className="eyebrow">依据审阅</p>
               <h3>{selectedResource.resource.display_name}</h3>
               <span>
-                {selectedResource.resource.kind.replaceAll("_", " ")} ·{" "}
+                {resourceKindLabel(selectedResource.resource.kind)} ·{" "}
                 {selectedResource.resource.source_authorization_state !==
                 "authorized"
                   ? selectedResource.resource.source_authorization_state ===

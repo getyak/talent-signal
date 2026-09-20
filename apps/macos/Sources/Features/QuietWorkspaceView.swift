@@ -23,6 +23,18 @@ struct WorkspaceOrigin: Equatable {
         self.url = url
     }
 
+    static func configured(saved: String, environment: String? = ProcessInfo.processInfo.environment["TALENT_SIGNAL_WEB_ORIGIN"], bundled: String? = Bundle.main.object(forInfoDictionaryKey: "TalentSignalWebOrigin") as? String) -> WorkspaceOrigin? {
+        parseConfigured(saved) ?? parseConfigured(environment ?? bundled ?? "")
+    }
+
+    static func parseConfigured(_ value: String) -> WorkspaceOrigin? {
+        #if DEBUG
+        return WorkspaceOrigin(value, allowLocalDevelopment: ProcessInfo.processInfo.arguments.contains("--web-workspace-testing"))
+        #else
+        return WorkspaceOrigin(value)
+        #endif
+    }
+
     var entryURL: URL { url.appendingPathComponent("workspace") }
 
     func contains(_ candidate: URL) -> Bool {
@@ -41,6 +53,7 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     @Published var loading = true
     @Published var canGoBack = false
     @Published var externalURL: URL?
+    private var navigationObservation: NSKeyValueObservation?
 
     init(origin: WorkspaceOrigin) {
         self.origin = origin
@@ -52,7 +65,17 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
+        navigationObservation = webView.observe(\.canGoBack, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.canGoBack = self.webView.canGoBack
+            }
+        }
         webView.load(URLRequest(url: origin.entryURL))
+    }
+
+    func navigate(_ destination: WorkspaceDestination) {
+        webView.load(URLRequest(url: destination.url(in: origin)))
     }
 
     func retry() {
@@ -145,20 +168,38 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
 
 private struct WorkspaceWebSurface: NSViewRepresentable {
     let browser: WorkspaceBrowser
-    func makeNSView(context: Context) -> WKWebView { browser.webView }
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    let zoom: Double
+    func makeNSView(context: Context) -> WKWebView {
+        browser.webView.pageZoom = min(1.5, max(0.9, zoom))
+        return browser.webView
+    }
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+        nsView.pageZoom = min(1.5, max(0.9, zoom))
+    }
 }
 
 private struct ConnectedQuietWorkspace: View {
+    @ObservedObject private var navigation = WorkspaceNavigation.shared
     @StateObject private var browser: WorkspaceBrowser
     @Environment(\.openWindow) private var openWindow
+    @AppStorage("workspace.desktop.zoom") private var zoom = 1.0
+    @AppStorage("workspace.desktop.floating") private var floating = false
 
     init(origin: WorkspaceOrigin) { _browser = StateObject(wrappedValue: WorkspaceBrowser(origin: origin)) }
 
+    private func consumeDestination() {
+        guard let destination = navigation.pending else { return }
+        navigation.pending = nil
+        browser.navigate(destination)
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
-            WorkspaceWebSurface(browser: browser)
-            if browser.loading { ProgressView().controlSize(.small).padding(8).allowsHitTesting(false) }
+            WorkspaceWebSurface(browser: browser, zoom: zoom)
+            if browser.loading {
+                ProgressView().controlSize(.mini).padding(6)
+                    .accessibilityLabel("正在载入工作区").allowsHitTesting(false)
+            }
             if let failure = browser.failure {
                 VStack(spacing: 18) {
                     Image(systemName: "network.slash").font(.title)
@@ -170,14 +211,25 @@ private struct ConnectedQuietWorkspace: View {
                 .background(TSBrand.canvas)
             }
         }
+        .focusedSceneObject(browser)
+        .background(WorkspaceWindowBehavior(floating: floating))
+        .onAppear { consumeDestination() }
+        .onChange(of: navigation.pending) { _, _ in consumeDestination() }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
                 Button { browser.webView.goBack() } label: { Image(systemName: "chevron.left") }
                     .disabled(!browser.canGoBack).help("返回")
-                Button(action: browser.retry) { Image(systemName: "arrow.clockwise") }.help("重新载入")
             }
             ToolbarItem {
-                Button("本机工具", systemImage: "macwindow.badge.plus") { openWindow(id: "native-tools") }
+                Menu {
+                    Button("新对话") { browser.navigate(.home) }
+                    Button("工作区设置") { browser.navigate(.settings) }
+                    Divider()
+                    Button("重新载入", action: browser.retry)
+                    Button("本机工具") { openWindow(id: "native-tools") }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }.help("工作区操作")
             }
         }
         .alert("在浏览器中打开？", isPresented: Binding(
@@ -200,22 +252,7 @@ struct QuietWorkspaceView: View {
     @State private var error: String?
     @State private var editingOrigin = false
 
-    private func parseOrigin(_ value: String) -> WorkspaceOrigin? {
-        #if DEBUG
-        let localTest = ProcessInfo.processInfo.arguments.contains("--web-workspace-testing")
-        return WorkspaceOrigin(value, allowLocalDevelopment: localTest)
-        #else
-        return WorkspaceOrigin(value)
-        #endif
-    }
-
-    private var configured: WorkspaceOrigin? {
-        if let saved = parseOrigin(savedOrigin) { return saved }
-        let value = ProcessInfo.processInfo.environment["TALENT_SIGNAL_WEB_ORIGIN"]
-            ?? (Bundle.main.object(forInfoDictionaryKey: "TalentSignalWebOrigin") as? String)
-            ?? ""
-        return parseOrigin(value) ?? parseOrigin(savedOrigin)
-    }
+    private var configured: WorkspaceOrigin? { WorkspaceOrigin.configured(saved: savedOrigin) }
 
     var body: some View {
         if let origin = configured {
@@ -253,7 +290,7 @@ struct QuietWorkspaceView: View {
     }
 
     private func connect() {
-        guard let origin = parseOrigin(originDraft) else {
+        guard let origin = WorkspaceOrigin.parseConfigured(originDraft) else {
             error = "请输入 HTTPS 工作区地址，不包含路径、账号或查询参数。"
             return
         }

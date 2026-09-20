@@ -1,4 +1,4 @@
-import type { PersonDirectoryItem } from "@talent-signal/contracts";
+import type { PersonDirectoryItem, RelationshipResourceListItem } from "@talent-signal/contracts";
 
 const fieldLabels: Record<string, string> = {
   availability: "可沟通时间",
@@ -99,4 +99,14 @@ export function formatDate(value: string) {
     minute: "2-digit",
     month: "short",
   }).format(new Date(value));
+}
+
+export function resourceKindLabel(kind: RelationshipResourceListItem["kind"]) {
+  return { conversation_screenshot: "对话截图", conversation_transcript: "对话转写", resume: "简历", document: "文档", public_url: "公开链接", personal_note: "个人备注", contact_record: "联系人记录" }[kind];
+}
+
+export function resourceStateLabel(resource: Pick<RelationshipResourceListItem, "source_authorization_state" | "processing_state">) {
+  if (resource.source_authorization_state === "revoked") return "访问已撤销";
+  if (resource.source_authorization_state === "expired") return "授权已过期";
+  return { received: "已接收", parsing: "正在整理", needs_identity_review: "待核对身份", needs_fact_review: "待审阅事实", ready: "已就绪", failed: "整理失败" }[resource.processing_state];
 }

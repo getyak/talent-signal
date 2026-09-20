@@ -32,11 +32,11 @@
 }
 
 .hero h1 {
-  font-size: clamp(2.5rem, 6vw, 5.5rem);
-  font-weight: 540;
-  letter-spacing: -0.07em;
-  line-height: 0.98;
-  margin-top: 16px;
+  font-size: 1.75rem;
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  line-height: 1.25;
+  margin-top: 12px;
   max-width: 900px;
 }
 
@@ -178,11 +178,11 @@
 }
 
 .proposal > header h2 {
-  font-size: clamp(1.5rem, 3vw, 2.4rem);
-  font-weight: 570;
-  letter-spacing: -0.05em;
-  line-height: 1.15;
-  margin-top: 11px;
+  font-size: 1rem;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  margin-top: 9px;
   max-width: 720px;
 }
 

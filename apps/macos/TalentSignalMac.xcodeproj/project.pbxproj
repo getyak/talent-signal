@@ -50,6 +50,7 @@
 		D9094A69D13ACE3307E83A4F /* ProvisionalFollowUpInsight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5223308356A11C8BB41F6F61 /* ProvisionalFollowUpInsight.swift */; };
 		D95DB4F7AD2E4E2FC9E8B911 /* ReminderLifecycleLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = C444CEC076A4C54BCA857F32 /* ReminderLifecycleLedger.swift */; };
 		E4D5C516D49BABF9F5947336 /* ReminderOperationRecoveryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D994374C24E28032E95D9C36 /* ReminderOperationRecoveryStore.swift */; };
+		EB120C5E4EFF1374D34A2A55 /* WorkspaceDesktopSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00376A45BFC1FE6FC302A63A /* WorkspaceDesktopSettings.swift */; };
 		EDAE6D2DF36362978A4A6C59 /* ReminderLifecycleLedgerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E1D4F9ED4D6CA700CDF7A9 /* ReminderLifecycleLedgerTests.swift */; };
 		F547A33D8989215B89B0E576 /* LocalFileTextExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8558D3322B4D650B9670FA7 /* LocalFileTextExtractionService.swift */; };
 		F7478EE5871B1DA25CF6553A /* SelectedTextServiceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AEBD6EFCC6D87160259A0FF /* SelectedTextServiceProvider.swift */; };
@@ -76,6 +77,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		00376A45BFC1FE6FC302A63A /* WorkspaceDesktopSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceDesktopSettings.swift; sourceTree = "<group>"; };
 		22C28EB4D881AFA45D42DC4A /* URLMacRelationshipService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLMacRelationshipService.swift; sourceTree = "<group>"; };
 		27E176B0638C441E812A4A9C /* TalentSignalMacUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalMacUITests.swift; sourceTree = "<group>"; };
 		2AE32EB03241AF0EAD953C91 /* EventKitFollowUpReminderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitFollowUpReminderService.swift; sourceTree = "<group>"; };
@@ -194,6 +196,7 @@
 				4C301747C2FF5E264512C207 /* QuietWorkspaceView.swift */,
 				4BD2D0F76015AF2901E23C8E /* RelationshipWorkspaceView.swift */,
 				E6E2836F3491BE92BABDC7E0 /* TodayView.swift */,
+				00376A45BFC1FE6FC302A63A /* WorkspaceDesktopSettings.swift */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -410,6 +413,7 @@
 				6D145A450D8C76C589305D8D /* TodayView.swift in Sources */,
 				0691119F8DFC6A62F5C21B72 /* URLMacRelationshipService.swift in Sources */,
 				993FB5795F9C6F6813658BC2 /* UnknownResolutionStore.swift in Sources */,
+				EB120C5E4EFF1374D34A2A55 /* WorkspaceDesktopSettings.swift in Sources */,
 				FC7752C3411ABBD7627BFE56 /* WorkspaceState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

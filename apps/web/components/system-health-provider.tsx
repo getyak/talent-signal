@@ -125,12 +125,20 @@ export function SystemHealthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initial = window.setTimeout(() => void refresh(), 0);
     const timer = window.setInterval(() => setClock(Date.now()), 30_000);
+    // Keep a visible workspace current without polling background windows.
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible" && !activeRequest.current) void refresh();
+    };
+    const refreshTimer = window.setInterval(refreshVisible, 60_000);
+    document.addEventListener("visibilitychange", refreshVisible);
     return () => {
       const active = activeRequest.current;
       activeRequest.current = null;
       active?.abort();
       window.clearTimeout(initial);
       window.clearInterval(timer);
+      window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", refreshVisible);
     };
   }, [refresh]);
 

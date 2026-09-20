@@ -99,15 +99,17 @@ export function RelationshipContactHeader({
   onReviewSources,
   scope,
   workspace = null,
+  hasCompiledBrief = false,
 }: {
   onAskAgent?: () => void;
   onReviewSources?: () => void;
   scope: Scope;
   workspace?: WorkspaceReviewResponse | null;
+  hasCompiledBrief?: boolean;
 }) {
   const dependency = workspace
     ? relationshipCurrentDependency(workspace)
-    : "等待整理沟通记录";
+    : hasCompiledBrief ? "沟通记录已整理" : "等待整理沟通记录";
   const profile = scope.person.profile ?? null;
   const contactPoints = scope.person.contact_points ?? [];
   const showsRecordDetails = Boolean(profile || contactPoints.length > 0);
@@ -178,13 +180,22 @@ export function RelationshipContactHeader({
           <small>
             {workspace
               ? "从审阅状态得出，绝不用于评价此人。"
-              : "尚未形成已确认事实或行动。"}
+              : hasCompiledBrief ? "查看下方简报与来源；未审阅内容仍待确认。" : "尚未形成已确认事实或行动。"}
           </small>
         </div>
       </div>
 
       {showsRecordDetails ? (
-        <div className="context-contact-record">
+        <details className="context-contact-details">
+          <summary>
+            资料与联系方式
+            <span>
+              {[profile ? "人物介绍" : null, contactPoints.length > 0 ? "结构化联系方式" : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </summary>
+          <div className="context-contact-record">
           {profile ? (
             <article className="context-contact-record__profile">
               <header>
@@ -237,7 +248,8 @@ export function RelationshipContactHeader({
               </dl>
             </section>
           ) : null}
-        </div>
+          </div>
+        </details>
       ) : null}
     </section>
   );

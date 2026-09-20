@@ -2,8 +2,8 @@
 
 import {
   CaretDown,
+  CaretRight,
   GearSix,
-  Palette,
   SignOut,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -150,13 +150,14 @@ export function WorkspaceAccountMenu({
           <Link href={href} key={href} onClick={() => close()}>
             <GearSix aria-hidden="true" size={16} />
             <span>{label}</span>
+            <CaretRight aria-hidden="true" size={12} />
           </Link>
         ))}
-        <span className={styles.accountAppearance}>
-          <Palette aria-hidden="true" size={16} />
-          <span>外观</span>
-          <ThemeToggle label="切换工作区明暗主题" />
+        <span className={styles.accountMetaRow}>
+          <span>语言</span>
+          <strong>简体中文</strong>
         </span>
+        <ThemeToggle label="切换工作区明暗主题" showValue variant="row" />
         <hr />
         {fixtureWorkspace ? (
           <span className={styles.accountMetaRow}>

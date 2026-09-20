@@ -39,9 +39,13 @@ struct TalentSignalMacApp: App {
             height: isQuickPanelPreview ? 640 : 820
         )
         .windowResizability(isQuickPanelPreview ? .contentSize : .automatic)
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
+            WorkspaceDesktopCommands()
             TalentSignalCommands(model: model)
         }
+
+        Settings { WorkspaceDesktopSettings() }
 
         Window("本机工具", id: "native-tools") {
             NativeInitializationBoundary { RelationshipWorkspaceView() }

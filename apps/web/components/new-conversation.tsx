@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, ArrowClockwise, FileImage, Warning } from "@phosphor-icons/react";
+import { ArrowUp, ArrowClockwise, Warning } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,7 @@ import {
 import { WORKSPACE_NEW_CONVERSATION_EVENT } from "@/lib/workspace-navigation";
 import { AgentTurnThread } from "./relationship-workspace/agent-turn-thread";
 import { useWorkspaceChat } from "./relationship-workspace/use-workspace-chat";
+import { ComposerAddMenu } from "./new-conversation-add-menu";
 import {
   clearPendingSessionDraft,
   writePendingSessionDraft,
@@ -318,13 +319,8 @@ function ConversationCanvas({
           />
         )}
 
-        <form
-          className={styles.composer}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
+        <div className={styles.composer} role="group" aria-label="消息输入">
+
           <label className="sr-only" htmlFor="new-conversation-objective">
             给 Talent Signal 发消息
           </label>
@@ -351,39 +347,33 @@ function ConversationCanvas({
           />
           <div className={styles.composerFooter}>
             <div className={styles.composerStart}>
-              <button
-                aria-label="导入对话或屏幕截图"
-                className={styles.attach}
-                onClick={() => setCaptureOpen(true)}
-                title="导入截图"
-                type="button"
-              >
-                <FileImage aria-hidden="true" size={18} weight="duotone" />
-              </button>
-              <p className={styles.scopeLine}>
-                {enabled ? (
-                  <>
-                    <span>未关联人物</span>
-                    <span aria-hidden="true">·</span>
-                    <Link href="/workspace/people">选择人物</Link>
-                  </>
-                ) : (
-                  <span role="status">正在确认登录空间…</span>
-                )}
-              </p>
+              {enabled ? (
+                <ComposerAddMenu
+                  binding={sessionBinding}
+                  onCapture={() => setCaptureOpen(true)}
+                  onNavigate={(href) => router.push(href)}
+                />
+              ) : null}
             </div>
             <div className={styles.composerActions}>
               <button
                 aria-label="发送"
                 className={styles.send}
                 disabled={!sendable}
-                type="submit"
+                type="button"
+                onClick={() => void submit()}
               >
                 <ArrowUp aria-hidden="true" size={17} weight="bold" />
               </button>
             </div>
           </div>
-        </form>
+        </div>
+
+        {!enabled ? (
+          <p className={styles.status} role="status">
+            正在确认登录空间…
+          </p>
+        ) : null}
 
         {restored ? (
           <p className={styles.restored} role="status">

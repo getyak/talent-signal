@@ -104,7 +104,7 @@
   display: grid;
   gap: 12px;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  min-height: 74px;
+  min-height: 72px;
   padding: 14px;
   text-decoration: none;
   transition: background 140ms var(--ease-out);
@@ -122,9 +122,9 @@
   color: var(--muted-strong);
   display: inline-flex;
   flex: 0 0 auto;
-  height: 32px;
+  height: 28px;
   justify-content: center;
-  width: 32px;
+  width: 28px;
 }
 
 .rowBody {

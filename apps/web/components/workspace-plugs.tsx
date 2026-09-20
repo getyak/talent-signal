@@ -30,7 +30,7 @@ export function WorkspacePlugs({
       <header className={styles.header}>
         <h1>连接</h1>
         <p>
-          每个连接只显示当前可核验的状态和范围。登录、读取来源、准备草稿与执行外部写入是不同权限。
+          管理资料入口，查看每项能力的授权范围。
         </p>
       </header>
 
@@ -47,8 +47,7 @@ export function WorkspacePlugs({
         <section aria-labelledby="connections-title" className={styles.listSection}>
           <div className={styles.sectionHeading}>
             <div>
-              <p>当前账号</p>
-              <h2 id="connections-title">能力与授权</h2>
+              <h2 id="connections-title">当前连接</h2>
             </div>
             <span>{connections.length} 项</span>
           </div>
@@ -58,26 +57,42 @@ export function WorkspacePlugs({
               return (
                 <li className={styles.row} data-status={connection.status} key={connection.id}>
                   <span aria-hidden="true" className={styles.icon}>
-                    <Icon size={19} weight="duotone" />
+                    <Icon size={18} weight="duotone" />
                   </span>
                   <div className={styles.body}>
                     <div className={styles.titleLine}>
                       <h3>{connection.label}</h3>
                       <span className={styles.status}>{connection.statusLabel}</span>
                     </div>
-                    <p>{connection.description}</p>
                     <small>{connection.scopeLabel}</small>
+                    <details className={styles.scopeDetails}><summary>权限说明</summary><p>{connection.description}</p></details>
                     {connection.recovery ? (
                       <p className={styles.recovery}>{connection.recovery}</p>
                     ) : null}
                   </div>
+                  {connection.id === "account-sign-in" ? <Link className={styles.manage} href="/workspace/settings?section=account">管理账号</Link> : connection.id === "google-calendar" ? <Link className={styles.manage} href="/workspace/meetings">查看草稿</Link> : <a className={styles.manage} href="#native-capabilities">了解能力</a>}
                 </li>
               );
             })}
           </ul>
+          <details className={styles.directionNote}>
+            <summary>连接方向与不可用能力</summary>
+            <p>
+              当前版本只实现读取方向：已授权的来源可以被读取，并在写入前始终询问。
+              把 Talent Signal 作为受控服务接入其他客户端（MCP 发布）尚未实现，
+              因此这里不提供方向切换、客户端列表或范围开关。
+            </p>
+          </details>
         </section>
       )}
 
+      <section className={styles.workflows} aria-labelledby="connection-workflows">
+        <h2 id="connection-workflows">可用工作流</h2>
+        <div>
+          <Link href="/workspace/captures"><strong>截图与文档</strong><span>导入资料，核对来源与归属</span></Link>
+          <Link href="/workspace/meetings"><strong>会议草稿</strong><span>核对日程，再由日历应用确认导入</span></Link>
+        </div>
+      </section>
       <aside className={styles.boundary}>
         <LockKey aria-hidden="true" size={18} />
         <p>
@@ -85,7 +100,7 @@ export function WorkspacePlugs({
         </p>
       </aside>
 
-      <details className={styles.nativeBoundary}>
+      <details className={styles.nativeBoundary} id="native-capabilities">
         <summary>查看 Mac 本机能力说明</summary>
         <WorkspaceNativeBoundary />
       </details>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   relatedSessionsForPerson,
+  searchSidebarPeople,
   sidebarPeopleFromDirectory,
   sidebarPersonHref,
   sidebarSessionRows,
@@ -95,4 +96,10 @@ describe("sidebar people hierarchy", () => {
       sidebarPersonHref({ ...person, contexts: [] }),
     ).toBe("/workspace?person=11111111-1111-4111-8111-111111111111");
   });
+});
+
+it("searches beyond the first eight authorized people before limiting suggestions", () => {
+ const payload = { people: Array.from({ length: 12 }, (_, i) => ({ id: `person-${i}`, display_label: `人物${i}`, contexts: [] })) };
+ expect(searchSidebarPeople(payload, "人物11").map(p => p.id)).toEqual(["person-11"]);
+ expect(searchSidebarPeople(payload, "")).toHaveLength(8);
 });

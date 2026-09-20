@@ -422,9 +422,9 @@ export function PersonMergeReview({
           <UserPlus aria-hidden="true" size={17} />
         </span>
         <p>
-          <strong>可能重复？</strong>
+          <strong>人物身份</strong>
           <small>
-            合并关系记忆前，请先比较身份依据。
+            需要合并人物页面时，先比较身份依据。
           </small>
         </p>
         <button

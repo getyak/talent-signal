@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const { claims, update } = vi.hoisted(() => ({ claims: vi.fn(), update: vi.fn() }));
+const { claims, update, revalidate } = vi.hoisted(() => ({ claims: vi.fn(), update: vi.fn(), revalidate: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidate }));
 vi.mock("@/lib/server/backendAuth", () => ({ readBackendSessionClaims: claims }));
 vi.mock("@/lib/server/accountBackend", () => ({ updateAccountSettings: update }));
 import { saveAccountSettings } from "./actions";
@@ -15,5 +16,6 @@ it("preserves a same-user profile edit", async () => {
  for (const [key,value] of Object.entries({workspaceId:"workspace",actorUserId:"current-user",kind:"profile",name:"My name",revision:"1",operationId:"operation"})) form.set(key,value);
  update.mockResolvedValue({user:{id:"current-user"}});
  expect(await saveAccountSettings({},form)).toMatchObject({saved:true});
+ expect(revalidate).toHaveBeenCalledWith("/workspace", "layout");
  expect(update).toHaveBeenCalledExactlyOnceWith({id:"operation",kind:"profile",name:"My name",expected_revision:1});
 });

@@ -5,10 +5,12 @@ import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
 import { auth } from "@/auth";
+import { loadAccountSettings } from "@/lib/server/accountBackend";
 import { signOutOfWorkspace } from "@/app/login/actions";
 import { TalentSignalLabShell } from "@/components/talent-signal-lab/lab-shell";
 import {
   WorkspaceMobileSourcesLink,
+  WorkspaceMoreDestinations,
   WorkspaceShellNav,
 } from "@/components/workspace-shell-nav";
 import { WorkspaceRecentSessions } from "@/components/workspace-recent-sessions";
@@ -81,6 +83,7 @@ export default async function WorkspaceLayout({
   }
   // The rendered scope must come from the effective backend session, never from
   // account settings: a settings outage must not unbind the rendered workspace.
+  let currentDisplayName: string | null = null;
   let scope: string | null = null;
   let pendingBinding: string | null = null;
   let pendingSessionDraftScope: string | null = null;
@@ -95,6 +98,15 @@ export default async function WorkspaceLayout({
         name: claims.backendAccountName,
         slug: claims.backendAccountSlug,
       };
+      // Profile labels may change while the signed session remains valid. They
+      // never determine the authorization binding or replace its fallback.
+      try {
+        const profile = await loadAccountSettings();
+        if (profile.workspace.id === claims.backendAccountId && profile.user.id === claims.backendUserId) {
+          currentDisplayName = profile.user.display_name;
+          backendAccount.name = profile.workspace.name;
+        }
+      } catch { /* Keep authenticated labels available during settings outages. */ }
       pendingBinding = workspaceSessionsBinding(claims);
       pendingSessionDraftScope = workspaceSessionDraftStorageScope(claims);
     }
@@ -123,7 +135,7 @@ export default async function WorkspaceLayout({
       </>
     );
   }
-  const accountName = session.user.name ?? session.user.email ?? "招聘顾问";
+  const accountName = currentDisplayName ?? session.user.name ?? session.user.email ?? "招聘顾问";
   const fixtureFallback =
     !backendAccount && process.env.TALENT_SIGNAL_INTEGRATION_MODE === "true";
   const fixtureWorkspace =
@@ -146,6 +158,7 @@ export default async function WorkspaceLayout({
             <WorkspaceRecentSessions key={pendingBinding} binding={pendingBinding} />
           ) : null}
           <WorkspaceSidebarPeople binding={pendingBinding} />
+          <WorkspaceMoreDestinations />
         </div>
         <div className={styles.account} title={accountTitle}>
           {fixtureWorkspace ? (
