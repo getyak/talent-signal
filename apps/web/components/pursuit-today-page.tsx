@@ -556,27 +556,27 @@ export function PursuitTodayPage({
 
         {error ? (
           <div className={styles.errorStack}>
-            <section className={styles.pageError} role="alert">
-              <WarningCircle aria-hidden="true" size={23} />
-              <div>
-                <h2>规范状态读取暂时不可用。</h2>
-                <p>{error}</p>
-                <Link href={activeSessionRecoveryHref ?? "/workspace/today"}>
-                  {activeSessionRecoveryHref
-                    ? "重新登录"
-                    : "重试读取"}
-                </Link>
-              </div>
-            </section>
-            {!activeSessionRecoveryHref ? (
+            {activeSessionRecoveryHref ? (
+              <section className={styles.pageError} role="alert">
+                <WarningCircle aria-hidden="true" size={23} />
+                <div>
+                  <h2>重新登录后继续今日事项。</h2>
+                  <p>账号会话已失效，已保存的内容不会丢失。</p>
+                  <Link href={activeSessionRecoveryHref}>重新登录</Link>
+                </div>
+              </section>
+            ) : (
               <WorkspaceDisconnectedState
-                description="当前页面不会把冻结示例或陈旧缓存冒充成你的今日状态，但你仍然可以继续验证证据审阅与行动边界。"
-                hint="先排查本地后端连接，再返回“今日”重试读取；如果只是想继续走产品闭环，可以先进入冻结边界案例。"
-                secondaryHref="/relationships"
-                secondaryLabel="查看关系产品视图"
-                title="当前无法读取账号范围内的今日注意力。"
+                description="连接恢复后，即可继续查看需要关注的人物与事项。已保存的内容不会丢失。"
+                hint="可以先返回对话，或稍后重新载入本页。"
+                primaryHref="/workspace/today"
+                primaryLabel="重新载入"
+                secondaryHref="/workspace"
+                secondaryLabel="返回对话"
+                title="稍后继续今日事项。"
               />
-            ) : null}
+            )}
+            <details><summary>错误详情</summary><p>{error}</p></details>
           </div>
         ) : focus ? (
           <div className={styles.todayGrid}>

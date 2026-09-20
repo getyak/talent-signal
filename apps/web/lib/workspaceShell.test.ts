@@ -111,7 +111,7 @@ describe("persistent workspace shell", () => {
     const loading = read("app/workspace/loading.tsx");
 
     expect(loading).toContain("正在打开当前工作台");
-    expect(loading).toContain("导航与账号控制仍可使用");
+    expect(loading).toContain("你仍可使用侧栏切换页面");
     expect(loading).not.toContain("正在打开依据审阅");
     expect(loading).not.toContain("review-loading__rail");
   });
@@ -178,11 +178,12 @@ describe("persistent workspace shell", () => {
     const evals = read("app/workspace/evals/page.tsx");
     const disconnected = read("components/workspace-disconnected-state.tsx");
 
-    expect(disconnected).toContain("受治理工作区离线");
+    expect(disconnected).toContain("连接暂时中断");
     expect(today).toContain("<WorkspaceDisconnectedState");
-    expect(today).toContain("进入冻结边界案例");
+    expect(today).toContain('primaryHref="/workspace/today"');
+    expect(today).not.toContain("进入冻结边界案例");
     expect(people).toContain("<WorkspaceDisconnectedState");
-    expect(people).toContain('secondaryHref="/relationships"');
+    expect(people).toContain('secondaryHref="/workspace"');
     expect(evals).toContain("<WorkspaceDisconnectedState");
     expect(evals).toContain("不要把表单失败误当成评测结果");
   });

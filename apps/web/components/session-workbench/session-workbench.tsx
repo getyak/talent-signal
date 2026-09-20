@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useWorkspaceChat } from "../relationship-workspace/use-workspace-chat";
+import { WorkspaceComposer } from "../workspace-composer";
 import { workspaceSessionFetch } from "@/components/workspace-session-request";
 
 import {
@@ -581,6 +582,19 @@ export function SessionWorkbench({
   const expiryNotice = sessionExpiryNotice(detail.expires_at);
   const statusLabel = draftStatusLabel(state.status);
 
+  // Retrying an unconfirmed send is still a submission; the explicit retry
+  // button and Enter both reuse the stored attempt.
+  const canSend = Boolean(
+    accountId &&
+      chatSessionVersion &&
+      detail.state === "active" &&
+      detail.scope_kind === "unresolved_intent" &&
+      !state.conflict &&
+      !sending &&
+      state.draft.trim().length > 0 &&
+      state.draft.trim().length <= 1000,
+  );
+
   return (
     <section aria-labelledby="session-title" className={`${styles.page} ${chatStyles.conversation}`}>
       <header className={styles.detailHeader}>
@@ -722,71 +736,72 @@ export function SessionWorkbench({
         {meetingLinks.map(item => <Link key={item.id} href={`/workspace/meetings?draft=${item.id}`}>审阅 {item.title}</Link>)}
       </aside> : null}
       {meetingReadFailed ? <p role="status">暂时无法读取关联日程。<Link href="/workspace/meetings">打开日程重试</Link></p> : null}
-      <section aria-label="草稿" className={`${styles.composer} ${chatStyles.composer}`}>
-        <label className="sr-only" htmlFor="session-composer-draft">
-          继续这条对话
-        </label>
-
-        <textarea
-          aria-describedby="session-draft-status"
-          className={styles.textarea}
+      <section aria-label="草稿">
+        <WorkspaceComposer
+          binding={binding}
+          canSubmit={canSend}
+          describedBy="session-draft-status"
           disabled={detail.state !== "active"}
-          readOnly={sending || sendPending}
+          footerEnd={
+            <div className={styles.actions}>
+              {sendPending && !sending ? <button className={styles.secondary} type="button" onClick={endSendRetry}>保留草稿，结束重试</button> : null}
+              {accountId && chatSessionVersion && detail.scope_kind === "unresolved_intent" ? <button className={`${styles.primary} ${styles.send}`} aria-label={sending ? "发送中" : sendPending ? "重试同一条消息" : "发送"} title="发送 · Enter" type="button"
+                disabled={!canSend}
+                onClick={() => void sendMessage()}><ArrowUp aria-hidden="true" size={18} /><span className="sr-only">{sending ? "发送中…" : sendPending ? "重试同一条消息" : "发送"}</span></button> : null}
+              <details className={chatStyles.draftTools}>
+                <summary>草稿选项</summary>
+                <div>
+                  <p>{detail.scope_kind === "unresolved_intent" ? "自动保存 · Enter 发送，Shift+Enter 换行" : "自动保存；前往人物页继续这段关系。"}</p>
+                  <button
+                    className={styles.secondary}
+                    disabled={!canPersistSessionDraft(state) || state.status === "saving" || sending || sendPending}
+                    onClick={() => void persist(true)}
+                    type="button"
+                  >
+                    立即保存
+                  </button>
+                  <button
+                    className={styles.secondary}
+                    disabled={detail.state !== "active"}
+                    onClick={() => void copyDraft()}
+                    type="button"
+                  >
+                    <Copy aria-hidden="true" size={16} />
+                    <span>复制草稿</span>
+                  </button>
+                </div>
+              </details>
+            </div>
+          }
+          footerStart={
+            <p
+              className={
+                state.status === "error" || state.conflict
+                  ? styles.error
+                  : styles.status
+              }
+              id="session-draft-status"
+              role={state.status === "error" ? "alert" : "status"}
+            >
+              {statusLabel}
+              {state.error ? ` ${state.error}` : ""}
+            </p>
+          }
           id="session-composer-draft"
+          label="继续这条对话"
           maxLength={12_000}
-          onChange={(event) => updateDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) {
-              event.preventDefault(); void sendMessage();
-            }
-          }}
+          onNavigate={(href) => router.push(href)}
+          onSubmit={() => void sendMessage()}
+          onValueChange={updateDraft}
           placeholder={detail.state === "active" ? "输入消息，或粘贴一段内容…" : "对话不可用，无法编辑草稿。"}
+          readOnly={sending || sendPending}
           rows={3}
+          suggestionsEnabled={
+            detail.state === "active" && !sending && !sendPending && !state.conflict
+          }
           value={state.draft}
+          variant="session"
         />
-        <div className={styles.composerFooter}>
-          <p
-            className={
-              state.status === "error" || state.conflict
-                ? styles.error
-                : styles.status
-            }
-            id="session-draft-status"
-            role={state.status === "error" ? "alert" : "status"}
-          >
-            {statusLabel}
-            {state.error ? ` ${state.error}` : ""}
-          </p>
-          <div className={styles.actions}>
-            {sendPending && !sending ? <button className={styles.secondary} type="button" onClick={endSendRetry}>保留草稿，结束重试</button> : null}
-            {accountId && chatSessionVersion && detail.scope_kind === "unresolved_intent" ? <button className={`${styles.primary} ${chatStyles.send}`} aria-label={sending ? "发送中" : sendPending ? "重试同一条消息" : "发送"} title="发送 · ⌘ Enter" type="button"
-              disabled={sending || detail.state !== "active" || state.conflict || !state.draft.trim() || state.draft.trim().length > 1000}
-              onClick={() => void sendMessage()}><ArrowUp aria-hidden="true" size={18} /><span className="sr-only">{sending ? "发送中…" : sendPending ? "重试同一条消息" : "发送"}</span></button> : null}
-            <details className={chatStyles.draftTools}>
-              <summary>草稿选项</summary>
-              <div>
-                <p>{detail.scope_kind === "unresolved_intent" ? "自动保存 · ⌘ Enter 发送" : "自动保存；前往人物页继续这段关系。"}</p>
-            <button
-              className={styles.secondary}
-              disabled={!canPersistSessionDraft(state) || state.status === "saving" || sending || sendPending}
-              onClick={() => void persist(true)}
-              type="button"
-            >
-              立即保存
-            </button>
-            <button
-              className={styles.secondary}
-              disabled={detail.state !== "active"}
-              onClick={() => void copyDraft()}
-              type="button"
-            >
-              <Copy aria-hidden="true" size={16} />
-              <span>复制草稿</span>
-            </button>
-              </div>
-            </details>
-          </div>
-        </div>
       </section>
 
       <details className={chatStyles.scopeDetails} aria-label="范围与返回">
