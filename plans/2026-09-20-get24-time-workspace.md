@@ -64,7 +64,7 @@ and incomplete coverage explicit.
 2. **Complete:** backend activity/schedule/review lifecycle with real PostgreSQL tests.
 3. **Complete:** shared Web/macOS views, editor/recovery and native file handoff.
 4. **Complete:** browser/native acceptance and independent review of interaction refinements.
-5. **Blocked:** PR #218 created; pass exact-head CI, merge, deploy required backend/Web,
+5. **Active:** PR #218 created; pass exact-head CI, merge, deploy required backend/Web,
    read back the served revision and required behavior, then close GET-24.
 
 ## Completion evidence
@@ -151,3 +151,25 @@ All task fixtures and test services must use separately owned disposable state.
 - After dependencies recover: rebase latest main, preserve migrations 073/074,
   rerun exact-head gates, merge, deploy/read back backend and Web revisions and
   authorized behavior, then close GET-24. Do not treat this draft PR as delivery.
+
+## Migration and merge follow-through
+
+The user explicitly requested completing migration and merge. On September 21,
+GET-24 was first integrated with the reviewed PR216 head `241a612e`, preserving
+`073_account_onboarding.sql` and `074_time_workspace.sql` byte-for-byte. The
+resident database confirms the onboarding checksum
+`d1e1b56bece6b4c1982f11f7c21a5468063cbf749662e5bdd623e59f4bcf08b4`.
+
+PR217 then merged as `7ae47717`, adding the separately published
+`073_conversation_queue.sql`. The PR216 owner is integrating that new main,
+retaining the exact historical names/checksums and an explicit prefix-collision
+allowance. GET-24 must be replayed onto that merged main and its final manifest
+must contain all 79 migrations. No resident service is changed before that
+handoff and current-head verification.
+
+The new time schema is now a required readiness dependency. Missing migration
+074 returns 503, and the existing PostgreSQL CI step now runs all fourteen time
+workspace integration cases. The initial local app test attempt used stale
+compiled contracts from before onboarding integration; rebuild dependencies
+before counting the corrected run. An isolated PostgreSQL18 proof stack owns
+port55434; it must be removed after retained evidence is saved.
