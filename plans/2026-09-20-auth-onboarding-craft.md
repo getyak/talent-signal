@@ -92,3 +92,22 @@ staging. The Apple developer portal has no logged-in session. Its button stays
 unavailable; the implementation is tested, but real Apple sign-in is unverified.
 Google credentials exist; a real provider start and callback still require
 runtime acceptance. No broad social search or model-generated biography was added.
+
+## Runtime and security follow-through
+
+- Initial immutable Web/backend release `7e4dc41e` deployed locally; backend
+  readiness reports migration 073. Opik synthetic write/read/delete probes and
+  voice/chat provider probes passed. Tailnet handlers were preserved.
+- Live Google start exposed `redirect_uri_mismatch`: its client had only the
+  localhost callback. The staging client matches the Talent Signal Web client
+  in the Google Cloud project; adding the existing Tailnet callback is in scope.
+- Production account entry now moves to configured AUTH_URL before authentication
+  so localhost-started requests retain cookies at the eventual OAuth callback.
+- CodeQL nonce alerts #51/#52 were independently classified and individually
+  dismissed as false positives: randomBytes(32), one-time, five-minute OIDC
+  challenges, not passwords. SHA-256 is the established Web/iOS/backend protocol;
+  actual passwords use salted scrypt. No query was disabled. See OIDC Core 15.5.2.
+- SSRF alert #50 was independently reviewed as an unmodeled DNS-pinning boundary.
+  The client now connects explicitly to the verified literal IP while preserving
+  original Host/SNI and certificate checks. Live https://example.com preview
+  succeeded after this change; new CodeQL results must still be read back.

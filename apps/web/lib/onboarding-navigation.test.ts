@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ONBOARDING_PATH,
+  canonicalLoginTarget,
   oauthRetryTarget,
   isOnboardingTarget,
   onboardingCallbackTarget,
@@ -10,6 +11,14 @@ import {
 } from "./onboarding-navigation";
 
 describe("onboarding navigation targets", () => {
+  it("starts production login on the configured HTTPS cookie origin", () => {
+    const target = canonicalLoginTarget("http://localhost:3000", "https://app.example", { mode: "register", callbackUrl: "/workspace/settings" }, true);
+    expect(target).toBe("https://app.example/login?callbackUrl=%2Fworkspace%2Fsettings&mode=register");
+    expect(canonicalLoginTarget("https://app.example", "https://app.example", {}, true)).toBeNull();
+    expect(canonicalLoginTarget("http://localhost:3026", "https://app.example", {}, false)).toBeNull();
+    expect(canonicalLoginTarget("http://localhost:3000", "https://owner:password@app.example", {}, true)).toBeNull();
+    expect(canonicalLoginTarget("http://localhost:3000", "https://app.example", { callbackUrl: "https://attacker.example" }, true)).toBe("https://app.example/login?callbackUrl=%2Fworkspace");
+  });
   it("wraps a safe original target and encodes it", () => {
     expect(onboardingStartTarget("/workspace/pursuits/42?view=open")).toBe(
       `${ONBOARDING_PATH}?callbackUrl=${encodeURIComponent(

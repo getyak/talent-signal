@@ -59,3 +59,19 @@ export function oauthRetryTarget(raw: string | undefined, origin: string): strin
       ? url.searchParams.get("callbackUrl") : url.pathname + url.search + url.hash);
   } catch { return "/workspace"; }
 }
+
+/** Begin production login on its callback origin, so OAuth cookies come back. */
+export function canonicalLoginTarget(requestOrigin: string, configured: string | undefined,
+  parameters: { callbackUrl?: string; error?: string; reason?: string; mode?: string }, production: boolean): string | null {
+  if (!production || !configured) return null;
+  let canonical: URL;
+  try { canonical = new URL(configured); } catch { return null; }
+  if (canonical.protocol !== "https:" || canonical.username || canonical.password ||
+      canonical.pathname !== "/" || canonical.search || canonical.hash || canonical.origin === requestOrigin) return null;
+  const destination = new URL("/login", canonical);
+  destination.searchParams.set("callbackUrl", onboardingCallbackTarget(parameters.callbackUrl));
+  if (parameters.mode === "register") destination.searchParams.set("mode", "register");
+  if (parameters.error) destination.searchParams.set("error", parameters.error.slice(0, 100));
+  if (parameters.reason === "backend_session_expired") destination.searchParams.set("reason", parameters.reason);
+  return destination.toString();
+}

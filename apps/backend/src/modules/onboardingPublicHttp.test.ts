@@ -16,12 +16,13 @@ describe("public profile connection boundary", () => {
   it("pins the verified address for the TLS socket while preserving hostname/SNI", async () => {
     const resolver = vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]);
     const target = await resolveProfileTarget(url, url.origin, resolver);
-    requestMock.mockImplementation((_url, options, callback) => {
+    requestMock.mockImplementation((options, callback) => {
       const req = new EventEmitter() as EventEmitter & { end: () => void; destroy: (error?: Error) => void };
       req.destroy = error => { if (error) req.emit("error", error); };
       req.end = () => {
-        const pinned = vi.fn(); options.lookup("example.com", { all: true }, pinned);
-        expect(pinned).toHaveBeenCalledWith(null, [{ address: "93.184.216.34", family: 4 }]);
+        expect(options.hostname).toBe("93.184.216.34");
+        expect(options.path).toBe("/about");
+        expect(options.headers.host).toBe("example.com");
         expect(options.servername).toBe("example.com"); expect(options.agent).toBe(false);
         const res = Object.assign(new EventEmitter(), { statusCode: 200, headers: { "content-type": "text/plain" } });
         callback(res); res.emit("data", Buffer.from("Synthetic public introduction")); res.emit("end");

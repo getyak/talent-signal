@@ -1,6 +1,5 @@
 import https from "node:https";
 import type { IncomingHttpHeaders } from "node:http";
-import type { LookupFunction } from "node:net";
 import { resolveMcpServerUrl, type McpResolvedTarget, type McpUrlPolicy } from "./mcpSecurity.js";
 
 export type ProfileResource = { bytes: Uint8Array; headers: IncomingHttpHeaders; status: number; url: URL };
@@ -19,16 +18,16 @@ export async function resolveProfileTarget(url: URL, origin: string, resolver?: 
 }
 
 // https://nodejs.org/api/https.html#httpsrequestoptions-callback
-// The custom lookup is connection-level. Host and TLS SNI still use the original domain.
+// The connection uses the verified IP. Host and TLS SNI still use the original domain.
 export async function pinnedProfileRequest(target: McpResolvedTarget, maxBytes: number, signal: AbortSignal): Promise<ProfileResource> {
   return new Promise((resolve, reject) => {
-    const lookup: LookupFunction = (_hostname, options, callback) => {
-      if (typeof options === "object" && options.all) callback(null, [{ address: target.address, family: target.family }]);
-      else callback(null, target.address, target.family);
-    };
-    const request = https.request(target.url, {
-      agent: false, lookup, servername: target.url.hostname, signal, method: "GET",
-      headers: { accept: "text/html,application/xhtml+xml,text/plain;q=0.9", "accept-encoding": "identity", "user-agent": "TalentSignalResearchBot/0.1" },
+    // Connect to the validated literal address. DNS cannot change between policy
+    // validation and the socket, while Host/SNI retain virtual-host routing and TLS checks.
+    const request = https.request({
+      hostname: target.address, family: target.family, port: 443,
+      path: target.url.pathname + target.url.search,
+      agent: false, servername: target.url.hostname, signal, method: "GET",
+      headers: { host: target.url.host, accept: "text/html,application/xhtml+xml,text/plain;q=0.9", "accept-encoding": "identity", "user-agent": "TalentSignalResearchBot/0.1" },
     }, response => {
       const status = response.statusCode ?? 0;
       if (status >= 300 && status < 400) {

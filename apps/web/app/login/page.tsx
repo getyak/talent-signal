@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { cookies, headers } from "next/headers";
-import { oauthRetryTarget } from "@/lib/onboarding-navigation";
+import { canonicalLoginTarget, oauthRetryTarget } from "@/lib/onboarding-navigation";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AccountAccessForm } from "@/components/account-access-form";
@@ -35,6 +35,8 @@ export default async function LoginPage({ searchParams }: {
   const [session, parameters] = await Promise.all([auth(), searchParams]);
   const requestHeaders = await headers();
   const requestOrigin = `${requestHeaders.get("x-forwarded-proto") === "https" ? "https" : "http"}://${requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000"}`;
+  const canonical = canonicalLoginTarget(requestOrigin, process.env.AUTH_URL, parameters, process.env.NODE_ENV === "production");
+  if (canonical) redirect(canonical);
   const callbackUrl = parameters.callbackUrl ? safeRedirectTarget(parameters.callbackUrl)
     : parameters.error ? oauthRetryTarget((await cookies()).get("talent-signal.callback-url")?.value, process.env.AUTH_URL ?? requestOrigin) : "/workspace";
   const sessionExpired = parameters.reason === "backend_session_expired";
