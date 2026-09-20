@@ -173,3 +173,38 @@ workspace integration cases. The initial local app test attempt used stale
 compiled contracts from before onboarding integration; rebuild dependencies
 before counting the corrected run. An isolated PostgreSQL18 proof stack owns
 port55434; it must be removed after retained evidence is saved.
+
+### Integrated migration proof
+
+The final dependency integration at PR216 head `05fb1abd` retains its complete
+78-entry manifest as a prefix and appends only `074_time_workspace`. The reviewed
+79-entry digest is
+`855bcb306376a075a6968b78b3dc19d8c0c69c90c23686a257fd6a3f46618d60`.
+Independent review found no new P0/P1/P2; queue completion continues to append
+canonical Session turns with accepted timestamps, preserving time projection.
+
+An isolated PostgreSQL18 database was initialized using the active
+`talent-signal-backend-local:auth-81c2f0cb` image to reproduce the resident
+77-migration onboarding baseline. Upgrading with this branch applied the queue
+and time migrations, preserved every existing checksum, and matched all 79 SQL
+files. Running migration again changed neither checksums nor applied timestamps.
+The new readiness route returned 503 before upgrade, then200 with migration074.
+The upgraded schema passed14/14 time integration tests. Integrated Web/backend
+type checks,29 readiness/system-health tests,13 migration-policy tests, and
+docs/wiki/architecture checks passed. These are synthetic isolated database
+proofs; they do not claim the resident migration has run.
+
+Formal proof is retained at the design evidence directory under
+`implementation-evidence/migration-merge/upgrade-result.json` and its related
+check summaries. The final main-based commit and deployment receipts follow
+once PR216 merges and PR218 passes all current-head gates.
+
+PR216 merged as `9b4ea5fe747fc8ffceea2ee0d3fae1c28fe2bca1`. Its merged tree
+matches the reviewed dependency head byte-for-byte. GET-24 was rebased onto that
+main with no additional code conflict. The authentication task handed over the
+resident deployment window; the final combined main release must retain the
+existing Apple signing configuration and both audiences. Real owner Apple
+password/Passkey authorization remains that task's pending user acceptance.
+The isolated PostgreSQL proof stack was stopped and removed after evidence
+preservation. PR218 current-head CI, merge and resident activation are now the
+remaining delivery steps.
