@@ -22,9 +22,9 @@
 
 .heading h1,
 .sectionHeading h1 {
-  font-size: 1.75rem;
+  font-size: var(--workspace-title-size);
   font-weight: 650;
-  letter-spacing: -0.018em;
+  letter-spacing: 0;
   line-height: 1.25;
   margin: 0;
 }

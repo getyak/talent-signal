@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["@phosphor-icons/react", "@phosphor-icons/react/dist/ssr"],
     // Next.js needs the TypeScript 6 API while the workspace CLI uses native TypeScript 7.
     useTypeScriptCli: false,
+    // Deliberately no global `staleTimes` override and no whole-route
+    // `router.prefetch`: a prefetched dynamic RSC payload can skip a fresh
+    // server-side authorization render for its cache lifetime. Bounded reuse is
+    // limited to the account-keyed directory snapshot in
+    // `lib/workspace-directory-cache.ts`, which 401s and successful private
+    // mutations discard. Next's default `<Link>` partial prefetch (down to
+    // `app/workspace/loading.tsx`) is kept.
   },
   reactStrictMode: true,
   poweredByHeader: false,

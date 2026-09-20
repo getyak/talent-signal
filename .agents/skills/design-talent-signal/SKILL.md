@@ -126,6 +126,11 @@ Before finishing:
   functional tests alone does not prove fidelity. Keep missing runtime evidence
   and subjective craft deductions explicit.
 
+- Review navigation continuity separately from static fidelity: distinguish a
+  document reload, route data revalidation, and avoidable local-state reset.
+  Record child-page results individually; an overall craft score cannot hide
+  unverified loading, empty, error, narrow, keyboard or theme states.
+
 - Compare Card and List for semantic parity.
 - Trace at least one current fact to exact evidence and through history.
 - Test long names, missing avatars, no tags, three tags, stale evidence, and an

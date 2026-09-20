@@ -2,7 +2,7 @@
  * People directory — reference row composition.
  *
  * A 1040px reading page, a compact list tool row, and a three-column directory
- * row (person / relationship & change / update). Search stays native GET so a
+ * row (person / relationship & change / update). Search uses client navigation with GET URLs so a
  * query is shareable; nothing here owns or reinterprets identity.
  */
 
@@ -30,9 +30,9 @@
 }
 
 .pageHeading h1 {
-  font-size: 1.75rem;
+  font-size: var(--workspace-title-size);
   font-weight: 620;
-  letter-spacing: -0.018em;
+  letter-spacing: 0;
   line-height: 1.25;
 }
 
@@ -79,8 +79,12 @@
   display: flex;
   flex: 1 1 auto;
   gap: 9px;
-  max-width: 340px;
-  min-height: 36px;
+  max-width: 390px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0 6px 0 11px;
+  min-height: 40px;
 }
 
 .search > svg {
@@ -109,7 +113,8 @@
   display: grid;
   font-size: 0.75rem;
   gap: 0;
-  grid-template-columns: 38% minmax(0, 1fr) 68px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) 88px;
+  column-gap: 20px;
   padding: 11px 14px;
 }
 
@@ -134,7 +139,8 @@
   display: grid;
   font-size: 0.875rem;
   gap: 0;
-  grid-template-columns: 38% minmax(0, 1fr) 68px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) 88px;
+  column-gap: 20px;
   min-height: 83px;
   padding: 15px 14px;
   text-decoration: none;
@@ -327,8 +333,18 @@
   }
 
   .personChange {
-    display: none;
+    display: block;
+    grid-column: 1;
+    grid-row: 2;
+    padding: 5px 0 0 40px;
   }
+
+  .personMeta { grid-column: 2; grid-row: 1; }
+  .empty { flex-wrap: wrap; }
+  .empty div { min-width: 180px; }
+  .empty > a { min-height: 44px; display: inline-flex; align-items: center; }
+  .search { min-height: 44px; }
+
 
   .createPerson {
     align-self: flex-start;
@@ -344,3 +360,27 @@
 }
 
 .search:focus-within { border-radius: 6px; outline: 2px solid var(--accent); outline-offset: 4px; }
+
+.search button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 32px;
+  min-width: 32px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+}
+.search button:hover { background: var(--surface-muted); color: var(--ink); }
+.personRow:focus-visible, .createPerson:focus-visible, .empty > a:focus-visible,
+.search button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.listTools > span { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+.avatar { overflow: hidden; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+@media (max-width: 760px) {
+  .search button { min-width: 44px; min-height: 44px; }
+}

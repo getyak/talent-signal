@@ -15,38 +15,22 @@ import {
   type WorkspaceSearchPerson,
   type WorkspaceSearchSession,
 } from "@/lib/workspace-search";
+import {
+  isWorkspaceDirectoryAbort,
+  loadWorkspaceDirectory,
+  readCachedWorkspaceDirectory,
+  subscribeWorkspaceDirectoryInvalidation,
+  WORKSPACE_DIRECTORY_REFRESH_INTERVAL_MS,
+  type WorkspaceDirectorySessionResponse,
+  type WorkspaceDirectorySnapshot,
+  type WorkspaceDirectoryInvalidationMode,
+} from "@/lib/workspace-directory-cache";
 import { WORKSPACE_SESSION_EXPIRED_EVENT, workspaceSessionFetch } from "./workspace-session-request";
 import styles from "./workspace-shell.module.css";
-
-type DirectoryResponse = {
-  people?: Array<{
-    id?: unknown;
-    display_label?: unknown;
-    avatar?: { url?: unknown } | null;
-    contexts?: Array<{ display_label?: unknown }>;
-  }>;
-};
-
-type SessionRow = {
-  session_id?: unknown;
-  title?: unknown;
-  state?: unknown;
-  person_label?: unknown;
-  context_label?: unknown;
-  updated_at?: unknown;
-  expires_at?: unknown;
-};
-
-type SessionResponse = {
-  sessions?: SessionRow[];
-  session_version?: unknown;
-};
 
 function cleanLabel(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
-
-type DirectorySnapshot = { people: DirectoryResponse; sessions: SessionResponse };
 
 /** A directory response is publishable only after both bodies are decoded and
  * the exact credential binding has been verified. Abort also covers body reads. */
@@ -54,7 +38,7 @@ export async function readWorkspaceDirectory(
   binding: string,
   signal: AbortSignal,
   request: typeof workspaceSessionFetch = workspaceSessionFetch,
-): Promise<DirectorySnapshot | null> {
+): Promise<WorkspaceDirectorySnapshot | null> {
   const responses = await Promise.all([
     request("/api/local-integration/people", { cache: "no-store", signal }),
     request("/api/workspace-sessions", { cache: "no-store", signal }),
@@ -70,59 +54,121 @@ export async function readWorkspaceDirectory(
   return { people, sessions };
 }
 
-export function activeDirectorySessions(payload: SessionResponse, now = Date.now()): SessionResponse {
+export function activeDirectorySessions(payload: WorkspaceDirectorySessionResponse, now = Date.now()): WorkspaceDirectorySessionResponse {
   return { ...payload, sessions: (payload.sessions ?? []).filter(row =>
     row.state === "active" && typeof row.expires_at === "string" && Date.parse(row.expires_at) > now) };
 }
 
-/** Disposable, bound data shared by search and the persistent people sidebar. */
+/**
+ * Disposable, bound data shared by search and the persistent people sidebar.
+ *
+ * Navigation continuity: the effect re-runs on pathname changes so a failed
+ * read recovers on the next navigation, but it paints the account-keyed
+ * in-memory snapshot first. A healthy read therefore survives navigation with
+ * no reload flash; `pathname` no longer forces a network round trip.
+ */
 export function useWorkspaceDirectory(binding: string | null, enabled: boolean) {
   const pathname = usePathname();
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const retry = useCallback(() => setRefreshVersion(value => value + 1), []);
-  const [result, setResult] = useState<{ binding: string; data: DirectorySnapshot | null; failed: boolean } | null>(null);
+  const forceNextRead = useRef(false);
+  const retry = useCallback(() => {
+    // A user-requested retry must revalidate, never serve a stale cached value.
+    forceNextRead.current = true;
+    setRefreshVersion(value => value + 1);
+  }, []);
+  const [result, setResult] = useState<{ binding: string; data: WorkspaceDirectorySnapshot | null; failed: boolean } | null>(null);
   useEffect(() => {
+    // Unbound or disabled surfaces render no directory. The previous binding's
+    // state is filtered out below and reused from the cache on re-activation.
     if (!enabled || !binding) return;
-    let controller: AbortController | null = null;
+    const key = binding;
     let disposed = false;
     let expired = false;
-    async function refresh() {
-      controller?.abort();
+    function publish(data: WorkspaceDirectorySnapshot) {
       if (disposed || expired) return;
-      const request = new AbortController();
-      controller = request;
-      setResult(null);
-      try {
-        const data = await readWorkspaceDirectory(binding!, request.signal);
-        if (disposed || request.signal.aborted || !data) return;
-        setResult({ binding: binding!, data, failed: false });
-      } catch {
-        if (!disposed && !request.signal.aborted) setResult({ binding: binding!, data: null, failed: true });
+      setResult(current =>
+        current?.binding === key && current.data === data && !current.failed
+          ? current
+          : { binding: key, data, failed: false });
+    }
+    function fail() {
+      if (disposed || expired) return;
+      setResult(current =>
+        current?.binding === key && current.data
+          ? { ...current, failed: true }
+          : { binding: key, data: null, failed: true });
+    }
+    function load(force: boolean) {
+      if (disposed || expired) return;
+      // Paint the authorized snapshot first; revalidation replaces it in place.
+      const cached = readCachedWorkspaceDirectory(key);
+      if (cached) publish(cached);
+      void loadWorkspaceDirectory(
+        key,
+        async (signal) => {
+          const snapshot = await readWorkspaceDirectory(key, signal);
+          if (!snapshot) {
+            throw Object.assign(new Error("Directory read cancelled"), {
+              name: "AbortError",
+            });
+          }
+          return snapshot;
+        },
+        { force },
+      )
+        .then(publish)
+        .catch((error: unknown) => {
+          // An abort means the entry was invalidated. The invalidator either
+          // reloads (a successful mutation) or marks the session expired.
+          if (isWorkspaceDirectoryAbort(error)) return;
+          fail();
+        });
+    }
+    function onInvalidated(
+      keys: readonly string[] | null,
+      mode: WorkspaceDirectoryInvalidationMode,
+    ) {
+      if (disposed || expired) return;
+      if (!(keys === null || keys.includes(key))) return;
+      if (mode === "revalidate") {
+        setResult(null);
+        load(true);
+        return;
       }
-    }
-    function invalidate() {
+      // Discard (scope change, logout, any 401, expiry): fail closed and do not
+      // re-read with the same credential. The scope boundary changes the
+      // binding or unmounts the reader, so no revival is possible.
       expired = true;
-      controller?.abort();
-      setResult({ binding: binding!, data: null, failed: true });
+      setResult({ binding: key, data: null, failed: true });
     }
-    function visible() {
-      if (document.visibilityState === "visible") void refresh();
-      else { controller?.abort(); setResult(null); }
+    function onExpired() {
+      if (disposed) return;
+      expired = true;
+      setResult({ binding: key, data: null, failed: true });
     }
-    window.addEventListener(WORKSPACE_SESSION_EXPIRED_EVENT, invalidate);
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", visible);
-    void refresh();
+    function onFocus() {
+      load(false);
+    }
+    function onVisible() {
+      if (document.visibilityState === "visible") load(false);
+    }
+    const force = forceNextRead.current;
+    forceNextRead.current = false;
+    load(force);
+    const unsubscribe = subscribeWorkspaceDirectoryInvalidation(onInvalidated);
+    window.addEventListener(WORKSPACE_SESSION_EXPIRED_EVENT, onExpired);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
-    }, 60_000);
+      if (document.visibilityState === "visible") load(false);
+    }, WORKSPACE_DIRECTORY_REFRESH_INTERVAL_MS);
     return () => {
       disposed = true;
-      controller?.abort();
+      unsubscribe();
       window.clearInterval(interval);
-      window.removeEventListener(WORKSPACE_SESSION_EXPIRED_EVENT, invalidate);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener(WORKSPACE_SESSION_EXPIRED_EVENT, onExpired);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [binding, enabled, pathname, refreshVersion]);
   useEffect(() => {

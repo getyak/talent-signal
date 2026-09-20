@@ -4,36 +4,24 @@
   padding: var(--workspace-page-padding, 40px) var(--workspace-page-padding, 40px) 84px;
 }
 
-.inner {
-  max-width: 680px;
-}
-
-.eyebrow {
-  color: var(--muted);
-  font-size: 0.6875rem;
-  letter-spacing: 0.02em;
-}
-
-.loading h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.012em;
-  margin: 8px 0 0;
-}
-
-.hint {
-  color: var(--muted);
-  font-size: 0.8125rem;
-  line-height: 1.7;
-  margin-top: 9px;
+/* Route-neutral status stays in the accessibility tree without repeating as a
+   visible hero on every client navigation. */
+.status,
+.assistive {
+  border: 0;
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .skeleton {
-  border-top: 1px solid var(--line-soft);
   display: grid;
   gap: 14px;
-  margin-top: 30px;
-  padding-top: 26px;
 }
 
 .skeleton i {
@@ -46,6 +34,7 @@
 
 .skeleton .skeletonTitle {
   height: 26px;
+  margin-bottom: 12px;
   width: 46%;
 }
 

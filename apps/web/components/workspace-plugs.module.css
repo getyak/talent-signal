@@ -20,9 +20,9 @@
 
 .header h1 {
   color: var(--ink);
-  font-size: 1.75rem;
+  font-size: var(--workspace-title-size);
   font-weight: 620;
-  letter-spacing: -0.018em;
+  letter-spacing: 0;
   line-height: 1.25;
   margin: 0;
 }
