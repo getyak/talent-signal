@@ -37,6 +37,7 @@ interface FirecrawlScrapeResponse {
     metadata?: {
       title?: unknown;
       sourceURL?: unknown;
+      url?: unknown;
       statusCode?: unknown;
       error?: unknown;
     };
@@ -158,36 +159,52 @@ async function assertAuthorizedPublicUrl(
   return url;
 }
 
-function parseSourceUrl(raw: unknown, requested: URL): URL {
+/**
+ * The official Firecrawl source scraper reports the requested original URL in
+ * `metadata.sourceURL` and the engine's actual final URL in `metadata.url`.
+ * Both are validated independently against the exact authorized discovered
+ * URL; the fetched evidence is only trustworthy when the origin Firecrawl was
+ * asked for and the final address it returned agree with that authorization.
+ * A missing or substituted final URL is never backfilled from sourceURL.
+ */
+function parseProviderUrl(
+  raw: unknown,
+  requested: URL,
+  kind: "source" | "final",
+): URL {
   if (typeof raw !== "string") {
     throw new AgentSafeWebFetchError(
       "WEB_FETCH_PROVIDER_RESPONSE_INVALID",
-      "Firecrawl did not return the fetched source URL.",
+      kind === "final"
+        ? "Firecrawl did not return the fetched final URL."
+        : "Firecrawl did not return the fetched source URL.",
     );
   }
-  let source: URL;
+  let providerUrl: URL;
   try {
-    source = new URL(raw);
+    providerUrl = new URL(raw);
   } catch {
     throw new AgentSafeWebFetchError(
       "WEB_FETCH_PROVIDER_RESPONSE_INVALID",
-      "Firecrawl returned an invalid source URL.",
+      kind === "final"
+        ? "Firecrawl returned an invalid final URL."
+        : "Firecrawl returned an invalid source URL.",
     );
   }
   if (
-    source.protocol !== "https:" ||
-    source.username ||
-    source.password ||
-    source.port ||
-    source.toString() !== requested.toString()
+    providerUrl.protocol !== "https:" ||
+    providerUrl.username ||
+    providerUrl.password ||
+    providerUrl.port ||
+    providerUrl.toString() !== requested.toString()
   ) {
     throw new AgentSafeWebFetchError(
       "WEB_FETCH_SOURCE_MISMATCH",
       "Firecrawl returned content for a URL other than the exact discovered source.",
     );
   }
-  source.hash = "";
-  return source;
+  providerUrl.hash = "";
+  return providerUrl;
 }
 
 export function createFirecrawlWebFetch(
@@ -295,7 +312,12 @@ export function createFirecrawlWebFetch(
         `The discovered page did not load cleanly through Firecrawl${typeof statusCode === "number" ? ` (HTTP ${statusCode})` : "."}`,
       );
     }
-    const canonicalUrl = parseSourceUrl(metadata?.sourceURL, requested).toString();
+    parseProviderUrl(metadata?.sourceURL, requested, "source");
+    const canonicalUrl = parseProviderUrl(
+      metadata?.url,
+      requested,
+      "final",
+    ).toString();
     if (typeof payload.data?.markdown !== "string") {
       throw new AgentSafeWebFetchError(
         "WEB_FETCH_PROVIDER_RESPONSE_INVALID",

@@ -49,6 +49,7 @@ function response(
         metadata: {
           title: "Rendered report",
           sourceURL: result.url,
+          url: result.url,
           statusCode: 200,
         },
       },
@@ -150,13 +151,26 @@ describe("Firecrawl web fetch", () => {
     await expect(fetchPage(scope, result, new AbortController().signal)).rejects.toMatchObject({ code });
   });
 
-  it("rejects target failures, source substitution, malformed data, and oversized Markdown", async () => {
+  it("rejects target failures, source or final substitution, malformed data, and oversized Markdown", async () => {
     const cases: Array<[Response, string]> = [
-      [response({ data: { markdown: "text", metadata: { sourceURL: result.url, statusCode: 403 } } }), "WEB_FETCH_TARGET_FAILED"],
-      [response({ data: { markdown: "text", metadata: { sourceURL: "https://other.test/report", statusCode: 200 } } }), "WEB_FETCH_SOURCE_MISMATCH"],
-      [response({ data: { markdown: "text", metadata: { sourceURL: "https://example.com/other.pdf", statusCode: 200 } } }), "WEB_FETCH_SOURCE_MISMATCH"],
+      // A non-2xx target status is rejected before URL provenance is read.
+      [response({ data: { markdown: "text", metadata: { sourceURL: result.url, url: result.url, statusCode: 403 } } }), "WEB_FETCH_TARGET_FAILED"],
+      // The original URL Firecrawl reports must be the exact discovered URL.
+      [response({ data: { markdown: "text", metadata: { sourceURL: "https://other.test/report", url: result.url, statusCode: 200 } } }), "WEB_FETCH_SOURCE_MISMATCH"],
+      [response({ data: { markdown: "text", metadata: { sourceURL: "https://example.com/other.pdf", url: result.url, statusCode: 200 } } }), "WEB_FETCH_SOURCE_MISMATCH"],
+      [response({ data: { markdown: "text", metadata: { url: result.url, statusCode: 200 } } }), "WEB_FETCH_PROVIDER_RESPONSE_INVALID"],
+      [response({ data: { markdown: "text", metadata: { sourceURL: "not-a-url", url: result.url, statusCode: 200 } } }), "WEB_FETCH_PROVIDER_RESPONSE_INVALID"],
+      // The actual final URL is required and validated independently. It is
+      // never backfilled from sourceURL, and any redirect off the authorized
+      // host, path, scheme, or port fails closed.
+      [response({ data: { markdown: "text", metadata: { sourceURL: result.url, statusCode: 200 } } }), "WEB_FETCH_PROVIDER_RESPONSE_INVALID"],
+      [response({ data: { markdown: "text", metadata: { sourceURL: result.url, url: "not-a-url", statusCode: 200 } } }), "WEB_FETCH_PROVIDER_RESPONSE_INVALID"],
+      [response({ data: { markdown: "text", metadata: { sourceURL: result.url, url: "https://other.test/report.pdf", statusCode: 200 } } }), "WEB_FETCH_SOURCE_MISMATCH"],
+      [response({ data: { markdown: "text", metadata: { sourceURL: result.url, url: "https://example.com/other.pdf", statusCode: 200 } } }), "WEB_FETCH_SOURCE_MISMATCH"],
+      [response({ data: { markdown: "text", metadata: { sourceURL: result.url, url: "https://10.0.0.1/report.pdf", statusCode: 200 } } }), "WEB_FETCH_SOURCE_MISMATCH"],
+      [response({ data: { markdown: "text", metadata: { sourceURL: result.url, url: "http://example.com/report.pdf", statusCode: 200 } } }), "WEB_FETCH_SOURCE_MISMATCH"],
       [new Response("not-json"), "WEB_FETCH_PROVIDER_RESPONSE_INVALID"],
-      [response({ data: { markdown: "x".repeat(35_001), metadata: { sourceURL: result.url, statusCode: 200 } } }), "WEB_FETCH_CONTENT_TOO_LARGE"],
+      [response({ data: { markdown: "x".repeat(35_001), metadata: { sourceURL: result.url, url: result.url, statusCode: 200 } } }), "WEB_FETCH_CONTENT_TOO_LARGE"],
     ];
     for (const [providerResponse, code] of cases) {
       const fetchPage = createFirecrawlWebFetch({
