@@ -120,6 +120,12 @@ success state hide a failed or unverified mutation.
 
 Before finishing:
 
+- For a reference reconstruction, inspect the rendered source and its final CSS
+  overrides. Compare matching viewport sizes across the shell, populated child
+  pages, settings drilldowns, and native chrome. A token palette or passing
+  functional tests alone does not prove fidelity. Keep missing runtime evidence
+  and subjective craft deductions explicit.
+
 - Compare Card and List for semantic parity.
 - Trace at least one current fact to exact evidence and through history.
 - Test long names, missing avatars, no tags, three tags, stale evidence, and an

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { KnowledgeSnapshot } from "@talent-signal/contracts";
+import type { ChatTaskResponse, KnowledgeSnapshot } from "@talent-signal/contracts";
 import {
+  relationshipWikiView,
   knowledgeSnapshotMemorySections,
   knowledgeSnapshotWikiView,
 } from "@/components/relationship-workspace/relationship-wiki-panel";
@@ -113,6 +114,13 @@ describe("relationship Wiki projection", () => {
       status: "proposed",
       title: "拟议下一步",
     });
+  });
+
+  it("uses the visible response instead of claiming a brief from an older snapshot", () => {
+    const response = { blocks: [], knowledge_snapshot_id: "current" } as unknown as ChatTaskResponse;
+    expect(relationshipWikiView(response, snapshot("published"))?.blocks).toEqual([]);
+    expect(relationshipWikiView(null, snapshot("published"))?.blocks.some((block) => block.kind === "person_brief")).toBe(true);
+    expect(relationshipWikiView(null, snapshot("draft"))).toBeNull();
   });
 
   it("does not present an unpublished compilation as current Wiki state", () => {

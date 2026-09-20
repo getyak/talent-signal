@@ -8,6 +8,7 @@ const { auth, claims } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ has: () => false }) }));
+vi.mock("@/lib/server/accountBackend", () => ({ loadAccountSettings: async () => { throw new Error("offline"); } }));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/app/login/actions", () => ({ signOutOfWorkspace: vi.fn() }));
 vi.mock("@/app/workspace/settings/testing/actions", () => ({
@@ -87,7 +88,12 @@ describe("quiet workspace shell render", () => {
 
     expect(html).toContain("今天想推进什么？");
     expect(html).toContain("输入消息，或粘贴一段内容…");
-    expect(html).toContain("选择人物");
+    // The default composer stays a single attachment/send pair: the person and
+    // capture affordances live behind one compact add control, not a strip.
+    expect(html).toContain("添加截图或查找人物");
+    expect(html).toContain('aria-controls="composer-add-panel"');
+    expect(html).not.toContain("未关联人物");
+    expect(html).not.toContain("选择人物");
     expect(html).toContain("new-conversation-objective");
   });
 

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   ArrowUp,
   Copy,
   Trash,
@@ -536,11 +535,6 @@ export function SessionWorkbench({
 
   return (
     <section aria-labelledby="session-title" className={`${styles.page} ${chatStyles.conversation}`}>
-      <Link className={styles.back} href="/workspace/sessions">
-        <ArrowLeft aria-hidden="true" size={16} />
-        <span>返回对话列表</span>
-      </Link>
-
       <header className={styles.detailHeader}>
         <div>
           <p className={styles.metaLine}>
@@ -550,9 +544,6 @@ export function SessionWorkbench({
           <h1 className={styles.title} id="session-title">
             {sessionDisplayTitle(detail.title)}
           </h1>
-          <p className={styles.disclaimer}>
-            对话保留思考过程；资料变更与外部行动仍需单独审阅。
-          </p>
         </div>
         {detail.state === "active" ? (
           <div className={styles.detailActions}>
@@ -684,12 +675,10 @@ export function SessionWorkbench({
       </aside> : null}
       {meetingReadFailed ? <p role="status">暂时无法读取关联日程。<Link href="/workspace/meetings">打开日程重试</Link></p> : null}
       <section aria-label="草稿" className={`${styles.composer} ${chatStyles.composer}`}>
-        <label className={styles.composerLabel} htmlFor="session-composer-draft">
+        <label className="sr-only" htmlFor="session-composer-draft">
           继续这条对话
         </label>
-        <p className={styles.hint}>
-          {detail.scope_kind === "unresolved_intent" ? "草稿自动保存 · ⌘ Enter 发送" : "草稿自动保存；前往人物页继续这段关系。"}
-        </p>
+
         <textarea
           aria-describedby="session-draft-status"
           className={styles.textarea}
@@ -722,9 +711,13 @@ export function SessionWorkbench({
           </p>
           <div className={styles.actions}>
             {sendPending && !sending ? <button className={styles.secondary} type="button" onClick={endSendRetry}>保留草稿，结束重试</button> : null}
-            {accountId && chatSessionVersion && detail.scope_kind === "unresolved_intent" ? <button className={styles.primary} type="button"
+            {accountId && chatSessionVersion && detail.scope_kind === "unresolved_intent" ? <button className={`${styles.primary} ${chatStyles.send}`} aria-label={sending ? "发送中" : sendPending ? "重试同一条消息" : "发送"} title="发送 · ⌘ Enter" type="button"
               disabled={sending || detail.state !== "active" || state.conflict || !state.draft.trim() || state.draft.trim().length > 1000}
-              onClick={() => void sendMessage()}><ArrowUp aria-hidden="true" size={16} />{sending ? "发送中…" : sendPending ? "重试同一条消息" : "发送"}</button> : null}
+              onClick={() => void sendMessage()}><ArrowUp aria-hidden="true" size={18} /><span className="sr-only">{sending ? "发送中…" : sendPending ? "重试同一条消息" : "发送"}</span></button> : null}
+            <details className={chatStyles.draftTools}>
+              <summary>草稿选项</summary>
+              <div>
+                <p>{detail.scope_kind === "unresolved_intent" ? "自动保存 · ⌘ Enter 发送" : "自动保存；前往人物页继续这段关系。"}</p>
             <button
               className={styles.secondary}
               disabled={detail.state !== "active" || state.status === "saving" || sending || sendPending}
@@ -742,16 +735,20 @@ export function SessionWorkbench({
               <Copy aria-hidden="true" size={16} />
               <span>复制草稿</span>
             </button>
+              </div>
+            </details>
           </div>
         </div>
       </section>
 
-      <aside className={styles.scopeLink} aria-label="范围与返回">
+      <details className={chatStyles.scopeDetails} aria-label="范围与返回">
+        <summary>对话范围 · {scope.label}</summary>
+        <p>对话保留思考过程；资料变更与外部行动仍需单独审阅。</p>
         <p>{scope.note}</p>
         <Link className={styles.primary} href={scope.returnHref}>
           {scope.returnLabel}
         </Link>
-      </aside>
+      </details>
     </section>
   );
 }

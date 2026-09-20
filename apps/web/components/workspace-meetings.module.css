@@ -9,7 +9,7 @@
 
 .page {
   display: grid;
-  gap: 26px;
+  gap: 42px;
   margin: 0 auto;
   max-width: 1040px;
   padding: 54px 64px 86px;
@@ -109,8 +109,8 @@
   align-items: center;
   display: grid;
   gap: 6px;
-  grid-template-columns: 32px minmax(0, 1fr) 32px;
-  margin-bottom: 18px;
+  grid-template-columns: 32px auto 32px;
+  margin: 16px 0 0;
 }
 
 .monthHeader h2 {
@@ -121,7 +121,7 @@
   text-align: center;
 }
 
-.monthHeader a {
+.monthHeader a:not(.newConversation) {
   align-items: center;
   border-radius: 50%;
   color: var(--muted-strong);

@@ -135,7 +135,7 @@
   font-size: 0.8125rem;
   gap: 0;
   grid-template-columns: 38% minmax(0, 1fr) 68px;
-  min-height: 82px;
+  min-height: 83px;
   padding: 15px 14px;
   text-decoration: none;
   transition: background 140ms var(--ease-out);

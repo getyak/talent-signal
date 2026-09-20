@@ -2,6 +2,20 @@ import XCTest
 @testable import TalentSignalMac
 
 final class WorkspaceOriginTests: XCTestCase {
+    func testSettingsAndWorkspaceUseTheSameOriginPrecedence() {
+        XCTAssertEqual(WorkspaceOrigin.configured(saved: "https://saved.example", environment: "https://env.example", bundled: "https://bundle.example")?.url.host, "saved.example")
+        XCTAssertEqual(WorkspaceOrigin.configured(saved: "", environment: "https://env.example", bundled: "https://bundle.example")?.url.host, "env.example")
+        XCTAssertEqual(WorkspaceOrigin.configured(saved: "", environment: nil, bundled: "https://bundle.example")?.url.host, "bundle.example")
+    }
+
+    func testDesktopDestinationsStayInsideConfiguredOrigin() throws {
+        let origin = try XCTUnwrap(WorkspaceOrigin("https://workspace.example.com:10443"))
+        for destination in WorkspaceDestination.allCases {
+            XCTAssertTrue(origin.contains(destination.url(in: origin)))
+            XCTAssertTrue(destination.url(in: origin).path.hasPrefix("/workspace"))
+        }
+        XCTAssertEqual(WorkspaceDestination.settings.url(in: origin).path, "/workspace/settings")
+    }
     func testOnlyExplicitHTTPSOriginsAreAccepted() {
         for value in ["http://localhost:3000", "file:///etc/passwd", "javascript:alert(1)",
                       "https://user:password@example.com", "https://example.com/workspace",

@@ -97,15 +97,16 @@ export function WorkspaceMeetings({
       ) : null}
       <header className={styles.header}>
         <div>
-          <h1>日程</h1>
+          <h1 id="calendar-title">{monthLabel(month)}</h1>
           <p>
-            只显示绑定原对话的日历草稿。选择日期不会创建事件；导入仍由日历应用确认。
+            会议草稿 · 按各会议时区显示
           </p>
         </div>
-        <Link className={styles.newConversation} href="/workspace">
-          <ChatCircleDots aria-hidden="true" size={17} />
-          准备新会议
-        </Link>
+        <nav className={styles.monthHeader} aria-label="切换月份">
+          <Link aria-label="上个月" href={parameters({ month: adjacentMeetingMonth(month, -1) })}><ArrowLeft aria-hidden="true" size={16} /></Link>
+          <Link className={styles.newConversation} href="/workspace"><ChatCircleDots aria-hidden="true" size={17} />准备新会议</Link>
+          <Link aria-label="下个月" href={parameters({ month: adjacentMeetingMonth(month, 1) })}><ArrowRight aria-hidden="true" size={16} /></Link>
+        </nav>
       </header>
 
       {error ? (
@@ -126,21 +127,6 @@ export function WorkspaceMeetings({
           ) : null}
           <div className={styles.workspace}>
           <section aria-labelledby="calendar-title" className={styles.calendarPane}>
-            <header className={styles.monthHeader}>
-              <Link
-                aria-label="上个月"
-                href={parameters({ month: adjacentMeetingMonth(month, -1) })}
-              >
-                <ArrowLeft aria-hidden="true" size={16} />
-              </Link>
-              <h2 id="calendar-title">{monthLabel(month)}</h2>
-              <Link
-                aria-label="下个月"
-                href={parameters({ month: adjacentMeetingMonth(month, 1) })}
-              >
-                <ArrowRight aria-hidden="true" size={16} />
-              </Link>
-            </header>
             <div aria-hidden="true" className={styles.weekdays}>
               {week.map((label) => <span key={label}>{label}</span>)}
             </div>
@@ -220,7 +206,7 @@ export function WorkspaceMeetings({
               </>
             ) : (
               <p className={styles.contextEmpty}>
-                日期选择只改变当前视图。打开草稿后才能核对原文、时区和导出内容。
+                选择日期不会创建事件。打开草稿后核对原文、时区与导出内容；导入仍由日历应用确认。
               </p>
             )}
           </aside>

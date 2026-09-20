@@ -2,8 +2,8 @@
   display: grid;
   gap: 28px;
   margin: 0 auto;
-  max-width: 880px;
-  padding: 54px 64px 86px;
+  max-width: 900px;
+  padding: 40px 64px 86px;
   width: 100%;
 }
 
@@ -50,7 +50,7 @@
 
 .sectionHeading h2 {
   color: var(--ink);
-  font-size: 1rem;
+  font-size: .8125rem;
   font-weight: 650;
   margin: 0;
 }
@@ -72,21 +72,21 @@
   border-bottom: 1px solid var(--line-soft);
   display: grid;
   gap: 16px;
-  grid-template-columns: auto minmax(0, 1fr);
-  min-height: 86px;
-  padding: 20px 4px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  min-height: 82px;
+  padding: 18px 4px;
 }
 
 .icon {
   align-items: center;
-  background: var(--surface-muted);
+  background: transparent;
   border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  color: var(--muted-strong);
+  border-radius: 9px;
+  color: var(--muted);
   display: inline-flex;
-  height: 38px;
+  height: 34px;
   justify-content: center;
-  width: 38px;
+  width: 34px;
 }
 
 .body {
@@ -101,23 +101,21 @@
 }
 
 .status {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted-strong);
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
   flex: 0 0 auto;
-  font-size: 0.72rem;
-  padding: 3px 8px;
+  font-size: 0.71875rem;
+  gap: 5px;
 }
 
 .row[data-status="connected"] .status {
-  border-color: color-mix(in srgb, var(--success) 35%, var(--line));
   color: var(--success);
 }
 
 .row[data-status="expired"] .status,
 .row[data-status="revoked"] .status,
 .row[data-status="error"] .status {
-  border-color: color-mix(in srgb, var(--error) 34%, var(--line));
   color: var(--error);
 }
 
@@ -153,6 +151,28 @@
 .nativeBoundary {
   border-top: 1px solid var(--line-soft);
   padding-top: 26px;
+}
+
+.directionNote {
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+  line-height: 1.7;
+  padding-top: 14px;
+}
+
+.directionNote summary {
+  align-items: center;
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.75rem;
+  min-height: 44px;
+}
+
+.directionNote p {
+  margin: 4px 0 0;
+  max-width: 68ch;
 }
 
 .nativeBoundary :global(.ts-workspace-surface) {
@@ -223,3 +243,17 @@
     align-items: flex-start;
   }
 }
+
+.scopeDetails { color: var(--muted); font-size: 11px; margin-top: 5px; }
+.scopeDetails summary { cursor: pointer; }
+.scopeDetails p { font-size: 12px; line-height: 1.7; margin: 8px 0 0; }
+.manage { color: var(--ink); font-size: 12px; text-decoration: none; padding: 10px 2px; white-space: nowrap; }
+.manage:hover { text-decoration: underline; }
+.workflows { border-top: 1px solid var(--line-soft); padding-top: 24px; }
+.workflows h2 { font-size: 13px; font-weight: 600; margin: 0 0 18px; }
+.workflows > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.workflows a { border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; color: var(--ink); text-decoration: none; display: grid; gap: 5px; }
+.workflows a:hover { background: var(--surface-muted); }
+.workflows strong { font-size: 13px; font-weight: 600; }
+.workflows span { color: var(--muted); font-size: 11px; }
+@media(max-width:640px) { .workflows > div { grid-template-columns: 1fr; } .row { gap: 10px; } }

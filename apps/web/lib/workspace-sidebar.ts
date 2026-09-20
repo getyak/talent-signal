@@ -130,3 +130,11 @@ export function sidebarPersonHref(person: SidebarPerson): string {
   });
   return `/workspace?${search.toString()}`;
 }
+
+/** Search the full authorized response before limiting visible suggestions. */
+export function searchSidebarPeople(payload: unknown, query: string, limit = 8): SidebarPerson[] {
+  const normalized = query.normalize("NFKC").trim().toLocaleLowerCase();
+  return sidebarPeopleFromDirectory(payload, Number.MAX_SAFE_INTEGER)
+    .filter(person => !normalized || `${person.label} ${person.detail}`.normalize("NFKC").toLocaleLowerCase().includes(normalized))
+    .slice(0, limit);
+}

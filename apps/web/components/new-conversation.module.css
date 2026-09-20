@@ -18,7 +18,7 @@
 
 .canvas[data-empty="true"] {
   justify-content: center;
-  padding-bottom: 140px;
+  padding-bottom: 116px;
 }
 
 .inner {
@@ -100,8 +100,8 @@
   border-radius: 18px;
   box-shadow:
     0 1px 0 color-mix(in srgb, var(--surface) 90%, transparent),
-    0 14px 40px color-mix(in srgb, var(--ink) 7%, transparent);
-  padding: 17px 18px 12px;
+    0 10px 32px color-mix(in srgb, var(--ink) 7%, transparent);
+  padding: 12px 12px 8px;
   transition:
     border-color 200ms var(--ease-out),
     box-shadow 200ms var(--ease-out);
@@ -114,8 +114,8 @@
 .composer:focus-within {
   border-color: color-mix(in srgb, var(--focus) 42%, var(--line));
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--focus) 12%, transparent),
-    0 20px 54px color-mix(in srgb, var(--ink) 10%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--focus) 12%, transparent),
+    0 14px 36px color-mix(in srgb, var(--ink) 10%, transparent);
 }
 
 .composer textarea {
@@ -127,7 +127,8 @@
   font-size: 0.875rem;
   line-height: 1.7;
   max-height: 40dvh;
-  min-height: 70px;
+  min-height: 82px;
+  padding: 4px 5px 0;
   outline: none;
   resize: none;
   width: 100%;
@@ -142,7 +143,7 @@
   display: flex;
   gap: 8px;
   justify-content: space-between;
-  margin-top: 7px;
+  margin-top: 3px;
 }
 
 .composerStart {
@@ -153,7 +154,11 @@
   min-width: 0;
 }
 
-.attach {
+.addAnchor {
+  position: relative;
+}
+
+.add {
   align-items: center;
   background: transparent;
   border: 0;
@@ -162,34 +167,186 @@
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
-  height: 32px;
+  height: 44px;
   justify-content: center;
   padding: 0;
-  width: 32px;
+  width: 44px;
 }
 
-.attach:hover {
+.add:hover,
+.add[aria-expanded="true"] {
   background: color-mix(in srgb, var(--hover, var(--surface-muted)) 78%, transparent);
   color: var(--ink);
 }
 
-.scopeLine {
+.addMenu {
+  animation: popover-enter 160ms var(--ease-out);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  bottom: calc(100% + 8px);
+  box-shadow:
+    0 18px 48px color-mix(in srgb, var(--ink) 16%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--surface) 85%, transparent);
+  display: grid;
+  gap: 2px;
+  left: -6px;
+  max-height: min(62dvh, 460px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  position: absolute;
+  width: 252px;
+  z-index: 40;
+}
+
+@keyframes popover-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.addAction,
+.addPerson {
   align-items: center;
-  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted-strong);
+  cursor: pointer;
   display: flex;
-  font-size: 0.6875rem;
-  gap: 6px;
+  font: inherit;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.addAction:hover,
+.addPerson:hover,
+.addPerson:focus-visible {
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  color: var(--ink);
+}
+
+.addAction > span,
+.addPerson > span:nth-child(2) {
+  flex: 1;
   min-width: 0;
 }
 
-.scopeLine a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.addAction strong,
+.addPerson strong {
+  color: var(--ink);
+  display: block;
+  font-size: 0.78125rem;
+  font-weight: 540;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.scopeLine a:hover {
+.addAction small,
+.addPerson small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.6563rem;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addDivider {
+  border-top: 1px solid var(--line-soft);
+  margin: 5px 2px;
+}
+
+.addGroupLabel {
+  color: var(--muted);
+  font-size: 0.6563rem;
+  padding: 4px 10px 2px;
+}
+
+.addSearch {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  padding: 2px 10px 6px;
+}
+
+.addSearch input {
+  background: transparent;
+  border: 0;
   color: var(--ink);
+  font: inherit;
+  font-size: 0.78125rem;
+  min-width: 0;
+  outline: none;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.addPeople {
+  display: grid;
+  gap: 1px;
+}
+
+.addAvatar {
+  align-items: center;
+  aspect-ratio: 1;
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 86%, var(--surface));
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  height: 23px;
+  justify-content: center;
+  overflow: hidden;
+  width: 23px;
+}
+
+.addAvatar > img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.addPerson > svg {
+  color: var(--muted);
+  flex: 0 0 auto;
+  opacity: 0;
+}
+
+.addPerson:hover > svg,
+.addPerson:focus-visible > svg {
+  opacity: 1;
+}
+
+.addEmpty {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  padding: 6px 10px;
+}
+
+.addNote {
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 0.625rem;
+  line-height: 1.55;
+  margin-top: 4px;
+  padding: 7px 10px 5px;
 }
 
 .composerActions {
@@ -207,10 +364,10 @@
   color: var(--surface);
   cursor: pointer;
   display: inline-flex;
-  height: 32px;
+  height: 44px;
   justify-content: center;
   padding: 0;
-  width: 32px;
+  width: 44px;
 }
 
 .send:not(:disabled):hover {
@@ -312,7 +469,7 @@
   }
 
   .canvas[data-empty="true"] {
-    padding-bottom: 96px;
+    padding-bottom: 84px;
   }
 
   .welcome {
@@ -338,9 +495,20 @@
     min-height: 82px;
   }
 
-  .attach {
+  .attach,
+  .add {
     height: 44px;
     width: 44px;
+  }
+
+  .addMenu {
+    max-height: min(52dvh, 400px);
+    width: min(252px, calc(100vw - 56px));
+  }
+
+  .addAction,
+  .addPerson {
+    min-height: 44px;
   }
 
   .restored button {
@@ -358,7 +526,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .inner {
+  .inner,
+  .addMenu {
     animation: none;
   }
 

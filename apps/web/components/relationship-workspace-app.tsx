@@ -40,7 +40,7 @@ import {
   PersonMergeReview,
   type PersonMergeWorkflowResponse,
 } from "./relationship-workspace/person-merge-review";
-import { RelationshipWikiPanel } from "./relationship-workspace/relationship-wiki-panel";
+import { RelationshipWikiPanel, relationshipWikiView } from "./relationship-workspace/relationship-wiki-panel";
 import { RelationshipWorkspaceStatus } from "./relationship-workspace/relationship-workspace-status";
 import deskStyles from "./relationship-workspace/relationship-desk.module.css";
 import { useRelationshipAgentController } from "./relationship-workspace/use-relationship-agent-controller";
@@ -922,6 +922,9 @@ export function RelationshipWorkspaceApp({
                   返回刚才的对话
                 </button>
               ) : null}
+              <details className="context-page-tools">
+                <summary aria-label="人物页面选项">•••</summary>
+                <div>
               <Link href="/workspace/boundaries">边界案例</Link>
               <Link href="/workspace/preferences">回复偏好</Link>
               <button
@@ -932,6 +935,8 @@ export function RelationshipWorkspaceApp({
                 <Plus aria-hidden="true" size={17} />
                 导入截图
               </button>
+                </div>
+              </details>
             </div>
           </header>
 
@@ -1010,9 +1015,11 @@ export function RelationshipWorkspaceApp({
                 }
                 onReviewSources={openResourceComposer}
                 scope={relationshipScope}
+                hasCompiledBrief={Boolean(relationshipWikiView(relationshipAgent.response, knowledgeSnapshot)?.blocks.some((block) => block.kind === "person_brief"))}
               />
 
               <RelationshipWikiPanel
+                personLabel={relationshipScope.person.display_label}
                 busy={busy === "正在编译关联来源的简报"}
                 onCompile={() => void relationshipAgent.compileWiki()}
                 onReviewSources={openResourceComposer}

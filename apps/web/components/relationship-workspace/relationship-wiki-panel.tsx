@@ -206,20 +206,11 @@ function bodyLines(body: string) {
     .filter(Boolean);
 }
 
-export function RelationshipWikiPanel({
-  busy,
-  onCompile,
-  onReviewSources,
-  response,
-  snapshot,
-}: {
-  busy: boolean;
-  onCompile: () => void;
-  onReviewSources: () => void;
-  response: ChatTaskResponse | null;
-  snapshot: KnowledgeSnapshot | null;
-}) {
-  const view: RelationshipWikiView | null = response
+export function relationshipWikiView(
+  response: ChatTaskResponse | null,
+  snapshot: KnowledgeSnapshot | null,
+): RelationshipWikiView | null {
+  return response
     ? {
         blocks: response.blocks
           .filter((block) =>
@@ -246,6 +237,24 @@ export function RelationshipWikiPanel({
         snapshotId: response.knowledge_snapshot_id,
       }
     : knowledgeSnapshotWikiView(snapshot);
+}
+
+export function RelationshipWikiPanel({
+  busy,
+  personLabel,
+  onCompile,
+  onReviewSources,
+  response,
+  snapshot,
+}: {
+  busy: boolean;
+  personLabel?: string;
+  onCompile: () => void;
+  onReviewSources: () => void;
+  response: ChatTaskResponse | null;
+  snapshot: KnowledgeSnapshot | null;
+}) {
+  const view = relationshipWikiView(response, snapshot);
   const brief = view?.blocks.find((block) => block.kind === "person_brief");
   const review = view?.blocks.find((block) => block.kind === "fact_review");
   const nextMove = view?.blocks.find(
@@ -276,7 +285,7 @@ export function RelationshipWikiPanel({
         {view ? (
           <span>
             <ShieldCheck aria-hidden="true" size={15} weight="duotone" />
-            {citationCount} 条受治理引用
+            {citationCount} 条来源引用
           </span>
         ) : null}
       </header>
@@ -286,10 +295,10 @@ export function RelationshipWikiPanel({
           <div className="context-relationship-wiki__grid">
             <article className="context-relationship-wiki__brief">
               <div>
-                <span>{brief.kind.replaceAll("_", " ")}</span>
-                <i>{brief.status.replaceAll("_", " ")}</i>
+                <span>人物简报</span>
+                <i>{brief.status === "needs_review" ? "待审阅" : brief.status === "confirmed" ? "已确认" : "拟议内容"}</i>
               </div>
-              <h3>{brief.title}</h3>
+              {brief.title !== personLabel ? <h3>{brief.title}</h3> : null}
               <ul className="context-relationship-wiki__facts">
                 {briefLines.map((line, index) => {
                   const separator = line.indexOf(":");
@@ -338,7 +347,7 @@ export function RelationshipWikiPanel({
                       <li data-status={block.status} key={block.id}>
                         <div>
                           <span>{memoryTypeLabel(block.type)}</span>
-                          <i>{block.status.replaceAll("_", " ")}</i>
+                          <i>{{ proposed: "待确认", confirmed: "已确认", contested: "存在冲突", expired: "已过期", superseded: "已被更新", deleted: "已删除" }[block.status]}</i>
                         </div>
                         <strong>{block.content.headline}</strong>
                         {block.content.summary ? (

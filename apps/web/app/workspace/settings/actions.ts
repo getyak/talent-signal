@@ -1,6 +1,7 @@
 'use server';
 
 import { TalentSignalHttpError, type AccountMutation, type AccountSettings } from '@talent-signal/contracts';
+import { revalidatePath } from 'next/cache';
 import { readBackendSessionClaims } from '@/lib/server/backendAuth';
 import { updateAccountSettings } from '@/lib/server/accountBackend';
 
@@ -25,7 +26,11 @@ export async function saveAccountSettings(_previous: AccountActionState, form: F
     case 'revoke_session': input={id:common.id,kind,session_id:String(form.get('sessionId'))}; break;
     default: return {error:'无法识别这次操作。'};
   }
-  try { return { data: await updateAccountSettings(input), saved:true }; }
+  try {
+    const data = await updateAccountSettings(input);
+    if (kind === 'profile' || kind === 'workspace') revalidatePath('/workspace', 'layout');
+    return { data, saved:true };
+  }
   catch(error) {
     if(error instanceof TalentSignalHttpError) {
       if(error.status===401) return {error:'登录已过期，请重新登录后继续。'};

@@ -5,16 +5,17 @@ import {
   ChatCircleDots,
   ClockCounterClockwise,
   Database,
+  DotsThree,
   House,
-  Plugs,
   Plus,
+  Plugs,
   SidebarSimple,
   Users,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore, type MouseEvent } from "react";
+import { useState, useSyncExternalStore, type MouseEvent } from "react";
 
 import {
   WORKSPACE_COMPOSE_HREF,
@@ -65,13 +66,35 @@ function subscribeToCollapsedPreference(onChange: () => void) {
   };
 }
 
+function useCollapsedState() {
+  const collapsed = useSyncExternalStore(
+    subscribeToCollapsedPreference,
+    collapsedSnapshot,
+    () => false,
+  );
+  return {
+    collapsed,
+    setCollapsed(next: boolean) {
+      collapsedFallback = next;
+      try {
+        window.localStorage.setItem(COLLAPSED_KEY, String(next));
+      } catch {
+        // Keep this interaction usable when browser storage is unavailable.
+      }
+      window.dispatchEvent(new Event(COLLAPSED_EVENT));
+    },
+  };
+}
+
 function NavLink({
   collapsed,
   current,
+  nested = false,
   route,
 }: {
   collapsed: boolean;
   current: boolean;
+  nested?: boolean;
   route: WorkspaceNavRoute;
 }) {
   const NavigationIcon = NAV_ICONS[route.id];
@@ -80,6 +103,7 @@ function NavLink({
       aria-current={current ? "page" : undefined}
       className={styles.navLink}
       data-mobile={route.mobile ? "true" : "false"}
+      data-nested={nested ? "true" : undefined}
       data-primary-action={route.id === "home" ? "true" : undefined}
       href={route.href}
       key={route.id}
@@ -94,7 +118,7 @@ function NavLink({
         aria-hidden="true"
         className={styles.navIcon}
         size={17}
-        weight={current ? "fill" : "regular"}
+        weight={current && route.id !== "home" ? "fill" : "regular"}
       />
       <span>{route.label}</span>
     </Link>
@@ -107,25 +131,15 @@ export function WorkspaceShellNav({
   binding: string | null;
 }) {
   const pathname = usePathname();
-  const collapsed = useSyncExternalStore(
-    subscribeToCollapsedPreference,
-    collapsedSnapshot,
-    () => false,
-  );
+  const { collapsed, setCollapsed } = useCollapsedState();
   const activeRoute = workspaceNavRouteForPath(pathname);
   const primary = workspaceNavRoutes("primary");
-  const secondary = workspaceNavRoutes("secondary");
-
-  function toggleCollapsed() {
-    const next = !collapsed;
-    collapsedFallback = next;
-    try {
-      window.localStorage.setItem(COLLAPSED_KEY, String(next));
-    } catch {
-      // Keep this interaction usable when browser storage is unavailable.
-    }
-    window.dispatchEvent(new Event(COLLAPSED_EVENT));
-  }
+  // On the compact dock the mobile secondary destinations appear directly; on
+  // desktop the same routes live in the quieter More entry inside the
+  // conversation/people hierarchy.
+  const mobileSecondary = workspaceNavRoutes("secondary").filter(
+    (route) => route.mobile,
+  );
 
   return (
     <div
@@ -147,7 +161,7 @@ export function WorkspaceShellNav({
             aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
             aria-pressed={collapsed}
             className={styles.iconButton}
-            onClick={toggleCollapsed}
+            onClick={() => setCollapsed(!collapsed)}
             title={collapsed ? "展开侧边栏" : "收起侧边栏"}
             type="button"
           >
@@ -167,19 +181,79 @@ export function WorkspaceShellNav({
             />
           ))}
         </div>
-        <div className={styles.navGroup}>
-          <p className={styles.navGroupLabel}>更多</p>
-          {secondary.map((route) => (
+        <div className={styles.mobileOnlyGroup}>
+          {mobileSecondary.map((route) => (
             <NavLink
               collapsed={collapsed}
               current={activeRoute?.id === route.id}
-              key={route.id}
+              key={`mobile-${route.id}`}
               route={route}
             />
           ))}
         </div>
       </nav>
     </div>
+  );
+}
+
+/**
+ * Supplementary destinations, one compact disclosure at the foot of the
+ * conversation and people hierarchy. It opens itself while a supplementary
+ * route is the current page, so the active destination is never hidden, and it
+ * keeps native keyboard semantics: a named button, `aria-expanded`, Escape-free
+ * dismissal through the same button, and visible focus.
+ */
+export function WorkspaceMoreDestinations() {
+  const pathname = usePathname();
+  const { collapsed, setCollapsed } = useCollapsedState();
+  const activeRoute = workspaceNavRouteForPath(pathname);
+  const routes = workspaceNavRoutes("secondary");
+  const activeIsNested = routes.some((route) => route.id === activeRoute?.id);
+  // The disclosure follows the route until the user overrides it for that exact
+  // page, so a supplementary destination is visible whenever it is current and
+  // an explicit collapse is never undone by a re-render.
+  const [override, setOverride] = useState<{
+    pathname: string;
+    open: boolean;
+  } | null>(null);
+  const open =
+    override?.pathname === pathname ? override.open : activeIsNested;
+
+  if (routes.length === 0) return null;
+
+  return (
+    <section aria-label="更多目的地" className={styles.moreFooter}>
+      <button
+        aria-expanded={open}
+        className={styles.moreTrigger}
+        onClick={() => {
+          if (collapsed) {
+            setCollapsed(false);
+            setOverride({ pathname, open: true });
+            return;
+          }
+          setOverride({ pathname, open: !open });
+        }}
+        type="button"
+      >
+        <DotsThree aria-hidden="true" size={17} weight="regular" />
+        <span>更多</span>
+        <span aria-hidden="true" className={styles.moreCaret}>
+          {open ? "−" : "+"}
+        </span>
+      </button>
+      <div className={styles.moreList} hidden={!open}>
+        {routes.map((route) => (
+          <NavLink
+            collapsed={false}
+            current={activeRoute?.id === route.id}
+            key={route.id}
+            nested
+            route={route}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
