@@ -92,7 +92,7 @@ The primary surfaces answer different questions:
 | Sessions | Which recent Agent conversation should I resume? |
 | Pursuits | Which outcome am I trying to advance? |
 | People | Who or what am I looking for? |
-| Meetings | Who am I meeting next, and what should I prepare or record? |
+| Time | What happened in this period, and what should I prepare for the next contact? |
 | Pursuit page | What outcome, milestone, gap, and action are current? |
 | Candidate page | What is currently true for this person in this Pursuit? |
 | Timeline | How did understanding and action change? |

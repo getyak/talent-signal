@@ -47,4 +47,15 @@ final class WorkspaceOriginTests: XCTestCase {
             XCTAssertFalse(origin.contains(URL(string: value)!), value)
         }
     }
+    func testCalendarDownloadsRequireTheirExactCreatingOrigin() throws {
+        let origin = try XCTUnwrap(WorkspaceOrigin("https://workspace.example.com:10443"))
+        let source = URL(string: "https://workspace.example.com:10443/workspace/meetings")!
+        XCTAssertTrue(origin.allowsCalendarDownload(URL(string: "blob:https://workspace.example.com:10443/operation-id")!, from: source))
+        XCTAssertTrue(origin.allowsCalendarDownload(URL(string: "https://workspace.example.com:10443/api/time/export")!, from: source))
+        for value in ["blob:https://workspace.example.com/operation-id", "blob:https://evil.test/id", "blob:null/id", "data:text/calendar,secret", "file:///tmp/file.ics", "https://workspace.example.com.evil.test/file.ics"] {
+            XCTAssertFalse(origin.allowsCalendarDownload(URL(string: value)!, from: source), value)
+        }
+        XCTAssertFalse(origin.allowsCalendarDownload(URL(string: "blob:https://workspace.example.com:10443/id")!, from: URL(string: "https://evil.test")!))
+    }
+
 }

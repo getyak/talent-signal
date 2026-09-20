@@ -22,8 +22,8 @@ permanent Memory or confirmed relationship facts automatically.
   read-only for this task. Existing runtime releases and Pi tasks are unrelated.
 - Codex owns scope, frontend and platform integration, acceptance, independent
   reviewer coordination, PR/CI/merge, deployment and issue readback.
-- Pi will own a bounded backend/contracts implementation in its own worktree
-  once the existing repository writer is idle. No concurrent Pi writer bypass.
+- Pi owns the backend implementation in its runner-managed worktree. Contracts
+  are parent-owned and frozen before dispatch. No repository lock bypass.
 
 ## Accepted design evidence
 
@@ -60,11 +60,11 @@ and incomplete coverage explicit.
 
 ## Milestones
 
-1. **Active:** establish contracts, isolated implementation and owned sources.
-2. Implement and verify backend activity/schedule/review lifecycle.
-3. Implement and render Web/macOS time views and complete interaction states.
-4. Run focused/full applicable checks, independent review, and fix findings.
-5. Create linked PR, pass exact-head CI, merge, deploy required backend/Web,
+1. **Complete:** establish contracts, isolated implementation and owned sources.
+2. **Complete:** backend activity/schedule/review lifecycle with real PostgreSQL tests.
+3. **Complete:** shared Web/macOS views, editor/recovery and native file handoff.
+4. **Active:** final browser acceptance and independent review of interaction refinements.
+5. **Pending:** create linked PR, pass exact-head CI, merge, deploy required backend/Web,
    read back the served revision and required behavior, then close GET-24.
 
 ## Completion evidence
@@ -95,4 +95,37 @@ All task fixtures and test services must use separately owned disposable state.
 
 - Baseline fetched and dedicated worktree created; dependencies installed.
 - Approved design and current shared desktop architecture inspected.
-- No product implementation or acceptance checks completed yet.
+- Contracts, BFF routes, timeline/week/month, manual schedule lifecycle UI,
+  account-bound tab-local recovery intents (one day maximum), and calendar export
+  are implemented. Mac uses WKDownload with exact-origin checks and NSSavePanel.
+- Pi backend task: `20260920-233002-0661ce81`, frozen contract base `64430a77`.
+- Full Web suite passed: 909 tests, one live-provider test skipped. Full backend
+  suite passed: 564 tests; 193 integration tests skipped without their dedicated
+  environments. Separate GET-24 PostgreSQL integration suite passed 14/14.
+- Focused backend/schema tests passed 69/69; frontend range/storage/export/BFF
+  checks passed. Latest navigation regression suite: 15/15; typecheck and ESLint
+  passed. A final production build remains required after UI acceptance.
+- Mac build and WorkspaceOriginTests passed with owned DerivedData/result bundle.
+- Independent frontend/native and backend reviewers closed all reported P0/P1/P2
+  findings: source revalidation, prompt budgets, redaction, stale editor reads,
+  unknown mutation recovery, concurrent drafts, selection and logout isolation.
+- Real IAB on the isolated fixture account verified timeline/week/month rendering,
+  cross-midnight date labels, person/type scope, create/edit readback, and range
+  review coverage. The review provider is an explicitly labeled synthetic stub;
+  this is UI/integration evidence, not real-model quality evidence.
+- Real rapid selection exposed stale Next navigation state. Same-page history now
+  composes patches from the current URL synchronously, with tests for fast filters,
+  fast relative navigation and popstate editor cleanup. The week hours region
+  starts at 08:00 while retaining overnight records and keyboard scrolling.
+- Calendar generation notice is verified. Narrow 800 px month rendering, keyboard date edits with persisted readback,
+  cancellation, and dark/empty states are verified. CDP theme/viewport overrides
+  were restored. Actual downloaded-file/native save completion remains outstanding.
+- Owned PostgreSQL 18 test stack: Compose project `get24-time-test`, port 55434;
+  no production database is used. Teardown is required before final delivery.
+  Host resource contention caused occasional fixture read timeouts; retry restored
+  reads. Do not count those failed attempts as passed checks.
+- Migration renamed to `074_time_workspace.sql` to preserve parallel PR #216's
+  `073_account_onboarding.sql` (already applied to the resident backend). Rebase
+  after that PR merges, preserve both checksums, recompute the migration freeze,
+  then deploy in coordination with that task. No resident service is replaced yet.
+- No GET-24 PR, merge, production deployment or Linear completion yet.
