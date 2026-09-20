@@ -36,11 +36,12 @@ No production personal data in committed screenshots or fixtures.
 
 ## Milestones
 
-1. Active: baseline audit, rendered directions, bounded component implementation.
-2. Verify empty/populated/long/error/conflict/retry and keyboard/IME boundaries;
-   light/dark/narrow/zoom/reduced motion. Inspect other workspace pages.
-3. Independent review; applicable tests/typecheck/lint/build; PR and exact-head
-   CI, merge and shared Web/macOS live readback where authorized.
+1. Complete: baseline audit, rendered directions, bounded component implementation.
+2. Complete for this slice: populated/long/error/conflict/retry and keyboard boundaries;
+   light/dark/narrow/zoom/reduced motion. Remaining subpage and cache work has
+   a separate owner in the navigation-continuity task.
+3. Review and local checks complete; PR #212 awaiting exact-head
+   CI, merge and shared Web/macOS live readback.
 4. Preserve a concise evidence matrix and deductions; remove owned temporary
    artifacts only after delivery evidence is durable.
 
@@ -63,8 +64,9 @@ The shared body/meta tokens and input sizing improve surrounding pages.
 | Desktop light/dark | Actual components rendered in Chrome; normal and table/code fixtures inspected through CUA. HTML stays literal; remote images never load. |
 | Long reading and input | Eight synthetic turns; scrolling up reveals jump-to-latest; jumping restores bottom. Twelve-line draft retains the final reply after the ResizeObserver correction. |
 | Narrow | Chrome responsive 375 x 812 at 100%: four bottom destinations, direct Sessions/Sources links, bounded details, scrollable code. Reduced-motion emulation inspected, then restored. |
+| 200% desktop zoom | Short-window navigation now scrolls independently while recent conversations and account remain reachable; CUA verified all destinations after scrolling. |
 | Keyboard and deletion | Enter sends synthetic input; slash suggestions remain available. Delete confirmation focuses Cancel; cancel then Escape returns to the details summary. No real conversation deleted. |
-| Failure/retry | Synthetic 503 keeps the draft and same-message retry. Reload recovers the pending send; ending retry retains editable text. Conflict/account/IME paths remain covered by the existing deterministic tests; no live provider failure was injected. |
+| Failure/retry | Synthetic 503 keeps the draft and same-message retry. Reload recovers the pending send; ending retry retains editable text. Synthetic PUT 409 shows conflict/reload/keep-draft controls, retains the editor value and disables send. Account/IME paths remain covered by existing deterministic tests; no live provider failure was injected. |
 | Independent review | Mobile Sessions entry, viewport resize and deletion-focus findings fixed and re-reviewed; no remaining P0/P1/P2 findings. |
 | Automated checks | Web: 800 passed, one existing skipped test; typecheck, lint, documentation/architecture checks and optimized production build passed. |
 
