@@ -22,6 +22,29 @@ const configuredEnvironment = {
   AUTH_GOOGLE_SECRET: "google-secret",
 };
 
+const appleClientId = "com.talentsignal.web";
+
+function base64UrlJson(value: unknown) {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+// A syntactically valid static Apple client-secret JWT. Its signature is not
+// verified locally; the metadata shape is what the provider config validates.
+function appleClientSecretJwt(clientId: string) {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  return [
+    base64UrlJson({ alg: "ES256", kid: "ABCDEFGHIJ", typ: "JWT" }),
+    base64UrlJson({
+      iss: "ABCDEFGHIJ",
+      iat: issuedAt,
+      exp: issuedAt + 3600,
+      aud: "https://appleid.apple.com",
+      sub: clientId,
+    }),
+    "fixture-signature",
+  ].join(".");
+}
+
 describe("default account configuration", () => {
   it("never enables configured fixture credentials in production", () => {
     const account = getDefaultAccount({ ...configuredEnvironment, NODE_ENV: "production" });
@@ -61,8 +84,8 @@ describe("default account configuration", () => {
   it("keeps Apple unavailable without credentials or over HTTPS only", () => {
     const withCredentials = {
       ...configuredEnvironment,
-      AUTH_APPLE_ID: "com.talentsignal.web",
-      AUTH_APPLE_SECRET: "header.payload.signature",
+      AUTH_APPLE_ID: appleClientId,
+      AUTH_APPLE_SECRET: appleClientSecretJwt(appleClientId),
     };
     expect(getAuthAvailability(withCredentials).apple).toBe(false);
     expect(

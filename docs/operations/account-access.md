@@ -50,9 +50,43 @@ Apple availability requires valid supplied config and HTTPS. The callback uses
 rather than showing a button whose callback cannot validate. The long-lived
 session cookie policy is unchanged.
 
-- Web: `AUTH_APPLE_ID` is the Apple **Services ID** (Web Services ID) and
-  `AUTH_APPLE_SECRET` is its generated ES256 client-secret JWT. The callback URL
-  is `https://<host>/api/auth/callback/apple`.
+The preferred Web configuration generates a short-lived client secret from a
+Sign in with Apple private key:
+
+- `AUTH_APPLE_ID`: Apple **Services ID** (Web Services ID).
+- `AUTH_APPLE_TEAM_ID`: ten-character Apple Team ID.
+- `AUTH_APPLE_KEY_ID`: ten-character Key ID for the `.p8` key.
+- `AUTH_APPLE_PRIVATE_KEY`: PEM-encoded P-256 `.p8` private key.
+
+The Web server confirms the key is an EC P-256 key and signs a fresh 15-minute
+ES256 client secret on every request, so a long-running process never reuses an
+expired token. Supplying any one of the three key settings requires all three
+plus `AUTH_APPLE_ID`; a partial set stays unavailable and never silently falls
+back to a static secret. Malformed or partial config returns no credentials and
+logs no secret or error data.
+
+`AUTH_APPLE_SECRET` remains supported as a legacy pre-generated client secret.
+Its JWT is parsed and checked for `alg: ES256`, a key identifier, audience
+`https://appleid.apple.com`, `sub` equal to `AUTH_APPLE_ID`, a team-shaped
+issuer, and finite `iat`/`exp` values no more than 15,777,000 seconds (six
+months) in the future and with a total lifetime no longer than that ceiling.
+The 15,777,000-second bound is Apple's documented maximum. This is metadata
+validation only: it cannot prove Apple authorized the signing key. Only
+Apple's token endpoint can, by accepting or rejecting the secret at exchange
+time.
+
+Create the key under **Certificates, Identifiers & Profiles → Keys → Sign in
+with Apple** and download the `.p8` once (Apple never shows it again). Rotate by
+replacing the key settings (or the legacy secret) in Infisical and restarting
+the Web process; generated secrets refresh automatically. See
+[Create a Sign in with Apple private key](https://developer.apple.com/help/account/capabilities/create-a-sign-in-with-apple-private-key/),
+[Creating a client secret](https://developer.apple.com/documentation/accountorganizationaldatasharing/creating-a-client-secret),
+and the [Auth.js Apple provider](https://authjs.dev/getting-started/providers/apple).
+
+- Staging Web callback:
+  `https://smile-m4-minimac-mini.tail25e61f.ts.net:10443/api/auth/callback/apple`.
+- Web: `AUTH_APPLE_ID` is the Apple **Services ID** (Web Services ID); the
+  callback URL is `https://<host>/api/auth/callback/apple`.
 - Backend: `APPLE_SIGN_IN_AUDIENCES` must include the Web Services ID (and the
   native bundle ID for the iOS client). The backend independently verifies the
   identity token audience, nonce, signature, issuer, and expiry before opening a

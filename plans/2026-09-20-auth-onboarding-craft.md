@@ -37,9 +37,10 @@ name alone and no unreviewed inferred biography is persisted.
 ## Evidence and unknowns
 
 - At baseline, Google exchanged identity tokens for backend sessions; Web Apple was missing. Both now share backend claims and independent session readback.
-- Staging Google credentials are present. Apple Web Services ID/client secret are
-  absent in dev and staging. Native Apple audiences exist; these are not proof of
-  a configured Web Service ID. User clarification is pending.
+- Staging Google credentials are present. Apple Services ID and callback were
+  configured on September 21; dedicated signing-key creation is pending the
+  browser tool's credential confirmation. Neither names nor metadata validation
+  prove a successful provider token exchange.
 - Runtime backend was ready at migration `072_mcp_extensions` on initial inspection.
 - Registered temporary evidence: `/private/tmp/ai-test-auth-onboarding.9U56KO`.
 
@@ -87,11 +88,42 @@ OAuth exchange or a passing build with real Google/Apple sign-in.
 
 ## Remaining provider acceptance
 
-Apple Web Services ID and generated client-secret are absent from both dev and
-staging. The Apple developer portal has no logged-in session. Its button stays
-unavailable; the implementation is tested, but real Apple sign-in is unverified.
-Google credentials exist; a real provider start and callback still require
-runtime acceptance. No broad social search or model-generated biography was added.
+The authenticated Apple Developer portal now contains Services ID
+`com.talentsignal.web`, associated with the existing primary App ID
+`com.talentsignal.app`. The exact private HTTPS domain and the Apple callback
+under `:10443/api/auth/callback/apple` were accepted and saved. Staging backend
+audiences now include both IDs. The dedicated signing key is still pending;
+real Apple sign-in remains unverified until runtime configuration and an actual
+provider round trip succeed. Browser control recovered. The dedicated key is
+configured only for Sign in with Apple and the Talent Signal primary/grouped
+IDs, and is waiting at Register for the browser tool's required confirmation
+before generating and storing the new long-lived credential.
+
+Google's localhost and private HTTPS callbacks were saved in its Cloud client.
+An actual start reached Google's sign-in page without `redirect_uri_mismatch`;
+the owner's completed provider callback has not been claimed. No broad social
+search or model-generated biography was added.
+
+On September 21 the user explicitly requested completing Apple, committing and
+merging PR 216. Pi task `20260921-001738-7367f5f4` owns short-lived Apple ES256
+credentials and their tests/docs. Its initial checkout timeout was repaired by
+completing only that new, untouched task worktree; it resumed from the same
+frozen base. The parent owns portal configuration, integration, runtime proof,
+independent review, current-head CI and merge readback.
+
+- Apple client secrets now use a P-256 private key to sign a 15-minute ES256 JWT
+  per lazy NextAuth configuration invocation. A provider factory alone was
+  insufficient: Auth.js eagerly resolves it, freezing the token. The complete
+  config and providers are now rebuilt per invocation.
+- Static secrets have the exact 15777000-second maximum, correct audience and
+  subject, and expiry checks; incomplete signing configuration fails closed.
+- Independent review closed the initialization defect and all other P0/P1/P2.
+  Tests cover real Auth Core env-default resolution, a 20-minute jump, valid
+  static credentials expiring naturally and recovering in the same module.
+- Final integrated Web suite: 943 passed, 1 skipped. Focused auth suite: 64
+  passed. Type check, changed-file lint, docs/wiki/architecture and diff checks
+  passed. Pi's final scope gate flagged the new auth regression test; the parent
+  had explicitly authorized that addition and reviewed the seven-file scope.
 
 ## Runtime and security follow-through
 
