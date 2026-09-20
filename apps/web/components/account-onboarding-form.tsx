@@ -6,6 +6,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { previewOnboarding, saveOnboarding, type OnboardingResult, type OnboardingScope } from "@/app/onboarding/actions";
 import entry from "@/app/login/login.module.css";
+import { normalizeOnboardingProfileUrl, ONBOARDING_PROFILE_URL_ERROR } from "@/lib/onboarding-profile-url";
 import styles from "./account-onboarding.module.css";
 
 export function AccountOnboardingForm({ initial, scope, callbackUrl, edit }: {
@@ -17,21 +18,37 @@ export function AccountOnboardingForm({ initial, scope, callbackUrl, edit }: {
   const [focus, setFocus] = useState(initial.focus);
   const [preview, setPreview] = useState<AccountOnboardingPreview | null>(null);
   const [previewError, setPreviewError] = useState("");
+  const [urlError, setUrlError] = useState("");
   const [result, setResult] = useState<OnboardingResult>({});
   const [saving, startSaving] = useTransition();
   const [reading, startReading] = useTransition();
   const operation = useRef<AccountOnboardingMutation | null>(null);
   const latestUrl = useRef(url);
+  const urlInput = useRef<HTMLInputElement>(null);
   const busy = saving || reading;
   const uncertain = result.recovery === "retry";
   const locked = busy || Boolean(result.recovery);
   const reloadHref = `/onboarding?edit=true&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+  function normalizeUrl() {
+    const normalized = normalizeOnboardingProfileUrl(url);
+    if (normalized === null) {
+      setUrlError(ONBOARDING_PROFILE_URL_ERROR);
+      urlInput.current?.focus();
+      return null;
+    }
+    setUrlError("");
+    latestUrl.current = normalized;
+    setUrl(normalized);
+    return normalized;
+  }
   function save(skip = false) {
     if (busy || (result.recovery && !uncertain)) return;
+    const profileUrl = skip ? initial.profile_url : operation.current?.profile_url ?? normalizeUrl();
+    if (profileUrl === null) return;
     const input = operation.current ?? {
       id: crypto.randomUUID(), expected_revision: initial.revision,
       display_name: skip ? initial.display_name : name.trim(), focus: skip ? initial.focus : focus.trim(),
-      profile_url: skip ? initial.profile_url : url.trim(), status: skip ? "skipped" as const : "completed" as const,
+      profile_url: profileUrl, status: skip ? "skipped" as const : "completed" as const,
     };
     operation.current = input;
     startSaving(async () => {
@@ -45,7 +62,8 @@ export function AccountOnboardingForm({ initial, scope, callbackUrl, edit }: {
   }
   function readLink() {
     if (busy || !url.trim()) return;
-    const requested = url.trim();
+    const requested = normalizeUrl();
+    if (!requested) return;
     setPreview(null); setPreviewError("");
     startReading(async () => {
       try {
@@ -67,10 +85,13 @@ export function AccountOnboardingForm({ initial, scope, callbackUrl, edit }: {
           <input id="onboarding-name" name="name" autoComplete="name" value={name} onChange={event => setName(event.target.value)} maxLength={100} required placeholder="你喜欢的名字" />
         </div>
         <div className="auth-field"><label htmlFor="onboarding-url">你的一个公开主页 <span className={styles.optional}>选填</span></label>
-          <div className={styles.linkInput}><LinkSimple size={17} aria-hidden="true" /><input id="onboarding-url" type="url" name="url"
+          <div className={styles.linkInput}><LinkSimple size={17} aria-hidden="true" /><input ref={urlInput} id="onboarding-url" type="text" name="url"
             autoComplete="url" inputMode="url" spellCheck={false} autoCapitalize="none" value={url}
-            onChange={event => { latestUrl.current = event.target.value; setUrl(event.target.value); setPreview(null); setPreviewError(""); }}
+            aria-invalid={Boolean(urlError)} aria-describedby={urlError ? "onboarding-url-error" : undefined}
+            onBlur={() => { const normalized = normalizeOnboardingProfileUrl(url); if (normalized !== null) { latestUrl.current = normalized; setUrl(normalized); } }}
+            onChange={event => { latestUrl.current = event.target.value; setUrl(event.target.value); setPreview(null); setPreviewError(""); setUrlError(""); }}
             placeholder="博客、LinkedIn 或个人网站" maxLength={2000} /></div>
+          {urlError && <p id="onboarding-url-error" className={styles.linkError} role="alert">{urlError}</p>}
           {url.trim() && <div className={styles.linkRead}><p>点击后只读取这个公开页面，先预览，再决定是否使用。</p>
             <button type="button" onClick={readLink} disabled={reading} aria-busy={reading}>{reading ? "正在读取…" : "读取公开简介"}<ArrowRight size={14} aria-hidden="true" /></button>
           </div>}
