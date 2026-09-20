@@ -18,7 +18,48 @@ beforeEach(async () => {
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
 function button(label: string) { return Array.from(host.querySelectorAll("button")).find(node => node.textContent?.includes(label))!; }
 async function submit() { await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))); }
+async function fillUrl(value: string) {
+  await act(async () => {
+    const input = host.querySelector<HTMLInputElement>("#onboarding-url")!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
 describe("onboarding recovery and explicit preview", () => {
+  it("accepts a typed bare domain through the actual submit button", async () => {
+    mocks.save.mockResolvedValue({ data: { ...initial, status: "completed", revision: 2 } });
+    await fillUrl("cubxxw.com");
+    expect(host.querySelector<HTMLInputElement>("#onboarding-url")!.validity.typeMismatch).toBe(false);
+    await act(async () => button("开始使用").click());
+    expect(mocks.save.mock.calls[0]?.[1].profile_url).toBe("https://cubxxw.com");
+    expect(mocks.replace).toHaveBeenCalledWith("/workspace/sessions");
+  });
+  it("normalizes before explicitly reading a bare profile link", async () => {
+    mocks.preview.mockResolvedValue({ preview: { contract_version: CONTRACT_VERSION, profile_url: "https://cubxxw.com", excerpt: "Public introduction", retrieved_at: new Date().toISOString() } });
+    await fillUrl("cubxxw.com");
+    expect(mocks.preview).not.toHaveBeenCalled();
+    await act(async () => button("读取公开简介").click());
+    expect(mocks.preview).toHaveBeenCalledWith(scope, "https://cubxxw.com");
+    expect(host.textContent).toContain("Public introduction");
+    expect(host.querySelector<HTMLInputElement>("#onboarding-url")!.value).toBe("https://cubxxw.com");
+  });
+  it("shows an inline URL error and clears it on correction", async () => {
+    await fillUrl("not a link");
+    await act(async () => button("开始使用").click());
+    expect(mocks.save).not.toHaveBeenCalled();
+    const input = host.querySelector<HTMLInputElement>("#onboarding-url")!;
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(input);
+    expect(host.querySelector("#onboarding-url-error")?.textContent).toContain("公开的主页链接");
+    await fillUrl("cubxxw.com");
+    expect(host.querySelector("#onboarding-url-error")).toBeNull();
+  });
+  it("can skip an invalid unsaved link without changing the saved profile", async () => {
+    mocks.save.mockResolvedValue({ data: { ...initial, status: "skipped", revision: 2 } });
+    await fillUrl("not a link");
+    await act(async () => button("以后再说").click());
+    expect(mocks.save.mock.calls[0][1]).toMatchObject({ status: "skipped", profile_url: initial.profile_url });
+  });
   it("retries an unknown save with the identical frozen payload", async () => {
     mocks.save.mockResolvedValueOnce({ error: "Unknown result", recovery: "retry" }).mockResolvedValueOnce({ data: { ...initial, status: "completed", revision: 2 } });
     await submit(); const first = mocks.save.mock.calls[0][1];

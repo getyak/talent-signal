@@ -59,4 +59,18 @@ describe("onboarding session and result boundary", () => {
     expect((await previewOnboarding(scope, "https://example.com/about")).preview?.excerpt).toBe("Synthetic public introduction");
     expect(mocks.save).not.toHaveBeenCalled();
   });
+  it("uses the same normalized bare domain for preview, save, and result verification", async () => {
+    mocks.preview.mockResolvedValue({ profile_url: "https://cubxxw.com", excerpt: "Public introduction" });
+    expect((await previewOnboarding(scope, "  cubxxw.com  ")).preview?.profile_url).toBe("https://cubxxw.com");
+    expect(mocks.preview).toHaveBeenCalledWith({ url: "https://cubxxw.com" }, expect.any(AbortSignal));
+    mocks.save.mockResolvedValue({ contract_version: CONTRACT_VERSION, account_id: scope.accountId, user_id: scope.userId,
+      ...input, profile_url: "https://cubxxw.com", revision: 2 });
+    expect((await saveOnboarding(scope, { ...input, profile_url: "cubxxw.com" })).data?.profile_url).toBe("https://cubxxw.com");
+    expect(mocks.save).toHaveBeenCalledWith({ ...input, profile_url: "https://cubxxw.com" }, expect.any(AbortSignal));
+  });
+  it.each(["not a link", "http://example.com", "https://owner:secret@example.com", "127.1"])("blocks invalid profile input before reading or saving: %s", async profile_url => {
+    expect(await saveOnboarding(scope, { ...input, profile_url })).toHaveProperty("error");
+    expect(await previewOnboarding(scope, profile_url)).toHaveProperty("error");
+    expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.preview).not.toHaveBeenCalled();
+  });
 });

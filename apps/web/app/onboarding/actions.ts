@@ -7,6 +7,7 @@ import { backendAuthBaseUrl, readBackendSessionClaims } from "@/lib/server/backe
 import { backendSessionIsExpired } from "@/lib/backend-session";
 import { withAuthRequestTimeout } from "@/lib/auth-request-timeout";
 import { workspaceSessionsBinding } from "@/lib/server/workspaceSessions";
+import { normalizeOnboardingProfileUrl, ONBOARDING_PROFILE_URL_ERROR } from "@/lib/onboarding-profile-url";
 
 export type OnboardingScope = { accountId: string; userId: string; binding: string };
 export type OnboardingResult = { data?: AccountOnboarding; error?: string; recovery?: "retry" | "refresh" | "login" };
@@ -28,14 +29,17 @@ async function boundClient(scope: OnboardingScope) {
 export async function saveOnboarding(scope: OnboardingScope, input: AccountOnboardingMutation): Promise<OnboardingResult> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return { error: "请填写称呼，并检查链接和介绍的长度。" };
+  const profileUrl = normalizeOnboardingProfileUrl(parsed.data.profile_url);
+  if (profileUrl === null) return { error: ONBOARDING_PROFILE_URL_ERROR };
+  const mutation = { ...parsed.data, profile_url: profileUrl };
   try {
     const client = await boundClient(scope);
-    const data = await withAuthRequestTimeout(signal => client.updateAccountOnboarding(parsed.data, signal), { timeoutMs: 5_000 });
+    const data = await withAuthRequestTimeout(signal => client.updateAccountOnboarding(mutation, signal), { timeoutMs: 5_000 });
     if (data.account_id !== scope.accountId || data.user_id !== scope.userId) {
       return { error: "登录身份发生变化，请重新登录后核对资料。", recovery: "login" };
     }
     if (data.revision !== parsed.data.expected_revision + 1 || data.display_name !== parsed.data.display_name ||
-        data.focus !== parsed.data.focus || data.profile_url !== parsed.data.profile_url || data.status !== parsed.data.status) {
+        data.focus !== parsed.data.focus || data.profile_url !== mutation.profile_url || data.status !== parsed.data.status) {
       return { error: "资料已发生变化，请载入最新内容核对。", recovery: "refresh" };
     }
     revalidatePath("/workspace", "layout");
@@ -54,13 +58,11 @@ export async function saveOnboarding(scope: OnboardingScope, input: AccountOnboa
 
 export async function previewOnboarding(scope: OnboardingScope, url: string): Promise<OnboardingPreviewResult> {
   if (typeof url !== "string" || !url.trim() || url.length > 2000) return { error: "请先填写一个公开的主页链接。" };
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:" || parsed.username || parsed.password) return { error: "请使用不包含登录信息的公开 HTTPS 链接。" };
-  } catch { return { error: "链接格式不完整，例如 https://example.com/about。" }; }
+  const profileUrl = normalizeOnboardingProfileUrl(url);
+  if (!profileUrl) return { error: ONBOARDING_PROFILE_URL_ERROR };
   try {
     const client = await boundClient(scope);
-    return { preview: await withAuthRequestTimeout(signal => client.previewAccountOnboarding({ url: url.trim() }, signal), { timeoutMs: 15_000 }) };
+    return { preview: await withAuthRequestTimeout(signal => client.previewAccountOnboarding({ url: profileUrl }, signal), { timeoutMs: 15_000 }) };
   } catch (error) {
     if (error instanceof TalentSignalHttpError && error.status === 401) return { error: "登录已变化或过期，请重新登录。" };
     if (error instanceof TalentSignalHttpError && error.status === 429) return { error: "读取有些频繁，请稍后再试，或直接填写下方介绍。" };
