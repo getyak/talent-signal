@@ -2,7 +2,6 @@ import type { PersonDirectoryItem } from "@talent-signal/contracts";
 import {
   AddressBook,
   ArrowRight,
-  ChatCircleDots,
   MagnifyingGlass,
   UserPlus,
 } from "@phosphor-icons/react/dist/ssr";
@@ -85,7 +84,6 @@ export function PeopleDirectoryApp({
         <div className={styles.page}>
           <section className={styles.hero}>
             <div>
-              <p className={styles.eyebrow}>关系目录</p>
               <h1>联系人</h1>
               <p className={styles.intro}>
                 按已确认线索检索联系人，并回到其关系情境与准确证据。
@@ -131,7 +129,6 @@ export function PeopleDirectoryApp({
           <section className={styles.directory}>
             <header>
               <div>
-                <p>{query ? "搜索结果" : "联系人视图"}</p>
                 <h2>
                   {query
                     ? `与“${query}”匹配的联系人`
@@ -296,15 +293,7 @@ export function PeopleDirectoryApp({
             )}
           </section>
 
-          <aside className={styles.methodNote}>
-            <ChatCircleDots aria-hidden="true" size={20} weight="duotone" />
-            <div>
-              <strong>目录是索引，不是结论。</strong>
-              <p>
-                打开一段关系，检查来源原话、不确定性，以及形成当前状态的招聘顾问决定。
-              </p>
-            </div>
-          </aside>
+
         </div>
       </main>
     </div>

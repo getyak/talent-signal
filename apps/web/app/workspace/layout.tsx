@@ -1,3 +1,5 @@
+import "@/components/workspace-theme.css";
+
 import Link from "next/link";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
@@ -10,6 +12,7 @@ import {
   WorkspaceMobileSourcesLink,
   WorkspaceShellNav,
 } from "@/components/workspace-shell-nav";
+import { WorkspaceRecentSessions } from "@/components/workspace-recent-sessions";
 import styles from "@/components/workspace-shell.module.css";
 import {
   readBackendSessionClaims,
@@ -114,7 +117,7 @@ export default async function WorkspaceLayout({
     : `${accountName} · ${workspaceName ?? "账号专属工作台"}`;
 
   return (
-    <div className={styles.shell}>
+    <div className={`ts-workspace-theme quiet-workspace ${styles.shell}`}>
       {pendingBinding ? (
         <MeetingDraftSessionBoundary sessionVersion={pendingBinding} />
       ) : null}
@@ -130,6 +133,7 @@ export default async function WorkspaceLayout({
         </Link>
         <WorkspaceShellNav />
         <WorkspaceCaptureLink />
+        {pendingBinding ? <WorkspaceRecentSessions key={pendingBinding} binding={pendingBinding} /> : null}
         <div className={styles.account} title={accountTitle}>
           <AccountControls
             accountName={accountName}

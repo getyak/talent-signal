@@ -3,15 +3,15 @@ import SwiftUI
 
 enum TSBrand {
     static let canvas = adaptive(
-        light: NSColor(srgbRed: 0.956, green: 0.948, blue: 0.928, alpha: 1),
+        light: NSColor(srgbRed: 0.992, green: 0.992, blue: 0.988, alpha: 1),
         dark: NSColor(srgbRed: 0.075, green: 0.079, blue: 0.073, alpha: 1)
     )
     static let sidebar = adaptive(
-        light: NSColor(srgbRed: 0.925, green: 0.914, blue: 0.890, alpha: 1),
+        light: NSColor(srgbRed: 0.961, green: 0.961, blue: 0.953, alpha: 1),
         dark: NSColor(srgbRed: 0.098, green: 0.104, blue: 0.096, alpha: 1)
     )
     static let surface = adaptive(
-        light: NSColor(srgbRed: 0.986, green: 0.981, blue: 0.966, alpha: 1),
+        light: NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 1),
         dark: NSColor(srgbRed: 0.125, green: 0.132, blue: 0.122, alpha: 1)
     )
     static let raisedSurface = adaptive(
@@ -19,11 +19,11 @@ enum TSBrand {
         dark: NSColor(srgbRed: 0.151, green: 0.158, blue: 0.147, alpha: 1)
     )
     static let ink = adaptive(
-        light: NSColor(srgbRed: 0.105, green: 0.098, blue: 0.087, alpha: 1),
+        light: NSColor(srgbRed: 0.161, green: 0.169, blue: 0.169, alpha: 1),
         dark: NSColor(srgbRed: 0.946, green: 0.932, blue: 0.900, alpha: 1)
     )
     static let secondaryInk = adaptive(
-        light: NSColor(srgbRed: 0.375, green: 0.354, blue: 0.322, alpha: 1),
+        light: NSColor(srgbRed: 0.439, green: 0.459, blue: 0.443, alpha: 1),
         dark: NSColor(srgbRed: 0.714, green: 0.695, blue: 0.654, alpha: 1)
     )
     static let seam = adaptive(
@@ -43,11 +43,11 @@ enum TSBrand {
         dark: NSColor(srgbRed: 0.104, green: 0.196, blue: 0.172, alpha: 1)
     )
     static let hairline = adaptive(
-        light: NSColor(srgbRed: 0.827, green: 0.808, blue: 0.769, alpha: 1),
+        light: NSColor(srgbRed: 0.906, green: 0.910, blue: 0.898, alpha: 1),
         dark: NSColor(srgbRed: 0.232, green: 0.244, blue: 0.226, alpha: 1)
     )
     static let selection = adaptive(
-        light: NSColor(srgbRed: 0.862, green: 0.845, blue: 0.806, alpha: 1),
+        light: NSColor(srgbRed: 0.925, green: 0.929, blue: 0.918, alpha: 1),
         dark: NSColor(srgbRed: 0.170, green: 0.183, blue: 0.165, alpha: 1)
     )
     static let fixtureTint = adaptive(
@@ -67,8 +67,8 @@ struct SectionLabel: View {
 
     var body: some View {
         Text(text.uppercased())
-            .font(.system(size: 10, weight: .semibold, design: .default))
-            .tracking(1.05)
+            .font(.system(size: 12, weight: .medium, design: .default))
+            .tracking(0)
             .foregroundStyle(TSBrand.secondaryInk)
     }
 }

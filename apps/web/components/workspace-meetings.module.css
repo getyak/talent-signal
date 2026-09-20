@@ -29,7 +29,7 @@
   color: var(--ink);
   font-size: var(--workspace-object-size);
   font-weight: 560;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   margin: 0;
 }
 

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { DesktopWorkspaceLayout } from "./desktop-workspace-layout";
+import { BindingBadge, BindingForm } from "./connection-presentation";
+
 import { NativeCapabilityWorkbench } from "@talent-signal/workspace-ui";
 
 import {
@@ -180,38 +183,14 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span aria-hidden="true" className="brand-mark">TS</span>
-          <div>
-            <strong>Talent Signal</strong>
-            <span>Relationship workspace</span>
-          </div>
-        </div>
-        <nav aria-label="工作区">
-          <a aria-current="page" href="#workspace">当前 Session</a>
-          <a href="#native">原生能力</a>
-          <a href="#boundary">权限边界</a>
-        </nav>
-        <div className="sidebar-foot">
-          <span className="privacy-dot" />
-          本地打包资源 · 无远程 Web
-        </div>
-      </aside>
-
-      <main id="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">macOS Hybrid · feasibility</p>
-            <h1>继续真实 Session</h1>
-          </div>
-          <BindingBadge checking={checking} status={binding} />
-        </header>
-
+    <DesktopWorkspaceLayout
+      accountName={binding.state === "verified" ? binding.accountName : null}
+      title={binding.state === "verified" ? binding.sessionTitle : "连接工作区"}
+      status={<BindingBadge checking={checking} status={binding} />}
+    >
         {binding.state === "verified" ? (
           <>
-            <section className="binding-summary" aria-label="已验证的本机会话">
+            <section className="binding-summary" id="connection" aria-label="已验证的本机会话">
               <div>
                 <span>账号</span>
                 <strong>{binding.accountName}</strong>
@@ -241,7 +220,7 @@ export function App() {
             <div id="native" className="workbench-frame">
               <NativeCapabilityWorkbench
                 adapter={platform}
-                description="每次操作都会重新核验 loopback 后端中的账号与 Agent Session；令牌保存在 Keychain，不进入 WebView 存储。"
+                description="选择一项本机操作，结果会保留在当前对话。"
                 intentId={intentId}
                 key={bindingScope}
                 loadPendingCaptureIntent={() => {
@@ -268,126 +247,14 @@ export function App() {
           />
         )}
 
-        <section className="boundary-card" id="boundary">
-          <p className="eyebrow">Execution boundary</p>
-          <h2>本机能力不会扩大业务权限</h2>
+        <details className="boundary-card" id="boundary">
+          <summary>本机处理与权限说明</summary>
           <p>
             壳子只能访问显式 loopback 端口。窗口图像以短期不透明句柄保存在 App 缓存；
             OCR 仅调用打包的 Vision helper；通知只包含“就绪 / 失败”状态。任何 Person、
             Evidence、Meeting 或外部写入仍需在对应业务界面单独确认。
           </p>
-        </section>
-      </main>
-    </div>
-  );
-}
-
-function BindingBadge({ checking, status }: { checking: boolean; status: BindingStatus }) {
-  const label = checking
-    ? "核验中"
-    : status.state === "verified"
-      ? "Session 已核验"
-      : status.state === "stale"
-        ? "连接陈旧"
-        : status.state === "revoked"
-          ? "连接失效"
-          : "尚未连接";
-  return <span className="binding-badge" data-state={checking ? "checking" : status.state}>{label}</span>;
-}
-
-function BindingForm({
-  checking,
-  error,
-  form,
-  onActivate,
-  onChange,
-  onDisconnect,
-}: {
-  checking: boolean;
-  error: string | null;
-  form: ActivateBindingRequest;
-  onActivate: () => void;
-  onChange: (value: ActivateBindingRequest) => void;
-  onDisconnect: () => void;
-}) {
-  return (
-    <section className="connection-card">
-      <div>
-        <p className="eyebrow">Local authenticated adapter</p>
-        <h2>连接本机 Talent Signal 后端</h2>
-        <p className="lede">
-          只接受带显式端口、固定服务器证书的 <code>https://127.0.0.1</code> 或
-          <code> https://localhost</code>。服务器证书会在发送令牌前完成 TLS 身份核验；
-          核验成功后令牌写入 macOS Keychain 并立即从表单清除。
-        </p>
-      </div>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          onActivate();
-        }}
-      >
-        <label>
-          本机后端
-          <input
-            autoCapitalize="none"
-            autoCorrect="off"
-            onChange={(event) => onChange({ ...form, baseUrl: event.target.value })}
-            spellCheck={false}
-            value={form.baseUrl}
-          />
-        </label>
-        <label>
-          服务器证书 PEM（公开）
-          <textarea
-            autoCapitalize="none"
-            autoCorrect="off"
-            onChange={(event) =>
-              onChange({ ...form, serverCertificatePem: event.target.value })
-            }
-            placeholder="-----BEGIN CERTIFICATE-----"
-            spellCheck={false}
-            value={form.serverCertificatePem}
-          />
-        </label>
-        <label>
-          Agent Session ID
-          <input
-            autoCapitalize="none"
-            autoCorrect="off"
-            onChange={(event) => onChange({ ...form, sessionId: event.target.value })}
-            placeholder="00000000-0000-0000-0000-000000000000"
-            spellCheck={false}
-            value={form.sessionId}
-          />
-        </label>
-        <label>
-          Access token
-          <input
-            autoComplete="off"
-            onChange={(event) => onChange({ ...form, accessToken: event.target.value })}
-            type="password"
-            value={form.accessToken}
-          />
-        </label>
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button
-          disabled={
-            checking ||
-            !form.accessToken ||
-            !form.serverCertificatePem ||
-            !form.sessionId
-          }
-          type="submit"
-        >
-          {checking ? "正在核验…" : "核验并保存在 Keychain"}
-        </button>
-        {error ? (
-          <button className="secondary-action" disabled={checking} onClick={onDisconnect} type="button">
-            清除本机连接记录并重试
-          </button>
-        ) : null}
-      </form>
-    </section>
+        </details>
+    </DesktopWorkspaceLayout>
   );
 }

@@ -19,7 +19,7 @@
   color: var(--ink);
   font-size: var(--workspace-object-size);
   font-weight: 560;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 1.2;
   margin: 0;
 }

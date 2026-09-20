@@ -5,18 +5,18 @@
 
 .rail {
   align-items: stretch;
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  background: var(--ts-chrome-surface);
   border-right: 1px solid var(--line);
   bottom: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   left: 0;
   padding: 14px 12px;
   position: fixed;
   top: 0;
-  transition: width 150ms ease;
-  width: 236px;
+  transition: width 200ms var(--ease-out);
+  width: var(--ts-sidebar-width, 236px);
   z-index: 80;
 }
 
@@ -41,17 +41,17 @@
   font-family: var(--font-mono), monospace;
   font-size: 0.68rem;
   font-weight: 780;
-  height: 32px;
+  height: 23px;
   justify-content: center;
-  letter-spacing: -0.04em;
-  width: 32px;
+  letter-spacing: 0;
+  width: 23px;
 }
 
 .brand > strong {
   color: var(--ink);
   font-size: 0.83rem;
   font-weight: 690;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -59,14 +59,16 @@
 
 .navRegion {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
 }
 
+/* Search and collapse read as one compact pair directly under the brand. */
 .railTools {
   border-bottom: 1px solid var(--line-soft);
   display: grid;
-  gap: 3px;
+  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding-bottom: 10px;
 }
 
@@ -75,17 +77,28 @@
 .navigation a,
 .capture {
   align-items: center;
-  border-radius: 7px;
+  border-radius: 8px;
   display: flex;
   font: inherit;
-  font-size: var(--workspace-meta-size);
-  font-weight: 620;
-  gap: 10px;
+  font-size: 0.8125rem;
+  font-weight: 560;
+  gap: 9px;
   justify-content: flex-start;
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: 35px;
+  min-width: 0;
+  padding: 6px 9px;
+  text-align: left;
   text-decoration: none;
   width: 100%;
+}
+
+.railTools a > span,
+.railTools button > span,
+.navigation a > span,
+.capture > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .railTools a,
@@ -94,6 +107,7 @@
   border: 0;
   color: var(--muted-strong);
   cursor: pointer;
+  font-weight: 520;
 }
 
 .railTools :is(a, button):hover,
@@ -116,27 +130,37 @@
 
 .navigation a {
   color: var(--muted-strong);
-  transition: background 120ms ease, color 120ms ease;
+  font-weight: 520;
+  transition:
+    background 180ms var(--ease-out),
+    color 180ms var(--ease-out);
 }
 
 .navigation a[aria-current="page"] {
   background: var(--surface-muted);
-  box-shadow: inset 2px 0 var(--accent);
+  box-shadow: none;
   color: var(--ink);
+  font-weight: 500;
 }
 
+/* Neutral, quiet new-conversation action; accent stays reserved for review. */
 .capture {
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  color: var(--background);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-weight: 560;
   justify-content: center;
-  margin-top: 4px;
+  margin-top: 2px;
+  transition:
+    background 180ms var(--ease-out),
+    border-color 180ms var(--ease-out),
+    color 180ms var(--ease-out);
 }
 
 .capture:hover {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
-  color: var(--accent-ink);
+  background: var(--surface-muted);
+  border-color: var(--line-strong);
+  color: var(--ink);
 }
 
 .account {
@@ -202,10 +226,10 @@
 }
 
 .stage {
-  margin-left: 236px;
+  margin-left: var(--ts-sidebar-width, 236px);
   min-height: 100svh;
   min-width: 0;
-  transition: margin-left 150ms ease;
+  transition: margin-left 200ms var(--ease-out);
 }
 
 .mobileHeader {
@@ -228,6 +252,10 @@
 .rail:has(.navRegion[data-collapsed="true"]) :is(.brand, .railTools a, .railTools button, .navigation a, .capture) {
   justify-content: center;
   padding-inline: 0;
+}
+
+.rail:has(.navRegion[data-collapsed="true"]) .railTools {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .rail:has(.navRegion[data-collapsed="true"]) .account {
@@ -359,7 +387,7 @@
 
 @media (max-width: 760px) {
   .shell {
-    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
 
   .rail,
@@ -375,7 +403,7 @@
     display: grid;
     gap: 7px;
     grid-template-columns: minmax(0, 1fr) auto;
-    height: 66px;
+    height: 58px;
     left: 12px;
     padding: 7px;
     right: 12px;
@@ -405,15 +433,16 @@
   .rail:has(.navRegion[data-collapsed="true"]) :is(.navigation a, .capture) {
     border-radius: 10px;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     justify-content: center;
-    min-height: 50px;
-    padding: 5px 8px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 4px 6px;
   }
 
   .capture {
     margin: 0;
-    min-width: 58px;
+    min-width: 44px;
   }
 
   .stage,
@@ -500,7 +529,7 @@
   }
 
   .capture {
-    min-width: 50px;
+    min-width: 44px;
   }
 
   .mobileHeader .brand > strong {
@@ -515,7 +544,33 @@
 @media (prefers-reduced-motion: reduce) {
   .rail,
   .stage,
-  .navigation a {
+  .navigation a,
+  .capture {
     transition: none;
   }
 }
+
+.railTools button { width: 35px; padding: 8px; }
+.railTools button span { display: none; }
+.navRegion { min-height: 0; flex-shrink: 1; overflow-y: auto; }
+.rail > .brand, .rail > .capture, .rail > .account { flex-shrink: 0; }
+@media (max-width: 760px) {
+  .navigation a, .capture { min-height: 44px; }
+}
+
+.recentSessions { min-height: 0; min-width: 0; overflow-y: auto; margin-top: 20px; flex: 1; }
+.recentSessions header { display: flex; justify-content: space-between; padding: 8px; color: var(--muted); font-size: 12px; }
+.recentSessions header a { color: inherit; }
+.recentSessions ul { list-style: none; padding: 0; margin: 0; }
+.recentSessions li > a { display: flex; align-items: center; gap: 8px; min-height: 35px; padding: 7px 8px; border-radius: 6px; text-decoration: none; color: var(--muted); font-size: 13px; }
+.recentSessions li > a:hover, .recentSessions a[aria-current="page"] { background: var(--surface); color: var(--ink); }
+.recentSessions li > a > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.recentSessions svg, .recentSessions small { flex: 0 0 auto; }
+.recentSessions small { font-size: 12px; }
+.recentSessions p { color: var(--muted); font-size: 12px; line-height: 1.6; padding: 0 8px; }
+.rail:has(.navRegion[data-collapsed="true"]) .recentSessions { display: none; }
+@media (max-width: 760px) { .recentSessions { display: none; } }
+
+.brand > span { background: var(--workspace-brand-image) center / contain no-repeat; font-size: 0; border-radius: 0; }
+
+@media (min-width: 761px) and (max-height: 650px) { .recentSessions { display: none; } }

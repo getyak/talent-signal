@@ -11,7 +11,7 @@ function read(relativePath: string) {
 describe("persistent workspace shell", () => {
   it("owns account chrome and route-aware product navigation in one layout", () => {
     const layout = read("app/workspace/layout.tsx");
-    const navigation = read("components/workspace-shell-nav.tsx");
+    const navigation = read("components/workspace-shell-nav.tsx") + read("lib/workspace-navigation.ts");
     const accountMenu = read("components/workspace-account-menu.tsx");
     const sessionBoundary = read("components/session-draft-session-boundary.tsx");
     const standaloneWorkspace = read("components/workspace-app.tsx");
@@ -51,7 +51,7 @@ describe("persistent workspace shell", () => {
     expect(navigation).toContain('href: "/workspace/plugs"');
     expect(navigation).not.toContain('href: "/workspace/monitor"');
     expect(navigation).toContain("COLLAPSED_KEY");
-    expect(navigation).toContain('data-mobile-secondary={!item.mobile || undefined}');
+    expect(navigation).toContain('data-mobile-secondary={!route.mobile || undefined}');
     expect(accountMenu).toContain("onClick={() => close()}");
     expect(accountMenu).toContain('event.key === "Escape"');
     expect(accountMenu).toContain('current === -1');
@@ -114,11 +114,11 @@ describe("persistent workspace shell", () => {
   });
 
   it("focuses the Agent composer from a same-route shell transition and clears the intent", () => {
-    const navigation = read("components/workspace-shell-nav.tsx");
+    const navigation = read("components/workspace-shell-nav.tsx") + read("lib/workspace-navigation.ts");
     const workspace = read("components/relationship-workspace-app.tsx");
 
     expect(navigation).toContain(
-      'window.dispatchEvent(new Event("talent-signal:focus-agent"))',
+      'window.dispatchEvent(new Event(WORKSPACE_FOCUS_AGENT_EVENT))',
     );
     expect(workspace).toContain(
       'window.addEventListener("talent-signal:focus-agent", focusAgent)',
