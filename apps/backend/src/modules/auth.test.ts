@@ -131,6 +131,21 @@ describe("Apple authentication", () => {
     expect(client.release).toHaveBeenCalledOnce();
   });
 
+  it("normalizes mixed-case Apple email before rejecting an existing account collision", async () => {
+    const query = vi.fn(async (sql: string, parameters?: unknown[]) => {
+      if (sql.includes("UPDATE apple_login_challenges")) return { rows: [{ id: request.challenge_id }] };
+      if (sql.includes("INSERT INTO consumed_auth_assertions")) return { rows: [{ id: "assertion" }] };
+      if (sql.includes("lower(email)")) {
+        expect(parameters?.[0]).toBe("recruiter@example.test");
+        return { rows: [{ id: "existing-user" }], rowCount: 1 };
+      }
+      return { rows: [] };
+    });
+    const pool = { connect: async () => ({ query, release: vi.fn() }), query: vi.fn().mockResolvedValue({ rows: [{ client_label: "ios", expected_nonce_hash: "expected-nonce-hash" }] }) } as unknown as Pool;
+    await expect(createAppleSession(pool, config, request, { verify: async () => token({ email: "Recruiter@Example.Test" }) })).rejects.toMatchObject({ code: "APPLE_ACCOUNT_LINK_REQUIRED" });
+    expect(query.mock.calls.some(([sql]) => sql.includes("INSERT INTO accounts"))).toBe(false);
+  });
+
   it("opens an account-scoped session for an existing Apple identity", async () => {
     const insertedSession: unknown[][] = [];
     const client = {
@@ -139,6 +154,7 @@ describe("Apple authentication", () => {
         if (sql.includes("UPDATE apple_login_challenges")) {
           return { rows: [{ id: request.challenge_id }] };
         }
+        if (sql.includes("pg_advisory_xact_lock")) return { rows: [] };
         if (sql.includes("INSERT INTO consumed_auth_assertions")) {
           return { rows: [{ id: "assertion" }] };
         }

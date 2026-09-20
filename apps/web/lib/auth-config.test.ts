@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  appleFormPostCookiesSupported,
+  deriveRegistrationDisplayName,
   encodeConfiguredPassword,
   getAuthAvailability,
   getDefaultAccount,
@@ -19,6 +21,29 @@ const configuredEnvironment = {
   AUTH_GOOGLE_ID: "google-id",
   AUTH_GOOGLE_SECRET: "google-secret",
 };
+
+const appleClientId = "com.talentsignal.web";
+
+function base64UrlJson(value: unknown) {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+// A syntactically valid static Apple client-secret JWT. Its signature is not
+// verified locally; the metadata shape is what the provider config validates.
+function appleClientSecretJwt(clientId: string) {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  return [
+    base64UrlJson({ alg: "ES256", kid: "ABCDEFGHIJ", typ: "JWT" }),
+    base64UrlJson({
+      iss: "ABCDEFGHIJ",
+      iat: issuedAt,
+      exp: issuedAt + 3600,
+      aud: "https://appleid.apple.com",
+      sub: clientId,
+    }),
+    "fixture-signature",
+  ].join(".");
+}
 
 describe("default account configuration", () => {
   it("never enables configured fixture credentials in production", () => {
@@ -55,6 +80,55 @@ describe("default account configuration", () => {
 
     expect(availability.google).toBe(true);
   });
+
+  it("keeps Apple unavailable without credentials or over HTTPS only", () => {
+    const withCredentials = {
+      ...configuredEnvironment,
+      AUTH_APPLE_ID: appleClientId,
+      AUTH_APPLE_SECRET: appleClientSecretJwt(appleClientId),
+    };
+    expect(getAuthAvailability(withCredentials).apple).toBe(false);
+    expect(
+      getAuthAvailability({
+        ...withCredentials,
+        NODE_ENV: "production",
+        AUTH_URL: "http://127.0.0.1:3000",
+      }).apple,
+    ).toBe(false);
+    expect(
+      getAuthAvailability({
+        ...withCredentials,
+        NODE_ENV: "production",
+        AUTH_URL: "https://app.talentsignal.test",
+      }).apple,
+    ).toBe(true);
+  });
+
+  it("accepts a server-side Apple availability override", () => {
+    expect(getAuthAvailability(configuredEnvironment, { apple: true }).apple).toBe(
+      true,
+    );
+    expect(
+      appleFormPostCookiesSupported({ NODE_ENV: "production" }),
+    ).toBe(true);
+  });
+});
+
+describe("registration display name", () => {
+  it("prefers an explicit name, then the email local-part, then a neutral name", () => {
+    expect(deriveRegistrationDisplayName("ada@example.test", "  Ada L  ")).toBe(
+      "Ada L",
+    );
+    expect(deriveRegistrationDisplayName("Ada.Lovelace@example.test", "  ")).toBe(
+      "ada.lovelace",
+    );
+    expect(deriveRegistrationDisplayName("@example.test", undefined)).toBe(
+      "Talent Signal Recruiter",
+    );
+    expect(
+      deriveRegistrationDisplayName(`${'a'.repeat(150)}@example.test`, undefined),
+    ).toHaveLength(100);
+  });
 });
 
 describe("configured password verification", () => {
@@ -67,6 +141,9 @@ describe("configured password verification", () => {
 });
 
 describe("safeRedirectTarget", () => {
+  it.each(["/\t/attacker.example", "/\n/attacker.example", "/\r/attacker.example"])("rejects URL-normalized external target %j", target => {
+    expect(safeRedirectTarget(target)).toBe("/workspace");
+  });
   it("accepts only local application paths", () => {
     expect(safeRedirectTarget("/workspace?view=list")).toBe(
       "/workspace?view=list",

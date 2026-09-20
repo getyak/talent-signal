@@ -6,13 +6,17 @@ import { readPrimaryBackendSessionClaims, backendAuthBaseUrl } from "@/lib/serve
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { prepareGoogleSignIn, bindGoogleNonce } from "@/lib/server/google-session";
+import { prepareAppleSignIn, bindAppleNonce } from "@/lib/server/apple-session";
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/auth";
 import {
+  deriveRegistrationDisplayName,
+  getAuthAvailability,
   passwordRegistrationSchema,
   passwordSignInSchema,
   safeRedirectTarget,
 } from "@/lib/auth-config";
+import { onboardingCallbackTarget, onboardingStartTarget } from "@/lib/onboarding-navigation";
 import {
   authFailureCodeFromCredentialsCode,
   authFailureIsRetryable,
@@ -34,6 +38,16 @@ export type SignInState = {
 };
 
 const BACKEND_LOGOUT_TIMEOUT_MS = 1_500;
+
+function isNextRedirectError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof (error as { digest?: unknown }).digest === "string" &&
+    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
+}
 
 function formString(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -78,6 +92,14 @@ export async function signInWithPasswordAccount(
   formData: FormData,
 ): Promise<SignInState> {
   const values = { identifier: formString(formData, "identifier") };
+  if (!getAuthAvailability().password) {
+    return failedState(
+      "invalid_input",
+      "sign-in",
+      values,
+      "密码登录暂未开放。",
+    );
+  }
   const parsed = passwordSignInSchema.safeParse({
     identifier: formData.get("identifier"),
     password: formData.get("password"),
@@ -90,7 +112,7 @@ export async function signInWithPasswordAccount(
     await signIn("password-account", {
       ...parsed.data,
       mode: "sign-in",
-      redirectTo: safeRedirectTarget(formData.get("redirectTo")),
+      redirectTo: onboardingStartTarget(formData.get("redirectTo")),
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -109,22 +131,21 @@ export async function registerPasswordAccount(
   _previousState: SignInState,
   formData: FormData,
 ): Promise<SignInState> {
-  const values = {
-    displayName: formString(formData, "displayName"),
-    email: formString(formData, "email"),
-  };
-  if (formData.get("password") !== formData.get("confirmPassword")) {
+  const email = formString(formData, "email");
+  const displayName = formString(formData, "displayName");
+  const values = { displayName, email };
+  if (!getAuthAvailability().registration) {
     return failedState(
       "invalid_input",
       "register",
       values,
-      "两次输入的密码不一致。",
+      "注册暂未开放。",
     );
   }
   const parsed = passwordRegistrationSchema.safeParse({
     username: formData.get("username") || `u${randomUUID().replaceAll("-", "")}`,
-    email: formData.get("email"),
-    displayName: formData.get("displayName"),
+    email,
+    displayName: displayName || undefined,
     password: formData.get("password"),
   });
   if (!parsed.success) {
@@ -132,15 +153,21 @@ export async function registerPasswordAccount(
       "invalid_input",
       "register",
       values,
-      "用户名需为 3–40 个字符，请填写有效邮箱，并设置至少 8 个字符的密码。",
+      "请填写有效邮箱，并设置至少 8 个字符的密码。",
     );
   }
 
   try {
     await signIn("password-account", {
-      ...parsed.data,
+      username: parsed.data.username,
+      email: parsed.data.email,
+      displayName: deriveRegistrationDisplayName(
+        parsed.data.email,
+        parsed.data.displayName,
+      ),
+      password: parsed.data.password,
       mode: "register",
-      redirectTo: safeRedirectTarget(formData.get("redirectTo")),
+      redirectTo: onboardingStartTarget(formData.get("redirectTo")),
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -186,19 +213,33 @@ export async function signInWithEmail(
 }
 
 export async function signInWithGoogle(formData: FormData) {
-  let nonce: string;
-  try { nonce = await prepareGoogleSignIn(); }
-  catch { redirect("/login?error=Configuration"); }
-  const url = await signIn("google", {
-    redirect: false, redirectTo: safeRedirectTarget(formData.get("redirectTo")),
-  });
-  redirect(await bindGoogleNonce(url, nonce));
+  const redirectTo = onboardingStartTarget(formData.get("redirectTo"));
+  const callbackTarget = onboardingCallbackTarget(formData.get("redirectTo"));
+  try {
+    const nonce = await prepareGoogleSignIn();
+    const url = await signIn("google", { redirect: false, redirectTo });
+    redirect(await bindGoogleNonce(url, nonce));
+  } catch (error) {
+    if (isNextRedirectError(error)) throw error;
+    redirect(
+      `/login?error=Configuration&callbackUrl=${encodeURIComponent(callbackTarget)}`,
+    );
+  }
 }
 
 export async function signInWithApple(formData: FormData) {
-  await signIn("apple", {
-    redirectTo: safeRedirectTarget(formData.get("redirectTo")),
-  });
+  const redirectTo = onboardingStartTarget(formData.get("redirectTo"));
+  const callbackTarget = onboardingCallbackTarget(formData.get("redirectTo"));
+  try {
+    const nonce = await prepareAppleSignIn();
+    const url = await signIn("apple", { redirect: false, redirectTo });
+    redirect(await bindAppleNonce(url, nonce));
+  } catch (error) {
+    if (isNextRedirectError(error)) throw error;
+    redirect(
+      `/login?error=Configuration&callbackUrl=${encodeURIComponent(callbackTarget)}`,
+    );
+  }
 }
 
 export async function signInWithDefaultAccount(formData: FormData) {

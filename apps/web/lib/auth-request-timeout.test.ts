@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TalentSignalClient } from "@talent-signal/contracts";
 
 import {
   AuthRequestTimeoutError,
@@ -7,6 +8,7 @@ import {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe("auth request timeout", () => {
@@ -26,6 +28,28 @@ describe("auth request timeout", () => {
     await vi.advanceTimersByTimeAsync(250);
     await assertion;
     expect(observedSignal?.aborted).toBe(true);
+  });
+
+  it("cancels the actual session fetch when OAuth readback times out", async () => {
+    vi.useFakeTimers();
+    let observedSignal: AbortSignal | null | undefined;
+    let networkCancelled = false;
+    vi.stubGlobal("fetch", vi.fn((_url: unknown, init?: RequestInit) => {
+      observedSignal = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        observedSignal?.addEventListener("abort", () => {
+          networkCancelled = true;
+          reject(observedSignal?.reason);
+        }, { once: true });
+      });
+    }));
+    const client = new TalentSignalClient("https://backend.example.test", "synthetic-token");
+    const pending = withAuthRequestTimeout(signal => client.currentSession(signal), { timeoutMs: 5_000 });
+    const assertion = expect(pending).rejects.toBeInstanceOf(AuthRequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await assertion;
+    expect(observedSignal?.aborted).toBe(true);
+    expect(networkCancelled).toBe(true);
   });
 
   it("returns the work result without waiting for the deadline", async () => {

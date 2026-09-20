@@ -1,230 +1,103 @@
-import {
-  AppleLogo,
-  ArrowLeft,
-  ArrowRight,
-} from "@phosphor-icons/react/dist/ssr";
-import { OAuthSubmit } from "@/components/oauth-submit";
-import { LoginPortraits } from "@/components/login-portraits";
-import styles from "./login.module.css";
+import { AppleLogo, ArrowUpRight } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { cookies, headers } from "next/headers";
+import { canonicalLoginTarget, oauthRetryTarget } from "@/lib/onboarding-navigation";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AccountAccessForm } from "@/components/account-access-form";
 import { BrandMark } from "@/components/brand-mark";
 import { EmailSignInForm } from "@/components/email-sign-in-form";
+import { OAuthSubmit } from "@/components/oauth-submit";
 import { ThemeToggle } from "@/components/theme-toggle";
-import {
-  getAuthAvailability,
-  safeRedirectTarget,
-} from "@/lib/auth-config";
-import { accessRequestHref } from "@/lib/site";
+import { getAuthAvailability, safeRedirectTarget } from "@/lib/auth-config";
 import { getGoogleOAuthCredentials } from "@/lib/server/google-oauth";
-import {
-  signInWithApple,
-  signInWithDefaultAccount,
-  signInWithGoogle,
-} from "./actions";
+import { signInWithApple, signInWithDefaultAccount, signInWithGoogle } from "./actions";
+import styles from "./login.module.css";
 
 export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = {
-  title: "登录",
-  description:
-    "登录 Talent Signal 候选人知识工作台。",
-  robots: {
-    follow: false,
-    index: false,
-  },
+  title: "登录与注册",
+  description: "从你开始，建立自己的 Talent Signal 关系工作台。",
+  robots: { follow: false, index: false },
 };
-
 const oauthErrors: Record<string, string> = {
-  AccessDenied: "该账号未获访问权限。",
-  Configuration:
-    "暂时无法完成登录，请重试或使用邮箱继续。",
-  OAuthCallbackError:
-    "登录服务无法完成回调，请重试。",
-  OAuthSignin: "暂时无法连接登录服务，请重试。",
+  AccessDenied: "登录已取消。准备好后，可以再试一次。",
+  Configuration: "这次连接没有完成。已有账号请使用原登录方式，或稍后重试。",
+  OAuthCallbackError: "这次登录没有完成，请重新连接。",
+  OAuthAccountNotLinked: "请使用最初创建这个账号的方式登录。",
 };
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    callbackUrl?: string;
-    error?: string;
-    reason?: string;
-  }>;
+export default async function LoginPage({ searchParams }: {
+  searchParams: Promise<{ callbackUrl?: string; error?: string; reason?: string; mode?: string }>;
 }) {
-  const session = await auth();
-  const parameters = await searchParams;
-  const callbackUrl = safeRedirectTarget(parameters.callbackUrl);
+  const [session, parameters] = await Promise.all([auth(), searchParams]);
+  const requestHeaders = await headers();
+  const requestOrigin = `${requestHeaders.get("x-forwarded-proto") === "https" ? "https" : "http"}://${requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000"}`;
+  const canonical = canonicalLoginTarget(requestOrigin, process.env.AUTH_URL, parameters, process.env.NODE_ENV === "production");
+  if (canonical) redirect(canonical);
+  const callbackUrl = parameters.callbackUrl ? safeRedirectTarget(parameters.callbackUrl)
+    : parameters.error ? oauthRetryTarget((await cookies()).get("talent-signal.callback-url")?.value, process.env.AUTH_URL ?? requestOrigin) : "/workspace";
   const sessionExpired = parameters.reason === "backend_session_expired";
   if (session?.user && !sessionExpired && !parameters.error) {
-    redirect(callbackUrl);
+    redirect(`/onboarding?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
-
-  const availability = getAuthAvailability(process.env, {
-    google: Boolean(getGoogleOAuthCredentials()),
-  });
-  const oauthError = parameters.error
-    ? (oauthErrors[parameters.error] ??
-      "无法完成登录，请尝试其他方式。")
-    : "";
-  const hasOAuth = availability.google || availability.apple;
-  const hasConfiguredSignIn =
-    hasOAuth ||
-    availability.password ||
-    availability.email ||
-    availability.defaultAccount;
-
+  const availability = getAuthAvailability(process.env, { google: Boolean(getGoogleOAuthCredentials()) });
+  const error = sessionExpired ? "登录已过期。重新登录后，可以继续刚才的工作。"
+    : parameters.error ? (oauthErrors[parameters.error] ?? "登录未完成，请重试或换一种方式。") : "";
+  const providers = (
+    <div className={styles.providers}>
+      <form action={signInWithGoogle} data-oauth-form="true">
+        <input type="hidden" name="redirectTo" value={callbackUrl} />
+        <OAuthSubmit disabled={!availability.google} className={styles.provider}>
+          <Image src="/images/google-sign-in.png" width={20} height={20} alt="" unoptimized />
+          <span>使用 Google 继续</span>
+          {!availability.google && <small>暂不可用</small>}
+        </OAuthSubmit>
+        <OAuthSubmit formAction={signInWithApple} disabled={!availability.apple} className={`${styles.provider} ${styles.apple}`}>
+          <AppleLogo aria-hidden="true" size={21} weight="fill" />
+          <span>使用 Apple 继续</span>
+          {!availability.apple && <small>暂不可用</small>}
+        </OAuthSubmit>
+      </form>
+    </div>
+  );
   return (
-    <main id="main-content" className={`auth-page ${styles.page}`} tabIndex={-1}>
-      <section className="auth-story" aria-label="Talent Signal 产品背景">
-        <div className="auth-story__header">
-          <BrandMark />
-          <Link href="/">
-            <ArrowLeft aria-hidden="true" size={16} />
-            返回产品页
-          </Link>
-        </div>
-        <div className={styles.visual}>
-          <LoginPortraits />
-          <div className={styles.story}>
-            <p>每一段关系，都是新的可能。</p>
-            <h1>留住线索。<br />让连接自然发生。</h1>
-            <span>记得来时的对话，也看见下一步。</span>
-          </div>
-        </div>
-        <p className={styles.footnote}>为认真经营关系的人而造</p>
-      </section>
-
-      <section className="auth-panel" aria-labelledby="sign-in-title">
-        <div className="auth-panel__top">
-          <BrandMark />
+    <main id="main-content" className={styles.page} tabIndex={-1}>
+      <div className={styles.topbar}>
+        <BrandMark />
+        <div className={styles.utilities}>
+          <Link href="/">返回首页 <ArrowUpRight size={14} aria-hidden="true" /></Link>
           <ThemeToggle />
         </div>
-        <div className="auth-panel__content">
-          <header>
-            <p>Talent Signal 工作台</p>
-            <h2 id="sign-in-title">欢迎回来。</h2>
-            <span>
-              让每一次重要的对话，都有一个安放的地方。
-            </span>
-          </header>
-
-          {sessionExpired ? (
-            <p className="auth-error" role="alert">
-              登录已过期，请重新登录以回到刚才的页面。
-            </p>
-          ) : null}
-
-          {oauthError && (
-            <p className="auth-error" role="alert">
-              {oauthError}
-            </p>
-          )}
-
-          {hasConfiguredSignIn ? (
-            <>
-              {hasOAuth ? (
-                <div className="oauth-methods">
-                  {availability.google ? (
-                    <form action={signInWithGoogle}>
-                      <input
-                        type="hidden"
-                        name="redirectTo"
-                        value={callbackUrl}
-                      />
-                      <OAuthSubmit>
-                        <Image src="/images/google-sign-in.png" width={20} height={20} alt="" />
-                        <span>使用 Google 继续</span>
-                      </OAuthSubmit>
-                    </form>
-                  ) : null}
-                  {availability.apple ? (
-                    <form action={signInWithApple}>
-                      <input
-                        type="hidden"
-                        name="redirectTo"
-                        value={callbackUrl}
-                      />
-                      <OAuthSubmit className="auth-provider auth-provider--apple">
-                        <AppleLogo
-                          aria-hidden="true"
-                          size={20}
-                          weight="fill"
-                        />
-                        <span>使用 Apple 继续</span>
-                      </OAuthSubmit>
-                    </form>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {hasOAuth && (availability.password || availability.email) ? (
-                <div className="auth-divider">
-                  <span>或使用邮箱</span>
-                </div>
-              ) : null}
-
-              {availability.password ? (
-                <AccountAccessForm
-                  callbackUrl={callbackUrl}
-                  registrationEnabled={availability.registration}
-                />
-              ) : availability.email ? (
-                <EmailSignInForm callbackUrl={callbackUrl} enabled />
-              ) : null}
-            </>
+      </div>
+      <div className={styles.stage}>
+        <div className={styles.content}>
+          {availability.password ? (
+            <AccountAccessForm callbackUrl={callbackUrl} registrationEnabled={availability.registration}
+              initialMode={parameters.mode === "register" ? "register" : "sign-in"} notice={error}>
+              {providers}
+            </AccountAccessForm>
           ) : (
-            <section className="auth-access-state" aria-labelledby="access-title">
-              <p>私密工作台访问</p>
-              <h3 id="access-title">该工作台尚未开放。</h3>
-              <span>
-                申请引导式账号，或体验仅在浏览器中运行的证据审阅，无需分享对话。
-              </span>
-              <div>
-                <a className="button" href={accessRequestHref}>
-                  申请使用
-                  <ArrowRight aria-hidden="true" size={17} />
-                </a>
-                <Link className="auth-demo-link" href="/demo">
-                  体验在线演示
-                </Link>
-              </div>
+            <section aria-labelledby="sign-in-title">
+              <header className={styles.heading}><h1 id="sign-in-title">从你开始。</h1><p>一个安静的地方，留住重要的人与对话。</p></header>
+              {error && <p className={styles.error} role="alert">{error}</p>}
+              {providers}
+              {availability.email && <EmailSignInForm callbackUrl={callbackUrl} enabled />}
+              {!availability.google && !availability.apple && !availability.email && <p className={styles.caption}>这个工作台暂未开放登录，请稍后再试。</p>}
             </section>
           )}
-
           {availability.defaultAccount && (
-            <form
-              className="default-account"
-              action={signInWithDefaultAccount}
-            >
+            <form action={signInWithDefaultAccount} className={styles.fixture}>
               <input type="hidden" name="redirectTo" value={callbackUrl} />
-              <div>
-                <span>
-                  {availability.defaultAccountName
-                    .split(/\s+/)
-                    .map((part) => part[0])
-                    .join("")
-                    .slice(0, 2)}
-                </span>
-                <p>
-                  <strong>{availability.defaultAccountName}</strong>
-                  <small>{availability.defaultAccountEmail}</small>
-                </p>
-              </div>
-              <button type="submit">使用默认账号</button>
+              <button type="submit">使用开发测试账号 · {availability.defaultAccountName}</button>
             </form>
           )}
-
-          <p className="auth-terms">
-            继续即表示你确认自己有权访问此工作台中的候选人信息。
-          </p>
+          <p className={styles.privacy}>只带入你选择分享的内容。<br />个人资料可以稍后补充。</p>
         </div>
-      </section>
+      </div>
+      <footer className={styles.footer}>TALENT SIGNAL <span>让每一次连接，都有来处。</span></footer>
     </main>
   );
 }

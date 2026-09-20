@@ -16,6 +16,7 @@ export const REQUIRED_SYSTEM_MIGRATIONS = [
   "071_agent_session_list_snapshots",
   "072_mcp_extensions",
   "073_conversation_queue",
+  "073_account_onboarding",
 ] as const;
 
 function elapsedMilliseconds(startedAt: number): number {
