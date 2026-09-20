@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  appleFormPostCookiesSupported,
+  deriveRegistrationDisplayName,
   encodeConfiguredPassword,
   getAuthAvailability,
   getDefaultAccount,
@@ -54,6 +56,55 @@ describe("default account configuration", () => {
     );
 
     expect(availability.google).toBe(true);
+  });
+
+  it("keeps Apple unavailable without credentials or over HTTPS only", () => {
+    const withCredentials = {
+      ...configuredEnvironment,
+      AUTH_APPLE_ID: "com.talentsignal.web",
+      AUTH_APPLE_SECRET: "header.payload.signature",
+    };
+    expect(getAuthAvailability(withCredentials).apple).toBe(false);
+    expect(
+      getAuthAvailability({
+        ...withCredentials,
+        NODE_ENV: "production",
+        AUTH_URL: "http://127.0.0.1:3000",
+      }).apple,
+    ).toBe(false);
+    expect(
+      getAuthAvailability({
+        ...withCredentials,
+        NODE_ENV: "production",
+        AUTH_URL: "https://app.talentsignal.test",
+      }).apple,
+    ).toBe(true);
+  });
+
+  it("accepts a server-side Apple availability override", () => {
+    expect(getAuthAvailability(configuredEnvironment, { apple: true }).apple).toBe(
+      true,
+    );
+    expect(
+      appleFormPostCookiesSupported({ NODE_ENV: "production" }),
+    ).toBe(true);
+  });
+});
+
+describe("registration display name", () => {
+  it("prefers an explicit name, then the email local-part, then a neutral name", () => {
+    expect(deriveRegistrationDisplayName("ada@example.test", "  Ada L  ")).toBe(
+      "Ada L",
+    );
+    expect(deriveRegistrationDisplayName("Ada.Lovelace@example.test", "  ")).toBe(
+      "ada.lovelace",
+    );
+    expect(deriveRegistrationDisplayName("@example.test", undefined)).toBe(
+      "Talent Signal Recruiter",
+    );
+    expect(
+      deriveRegistrationDisplayName(`${'a'.repeat(150)}@example.test`, undefined),
+    ).toHaveLength(100);
   });
 });
 

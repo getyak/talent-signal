@@ -21,11 +21,14 @@ import {
   completeIdempotency,
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
+import { profileRobotsAllows } from "./onboardingRobots.js";
+import { fetchProfileResource } from "./onboardingPublicHttp.js";
 import { createResourceCapture } from "./resourceIntake.js";
 
 const PAGE_BYTE_LIMIT = 1_000_000;
 const ROBOTS_BYTE_LIMIT = 200_000;
 const PAGE_TEXT_LIMIT = 35_000;
+const PREVIEW_TEXT_LIMIT = 600;
 const FETCH_TIMEOUT_MS = 8_000;
 const FRESHNESS_DAYS = 7;
 const ALLOW_SYNTHETIC_DNS_GATEWAY =
@@ -446,6 +449,108 @@ async function loadPublicResearchPage(
     retrievedAt: new Date(),
     text: extracted.text,
     links: extracted.links,
+  };
+}
+
+async function loadPublicProfilePage(url: URL, allowedHostname: string): Promise<CrawledPage> {
+  const signal = AbortSignal.timeout(12_000);
+  const robots = await fetchProfileResource(new URL("/robots.txt", url.origin), url.origin, ROBOTS_BYTE_LIMIT, signal);
+  const robotsText = robots.status === 404 || robots.status === 410 ? "" : new TextDecoder().decode(robots.bytes);
+  if (robots.status !== 404 && robots.status !== 410) {
+    if (robots.status < 200 || robots.status >= 300) {
+      throw new Error("The public page cannot be read under its robots policy.");
+    }
+  }
+  const page = await fetchProfileResource(url, url.origin, PAGE_BYTE_LIMIT, signal, target => profileRobotsAllows(robotsText, target));
+  if (page.status < 200 || page.status >= 300) throw new Error("The public page is unavailable.");
+  const extracted = extractResearchPage(page.url, String(page.headers["content-type"] ?? ""), page.bytes, allowedHostname);
+  return { canonicalUrl: page.url.toString(), contentHash: sha256Bytes(page.bytes), retrievedAt: new Date(), text: extracted.text, links: [] };
+}
+
+export interface PublicProfilePreview {
+  profileUrl: string;
+  excerpt: string;
+  retrievedAt: Date;
+}
+
+/**
+ * Load one user-supplied public profile page through a dedicated HTTPS client:
+ * same-origin redirects, DNS-pinned sockets, robots checks on every hop,
+ * one page at depth 0, and byte/time limits. Userinfo and
+ * private/local/IP targets are rejected rather than rewritten. No page content
+ * is persisted here; the caller only receives a short untrusted excerpt.
+ */
+export async function previewPublicProfilePage(
+  input: string,
+  loadPage: ResearchPageLoader = loadPublicProfilePage,
+): Promise<PublicProfilePreview> {
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    throw new ApiError(
+      422,
+      "ONBOARDING_PREVIEW_URL_INVALID",
+      "Enter a public HTTPS profile URL.",
+    );
+  }
+  if (url.protocol !== "https:") {
+    throw new ApiError(
+      422,
+      "ONBOARDING_PREVIEW_URL_INVALID",
+      "Profile preview requires a public HTTPS URL.",
+    );
+  }
+  if (url.username !== "" || url.password !== "") {
+    throw new ApiError(
+      422,
+      "ONBOARDING_PREVIEW_URL_INVALID",
+      "A profile URL must not contain credentials.",
+    );
+  }
+  url.hash = "";
+  const hostname = url.hostname.toLowerCase();
+  if (
+    isIP(hostname) !== 0 ||
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    hostname.endsWith(".internal") ||
+    !hostname.includes(".")
+  ) {
+    throw new ApiError(
+      422,
+      "ONBOARDING_PREVIEW_URL_INVALID",
+      "The profile host must be a public domain, not a local or IP address.",
+    );
+  }
+
+  let page: CrawledPage;
+  try {
+    page = await loadPage(url, hostname);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      422,
+      "ONBOARDING_PREVIEW_UNAVAILABLE",
+      "That profile page could not be read.",
+    );
+  }
+  const excerpt = page.text
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, PREVIEW_TEXT_LIMIT);
+  if (excerpt.length === 0) {
+    throw new ApiError(
+      422,
+      "ONBOARDING_PREVIEW_UNAVAILABLE",
+      "That profile page contained no readable text.",
+    );
+  }
+  return {
+    profileUrl: page.canonicalUrl,
+    excerpt,
+    retrievedAt: page.retrievedAt,
   };
 }
 

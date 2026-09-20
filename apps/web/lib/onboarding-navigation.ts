@@ -1,0 +1,61 @@
+import { safeRedirectTarget } from "./auth-config";
+
+export const ONBOARDING_PATH = "/onboarding";
+
+/**
+ * True when a target is the onboarding page itself. Onboarding must not send a
+ * user back into onboarding, so such a target is normalized to the workspace.
+ */
+export function isOnboardingTarget(value: string): boolean {
+  return (
+    value === ONBOARDING_PATH ||
+    value.startsWith(`${ONBOARDING_PATH}?`) ||
+    value.startsWith(`${ONBOARDING_PATH}/`) ||
+    value.startsWith(`${ONBOARDING_PATH}#`)
+  );
+}
+
+/**
+ * The safe post-authentication destination for a flow that must run
+ * onboarding first. The original same-origin target is preserved (encoded) as
+ * `callbackUrl` so onboarding can redirect returning users immediately.
+ */
+export function onboardingStartTarget(
+  rawTarget: FormDataEntryValue | null | undefined,
+): string {
+  const safe = safeRedirectTarget(rawTarget);
+  const target = isOnboardingTarget(safe) ? "/workspace" : safe;
+  return `${ONBOARDING_PATH}?callbackUrl=${encodeURIComponent(target)}`;
+}
+
+/**
+ * The original target an onboarding page may redirect to after deciding the
+ * user is already complete, or after the user finishes/skips. Never returns an
+ * onboarding path, preventing a redirect loop.
+ */
+export function onboardingCallbackTarget(
+  rawTarget: FormDataEntryValue | null | undefined,
+): string {
+  const safe = safeRedirectTarget(rawTarget);
+  return isOnboardingTarget(safe) ? "/workspace" : safe;
+}
+
+/**
+ * Whether a canonical onboarding readback still requires the user to see the
+ * onboarding step. Pending users must be onboarded; completed and skipped
+ * users are redirected immediately.
+ */
+export function onboardingRequiresStep(status: string | null | undefined) {
+  return status === "pending";
+}
+
+/** Recover Auth.js' same-origin callback after provider cancellation/failure. */
+export function oauthRetryTarget(raw: string | undefined, origin: string): string {
+  if (!raw) return "/workspace";
+  try {
+    const url = new URL(raw, origin);
+    if (url.origin !== new URL(origin).origin) return "/workspace";
+    return onboardingCallbackTarget(url.pathname === ONBOARDING_PATH
+      ? url.searchParams.get("callbackUrl") : url.pathname + url.search + url.hash);
+  } catch { return "/workspace"; }
+}

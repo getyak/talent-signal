@@ -2,6 +2,7 @@ import {RunArtifactSchema} from "@talent-signal/contracts";
 import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessRunFiles.js";
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
+import { registerAccountOnboarding } from "./modules/accountOnboardingRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerMeetingDraftRoutes } from "./modules/meetingDraftRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
@@ -727,6 +728,12 @@ export async function buildApp(
   app.post<{ Body: AppleLoginChallengeRequest }>(
     "/v1/auth/apple/challenges",
     {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: "1 minute",
+        },
+      },
       schema: {
         tags: ["auth"],
         body: AppleLoginChallengeRequestSchema,
@@ -745,6 +752,12 @@ export async function buildApp(
   app.post<{ Body: AppleLoginRequest }>(
     "/v1/auth/apple",
     {
+      config: {
+        rateLimit: {
+          max: 12,
+          timeWindow: "1 minute",
+        },
+      },
       schema: {
         tags: ["auth"],
         body: AppleLoginRequestSchema,
@@ -767,6 +780,7 @@ export async function buildApp(
   const authenticate = createAuthGuard(pool, deploymentExposure?.workspaceIds);
   registerProductRunMonitoring(app, pool, authenticate);
   registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
+  registerAccountOnboarding(app, pool, authenticate);
   registerAgentSessionRoutes(app, pool, authenticate);
   registerMeetingDraftRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);

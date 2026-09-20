@@ -7,6 +7,60 @@ login does not create a default password. Web **Account and security** reports t
 actual configured methods and active sessions from the authenticated backend.
 Provider linking and password recovery are not implemented by this settings slice.
 
+Password registration accepts an email and one password. A display name is
+optional; when omitted the email local-part is used, bounded to 100 characters,
+with a neutral fallback. Password sign-in and registration are enforced on the
+server, not only by hiding the form.
+
+## Account onboarding
+
+Every successful Google, Apple, account password, or registration sign-in
+continues to `/onboarding?callbackUrl=<original safe target>`. The onboarding
+page decides from canonical backend state whether the step is required and
+redirects returning users immediately. The shared development-fixture email
+login keeps its existing direct behavior. Onboarding is a property of the
+authenticated
+user, stored as additive `users` columns (`onboarding_status`, `onboarding_focus`,
+`onboarding_profile_url`); it is never a candidate or contact record. The
+existing `users.profile_revision` remains the single revision for both profile
+and onboarding writes.
+
+`GET /v1/account/onboarding` returns the canonical state and
+`POST /v1/account/onboarding` records `completed` or `skipped`. Writes recheck
+the active session transactionally, reject Lab users, share the account lock
+order with account management, reject stale revisions, and reuse
+`account_access_events` idempotency under the `onboarding` kind. Audit details
+carry revision and status only; names, focus, and URLs never enter the trail.
+Empty focus or profile URL clears the stored value.
+
+`POST /v1/account/onboarding/preview` reads exactly one user-supplied public
+HTTPS page through a bounded, DNS-pinned HTTPS client (same-origin redirects,
+public IP and per-hop robots checks, one page at depth 0, byte/time limits) and returns at
+most a 600-character untrusted excerpt. Nothing is persisted, no contact or
+model call is created, and the excerpt is never promoted into the saved profile
+automatically. Local, private, userinfo-bearing, and IP-literal URLs are
+rejected. A denied or unreadable page (for example LinkedIn) returns a truthful
+readable error; manual entry still works.
+
+## Apple sign-in setup
+
+Apple availability requires valid supplied config and HTTPS. The callback uses
+`response_mode=form_post`, so its state and nonce cookies must be
+`Secure; SameSite=None`; plain-HTTP deployments report Apple as unavailable
+rather than showing a button whose callback cannot validate. The long-lived
+session cookie policy is unchanged.
+
+- Web: `AUTH_APPLE_ID` is the Apple **Services ID** (Web Services ID) and
+  `AUTH_APPLE_SECRET` is its generated ES256 client-secret JWT. The callback URL
+  is `https://<host>/api/auth/callback/apple`.
+- Backend: `APPLE_SIGN_IN_AUDIENCES` must include the Web Services ID (and the
+  native bundle ID for the iOS client). The backend independently verifies the
+  identity token audience, nonce, signature, issuer, and expiry before opening a
+  session.
+
+Real Apple secrets are not present in this repository. Missing or malformed
+config keeps the provider unavailable; nothing is faked as enabled.
+
 The avatar menu opens `/workspace/settings`, workspace management, and internal
 test workspaces. Settings require a backend session and never use the legacy
 fixture fallback. Profile names and workspace names are editable; email and

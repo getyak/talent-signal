@@ -1,0 +1,26 @@
+.form,.fields { display:grid; gap:24px; }
+.fields { margin:0; padding:0; border:0; min-width:0; }
+.optional { color:var(--muted); font-size:11px; font-weight:400; margin-left:6px; }
+.linkInput { position:relative; }
+.linkInput>svg { position:absolute; left:14px; top:16px; color:var(--muted); pointer-events:none; }
+.linkInput input { padding-left:40px!important; }
+.fields textarea { font-family:inherit; font-size:14px; line-height:1.7; width:100%; resize:vertical; min-height:104px; max-height:280px; padding:13px 14px; color:var(--ink); background:transparent; border:1px solid var(--line-strong); border-radius:10px; outline:0; }
+.fields textarea:focus { border-color:var(--ink-soft); box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 7%,transparent); }
+.fields textarea::placeholder { color:var(--muted); font-size:13px; }
+.fields:disabled { opacity:.65; }
+.fieldNote { font-size:11px; line-height:1.6; color:var(--muted); margin:0; }
+.linkRead { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+.linkRead p { color:var(--muted); font-size:11px; line-height:1.6; margin:2px 0 0; }
+.linkRead button { display:flex; align-items:center; gap:8px; background:transparent; color:var(--ink-soft); font-size:12px; font-weight:500; border:0; min-height:36px; padding:6px 0; text-decoration:underline; text-underline-offset:4px; }
+.linkError { font-size:12px; color:var(--muted-strong); line-height:1.7; margin:4px 0; }
+.preview { border-left:2px solid var(--accent-strong); background:var(--surface-muted); padding:12px 14px; border-radius:0 8px 8px 0; }
+.previewHeader { display:flex; align-items:center; justify-content:space-between; font-size:10px; color:var(--muted-strong); }
+.previewHeader button { background:transparent; border:0; color:var(--muted-strong); width:32px; height:32px; display:grid; place-items:center; }
+.preview>p { font-size:13px; line-height:1.8; color:var(--ink-soft); overflow-wrap:anywhere; margin:4px 0 12px; }
+.previewActions { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.previewActions a,.previewActions button { display:inline-flex; align-items:center; gap:5px; color:var(--ink-soft); font-size:11px; min-height:36px; border:0; background:transparent; padding:0; }
+.previewActions button { font-weight:550; }
+.skip { display:flex; justify-content:center; align-items:center; gap:6px; background:transparent; border:0; color:var(--muted-strong); font-size:12px; margin:14px auto 0; padding:10px; min-height:40px; text-align:center; }
+.skip:hover { color:var(--ink); }
+.skip:disabled { cursor:wait; opacity:.5; }
+@media(max-width:600px) { .fields textarea { font-size:16px; } }

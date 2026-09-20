@@ -1,11 +1,14 @@
 import { TalentSignalHttpError } from "@talent-signal/contracts";
-import NextAuth, { CredentialsSignin } from "next-auth";
+import NextAuth, { AuthError, CredentialsSignin } from "next-auth";
 import Apple from "next-auth/providers/apple";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import type { Provider } from "next-auth/providers";
 import {
+  appleFormPostCookiesSupported,
+  deriveRegistrationDisplayName,
   emailSignInSchema,
+  getAuthAvailability,
   getDefaultAccount,
   normalizeEmail,
   passwordRegistrationSchema,
@@ -22,8 +25,48 @@ import {
 import { getGoogleOAuthCredentials } from "@/lib/server/google-oauth";
 
 import { authCookieSecure } from "@/lib/auth-cookie-policy";
-import { GOOGLE_NONCE_COOKIE } from "@/lib/server/google-session";
+import { OAUTH_NONCE_COOKIE, OAuthAccountLinkRequired, oauthBackendClaims } from "@/lib/server/oauth-session";
 import { finishGoogleSignIn } from "@/lib/server/google-session";
+import { finishAppleSignIn } from "@/lib/server/apple-session";
+import { getAppleOAuthCredentials } from "@/lib/server/apple-oauth";
+
+class AccountLinkRequired extends AuthError { static type = "OAuthAccountNotLinked"; }
+async function exchangeProviderSession<T>(exchange: () => Promise<T>): Promise<T> {
+  try { return await exchange(); }
+  catch (error) {
+    if (error instanceof OAuthAccountLinkRequired) throw new AccountLinkRequired("Use the original sign-in method.");
+    throw error;
+  }
+}
+
+function applyBackendSessionToToken(
+  token: Record<string, unknown>,
+  backend: Awaited<ReturnType<typeof finishGoogleSignIn>>,
+) {
+  token.sub = backend.user.id;
+  token.email = backend.user.email;
+  token.name = backend.user.display_name;
+  Object.assign(token, oauthBackendClaims(backend));
+  return token;
+}
+
+function appleNameFields(profile: unknown, fallbackName?: string | null) {
+  const raw = (profile as {
+    user?: { name?: { firstName?: unknown; lastName?: unknown } };
+  } | null)?.user;
+  const firstName =
+    typeof raw?.name?.firstName === "string" ? raw.name.firstName.trim() : "";
+  const lastName =
+    typeof raw?.name?.lastName === "string" ? raw.name.lastName.trim() : "";
+  if (firstName) {
+    return {
+      givenName: firstName.slice(0, 100),
+      ...(lastName ? { familyName: lastName.slice(0, 100) } : {}),
+    };
+  }
+  const fallback = typeof fallbackName === "string" ? fallbackName.trim() : "";
+  return fallback ? { givenName: fallback.slice(0, 100) } : {};
+}
 
 const credentialAttempts = new Map<
   string,
@@ -88,6 +131,14 @@ const providers: Provider[] = [
       password: { label: "Password", type: "password" },
     },
     async authorize(credentials) {
+      const availability = getAuthAvailability();
+      if (
+        credentials.mode === "register"
+          ? !availability.registration
+          : !availability.password
+      ) {
+        return null;
+      }
       try {
         const backendSession =
           credentials.mode === "register"
@@ -99,7 +150,10 @@ const providers: Provider[] = [
                 return registerBackendAccount({
                   username: parsed.data.username,
                   email: parsed.data.email,
-                  display_name: parsed.data.displayName,
+                  display_name: deriveRegistrationDisplayName(
+                    parsed.data.email,
+                    parsed.data.displayName,
+                  ),
                   password: parsed.data.password,
                 });
               })()
@@ -197,11 +251,16 @@ if (googleCredentials) {
   );
 }
 
-if (process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET) {
+const appleCredentials = appleFormPostCookiesSupported()
+  ? getAppleOAuthCredentials()
+  : null;
+
+if (appleCredentials) {
   providers.push(
     Apple({
-      clientId: process.env.AUTH_APPLE_ID,
-      clientSecret: process.env.AUTH_APPLE_SECRET,
+      clientId: appleCredentials.clientId,
+      clientSecret: appleCredentials.clientSecret,
+      checks: ["nonce", "state"],
     }),
   );
 }
@@ -233,22 +292,19 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     error(error) { console.error("Authentication failed:", error.name); },
   },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, profile }) {
       if (account?.provider === "google") {
         if (!account.id_token) throw new Error("Google did not return an identity token.");
-        const backend = await finishGoogleSignIn(account.id_token);
-        token.sub = backend.user.id;
-        token.email = backend.user.email;
-        token.name = backend.user.display_name;
-        token.backendAccessToken = backend.access_token;
-        token.backendAccountId = backend.account.id;
-        token.backendAccountName = backend.account.name;
-        token.backendAccountSlug = backend.account.slug;
-        token.backendExpiresAt = backend.expires_at;
-        token.backendRole = backend.user.role;
-        token.backendUserId = backend.user.id;
-        token.backendUsername = backend.user.username;
-        return token;
+        const backend = await exchangeProviderSession(() => finishGoogleSignIn(account.id_token!));
+        return applyBackendSessionToToken(token, backend);
+      }
+      if (account?.provider === "apple") {
+        if (!account.id_token) throw new Error("Apple did not return an identity token.");
+        const backend = await exchangeProviderSession(() => finishAppleSignIn({
+          identityToken: account.id_token!,
+          ...appleNameFields(profile, user?.name),
+        }));
+        return applyBackendSessionToToken(token, backend);
       }
       if (user) {
         const backendUser = user as typeof user & {
@@ -310,7 +366,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
   },
   cookies: {
-    nonce: { name: GOOGLE_NONCE_COOKIE, options: { httpOnly: true, sameSite: "lax", path: "/", secure: authCookieSecure() } },
+    // Apple returns by cross-site POST; preserve its original onboarding destination.
+    // Auth.js already adjusts state/nonce cookies for form_post; this cookie is separate.
+    callbackUrl: { name: "talent-signal.callback-url", options: { httpOnly: true, path: "/",
+      sameSite: appleCredentials && appleFormPostCookiesSupported() ? "none" : "lax",
+      secure: Boolean(appleCredentials && appleFormPostCookiesSupported()) || authCookieSecure() } },
+    nonce: { name: OAUTH_NONCE_COOKIE, options: { httpOnly: true, sameSite: "lax", path: "/", secure: authCookieSecure() } },
     sessionToken: {
       name: AUTH_SESSION_COOKIE,
       options: {

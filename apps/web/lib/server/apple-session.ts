@@ -3,35 +3,37 @@ import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { decode, encode } from "next-auth/jwt";
 import { CONTRACT_VERSION, type SessionResponse } from "@talent-signal/contracts";
-import { authCookieSecure } from "../auth-cookie-policy";
 import { authSecret, backendAuthBaseUrl } from "./backendAuth";
 import {
   OAUTH_ATTEMPT_COOKIE_TTL_SECONDS,
   OAUTH_CLIENT_LABEL,
-  OAUTH_NONCE_COOKIE,
   assertOAuthSession,
   postOAuthEndpoint,
   verifyOAuthBackendSession,
   writeOAuthNonceCookie,
 } from "./oauth-session";
 
-/** Auth.js nonce cookie name (shared with Apple; payload is provider-tagged). */
-export const GOOGLE_NONCE_COOKIE = OAUTH_NONCE_COOKIE;
-const attemptCookieName = "talent-signal.google-attempt";
+const attemptCookieName = "talent-signal.apple-attempt";
 
-type GoogleChallenge = {
+type AppleChallenge = {
   contract_version: unknown;
   challenge_id: unknown;
   nonce: unknown;
   expires_at: unknown;
 };
 
-export async function prepareGoogleSignIn() {
+export type AppleSignInExchange = {
+  identityToken: string;
+  givenName?: string;
+  familyName?: string;
+};
+
+export async function prepareAppleSignIn(): Promise<string> {
   const challenge = (await postOAuthEndpoint(
-    "/v1/auth/google/challenges",
+    "/v1/auth/apple/challenges",
     { client_label: OAUTH_CLIENT_LABEL },
-    "Google",
-  )) as GoogleChallenge;
+    "Apple",
+  )) as AppleChallenge;
   if (
     challenge.contract_version !== CONTRACT_VERSION ||
     typeof challenge.challenge_id !== "string" ||
@@ -39,7 +41,7 @@ export async function prepareGoogleSignIn() {
     !Number.isFinite(Date.parse(String(challenge.expires_at))) ||
     Date.parse(String(challenge.expires_at)) <= Date.now()
   ) {
-    throw new Error("Google sign-in challenge is invalid.");
+    throw new Error("Apple sign-in challenge is invalid.");
   }
   const value = await encode({
     secret: authSecret(),
@@ -48,21 +50,21 @@ export async function prepareGoogleSignIn() {
     token: {
       challengeID: challenge.challenge_id,
       endpoint: backendAuthBaseUrl(),
-      provider: "google",
+      provider: "apple",
     },
   });
   (await cookies()).set(attemptCookieName, value, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "none",
     path: "/",
     maxAge: OAUTH_ATTEMPT_COOKIE_TTL_SECONDS,
-    secure: authCookieSecure(),
+    secure: true,
   });
   return createHash("sha256").update(challenge.nonce).digest("hex");
 }
 
-export async function finishGoogleSignIn(
-  identityToken: string,
+export async function finishAppleSignIn(
+  exchange: AppleSignInExchange,
 ): Promise<SessionResponse> {
   const jar = await cookies();
   const value = jar.get(attemptCookieName)?.value;
@@ -73,35 +75,38 @@ export async function finishGoogleSignIn(
   if (
     !attempt ||
     typeof attempt.challengeID !== "string" ||
-    attempt.provider !== "google" ||
+    attempt.provider !== "apple" ||
     attempt.endpoint !== backendAuthBaseUrl()
   ) {
-    throw new Error("Start Google sign-in from the login page again.");
+    throw new Error("Start Apple sign-in from the login page again.");
   }
   const session = (await postOAuthEndpoint(
-    "/v1/auth/google",
+    "/v1/auth/apple",
     {
       challenge_id: attempt.challengeID,
-      identity_token: identityToken,
+      identity_token: exchange.identityToken,
       client_label: OAUTH_CLIENT_LABEL,
+      ...(exchange.givenName ? { given_name: exchange.givenName } : {}),
+      ...(exchange.familyName ? { family_name: exchange.familyName } : {}),
     },
-    "Google",
+    "Apple",
   )) as SessionResponse;
-  assertOAuthSession(session, "Google");
-  return verifyOAuthBackendSession(session, "Google");
+  assertOAuthSession(session, "Apple");
+  return verifyOAuthBackendSession(session, "Apple");
 }
 
-// Auth.js owns state and PKCE. Bind its OIDC nonce check to the server-issued
-// challenge, preserving the provider-tagged encrypted cookie format in beta.32.
-export async function bindGoogleNonce(
+// Apple's `response_mode=form_post` callback is cross-site, so the Auth.js
+// nonce cookie must be `Secure; SameSite=None`. The long-lived session cookie
+// keeps its existing policy. Only the provider-tagged nonce changes.
+export async function bindAppleNonce(
   authorizationURL: string,
   nonce: string,
-) {
+): Promise<string> {
   const url = new URL(authorizationURL);
-  if (url.origin !== "https://accounts.google.com") {
-    throw new Error("Unexpected Google authorization endpoint.");
+  if (url.origin !== "https://appleid.apple.com") {
+    throw new Error("Unexpected Apple authorization endpoint.");
   }
-  await writeOAuthNonceCookie({ value: nonce, provider: "google", crossSite: false });
+  await writeOAuthNonceCookie({ value: nonce, provider: "apple", crossSite: true });
   url.searchParams.set("nonce", nonce);
   return url.toString();
 }

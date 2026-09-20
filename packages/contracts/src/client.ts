@@ -1,5 +1,5 @@
 import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } from "./productRunSchemas.js";
-import type { AccountSettings, AccountMutation } from "./accountSchemas.js";
+import type { AccountSettings, AccountMutation, AccountOnboarding, AccountOnboardingMutation, AccountOnboardingPreview, AccountOnboardingPreviewRequest } from "./accountSchemas.js";
 import type {
   McpClientGrantCreateRequest,
   McpClientGrantCreateResponse,
@@ -273,6 +273,32 @@ export class TalentSignalClient {
     return this.request<AccountSettings>("/v1/account/settings", { method: "GET" });
   }
 
+  accountOnboarding(signal?: AbortSignal): Promise<AccountOnboarding> {
+    return this.request<AccountOnboarding>("/v1/account/onboarding", {
+      method: "GET", signal,
+    });
+  }
+
+  updateAccountOnboarding(
+    input: AccountOnboardingMutation,
+    signal?: AbortSignal,
+  ): Promise<AccountOnboarding> {
+    return this.request<AccountOnboarding>("/v1/account/onboarding", {
+      method: "POST", signal,
+      body: input,
+    });
+  }
+
+  previewAccountOnboarding(
+    request: AccountOnboardingPreviewRequest,
+    signal?: AbortSignal,
+  ): Promise<AccountOnboardingPreview> {
+    return this.request<AccountOnboardingPreview>(
+      "/v1/account/onboarding/preview",
+      { method: "POST", body: request, signal },
+    );
+  }
+
   systemHealth(signal?: AbortSignal): Promise<SystemHealthResponse> {
     return this.request<SystemHealthResponse>("/v1/system/health", {
       method: "GET",
@@ -284,7 +310,7 @@ export class TalentSignalClient {
     return this.request<AccountSettings>("/v1/account/settings", {method: "POST", body: input});
   }
 
-  currentSession(): Promise<CurrentSessionResponse> {
+  currentSession(signal?: AbortSignal): Promise<CurrentSessionResponse> {
     return this.request("/v1/auth/session", { method: "GET" });
   }
 
