@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -51,5 +53,20 @@ describe("workspace critical loading path", () => {
     expect(html).toContain("Authentication boundary");
     expect(html).not.toContain("Talent Signal 工作台");
     expect(loadLabManifest).not.toHaveBeenCalled();
+  });
+});
+
+describe("workspace loading surface", () => {
+  it("keeps the route loading boundary quiet and route-neutral", () => {
+    const source = readFileSync(
+      new URL("../app/workspace/loading.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("正在打开当前工作台");
+    expect(source).toContain("你仍可使用侧栏切换页面");
+    // The status stays in the accessibility tree; it must not be a repeat hero.
+    expect(source).not.toMatch(/<h1/);
+    expect(source).toContain('role="status"');
+    expect(source).toContain('aria-live="polite"');
   });
 });

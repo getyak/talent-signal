@@ -1,0 +1,44 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { PersonDirectoryItem } from "@talent-signal/contracts";
+import { describe, expect, it } from "vitest";
+import { PeopleDirectoryApp } from "./people-directory-app";
+
+const person: PersonDirectoryItem = {
+  id: "person-a", display_label: "林知遥", context_count: 1,
+  capture_count: 2, confirmed_identity_count: 1,
+  last_activity_at: "2026-09-20T08:00:00Z", profile: null, avatar: null,
+  contexts: [{ id: "context-a", display_label: "项目沟通", last_activity_at: "2026-09-20T08:00:00Z" }],
+  identity_matches: [{ kind: "expired_handle", handle_type: "email", display_hint: "l***@example.test", source_resource_id: null, expired_at: "2026-09-01T00:00:00Z" }],
+};
+const props = { error: null, people: [], query: "", returnSessionId: null, sessionRecoveryHref: null };
+
+describe("people directory states", () => {
+  it("distinguishes unavailable data from an empty directory", () => {
+    const unavailable = renderToStaticMarkup(createElement(PeopleDirectoryApp, { ...props, error: "暂时无法连接" }));
+    expect(unavailable).toContain("暂不可用");
+    expect(unavailable).not.toContain("0 位人物");
+    expect(unavailable).not.toContain("还没有人物");
+    const empty = renderToStaticMarkup(createElement(PeopleDirectoryApp, props));
+    expect(empty).toContain("0 位人物");
+    expect(empty).toContain("添加第一位联系人");
+  });
+  it("keeps historical identity and relationship scope explicit", () => {
+    const html = renderToStaticMarkup(createElement(PeopleDirectoryApp, { ...props, people: [person], query: "林", returnSessionId: "session-a" }));
+    expect(html).toContain("历史邮箱：l***@example.test");
+    expect(html).toContain("项目沟通");
+    expect(html).toContain("1 位匹配人物");
+    expect(html).toContain("context=context-a&amp;person=person-a&amp;session=session-a");
+    expect(html).toContain('name="session"');
+    expect(html).toContain('value="session-a"');
+  });
+  it("uses only the confirmed avatar URL without referring the private page", () => {
+    const html = renderToStaticMarkup(createElement(PeopleDirectoryApp, { ...props, people: [{ ...person, avatar: {
+      url: "https://example.test/avatar.png", source_profile_url: "https://example.test/profile",
+      source_platform: "fixture", retrieved_at: "2026-09-20T08:00:00Z", confirmed_at: "2026-09-20T08:00:00Z",
+    } }] }));
+    expect(html).toContain('src="https://example.test/avatar.png"');
+    expect(html).toContain('referrerPolicy="no-referrer"');
+    expect(html).toContain('loading="lazy"');
+  });
+});

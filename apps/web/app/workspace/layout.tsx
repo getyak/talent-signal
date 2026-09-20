@@ -31,6 +31,7 @@ import accountStyles from "@/components/account-settings.module.css";
 import { SystemHealthProvider } from "@/components/system-health-provider";
 import { WorkspaceAccountMenu } from "@/components/workspace-account-menu";
 import { MeetingDraftSessionBoundary } from "@/components/meeting-draft-session-boundary";
+import { WorkspaceDirectoryScope } from "@/components/workspace-directory-cache";
 import { SessionDraftSessionBoundary } from "@/components/session-draft-session-boundary";
 import {
   workspaceSessionDraftStorageScope,
@@ -68,6 +69,7 @@ export default async function WorkspaceLayout({
       <>
         <MeetingDraftSessionBoundary sessionVersion={null} />
         <SessionDraftSessionBoundary storageScope={null} />
+        <WorkspaceDirectoryScope binding={null} />
         {children}
       </>
     );
@@ -118,6 +120,7 @@ export default async function WorkspaceLayout({
       <>
         <MeetingDraftSessionBoundary sessionVersion={null} />
         <SessionDraftSessionBoundary storageScope={null} />
+        <WorkspaceDirectoryScope binding={null} />
         <section className={accountStyles.section} aria-live="polite">
           <h1>需要重新确认登录空间</h1>
           <p className={accountStyles.error}>
@@ -150,6 +153,7 @@ export default async function WorkspaceLayout({
         <MeetingDraftSessionBoundary sessionVersion={pendingBinding} />
       ) : null}
       <SessionDraftSessionBoundary storageScope={pendingSessionDraftScope} />
+      <WorkspaceDirectoryScope binding={pendingBinding} />
       <aside aria-label="Talent Signal 工作台" className={styles.sidebar}>
         <WorkspaceShellNav binding={pendingBinding} />
         <div className={styles.sidebarScroll}>

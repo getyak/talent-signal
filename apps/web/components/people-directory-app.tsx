@@ -6,9 +6,11 @@ import {
   UserPlus,
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import Form from "next/form";
 
 import styles from "./people-directory-app.module.css";
 import { withReturnSession } from "./session-return-navigation";
+import { PersonDirectoryAvatar } from "./person-directory-avatar";
 import { WorkspaceDisconnectedState } from "./workspace-disconnected-state";
 
 type Props = {
@@ -18,17 +20,6 @@ type Props = {
   returnSessionId: string | null;
   sessionRecoveryHref: string | null;
 };
-
-function initials(label: string) {
-  return (
-    label
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("") || "?"
-  );
-}
 
 function formatActivity(value: string) {
   const date = new Date(value);
@@ -59,6 +50,14 @@ function relationshipHref(
   return withReturnSession(`/workspace?${search.toString()}`, returnSessionId);
 }
 
+function identityHandleLabel(type: string) {
+  const labels: Record<string, string> = {
+    email: "邮箱", phone: "电话", wechat: "微信", linkedin_url: " LinkedIn",
+    public_profile_url: "公开主页", source_native_id: "来源标识",
+  };
+  return labels[type] ?? "联系方式";
+}
+
 function identityMatchLabel(
   match: PersonDirectoryItem["identity_matches"][number],
 ) {
@@ -66,14 +65,12 @@ function identityMatchLabel(
     return "姓名匹配";
   }
   if (match.kind === "confirmed_handle") {
-    return `当前 ${match.handle_type}：${match.display_hint}`;
+    return `当前${identityHandleLabel(match.handle_type)}：${match.display_hint}`;
   }
-  return `历史 ${match.handle_type}：${match.display_hint}`;
+  return `历史${identityHandleLabel(match.handle_type)}：${match.display_hint}`;
 }
 
 function personChange(person: PersonDirectoryItem) {
-  const headline = person.profile?.headline;
-  if (headline) return headline;
   if (person.contexts.length > 1) {
     return `${person.contexts.length} 个关系情境`;
   }
@@ -117,11 +114,12 @@ export function PeopleDirectoryApp({
           </header>
 
           <div className={styles.listTools}>
-            <form action="/workspace/people" className={styles.search}>
+            <Form action="/workspace/people" className={styles.search} scroll={false}>
               <MagnifyingGlass aria-hidden="true" size={16} />
               <input
                 aria-label="按姓名或已确认联系方式搜索人物"
                 defaultValue={query}
+                key={query}
                 maxLength={160}
                 name="query"
                 placeholder="按姓名、邮箱或电话查找…"
@@ -130,8 +128,11 @@ export function PeopleDirectoryApp({
               {returnSessionId ? (
                 <input name="session" type="hidden" value={returnSessionId} />
               ) : null}
-            </form>
-            <span>{people.length} 位</span>
+              <button aria-label="搜索人物" type="submit">
+                <ArrowRight aria-hidden="true" size={15} />
+              </button>
+            </Form>
+            <span aria-live="polite">{error ? "暂不可用" : `${people.length} 位${query ? "匹配人物" : "人物"}`}</span>
           </div>
 
           {error ? (
@@ -197,9 +198,11 @@ export function PeopleDirectoryApp({
                         href={relationshipHref(person, returnSessionId)}
                       >
                         <span className={styles.personIdentity}>
-                          <span aria-hidden="true" className={styles.avatar}>
-                            {initials(person.display_label)}
-                          </span>
+                          <PersonDirectoryAvatar
+                            className={styles.avatar}
+                            label={person.display_label}
+                            url={person.avatar?.url ?? null}
+                          />
                           <span className={styles.personName}>
                             <strong>{person.display_label}</strong>
                             <small>

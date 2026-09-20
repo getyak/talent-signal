@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  invalidateWorkspaceDirectory,
+  workspaceDirectoryMutationInvalidates,
+} from "@/lib/workspace-directory-cache";
+
 export const WORKSPACE_SESSION_EXPIRED_EVENT =
   "talent-signal:workspace-session-expired";
 
@@ -36,12 +41,35 @@ export async function workspaceSessionFetch(
   const local = target && target.origin === window.location.origin && target.pathname.startsWith("/api/");
   if (local && !scope) {
     window.dispatchEvent(new Event(WORKSPACE_SESSION_EXPIRED_EVENT));
+    invalidateWorkspaceDirectory(undefined, "discard");
     return Response.json({ code: "backend_session_expired" }, { status: 401 });
   }
   const scoped = scope && local ? { ...init, headers: new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)) } : init;
   if (scope && local && scoped?.headers instanceof Headers) scoped.headers.set("X-Talent-Signal-Workspace", scope);
+  const method = (
+    init?.method ?? (input instanceof Request ? input.method : "GET")
+  ).toUpperCase();
   const response = await request(input, scoped);
-  if (response.status !== 401) return response;
+  if (response.status !== 401) {
+    // A successful private-data mutation must not leave a pre-mutation
+    // snapshot in the shared in-memory cache. Reads and unrelated endpoints
+    // are untouched.
+    if (
+      response.ok &&
+      local &&
+      target &&
+      workspaceDirectoryMutationInvalidates(method, target.pathname)
+    ) {
+      invalidateWorkspaceDirectory(undefined, "revalidate");
+    }
+    return response;
+  }
+  // Any 401 on the scoped workspace API must not leave a cached private
+  // snapshot available. Discard first so live readers fail closed; the
+  // specific backend_session_expired code additionally starts recovery.
+  if (local && target) {
+    invalidateWorkspaceDirectory(undefined, "discard");
+  }
   try {
     const payload = (await response.clone().json()) as unknown;
     if (
