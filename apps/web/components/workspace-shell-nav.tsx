@@ -228,22 +228,22 @@ export function WorkspaceMobileSourcesLink() {
   return (
     <>
       <Link
-        aria-label="打开全部对话"
+        aria-label="打开对话记录"
         className={styles.mobileSources}
         href="/workspace/sessions"
-        title="全部对话"
+        title="对话记录"
       >
         <ClockCounterClockwise aria-hidden="true" size={18} />
         <span>对话</span>
       </Link>
       <Link
-        aria-label="打开来源"
+        aria-label="打开扩展"
         className={styles.mobileSources}
-        href="/workspace/captures"
-        title="来源"
+        href="/workspace/extensions"
+        title="扩展"
       >
-        <Database aria-hidden="true" size={18} weight="duotone" />
-        <span>来源</span>
+        <Plugs aria-hidden="true" size={18} />
+        <span>扩展</span>
       </Link>
     </>
   );

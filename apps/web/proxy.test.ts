@@ -58,3 +58,11 @@ it("preserves only the exact session-bound extension handoff transport", () => {
   expect(proxy(new NextRequest("https://example.test/api/contact-agent/tasks/other", { method: "POST", headers })).status).toBe(401);
   expect(proxy(new NextRequest("https://example.test/api/contact-agent/tasks", { method: "POST", headers: { "x-contact-handoff-session": " " } })).status).toBe(401);
 });
+
+it("admits only the published MCP endpoint outside the workspace session guard", () => {
+  expect(proxy(new NextRequest("https://example.test/api/mcp", { method: "POST" })).headers.get("x-middleware-next")).toBe("1");
+  // A subpath is not the published transport and keeps the workspace guard.
+  expect(proxy(new NextRequest("https://example.test/api/mcp/connections", { method: "POST" })).status).toBe(401);
+  // Extension management stays inside the workspace guard.
+  expect(proxy(new NextRequest("https://example.test/api/extensions/clients", { method: "POST" })).status).toBe(401);
+});

@@ -4,7 +4,7 @@ import {
   CaretDown,
   CaretRight,
   GearSix,
-  Plugs,
+  Globe,
   SignOut,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -23,7 +23,6 @@ import { clearAllPendingMeetingDraftIntents } from "@/lib/meeting-draft-pending"
 import styles from "./workspace-shell.module.css";
 
 const links = [
-  ["/workspace/plugs", "连接", Plugs],
   ["/workspace/settings", "设置", GearSix],
 ] as const;
 
@@ -116,7 +115,6 @@ export function WorkspaceAccountMenu({
         aria-label={accountMenuLabel(identity)}
         className={styles.accountTrigger}
         ref={trigger}
-        title={accountMenuLabel(identity)}
       >
         <span aria-hidden="true" className={styles.avatar} data-size="account">
           {avatarUrl ? (
@@ -156,6 +154,7 @@ export function WorkspaceAccountMenu({
           </Link>
         ))}
         <span className={styles.accountMetaRow}>
+          <Globe aria-hidden="true" size={16} />
           <span>语言</span>
           <strong>简体中文</strong>
         </span>

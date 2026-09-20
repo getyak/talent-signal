@@ -46,9 +46,9 @@ describe("persistent workspace shell", () => {
     expect(navigation).toContain('href: "/workspace/people"');
     expect(navigation).toContain('href: "/workspace/meetings"');
     expect(navigation).toContain('href: "/workspace/captures"');
-    expect(navigation).toContain('href: "/workspace/plugs"');
+    expect(navigation).toContain('href: "/workspace/extensions"');
     expect(navigation).toContain("WorkspaceMobileSourcesLink");
-    expect(navigation).toContain('aria-label="打开来源"');
+    expect(navigation).toContain('aria-label="打开扩展"');
     // The generic More disclosure is gone, and Sources is a direct primary row.
     expect(navigation).not.toContain("WorkspaceMoreDestinations");
     expect(navigation).not.toContain("更多目的地");
@@ -56,9 +56,9 @@ describe("persistent workspace shell", () => {
     expect(navigation).toContain("collapsedUtility");
     expect(navigation).toContain('data-collapsed-only="true"');
     expect(navigation).toContain("aria-label={collapsed ? route.label : undefined}");
-    // Connections lives in the account utilities with a real Plugs icon.
-    expect(accountMenu).toContain("Plugs");
-    expect(accountMenu).toContain('["/workspace/plugs", "连接", Plugs]');
+    // Account utilities align language with the shared icon column.
+    expect(accountMenu).toContain("Globe");
+    expect(accountMenu).not.toContain("/workspace/plugs");
     // A Session detail supplies its own context; the shell header yields to it.
     expect(routeHeader).toContain("if (SESSION_DETAIL.test(pathname)) return null;");
     // A successfully empty people projection hides the auxiliary group without
@@ -224,7 +224,7 @@ describe("settings composition", () => {
     const page = read("app/workspace/settings/page.tsx");
 
     expect(settings).toContain("<AccountSettingsPanel");
-    expect(settings).toContain('href="/workspace/plugs"');
+    expect(settings).toContain('href="/workspace/extensions"');
     expect(settings).toContain('href="/workspace/captures"');
     expect(settings).toContain('href="/workspace/settings/diagnostics"');
     expect(settings).toContain("<AgentResponsePreference");

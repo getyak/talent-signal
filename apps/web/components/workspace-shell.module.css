@@ -595,6 +595,7 @@
 }
 
 .accountPopover {
+  grid-template-columns: minmax(0, 1fr);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 13px;
@@ -623,6 +624,7 @@
 }
 
 .accountSummary > span:last-child {
+  flex: 1;
   min-width: 0;
 }
 
@@ -698,7 +700,7 @@
   flex: 0 0 auto;
 }
 
-.accountPopover .accountMetaRow > span:first-child {
+.accountPopover .accountMetaRow > span {
   flex: 1;
   min-width: 0;
 }
@@ -1093,6 +1095,7 @@
   }
 
   .mobileAccount .accountPopover {
+  grid-template-columns: minmax(0, 1fr);
     bottom: auto;
     left: auto;
     right: 0;
@@ -1145,3 +1148,14 @@
     margin-top: 8px;
   }
 }
+
+/* One quiet history entry; no placeholder card for a successfully empty list. */
+.historyHeader { align-items: center; border-radius: 8px; color: var(--muted); display: flex; font-size: 12px; gap: 9px; min-height: 36px; padding: 0 8px; text-decoration: none; }
+.historyHeader > span { flex: 1; }
+.historyHeader:hover { background: var(--hover); color: var(--ink); }
+.historyHeader:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.historyHeader[data-empty="true"] { color: var(--muted-strong); font-size: 13px; min-height: 40px; }
+.historySkeleton { background: var(--line-soft); border-radius: 3px; height: 8px; margin: 13px 8px; max-width: 130px; }
+.historyRecovery { color: var(--muted); font-size: 12px; line-height: 1.6; padding: 4px 8px; }
+.historyRecovery button { background: transparent; border: 0; color: var(--ink); cursor: pointer; font: inherit; margin-left: 8px; padding: 5px; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 760px) { .accountPopover a, .accountPopover form button, .accountPopover :global(.theme-toggle--row) { min-height: 44px; } }

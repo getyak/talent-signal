@@ -143,9 +143,7 @@ export default async function WorkspaceLayout({
   const fixtureWorkspace =
     Boolean(testName) || (backendAccount?.slug.startsWith("fixture-") ?? fixtureFallback);
   const workspaceName = backendAccount?.name ?? null;
-  const accountTitle = fixtureWorkspace
-    ? `${accountName} · ${workspaceName ?? "Alpha 寻访测试"} · 合成测试工作台——仅含评测数据，不是真实招聘记录`
-    : `${accountName} · ${workspaceName ?? "账号专属工作台"}`;
+
 
   return (
     <div lang="zh-CN" className={`ts-workspace-theme quiet-workspace ${styles.shell}`}>
@@ -162,9 +160,9 @@ export default async function WorkspaceLayout({
           ) : null}
           <WorkspaceSidebarPeople binding={pendingBinding} />
         </div>
-        <div className={styles.account} title={accountTitle}>
+        <div className={styles.account}>
           {fixtureWorkspace ? (
-            <span className={styles.environmentBadge}>合成测试空间</span>
+            <span className={styles.environmentBadge} title="合成测试工作台——仅含评测数据，不是真实招聘记录">合成测试空间</span>
           ) : null}
           <AccountControls
             accountName={accountName}

@@ -131,6 +131,12 @@ Before finishing:
   Record child-page results individually; an overall craft score cannot hide
   unverified loading, empty, error, narrow, keyboard or theme states.
 
+- Inspect the shell with zero recent items and the account menu open. Keep a
+  consistent icon column and row rhythm; avoid orphan empty-state icons, repeated
+  history links, native title tooltips over menus, and duplicate primary
+  destinations in account controls. An empty history group can be a single
+  navigable row; reserve explanatory empty states for the destination page.
+
 - Compare Card and List for semantic parity.
 - Trace at least one current fact to exact evidence and through history.
 - Test long names, missing avatars, no tags, three tags, stale evidence, and an

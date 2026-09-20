@@ -111,6 +111,8 @@ export async function mutateAccountSettings(pool: Pool, auth: AuthContext, input
           if(input.status==='revoked'||input.role!==target.account_role){
             const revoked=await client.query<{id:string}>('UPDATE sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE account_id=$1 AND user_id=$2 AND revoked_at IS NULL RETURNING id',[auth.accountId,target.id]);
             details.revoked_session_ids=revoked.rows.map(row=>row.id);
+            const revokedGrants=await client.query<{id:string}>('UPDATE mcp_client_grants SET revoked_at=now(),revision=revision+1 WHERE account_id=$1 AND created_by_user_id=$2 AND revoked_at IS NULL RETURNING id',[auth.accountId,target.id]);
+            details.revoked_mcp_grant_ids=revokedGrants.rows.map(row=>row.id);
           }
         }
       }

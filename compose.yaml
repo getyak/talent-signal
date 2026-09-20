@@ -94,6 +94,9 @@ services:
       args:
         PNPM_REGISTRY: ${TS_PNPM_REGISTRY:-https://registry.npmjs.org}
     environment:
+      TALENT_SIGNAL_MCP_ENCRYPTION_KEY: ${TALENT_SIGNAL_MCP_ENCRYPTION_KEY:-}
+      TALENT_SIGNAL_MCP_PUBLIC_ORIGIN: ${TALENT_SIGNAL_MCP_PUBLIC_ORIGIN:-}
+      TALENT_SIGNAL_MCP_ALLOWED_ORIGINS: ${TALENT_SIGNAL_MCP_ALLOWED_ORIGINS:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-talent_signal_local}:${POSTGRES_PASSWORD:-talent_signal_local_only}@postgres:5432/${POSTGRES_DB:-talent_signal_local}
       NODE_ENV: development
       SIMULATED_AUTH_ENABLED: "true"

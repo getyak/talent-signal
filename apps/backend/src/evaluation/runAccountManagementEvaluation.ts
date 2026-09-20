@@ -75,7 +75,7 @@ try{
   await request(member.access_token,'GET','/v1/auth/session',undefined,401);
   const memberEvents=await accessEvents(owner.account.id,memberEventId);
   assert.equal(memberEvents.length,1);
-  assert.deepEqual(memberEvents[0]!.details,{target_user_id:memberId,role_before:'member',role_after:'member',status_before:'active',status_after:'revoked',revoked_session_ids:[memberSessionId]});
+  assert.deepEqual(memberEvents[0]!.details,{target_user_id:memberId,role_before:'member',role_after:'member',status_before:'active',status_after:'revoked',revoked_session_ids:[memberSessionId],revoked_mcp_grant_ids:[]});
   assert(!JSON.stringify(memberEvents[0]!.details).includes(memberId+'@example.test'),'member audit must not copy the email');
   const memberEventDetails=JSON.stringify(memberEvents[0]!.details);
   state=await mutate(owner.access_token,{id:randomUUID(),kind:'member',expected_revision:state.workspace.revision,user_id:memberId,role:'admin',status:'active'});

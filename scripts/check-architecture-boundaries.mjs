@@ -17,9 +17,9 @@ const MIGRATION_MANIFEST =
 const MIGRATION_DIRECTORY = "apps/backend/src/database";
 const WORKSPACE_CONFIGURATION = "pnpm-workspace.yaml";
 const WORKSPACE_PATTERNS = ["apps/*", "packages/*"];
-const FROZEN_MIGRATION_COUNT = 75;
+const FROZEN_MIGRATION_COUNT = 76;
 const FROZEN_MIGRATION_DIGEST =
-  "149a70de482cad457c1350273dd34795647dcdc0930d86bad36cf7f33e1a166f";
+  "d7c9a7305f029e89690834fd5f58de5b7aaad7354a251e089f0d43c4a10b88b3";
 
 const LEGACY_MIGRATION_PREFIX_COLLISIONS = new Map([
   [

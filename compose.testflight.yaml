@@ -58,6 +58,9 @@ services:
     image: ${BACKEND_IMAGE:-talent-signal-backend-local:testflight}
     build: *backend-build
     environment:
+      TALENT_SIGNAL_MCP_ENCRYPTION_KEY: ${TALENT_SIGNAL_MCP_ENCRYPTION_KEY:-}
+      TALENT_SIGNAL_MCP_PUBLIC_ORIGIN: ${TALENT_SIGNAL_MCP_PUBLIC_ORIGIN:-}
+      TALENT_SIGNAL_MCP_ALLOWED_ORIGINS: ${TALENT_SIGNAL_MCP_ALLOWED_ORIGINS:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
       NODE_ENV: production
       SIMULATED_AUTH_ENABLED: "false"

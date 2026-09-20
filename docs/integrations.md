@@ -75,6 +75,21 @@ not mutate Talent Signal truth.
 Use the shared backend for cross-surface identity, evidence, review, action,
 outcome, and audit state.
 
+### MCP extensions
+
+Extensions distinguish connecting an external server from granting a client
+access to Talent Signal. Saving a server address grants no execution authority:
+verified connectivity establishes bounded capability discovery only. Remote tool
+descriptions and read-only annotations are untrusted declarations, not permission.
+
+Each external client receives an independently revocable, expiring grant for
+explicit read scopes. Browser sessions and provider credentials are never
+exported as client credentials. Member suspension or role changes revoke prior
+grants permanently; reinstatement does not restore them. Published projections
+exclude raw evidence, conversations, contact handles and external writes.
+Transport support and deployment configuration live in the
+[MCP operations guide](operations/mcp-extensions.md).
+
 ### Model providers
 
 Models are bounded processors of authorized context. Provider choice may vary

@@ -200,9 +200,9 @@ function ConnectionsPane() {
       >
         <Row
           description="查看每个连接的范围、失效与重新授权状态。"
-          title="连接与权限"
+          title="扩展与权限"
         >
-          <RowLink href="/workspace/plugs" label="打开连接" />
+          <RowLink href="/workspace/extensions" label="管理扩展" />
         </Row>
         <Row description="账号专属的来源、授权与删除状态。" title="来源">
           <RowLink href="/workspace/captures" label="打开来源" />
@@ -339,8 +339,8 @@ function SettingsOverview({
       </Group>
 
       <Group title="连接与来源">
-        <Row description="每个连接的范围、失效与重新授权状态。" title="连接与权限">
-          <RowLink href="/workspace/plugs" label="打开连接" />
+        <Row description="每个连接的范围、失效与重新授权状态。" title="扩展与权限">
+          <RowLink href="/workspace/extensions" label="管理扩展" />
         </Row>
         <Row description="账号专属的来源、授权与删除状态。" title="来源">
           <RowLink href="/workspace/captures" label="打开来源" />

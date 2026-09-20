@@ -7,6 +7,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname.replace(/\/+$/, "");
   const separateBoundary = path === "/api/analyze"
+    // The published MCP endpoint uses its own scoped bearer token and never a
+    // browser login cookie, so it is deliberately outside the workspace guard.
+    || path === "/api/mcp"
     || ["/api/auth", "/api/browser-extension", "/api/dev"].some(
       prefix => path === prefix || path.startsWith(`${prefix}/`),
     );

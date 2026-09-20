@@ -34,20 +34,20 @@ describe("workspace navigation without a generic More disclosure", () => {
       "/workspace/today",
       "/workspace/people",
       "/workspace/meetings",
-      "/workspace/captures",
+      "/workspace/extensions",
     ];
     const indices = order.map((href) => html.indexOf(`href="${href}"`));
     for (const index of indices) expect(index).toBeGreaterThan(-1);
     expect(indices).toEqual([...indices].sort((a, b) => a - b));
   });
 
-  it("keeps Connections and Sessions out of the expanded primary rail", () => {
+  it("keeps Sources and duplicate Sessions out of the primary rail", () => {
     pathname.current = "/workspace";
     const html = renderToStaticMarkup(
       createElement(shellNav.WorkspaceShellNav, { binding: null }),
     );
 
-    expect(html).not.toContain('href="/workspace/plugs"');
+    expect(html).not.toContain('href="/workspace/captures"');
     expect(html).not.toContain('href="/workspace/sessions"');
   });
 });

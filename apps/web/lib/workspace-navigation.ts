@@ -7,13 +7,9 @@
  * of React, Next.js and DOM concerns so it stays cheap to unit test and safe
  * to import from any runtime.
  *
- * The desktop rail keeps one direct primary order — new conversation, Today,
- * People, Meetings, Sources — with no generic "More" disclosure. The compact
- * mobile dock keeps the four retrieval destinations (new, Today, People,
- * Meetings) and the header carries a separate Sources button. Connections
- * lives in the account utilities, and the Sessions directory is reached from
- * the recent-Sessions header plus one collapsed-rail icon link rather than a
- * duplicate expanded row.
+ * The desktop rail prioritizes conversation, Today, People, Meetings and
+ * Extensions. Source intake remains reachable from Extensions and source links.
+ * The mobile dock retains four retrieval routes; its header owns Extensions.
  */
 
 export type WorkspaceNavRouteId =
@@ -107,14 +103,14 @@ export const WORKSPACE_NAV_ROUTES: readonly WorkspaceNavRoute[] = [
     id: "captures",
     href: "/workspace/captures",
     label: "来源",
-    section: "primary",
+    section: "account",
     mobile: false,
     matches: (pathname) => workspacePathMatches(pathname, "/workspace/captures"),
   },
   {
     id: "sessions",
     href: "/workspace/sessions",
-    label: "全部对话",
+    label: "对话记录",
     // Rendered as one named icon link only while the rail is collapsed; the
     // recent-Sessions header owns the expanded entry so the route is never
     // duplicated or unreachable.
@@ -124,12 +120,11 @@ export const WORKSPACE_NAV_ROUTES: readonly WorkspaceNavRoute[] = [
   },
   {
     id: "plugs",
-    href: "/workspace/plugs",
-    label: "连接",
-    // Account utility: reachable from the account menu, not the product rail.
-    section: "account",
+    href: "/workspace/extensions",
+    label: "扩展",
+    section: "primary",
     mobile: false,
-    matches: (pathname) => workspacePathMatches(pathname, "/workspace/plugs"),
+    matches: (pathname) => workspacePathMatches(pathname, "/workspace/extensions") || workspacePathMatches(pathname, "/workspace/plugs"),
   },
 ];
 
