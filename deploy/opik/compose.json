@@ -138,8 +138,8 @@
         "start_period": "15s"
       },
       "image": "clickhouse/clickhouse-server@sha256:b45ab149f0d331b944b4aa2ccdd47d0242238fd39e68ec524ad63338e4b9d8f8",
-      "mem_limit": "939524096",
-      "memswap_limit": "939524096",
+      "mem_limit": "1342177280",
+      "memswap_limit": "1342177280",
       "networks": {
         "default": null
       },
