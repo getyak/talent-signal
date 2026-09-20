@@ -1,5 +1,6 @@
 import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } from "./productRunSchemas.js";
 import type { AccountSettings, AccountMutation } from "./accountSchemas.js";
+import type { SystemHealthResponse } from "./systemHealthSchemas.js";
 import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
 import type { AgentPreferenceMutation, AgentPreferenceResponse } from "./agentPreferenceSchemas.js";
 import type {
@@ -254,6 +255,12 @@ export class TalentSignalClient {
 
   accountSettings(): Promise<AccountSettings> {
     return this.request<AccountSettings>("/v1/account/settings", { method: "GET" });
+  }
+
+  systemHealth(): Promise<SystemHealthResponse> {
+    return this.request<SystemHealthResponse>("/v1/system/health", {
+      method: "GET",
+    });
   }
 
   updateAccountSettings(input: AccountMutation): Promise<AccountSettings> {

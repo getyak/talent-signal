@@ -188,6 +188,7 @@ import type { Pool } from "pg";
 import { LabExperimentService, labModelProviders } from "./modules/labExperiments.js";
 import { registerLabExperimentRoutes } from "./modules/labExperimentRoutes.js";
 import { registerRuntimeManifest, registerLoadedRuntimeConfiguration } from "./modules/runtimeManifest.js";
+import { checkReadiness, loadSystemHealth } from "./modules/systemHealth.js";
 import { captureDeploymentExposure, assertCandidateDeploymentExposure } from "./modules/deploymentExposure.js";
 
 import type { BackendConfig } from "./config.js";
@@ -656,27 +657,53 @@ export async function buildApp(
       },
     },
     async (_request, reply) => {
-      try {
-        const result = await pool.query<{ version: string }>(
-          `SELECT version
-           FROM schema_migrations
-           WHERE version IN ('065_screenshot_directory_authority', '058_account_management', '069_account_access_event_details')`,
-        );
-        const requiredMigrations = ["065_screenshot_directory_authority", "058_account_management", "069_account_access_event_details"];
-        if (!requiredMigrations.every(version => result.rows.some(row => row.version === version))) {
-          throw new Error("migration unavailable");
-        }
-        return {
-          status: "ready",
-          database: "ready",
-          migration: "065_screenshot_directory_authority",
-        };
-      } catch {
+      const readiness = await checkReadiness(pool);
+      if (!readiness.ready) {
         return reply.status(503).send({
           status: "not_ready",
           database: "unavailable",
         });
       }
+      return {
+        status: "ready",
+        database: "ready",
+        migration: "065_screenshot_directory_authority",
+      };
+    },
+  );
+  app.get(
+    "/v1/system/health",
+    {
+      preHandler: authenticate,
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: "1 minute",
+        },
+      },
+      schema: {
+        tags: ["system", "health"],
+        security,
+        response: {
+          200: SystemHealthResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const health = await loadSystemHealth(pool);
+      request.log.info(
+        {
+          system_health_status: health.status,
+          postgres_status: health.components.postgres.status,
+          migrations_status: health.components.migrations.status,
+        },
+        "system health observed",
+      );
+      return reply
+        .header("Cache-Control", "no-store")
+        .header("X-Content-Type-Options", "nosniff")
+        .send(health);
     },
   );
   app.get("/v1/meta", async () => ({
