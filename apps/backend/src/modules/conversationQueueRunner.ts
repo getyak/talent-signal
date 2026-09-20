@@ -12,7 +12,7 @@ import {
   type ClaimedConversationQueueEntry,
   type ConversationQueueRunFence,
   assertConversationQueueContextCurrent,
-  assertConversationQueueLiveClaim,
+  assertConversationQueueOwnedClaim,
   claimNextConversationQueueEntry,
   finalizeConversationQueueEntry,
   listRunnableConversationQueueSessions,
@@ -262,7 +262,6 @@ export class ConversationQueueRunner {
     if (this.closing || this.ticking) return;
     this.ticking = true;
     try {
-      if (!this.options.provider && !this.options.selectProvider) return;
       if (this.jobs.size >= CONVERSATION_QUEUE_MAX_CONCURRENT_RUNS) return;
       const sessions = await listRunnableConversationQueueSessions(this.options.pool);
       for (const session of sessions) {
@@ -402,7 +401,13 @@ export class ConversationQueueRunner {
       try {
         while (previewDirty && !previewClosed && !controller.signal.aborted) {
           previewDirty = false;
-          await assertConversationQueueLiveClaim(this.options.pool, fence);
+          const claim = await assertConversationQueueOwnedClaim(this.options.pool, fence, {
+            allowCancelRequested: true,
+          });
+          if (claim.cancelRequested) {
+            controller.abort(new RunAbort("USER_CANCELLED"));
+            return;
+          }
           await assertConversationQueueContextCurrent(this.options.pool, auth, claimed.sessionId);
           if (previewClosed || controller.signal.aborted) return;
           publishConversationQueuePreview({ accountId: claimed.accountId, sessionId: claimed.sessionId,
@@ -484,6 +489,7 @@ export class ConversationQueueRunner {
           auth,
           ...(this.options.referenceClock ? { referenceTime: this.options.referenceClock() } : {}),
           onVisibleText: (delta) => {
+            if (controller.signal.aborted || previewClosed) return;
             const visible = filter.push(delta);
             if (!visible) return;
             previewText = (previewText + visible).slice(0, PREVIEW_MAX_CHARS);
@@ -491,13 +497,14 @@ export class ConversationQueueRunner {
             flush(false);
           },
           onProgress: (stage) => {
+            if (controller.signal.aborted || previewClosed) return;
             previewStage = stage;
             flush(false);
           },
           signal: controller.signal,
         });
         const trailing = filter.flush();
-        if (trailing) {
+        if (trailing && !controller.signal.aborted) {
           previewText = (previewText + trailing).slice(0, PREVIEW_MAX_CHARS);
           previewStage = "answer";
           flush(true);

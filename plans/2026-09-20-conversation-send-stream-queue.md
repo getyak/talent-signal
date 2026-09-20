@@ -37,8 +37,9 @@ run, or clear a newer draft. The legacy synchronous
   claim, then exactly-once lineage/audit, then canonical Session history.
   A failure after provider success preserves the stored result so an explicit
   retry or lease recovery replays persistence without a second model call.
-- **Truthful terminal states.** User stop pauses the queue and may store an
-  owned partial. Revocation, expiry, stale lease, and shutdown never store a
+- **Truthful terminal states.** User stop pauses the queue and preserves the
+  admitted user turn with an owned partial or a stopped-before-reply state.
+  Late callbacks after cancellation are discarded. Revocation, expiry, stale lease, and shutdown never store a
   partial answer. Only an explicit Continue clears a pause; ordinary completion
   never does.
 - **Objective is not evidence.** Terminal non-retryable states replace the
@@ -74,14 +75,14 @@ run, or clear a newer draft. The legacy synchronous
 6. [x] Desktop browser checks and 360 px queue/continuation acceptance using
    synthetic data. Three rapid admissions survive navigation and preserve a
    newer draft; an additional Stop-during-handoff timing has React coverage.
-7. [x] Disposable-database integration suite (16 cases), three SSE regressions and focused agent tests.
+7. [x] Disposable-database integration suite (18 cases), three SSE regressions and focused agent tests.
 8. [x] Concise canonical documentation notes and this plan.
 
 ## Verification and release state
 
 See [the evidence record](../docs/evaluations/2026-09-20-conversation-send/implementation-evidence.md)
 for exact checks and their boundaries. Backend type checking, the production Web
-build, focused client tests, and 19 queue/SSE tests pass. Independent HTTP proof
+build, focused client tests, 541 backend unit tests, and 21 queue/SSE tests pass. Independent HTTP proof
 covers ten admission, streaming, cancellation, and recovery properties.
 
 The implementation is isolated on its task branch. No resident migration or

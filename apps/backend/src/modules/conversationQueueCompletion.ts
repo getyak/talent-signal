@@ -233,7 +233,6 @@ export async function persistConversationQueueCancellation(
   },
 ): Promise<void> {
   const partial = input.partialText.trim();
-  if (!partial) return;
   const owned = await assertConversationQueueOwnedClaim(pool, input.fence, {
     allowCancelRequested: true,
   });
@@ -250,7 +249,9 @@ export async function persistConversationQueueCancellation(
     id: randomUUID(),
     kind: "answer",
     title: /\p{Script=Han}/u.test(input.objective) ? "已停止" : "Stopped",
-    body: partial.slice(0, 12_000),
+    body: partial.slice(0, 12_000) || (/\p{Script=Han}/u.test(input.objective)
+      ? "已停止生成，本次尚未形成回复。"
+      : "Stopped before a reply was generated."),
     status: "failed",
     citation_dependency_ids: [],
     requires_user_decision: false,

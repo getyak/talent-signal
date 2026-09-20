@@ -477,6 +477,8 @@ export interface AppDependencies {
   remoteChatProvider?: RemoteChatAnswerProviding | null;
   labProviders?: Map<string, RemoteChatAnswerProviding>;
   labJobWorkerEnabled?: boolean;
+  /** Disable background queue execution only for an explicitly isolated host/test. */
+  conversationQueueWorkerEnabled?: boolean;
   labCIVerifier?: LabCIVerifying | null;
   personResearchProvider?: PersonResearchAgentProviding | null;
   screenshotContact?: ScreenshotContactDependencies | null;
@@ -3152,20 +3154,22 @@ export async function buildApp(
       ? { referenceClock: dependencies.chatReferenceClock }
       : {}),
   });
-  app.addHook("onReady", async () => {
-    await conversationQueueRunner.recover().catch((error: unknown) => {
-      app.log.error(
-        { err: error },
-        "Conversation queue recovery is pending and will retry.",
-      );
+  if (dependencies.conversationQueueWorkerEnabled !== false) {
+    app.addHook("onReady", async () => {
+      await conversationQueueRunner.recover().catch((error: unknown) => {
+        app.log.error(
+          { err: error },
+          "Conversation queue recovery is pending and will retry.",
+        );
+      });
     });
-  });
-  conversationQueueRunner.start();
-  registerRecurringJob(app, {
-    name: "conversation-queue-recovery",
-    intervalMs: config.retentionSweepIntervalMs,
-    run: () => conversationQueueRunner.recover(),
-  });
+    conversationQueueRunner.start();
+    registerRecurringJob(app, {
+      name: "conversation-queue-recovery",
+      intervalMs: config.retentionSweepIntervalMs,
+      run: () => conversationQueueRunner.recover(),
+    });
+  }
   registerRecurringJob(app, {
     name: "contact-task-retention-sweep",
     intervalMs: config.retentionSweepIntervalMs,

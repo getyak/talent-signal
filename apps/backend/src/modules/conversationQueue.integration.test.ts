@@ -157,15 +157,16 @@ class ScriptedConversationProvider implements RemoteChatAnswerProviding {
     this.active += 1;
     this.maxActive = Math.max(this.maxActive, this.active);
     this.lastSignal = signal;
+    const ignoreAbort = this.ignoreAbortForObjective?.(request.objective) === true;
     try {
       for (const delta of this.preGateDeltas) {
-        signal.throwIfAborted();
+        if (!ignoreAbort) signal.throwIfAborted();
         request.onVisibleText?.(delta);
       }
       request.onProgress?.("answer");
       const held = this.gateForObjective?.(request.objective);
       if (held) {
-        if (this.ignoreAbortForObjective?.(request.objective)) {
+        if (ignoreAbort) {
           await held;
         } else {
           await Promise.race([
@@ -177,9 +178,9 @@ class ScriptedConversationProvider implements RemoteChatAnswerProviding {
           ]);
         }
       }
-      signal.throwIfAborted();
+      if (!ignoreAbort) signal.throwIfAborted();
       for (const delta of this.postGateDeltas) {
-        signal.throwIfAborted();
+        if (!ignoreAbort) signal.throwIfAborted();
         request.onVisibleText?.(delta);
       }
       await this.onBeforeReturn?.();
@@ -244,6 +245,62 @@ async function queueState(sessionId: string, accountId: string) {
 }
 
 suite("durable conversation queue", () => {
+  it("preserves the admitted user turn when stopped before any visible text", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const held = gate();
+    provider.gateForObjective = () => held.promise;
+    const runner = await startRunner(provider);
+    try {
+      const message = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId,
+        message_id: message,
+        idempotency_key: randomUUID(),
+        objective: "停止前保留已发送消息",
+      });
+      await waitFor(() => provider.calls.length === 1);
+      const active = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "stop",
+        run_id: active.active!.run_id!,
+        expected_revision: active.revision,
+        idempotency_key: randomUUID(),
+      });
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "cancelled");
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(session.payload?.turns[0]?.id).toBe(message);
+      expect(session.payload?.turns[0]?.response.unboundConversationBlocks?.[0]).toMatchObject({
+        title: "已停止",
+        body: "已停止生成，本次尚未形成回复。",
+        status: "failed",
+      });
+    } finally {
+      held.release();
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("fails visibly and pauses when no model provider is configured", async () => {
+    const seeded = await seedSession();
+    const runner = await startRunner(null);
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        idempotency_key: randomUUID(),
+        objective: "provider unavailable",
+      });
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "failed");
+      expect((await entryRow(seeded.sessionId, seeded.accountId))[0]?.failure_code).toBe("MODEL_PROVIDER_UNAVAILABLE");
+      expect((await queueState(seeded.sessionId, seeded.accountId))?.paused).toBe(true);
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
   it("interrupts active work on shutdown without persisting a stopped answer or starting the next message", async () => {
     const seeded = await seedSession();
     const provider = new ScriptedConversationProvider();
@@ -514,6 +571,9 @@ suite("durable conversation queue", () => {
         return snapshot.active !== null;
       });
       const active = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      // A running row precedes provider entry. This case asserts a preserved
+      // partial, so wait until the provider has actually emitted its prefix.
+      await waitFor(() => provider.calls.length === 1);
       await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
         kind: "stop",
         expected_revision: active.revision,
@@ -574,6 +634,7 @@ suite("durable conversation queue", () => {
         return snapshot.active !== null;
       });
       const active = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await waitFor(() => provider.calls.length === 1);
       await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
         kind: "stop",
         expected_revision: active.revision,
@@ -588,7 +649,11 @@ suite("durable conversation queue", () => {
       releaseLate();
       await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "cancelled");
       const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
-      expect(session.payload?.turns ?? []).toHaveLength(0);
+      expect(session.payload?.turns).toHaveLength(1);
+      expect(session.payload?.turns[0]?.response.unboundConversationBlocks).toMatchObject([
+        { title: "已停止", body: "已停止生成，本次尚未形成回复。", status: "failed" },
+      ]);
+      expect(JSON.stringify(session.payload?.turns)).not.toContain("迟到的完整回答");
       const rows = await entryRow(seeded.sessionId, seeded.accountId);
       expect(rows[0]?.status).toBe("cancelled");
       expect(rows[0]?.result).toBeNull();

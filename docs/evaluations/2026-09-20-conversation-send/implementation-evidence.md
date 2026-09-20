@@ -33,7 +33,10 @@ auth secret; it is not a release deployment.
   before navigation, Stop settling alongside admission, and safe removal of
   definitive rejections. The latter two regressions were added after the
   full-suite run.
-- Backend queue integration: 16 tests passed on the disposable database.
+- Backend unit suite: 541 tests passed, 196 skipped without the integration
+  database. Queue and SSE checks below ran separately with a disposable database.
+- Backend queue integration: 18 tests passed on the disposable database,
+  including the later stop-before-first-token and unavailable-provider fixes.
 - SSE transport/security: three tests passed, including revoked login/source
   denial and shutdown of an open connection before Fastify waits for clients.
 - Agent: delegated suite reported 276 passed and one skipped, with visible-text
@@ -49,7 +52,9 @@ edit/claim and stop/completion races, paused failures and explicit retry,
 result-persistence replay without another provider invocation, expired-lease
 fencing, ownership and retention, source revocation, and route validation of all
 mutation kinds. Shutdown additionally leaves an interrupted entry, retains the
-next queued item, and does not save preview text as a stopped answer.
+next queued item, and does not save preview text as a stopped answer. User Stop
+before the first token preserves the admitted user turn; an uncooperative
+provider's later callbacks and final result do not become a reply.
 
 ## Independent HTTP proof
 
@@ -62,8 +67,8 @@ edited message.
 
 One loaded-host sample measured admission at 1,423 ms and first visible text at
 3,892 ms. These are synthetic single-run observations, not production targets,
-model benchmarks, or percentiles. Final shutdown and navigation-handoff fixes
-have dedicated regression coverage after that HTTP run.
+model benchmarks, or percentiles. Final shutdown, navigation-handoff, and
+stop-before-first-token fixes have dedicated regression coverage after that HTTP run.
 
 ## Browser observations
 
@@ -107,6 +112,12 @@ local proof. No production rollout is implied.
   active slot; other conflicts remain visible.
 - Definitively rejected deliveries can be removed without erasing the new draft;
   unknown receipts require reconciliation, and queue capacity includes the active run.
+- Queue migration `073_conversation_queue` is a readiness requirement. Missing
+  provider configuration creates an actionable failed item and pauses the queue.
+- Route-boundary tests explicitly disable background workers so their original
+  database-call assertions stay meaningful; worker execution has real-database coverage.
+- Stop before visible output preserves the user turn. Preview checks distinguish
+  a user cancellation from lease loss, and late provider callbacks are ignored.
 
 ## Limits
 
