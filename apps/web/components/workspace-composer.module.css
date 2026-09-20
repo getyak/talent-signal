@@ -9,13 +9,13 @@
 .composer {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow:
     0 1px 0 color-mix(in srgb, var(--surface) 90%, transparent),
-    0 10px 32px color-mix(in srgb, var(--ink) 7%, transparent);
+    0 5px 20px color-mix(in srgb, var(--ink) 4%, transparent);
   display: grid;
   gap: 8px;
-  padding: 12px 12px 8px;
+  padding: 14px 14px 10px;
   position: relative;
   transition:
     border-color 200ms var(--ease-out),
@@ -26,7 +26,7 @@
   border-color: color-mix(in srgb, var(--focus) 42%, var(--line));
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--focus) 12%, transparent),
-    0 14px 36px color-mix(in srgb, var(--ink) 10%, transparent);
+    0 7px 24px color-mix(in srgb, var(--ink) 6%, transparent);
 }
 
 .composer textarea {
@@ -35,7 +35,7 @@
   color: var(--ink);
   display: block;
   font: inherit;
-  font-size: var(--workspace-body-size);
+  font-size: 1rem;
   line-height: 1.7;
   max-height: none;
   min-height: 82px;
@@ -51,6 +51,8 @@
 .composer textarea:disabled {
   color: var(--muted);
 }
+
+.composer[data-variant="session"] textarea { min-height: 64px; }
 
 .composer textarea:focus-visible {
   outline: none;

@@ -29,22 +29,29 @@ describe("workspace route ownership", () => {
 
   it("keeps internal tools out of primary retrieval", () => {
     expect(WORKSPACE_NAV_ROUTES.some((item) => item.matches("/workspace/monitor"))).toBe(false);
+    // Direct desktop primary order: new conversation, Today, People, Meetings,
+    // Sources. Connections is an account utility and Sessions is a collapsed
+    // rail utility rather than a primary destination.
     expect(workspaceNavRoutes("primary").map((item) => item.id)).toEqual([
       "home",
+      "today",
       "people",
       "meetings",
-      "plugs",
-    ]);
-    expect(workspaceNavRoutes("secondary").map((item) => item.id)).toEqual([
-      "today",
-      "sessions",
       "captures",
     ]);
+    expect(workspaceNavRoutes("utility").map((item) => item.id)).toEqual([
+      "sessions",
+    ]);
+    expect(workspaceNavRoutes("account").map((item) => item.id)).toEqual([
+      "plugs",
+    ]);
+    // The compact dock keeps the four retrieval destinations; Sources has its
+    // own header button instead.
     expect(workspaceMobileNavRoutes().map((item) => item.id)).toEqual([
       "home",
+      "today",
       "people",
       "meetings",
-      "today",
     ]);
   });
 

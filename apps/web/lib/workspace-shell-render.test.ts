@@ -58,12 +58,21 @@ describe("quiet workspace shell render", () => {
 
     expect(html).toContain("Talent Signal");
     expect(html).toContain("工作台导航");
-    expect(html).toContain("新对话");
-    expect(html).toContain("人物");
-    expect(html).toContain("日程");
-    expect(html).toContain("连接");
-    expect(html).toContain("今日");
-    expect(html).toContain("来源");
+    // Direct primary desktop order: new conversation, Today, People, Meetings,
+    // Sources — with no generic "More" disclosure.
+    const destinationOrder = [
+      'href="/workspace"',
+      'href="/workspace/today"',
+      'href="/workspace/people"',
+      'href="/workspace/meetings"',
+      'href="/workspace/captures"',
+    ].map((href) => html.indexOf(href));
+    for (const index of destinationOrder) expect(index).toBeGreaterThan(-1);
+    expect(destinationOrder).toEqual([...destinationOrder].sort((a, b) => a - b));
+    expect(html).not.toContain("更多目的地");
+    expect(html).toContain('aria-label="打开全部对话"');
+    // Connections stays reachable as an account utility, not a primary row.
+    expect(html).toContain('href="/workspace/plugs"');
     // The account footer carries the real account and workspace, not just initials.
     expect(html).toContain("Synthetic Recruiter");
     expect(html).toContain("Alpha 寻访测试");

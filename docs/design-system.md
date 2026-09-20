@@ -3,11 +3,9 @@
 > Quiet relational intelligence for evidence-first recruiting.
 ## Design thesis
 
-Talent Signal should feel like a well-edited professional notebook with the
-precision of an evidence instrument.
+Talent Signal should feel like a well-edited professional notebook with the precision of an evidence instrument.
 
-It is not an ATS dashboard, an AI command center, a sales CRM with candidate
-labels, or a collection of decorative cards.
+It is not an ATS dashboard, an AI command center, a sales CRM with candidate labels, or a collection of decorative cards.
 
 The design helps the recruiter move through:
 
@@ -71,6 +69,8 @@ across stacked chrome and cards. Compactness removes repetition and framing,
 not readable type or touch targets. Calendar views change time layout; filters
 change which records appear. Preserve that distinction, and keep conflicts,
 uncertain writes, and recovery visible when metadata is collapsed.
+
+Web and desktop conversations use one readable transcript and a stable reply composer. Growing a draft follows the latest reply only when the reader was already there. Keep title, content, and input primary; technical scope and draft utilities belong in named details. Unresolved errors, conflicts, and deletion consequences remain visible. Primary work destinations stay direct; hide successfully empty auxiliary groups, place account utilities with the account, and preserve explicit narrow-screen entries for hidden rail destinations.
 
 ### Space is part of the hierarchy
 

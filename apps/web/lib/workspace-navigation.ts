@@ -7,10 +7,13 @@
  * of React, Next.js and DOM concerns so it stays cheap to unit test and safe
  * to import from any runtime.
  *
- * The Quiet Workspace composition keeps four primary destinations (new
- * conversation, people, calendar, plugs) at full visual weight, and demotes
- * Today, the session directory and Sources to a secondary group that is still
- * reachable without competing with the conversation.
+ * The desktop rail keeps one direct primary order — new conversation, Today,
+ * People, Meetings, Sources — with no generic "More" disclosure. The compact
+ * mobile dock keeps the four retrieval destinations (new, Today, People,
+ * Meetings) and the header carries a separate Sources button. Connections
+ * lives in the account utilities, and the Sessions directory is reached from
+ * the recent-Sessions header plus one collapsed-rail icon link rather than a
+ * duplicate expanded row.
  */
 
 export type WorkspaceNavRouteId =
@@ -22,7 +25,7 @@ export type WorkspaceNavRouteId =
   | "sessions"
   | "captures";
 
-export type WorkspaceNavSection = "primary" | "secondary";
+export type WorkspaceNavSection = "primary" | "utility" | "account";
 
 export type WorkspaceNavRoute = {
   readonly id: WorkspaceNavRouteId;
@@ -61,8 +64,9 @@ export function isWorkspaceHomePath(pathname: string | null | undefined): boolea
 }
 
 /**
- * Ordered navigation inventory. Today owns Pursuit detail routes, which stay
- * visible as the active section even though they are not separate rail rows.
+ * Ordered navigation inventory. Primary order is the desktop rail order and
+ * the mobile filter; Today owns Pursuit detail routes, which stay visible as
+ * the active section even though they are not separate rail rows.
  */
 export const WORKSPACE_NAV_ROUTES: readonly WorkspaceNavRoute[] = [
   {
@@ -72,6 +76,16 @@ export const WORKSPACE_NAV_ROUTES: readonly WorkspaceNavRoute[] = [
     section: "primary",
     mobile: true,
     matches: (pathname) => isWorkspaceHomePath(pathname),
+  },
+  {
+    id: "today",
+    href: "/workspace/today",
+    label: "今日",
+    section: "primary",
+    mobile: true,
+    matches: (pathname) =>
+      workspacePathMatches(pathname, "/workspace/today") ||
+      workspacePathMatches(pathname, "/workspace/pursuits"),
   },
   {
     id: "people",
@@ -90,38 +104,32 @@ export const WORKSPACE_NAV_ROUTES: readonly WorkspaceNavRoute[] = [
     matches: (pathname) => workspacePathMatches(pathname, "/workspace/meetings"),
   },
   {
-    id: "plugs",
-    href: "/workspace/plugs",
-    label: "连接",
+    id: "captures",
+    href: "/workspace/captures",
+    label: "来源",
     section: "primary",
     mobile: false,
-    matches: (pathname) => workspacePathMatches(pathname, "/workspace/plugs"),
-  },
-  {
-    id: "today",
-    href: "/workspace/today",
-    label: "今日",
-    section: "secondary",
-    mobile: true,
-    matches: (pathname) =>
-      workspacePathMatches(pathname, "/workspace/today") ||
-      workspacePathMatches(pathname, "/workspace/pursuits"),
+    matches: (pathname) => workspacePathMatches(pathname, "/workspace/captures"),
   },
   {
     id: "sessions",
     href: "/workspace/sessions",
     label: "全部对话",
-    section: "secondary",
+    // Rendered as one named icon link only while the rail is collapsed; the
+    // recent-Sessions header owns the expanded entry so the route is never
+    // duplicated or unreachable.
+    section: "utility",
     mobile: false,
     matches: (pathname) => workspacePathMatches(pathname, "/workspace/sessions"),
   },
   {
-    id: "captures",
-    href: "/workspace/captures",
-    label: "来源",
-    section: "secondary",
+    id: "plugs",
+    href: "/workspace/plugs",
+    label: "连接",
+    // Account utility: reachable from the account menu, not the product rail.
+    section: "account",
     mobile: false,
-    matches: (pathname) => workspacePathMatches(pathname, "/workspace/captures"),
+    matches: (pathname) => workspacePathMatches(pathname, "/workspace/plugs"),
   },
 ];
 

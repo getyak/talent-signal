@@ -8,7 +8,7 @@
  */
 
 .shell {
-  --workspace-sidebar-width: var(--ts-sidebar-width, 236px);
+  --workspace-sidebar-width: 248px;
   background: var(--background);
   color: var(--ink);
   display: grid;
@@ -67,7 +67,7 @@
   color: var(--ink);
   display: inline-flex;
   flex: 1 1 auto;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 640;
   gap: 9px;
   min-width: 0;
@@ -127,87 +127,15 @@
   gap: 3px;
 }
 
-/* The compact dock needs the mobile secondary destinations in its grid; the
-   desktop hierarchy hides this duplicate and owns the quieter More footer. */
-.mobileOnlyGroup {
-  display: none;
-}
-
-.moreFooter {
-  border-top: 1px solid var(--line-soft);
-  display: grid;
-  flex: 0 0 auto;
-  gap: 3px;
-  margin-top: auto;
-  padding-top: 12px;
-}
-
-.moreTrigger {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-  color: var(--muted);
-  cursor: pointer;
-  display: flex;
-  font: inherit;
-  font-size: 0.78125rem;
-  gap: 11px;
-  min-height: 34px;
-  padding: 0 11px;
-  text-align: left;
-  width: 100%;
-}
-
-.moreTrigger:hover {
-  background: var(--hover, color-mix(in srgb, var(--ink) 7%, transparent));
-  color: var(--ink);
-}
-
-.moreTrigger > span:first-of-type {
-  flex: 1;
-  min-width: 0;
-}
-
-.moreList {
-  border-left: 1px solid var(--line-soft);
-  display: grid;
-  gap: 3px;
-  margin: 2px 0 0 16px;
-  padding-left: 8px;
-}
-
-.moreList[hidden] {
-  display: none;
-}
-
-.moreCaret {
-  color: var(--muted);
-  flex: 0 0 auto;
-  font-size: 0.8125rem;
-  line-height: 1;
-}
-
-.navLink[data-nested="true"] {
-  font-size: 0.78125rem;
-}
-
-/* A supplementary destination stays visible while it is the current page. */
-.navLink[data-nested="true"][aria-current="page"] {
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line-soft);
-  color: var(--ink);
-}
-
 .navLink {
   align-items: center;
   border-radius: 8px;
   color: var(--muted-strong);
   display: flex;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
   gap: 11px;
-  min-height: 38px;
+  min-height: 42px;
   min-width: 0;
   padding: 0 11px;
   text-decoration: none;
@@ -240,6 +168,7 @@
 
 /* A primary "new conversation" affordance that reads as a row, not a button. */
 .navLink[data-primary-action="true"] {
+  margin-bottom: 10px;
   color: var(--ink);
   font-weight: 560;
 }
@@ -288,35 +217,6 @@
   padding: 0;
 }
 
-.shell:has(.sidebarState[data-collapsed="true"]) .moreList {
-  display: none;
-}
-
-.shell:has(.sidebarState[data-collapsed="true"]) .moreTrigger {
-  justify-content: center;
-  padding: 0;
-}
-
-.shell:has(.sidebarState[data-collapsed="true"]) .moreTrigger > span {
-  display: none;
-}
-
-.shell:has(.sidebarState[data-collapsed="true"]) .moreFooter {
-  border-top-color: transparent;
-}
-
-.shell:has(.sidebarState[data-collapsed="true"]) .accountTrigger {
-  justify-content: center;
-  padding: 8px;
-}
-
-.shell:has(.sidebarState[data-collapsed="true"]) .accountPopover {
-  bottom: 0;
-  left: calc(100% + 6px);
-}
-
-/* ── Sidebar groups (sessions, people) ───────────────────────────────── */
-
 .group {
   display: flex;
   flex: 0 0 auto;
@@ -356,11 +256,11 @@
   border-radius: 50%;
   color: inherit;
   display: inline-flex;
-  height: 24px;
+  min-height: 32px;
   justify-content: center;
-  padding: 0;
+  padding: 0 5px;
   text-decoration: none;
-  width: 24px;
+  min-width: 32px;
 }
 
 .groupTitle a:hover,
@@ -392,7 +292,7 @@
   display: flex;
   font-size: 0.8125rem;
   gap: 9px;
-  min-height: 34px;
+  min-height: 40px;
   min-width: 0;
   padding: 5px 10px;
   text-decoration: none;
@@ -913,6 +813,18 @@
   min-width: 0;
 }
 
+/* Conversation pages own their scroll area so input stays in one place.
+   Other pages retain normal document scrolling. Test-space banners take space. */
+.workspace:has([data-conversation-canvas]) {
+  height: 100dvh;
+  min-height: 0;
+}
+.stage:has([data-conversation-canvas]) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 /* The frozen boundary evaluator and the scoped relationship desk own their
    own chrome; the shell hides the inert product header for them. */
 .shell:has(.stage > :global(.review-workspace)) > .workspace > .routeHeader,
@@ -1100,12 +1012,10 @@
     display: contents;
   }
 
-  .mobileOnlyGroup {
-    display: contents;
-  }
+  .navGroup[data-collapsed-only="true"] { display: none; }
 
-  /* The hierarchy scroll area, and with it the desktop More footer, is not part
-     of the compact dock (replaced at the breakpoint). */
+
+  .navLink[data-primary-action="true"] { margin-bottom: 0; }
 
   .navLink {
     border-radius: 10px;
@@ -1192,6 +1102,11 @@
   .routeHeader {
     display: none;
   }
+
+  .workspace:has([data-conversation-canvas]) {
+    height: calc(100dvh - 78px - env(safe-area-inset-bottom, 0px));
+  }
+
 
   .accountMenu {
     position: static;
