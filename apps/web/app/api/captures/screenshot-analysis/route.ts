@@ -8,6 +8,12 @@ import {
   getScreenshotAnalysisAvailability,
 } from "@/lib/server/screenshot-analysis";
 import { issueScreenshotAnalysisReceipt } from "@/lib/server/screenshot-analysis-receipt";
+import { readBackendSessionClaims } from "@/lib/server/backendAuth";
+import {
+  BackendSessionExpiredError,
+  backendSessionIsExpired,
+  isBackendSessionExpiredError,
+} from "@/lib/backend-session";
 import { SCREENSHOT_OWNER_ROLES } from "@/lib/screenshot-capture";
 import { isAllowedMutationOrigin } from "@/lib/request-origin";
 
@@ -97,6 +103,26 @@ export async function POST(request: NextRequest) {
       { error: "不允许跨源截图分析。" },
       { status: 403, headers: noStoreHeaders() },
     );
+  }
+  // The rendered workspace header must match the effective backend session
+  // before any image or model processing; a stale tab must not analyze here.
+  try {
+    const claims = await readBackendSessionClaims();
+    if (!claims || backendSessionIsExpired(claims.backendExpiresAt)) {
+      throw new BackendSessionExpiredError();
+    }
+  } catch (error) {
+    if (isBackendSessionExpiredError(error)) {
+      return NextResponse.json(
+        {
+          code: "backend_session_expired",
+          error:
+            "登录空间已变化或会话已过期。未发送或保存来源；请刷新并返回自己的空间后重试。",
+        },
+        { status: 401, headers: noStoreHeaders() },
+      );
+    }
+    throw error;
   }
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (

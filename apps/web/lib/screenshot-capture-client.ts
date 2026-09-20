@@ -3,6 +3,8 @@ import type {
   WorkspaceReviewResponse,
 } from "@talent-signal/contracts";
 
+import { workspaceSessionFetch } from "@/components/workspace-session-request";
+
 import type {
   ScreenshotAnalysisMeta,
   ScreenshotCaptureDraft,
@@ -77,7 +79,7 @@ export async function findScreenshotCapturePeople(
   query: string,
   signal: AbortSignal,
 ) {
-  const response = await fetch(
+  const response = await workspaceSessionFetch(
     query
       ? "/api/local-integration/people/search"
       : "/api/local-integration/people",
@@ -121,12 +123,15 @@ export async function analyzeScreenshotCapture(input: {
   formData.set("cropTopPercent", String(input.cropTopPercent));
   formData.set("cropBottomPercent", String(input.cropBottomPercent));
   formData.set("redactionCount", String(input.redactionCount));
-  const response = await fetch("/api/captures/screenshot-analysis", {
-    method: "POST",
-    body: formData,
-    cache: "no-store",
-    signal: input.signal,
-  });
+  const response = await workspaceSessionFetch(
+    "/api/captures/screenshot-analysis",
+    {
+      method: "POST",
+      body: formData,
+      cache: "no-store",
+      signal: input.signal,
+    },
+  );
   const payload = await responseJson(response);
   if (
     !response.ok ||
@@ -159,8 +164,9 @@ export async function commitScreenshotCapture(input: {
     JSON.stringify(input.analysis.draft.messages);
   let response: Response;
   try {
-    response = await fetch("/api/local-integration/captures", {
+    response = await workspaceSessionFetch("/api/local-integration/captures", {
       method: "POST",
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         request_id: input.requestId,
