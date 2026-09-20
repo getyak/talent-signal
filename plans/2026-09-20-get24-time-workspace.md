@@ -63,8 +63,8 @@ and incomplete coverage explicit.
 1. **Complete:** establish contracts, isolated implementation and owned sources.
 2. **Complete:** backend activity/schedule/review lifecycle with real PostgreSQL tests.
 3. **Complete:** shared Web/macOS views, editor/recovery and native file handoff.
-4. **Active:** final browser acceptance and independent review of interaction refinements.
-5. **Pending:** create linked PR, pass exact-head CI, merge, deploy required backend/Web,
+4. **Complete:** browser/native acceptance and independent review of interaction refinements.
+5. **Blocked:** PR #218 created; pass exact-head CI, merge, deploy required backend/Web,
    read back the served revision and required behavior, then close GET-24.
 
 ## Completion evidence
@@ -104,7 +104,7 @@ All task fixtures and test services must use separately owned disposable state.
   environments. Separate GET-24 PostgreSQL integration suite passed 14/14.
 - Focused backend/schema tests passed 69/69; frontend range/storage/export/BFF
   checks passed. Latest navigation regression suite: 15/15; typecheck and ESLint
-  passed. A final production build remains required after UI acceptance.
+  passed. Production Next build passed on implementation commit `55bcc7ad`.
 - Mac build and WorkspaceOriginTests passed with owned DerivedData/result bundle.
 - Independent frontend/native and backend reviewers closed all reported P0/P1/P2
   findings: source revalidation, prompt budgets, redaction, stale editor reads,
@@ -119,7 +119,12 @@ All task fixtures and test services must use separately owned disposable state.
   starts at 08:00 while retaining overnight records and keyboard scrolling.
 - Calendar generation notice is verified. Narrow 800 px month rendering, keyboard date edits with persisted readback,
   cancellation, and dark/empty states are verified. CDP theme/viewport overrides
-  were restored. Actual downloaded-file/native save completion remains outstanding.
+  were restored. Native macOS Cmd-2, authenticated Time, NSSavePanel saving and
+  cancellation all passed using a separate synthetic-test bundle ID. The actual
+  410-byte calendar file has correct UTC start/end, the selected 15-minute alarm,
+  no private note/attendees, and a maximum physical line length of 60 bytes.
+  SHA-256: `9eb85f60b26fa659ea58cab663e45cad19b881f690444309e692b4d7241bb9b8`.
+  No event was imported into a user's system calendar.
 - Owned PostgreSQL 18 test stack: Compose project `get24-time-test`, port 55434;
   no production database is used. Teardown is required before final delivery.
   Host resource contention caused occasional fixture read timeouts; retry restored
@@ -128,4 +133,21 @@ All task fixtures and test services must use separately owned disposable state.
   `073_account_onboarding.sql` (already applied to the resident backend). Rebase
   after that PR merges, preserve both checksums, recompute the migration freeze,
   then deploy in coordination with that task. No resident service is replaced yet.
-- No GET-24 PR, merge, production deployment or Linear completion yet.
+- PR: [#218](https://github.com/getyak/talent-signal/pull/218), draft/open.
+  First implementation head `55bcc7ad` passed Web quality, Backend quality,
+  repository/docs and security. An unchanged Python subprocess test hit its
+  5-second CI deadline; the focused local reproduction passed and the failed
+  workflow jobs passed on rerun, including CI required and Security required.
+  The two Vercel checks report
+  `Deployment rate limited — retry in 24 hours.` This is not a passing preview.
+- Final UI refinement adds one clear-filters action, preserving date/view/timezone
+  and the editor-discard guard. Independent review found no new issue.
+- Formal local evidence is retained in the accepted design directory's
+  `implementation-evidence/`: verification JSON, native test result bundle and
+  the actual synthetic calendar file. No credentials are included.
+- No merge, resident deployment or Linear completion. PR #216 remains unmerged;
+  its active onboarding/Apple release must be preserved. Linear's native UI did
+  not respond during evidence update attempts, so no issue state was changed.
+- After dependencies recover: rebase latest main, preserve migrations 073/074,
+  rerun exact-head gates, merge, deploy/read back backend and Web revisions and
+  authorized behavior, then close GET-24. Do not treat this draft PR as delivery.
