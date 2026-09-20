@@ -281,16 +281,10 @@ action belongs after the information it commits.
 
 ### Desktop
 
-Desktop starts with the conversation canvas; Today stays directly reachable.
-Accept reference fidelity by rendered page structure and interactions, not a CSS reskin.
-Optimize for comparison, provenance, conflict resolution, research, and
-longitudinal editing.
-
-Source intake gives the material and its next action the main canvas. An empty
-history does not reserve a second navigation column; populated records earn an
-inbox and detail composition. Optional intent stays secondary, while permission,
-uncertain saves, and recovery remain visible where they affect the decision.
-Verify both empty and populated full viewports before calling the surface done.
+Desktop starts with the conversation canvas; Today stays directly reachable. Optimize for comparison, provenance, conflict resolution, research, and longitudinal editing.
+Source intake gives material and its next action the main canvas; an empty history does not reserve a second navigation column. Populated records earn an inbox and detail composition.
+Optional intent stays secondary; permission, uncertain saves, and recovery remain visible where they affect a decision.
+Verify rendered structure and interaction in both empty and populated full viewports; a CSS reskin alone is not fidelity.
 
 ### Channel
 

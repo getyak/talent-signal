@@ -69,7 +69,7 @@ states are required acceptance evidence. Avoid expanding always-on guidance.
   P0/P1/P2 findings. Button contrast is at least 4.54:1 across standalone and
   workspace light/dark themes.
 - A raw production build correctly rejected missing AUTH_SECRET in the clean
-  development environment. The immutable release build will use the existing
+  development environment. A build with a synthetic build-only secret passed; the immutable release build uses the existing
   Infisical-injected deployment script; no authentication fallback was added.
 - Pi implementation stopped with provider HTTP 503 after writing its changes.
   Parent inspected, integrated, corrected, and independently verified them.
