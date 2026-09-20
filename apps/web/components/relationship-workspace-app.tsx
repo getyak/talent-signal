@@ -604,7 +604,7 @@ export function RelationshipWorkspaceApp({
     setKnowledgeSnapshot(null);
     setError("");
     setAnnouncement(
-      `已关联 ${receipts.length} 项受治理资源。请编译新简报以纳入这些内容。`,
+      `已添加 ${receipts.length} 份资料。选择“整理简报”可将新资料纳入沟通要点。`,
     );
     const firstReceipt = receipts[0];
     if (
@@ -1054,7 +1054,7 @@ export function RelationshipWorkspaceApp({
                   setKnowledgeSnapshot(null);
                   setAnnouncement(
                     announcement ??
-                      "证据审阅已保存。请编译新简报，以使用更新后的来源状态。",
+                      "审阅已保存。选择“整理简报”可更新沟通要点。",
                   );
                   void refreshAgentHistory(
                     relationshipScope.person.id,
@@ -1189,7 +1189,7 @@ export function RelationshipWorkspaceApp({
                   setAnnouncement(
                     refreshed
                       ? announcement ??
-                          "证据审阅已保存。请编译新简报，以使用更新后的来源状态。"
+                          "审阅已保存。选择“整理简报”可更新沟通要点。"
                       : `${
                           announcement ?? "证据审阅已保存。"
                         } 当前审阅无法刷新；请重新加载后再作下一项决定。`,

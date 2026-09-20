@@ -26,7 +26,7 @@ const SECTION_DESCRIPTIONS: Partial<Record<SettingsSection, string>> = {
   account: "管理自己的显示名称、登录方式与访问设备。",
   workspace: "空间中的名称、成员与归属，始终有清楚的记录。",
   appearance: "只改变呈现方式与回复展开方式，不改变来源判断或操作权限。",
-  connections: "连接与来源由账号后端裁定；这里只提供入口，不显示缓存状态。",
+  connections: "查看已连接的服务、资料入口与各自的权限。",
   advanced: "这些工具面向排查问题；不会创建、批准或发送任何外部操作。",
   testing: "隔离的评测与测试空间。这里不进入日常产品导航。",
 };
@@ -195,7 +195,7 @@ function ConnectionsPane() {
   return (
     <div className={styles.pane}>
       <Group
-        description="连接与权限由账号后端裁定；这里只提供入口，不显示缓存状态。"
+        description="查看已连接的服务、资料入口与各自的权限。"
         title="来源与连接"
       >
         <Row

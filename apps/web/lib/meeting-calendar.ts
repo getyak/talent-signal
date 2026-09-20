@@ -155,3 +155,13 @@ export function adjacentMeetingMonth(month: string, delta: -1 | 1): string {
   value.setUTCMonth(value.getUTCMonth() + delta);
   return value.toISOString().slice(0, 7);
 }
+
+/** Navigation dates are local device dates, never evidence timestamps. */
+export function meetingToday(now: Date): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+export function meetingTodayHref(day: string): string {
+  if (!validMeetingDay(day)) return "/workspace/meetings";
+  return `/workspace/meetings?${new URLSearchParams({ month: day.slice(0, 7), day })}`;
+}

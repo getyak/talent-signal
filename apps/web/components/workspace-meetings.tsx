@@ -18,6 +18,7 @@ import {
 import { CalendarDraftReview } from "./calendar-draft-review";
 import { MeetingDraftDismiss } from "./meeting-draft-actions";
 import { MeetingDraftPendingBoundary } from "./meeting-draft-pending-boundary";
+import { MeetingTodayLink } from "./meeting-today-link";
 import { MeetingMonthGrid } from "./meeting-month-grid";
 
 import styles from "./workspace-meetings.module.css";
@@ -69,6 +70,7 @@ export function WorkspaceMeetings({
   selectedDraftId,
   requestedDraftUnavailable,
   sessionVersion,
+  initializeEmptyToday = false,
 }: {
   day: string;
   drafts: MeetingDraftRecord[];
@@ -78,6 +80,7 @@ export function WorkspaceMeetings({
   selectedDraftId: string | null;
   requestedDraftUnavailable: boolean;
   sessionVersion: string;
+  initializeEmptyToday?: boolean;
 }) {
   const active = drafts.filter((draft) => draft.status === "needs_review");
   const agenda = active.filter((draft) => meetingDraftLocalDay(draft) === day);
@@ -103,6 +106,7 @@ export function WorkspaceMeetings({
           </p>
         </div>
         <nav className={styles.monthHeader} aria-label="切换月份">
+          <MeetingTodayLink initializeEmpty={initializeEmptyToday} />
           <Link aria-label="上个月" href={parameters({ month: adjacentMeetingMonth(month, -1) })}><ArrowLeft aria-hidden="true" size={16} /></Link>
           <Link className={styles.newConversation} href="/workspace"><ChatCircleDots aria-hidden="true" size={17} />准备新会议</Link>
           <Link aria-label="下个月" href={parameters({ month: adjacentMeetingMonth(month, 1) })}><ArrowRight aria-hidden="true" size={16} /></Link>
@@ -114,7 +118,7 @@ export function WorkspaceMeetings({
           <WarningCircle aria-hidden="true" size={20} />
           <div>
             <strong>会议草稿暂时无法读取</strong>
-            <p>{error} 系统没有使用缓存、示例日程或浏览器时间推断替代。</p>
+            <p>{error} 已保存的草稿会保留，请稍后重试。</p>
             <Link href={parameters({ month, day })}>重新读取</Link>
           </div>
         </section>

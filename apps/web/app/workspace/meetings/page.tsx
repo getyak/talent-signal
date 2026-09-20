@@ -85,6 +85,7 @@ export default async function MeetingsPage({
       selectedDraftId={selectedDraftId}
       requestedDraftUnavailable={Boolean(requested.draft && !requestedDraft)}
       sessionVersion={workspaceSessionsBinding(claims)}
+      initializeEmptyToday={!requestedDay && !validMeetingMonth(requested.month) && !requested.draft && !firstDay}
     />
   );
 }

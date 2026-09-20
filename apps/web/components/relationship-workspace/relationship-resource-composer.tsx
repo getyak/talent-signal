@@ -961,7 +961,7 @@ export function RelationshipResourceComposer({
       <div className="context-resource-composer__heading">
         <div>
           <p className="eyebrow">添加背景</p>
-          <h2 id="add-context-title">一个人，可以有多个来源。</h2>
+          <h2 id="add-context-title">补充这位联系人的背景</h2>
           <p>
             附加到 {scopeLabel}。每个来源都保留各自的权限、依据位置与删除路径。
           </p>
@@ -1160,7 +1160,7 @@ export function RelationshipResourceComposer({
       {receipt ? (
         <p className="context-resource-composer__receipt" role="status">
           <CheckCircle aria-hidden="true" size={17} weight="fill" />
-          已附加 {receipt.resources} 个受治理资源
+          已添加 {receipt.resources} 份资料
           {receipt.linksFound > 0
             ? ` · 发现 ${receipt.linksFound} 个可见链接`
             : ""}
@@ -1202,7 +1202,7 @@ export function RelationshipResourceComposer({
           <span>
             {resourceLoading
               ? "加载中……"
-              : `${resources.length} 个受治理来源`}
+              : `${resources.length} 份资料`}
           </span>
         </div>
         {resources.length > 0 ? (

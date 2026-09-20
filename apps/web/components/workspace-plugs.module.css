@@ -14,7 +14,7 @@
 .eyebrow,
 .sectionHeading p {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   margin: 0 0 8px;
 }
 
@@ -105,7 +105,7 @@
   color: var(--muted);
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: 0.71875rem;
+  font-size: 0.75rem;
   gap: 5px;
 }
 
@@ -244,7 +244,7 @@
   }
 }
 
-.scopeDetails { color: var(--muted); font-size: 11px; margin-top: 5px; }
+.scopeDetails { color: var(--muted); font-size: 12px; margin-top: 5px; }
 .scopeDetails summary { cursor: pointer; }
 .scopeDetails p { font-size: 12px; line-height: 1.7; margin: 8px 0 0; }
 .manage { color: var(--ink); font-size: 12px; text-decoration: none; padding: 10px 2px; white-space: nowrap; }
@@ -255,5 +255,5 @@
 .workflows a { border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; color: var(--ink); text-decoration: none; display: grid; gap: 5px; }
 .workflows a:hover { background: var(--surface-muted); }
 .workflows strong { font-size: 13px; font-weight: 600; }
-.workflows span { color: var(--muted); font-size: 11px; }
+.workflows span { color: var(--muted); font-size: 12px; }
 @media(max-width:640px) { .workflows > div { grid-template-columns: 1fr; } .row { gap: 10px; } }
