@@ -172,9 +172,11 @@ export function WorkspaceComposer({
     function resize() {
       if (!element) return;
       const height = window.visualViewport?.height ?? window.innerHeight;
-      const limit = Math.max(82, Math.min(320, Math.floor(height * 0.4)));
+      const minimum = variant === "session" ? 64 : 82;
+      const limit = Math.max(minimum, Math.min(variant === "session" ? 240 : 320,
+        Math.floor(height * (variant === "session" ? 0.3 : 0.4))));
       element.style.height = "auto";
-      element.style.height = `${Math.max(82, Math.min(element.scrollHeight, limit))}px`;
+      element.style.height = `${Math.max(minimum, Math.min(element.scrollHeight, limit))}px`;
       element.style.overflowY = element.scrollHeight > limit ? "auto" : "hidden";
     }
     resize();
@@ -184,7 +186,7 @@ export function WorkspaceComposer({
       window.removeEventListener("resize", resize);
       window.visualViewport?.removeEventListener("resize", resize);
     };
-  }, [value]);
+  }, [value, variant]);
 
   // Fit the popup into the visible area, away from the sticky header and dock.
   useLayoutEffect(() => {

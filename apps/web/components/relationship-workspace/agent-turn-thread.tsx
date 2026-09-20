@@ -1,4 +1,5 @@
 import { MeetingDraftHandoff } from "@/components/meeting-draft-handoff";
+import { ConversationResponse } from "@/components/conversation-response";
 
 import type { WorkspaceChatTurn } from "./use-workspace-chat";
 
@@ -26,7 +27,7 @@ export function AgentTurnThread({
           <p className={userMessageClassName}>{turn.objective}</p>
           {turn.response.blocks.map((block) => (
             <div key={block.id}>
-              <p style={{ whiteSpace: "pre-wrap" }}>{block.body}</p>
+              <ConversationResponse>{block.body}</ConversationResponse>
               {block.calendar_draft?.source_request_id ===
               turn.response.task_id ? (
                 <MeetingDraftHandoff

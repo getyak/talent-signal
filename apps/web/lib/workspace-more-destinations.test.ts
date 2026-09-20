@@ -10,43 +10,44 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import { WorkspaceMoreDestinations } from "@/components/workspace-shell-nav";
+import * as shellNav from "@/components/workspace-shell-nav";
 
-function render() {
-  return renderToStaticMarkup(createElement(WorkspaceMoreDestinations));
-}
+/**
+ * The generic "More" disclosure was removed. These regression checks keep the
+ * approved direct primary order and prove the removed export did not return.
+ */
+describe("workspace navigation without a generic More disclosure", () => {
+  it("no longer exports the removed More destinations surface", () => {
+    expect("WorkspaceMoreDestinations" in shellNav).toBe(false);
+  });
 
-describe("supplementary workspace destinations", () => {
-  it("keeps the disclosure closed on a primary route", () => {
+  it("renders the direct primary order with no 更多 row", () => {
     pathname.current = "/workspace";
-    const html = render();
-
-    expect(html).toContain('aria-expanded="false"');
-    expect(html).toContain("更多");
-    expect(html).toContain("hidden");
-  });
-
-  it("opens itself and marks the current destination on a supplementary route", () => {
-    pathname.current = "/workspace/sessions/example";
-    const html = render();
-
-    expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain('href="/workspace/sessions"');
-    expect(html).toMatch(
-      /href="\/workspace\/sessions"[^>]*aria-current="page"|aria-current="page"[^>]*href="\/workspace\/sessions"/,
+    const html = renderToStaticMarkup(
+      createElement(shellNav.WorkspaceShellNav, { binding: null }),
     );
+
+    expect(html).not.toContain("更多");
+    expect(html).not.toContain("更多目的地");
+    const order = [
+      "/workspace",
+      "/workspace/today",
+      "/workspace/people",
+      "/workspace/meetings",
+      "/workspace/captures",
+    ];
+    const indices = order.map((href) => html.indexOf(`href="${href}"`));
+    for (const index of indices) expect(index).toBeGreaterThan(-1);
+    expect(indices).toEqual([...indices].sort((a, b) => a - b));
   });
 
-  it("keeps every supplementary route reachable from the disclosure", () => {
-    pathname.current = "/workspace/today";
-    const html = render();
+  it("keeps Connections and Sessions out of the expanded primary rail", () => {
+    pathname.current = "/workspace";
+    const html = renderToStaticMarkup(
+      createElement(shellNav.WorkspaceShellNav, { binding: null }),
+    );
 
-    for (const href of [
-      "/workspace/today",
-      "/workspace/sessions",
-      "/workspace/captures",
-    ]) {
-      expect(html).toContain(`href="${href}"`);
-    }
+    expect(html).not.toContain('href="/workspace/plugs"');
+    expect(html).not.toContain('href="/workspace/sessions"');
   });
 });

@@ -4,6 +4,7 @@ import {
   CaretDown,
   CaretRight,
   GearSix,
+  Plugs,
   SignOut,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -22,7 +23,8 @@ import { clearAllPendingMeetingDraftIntents } from "@/lib/meeting-draft-pending"
 import styles from "./workspace-shell.module.css";
 
 const links = [
-  ["/workspace/settings", "设置"],
+  ["/workspace/plugs", "连接", Plugs],
+  ["/workspace/settings", "设置", GearSix],
 ] as const;
 
 export function WorkspaceAccountMenu({
@@ -146,9 +148,9 @@ export function WorkspaceAccountMenu({
           </span>
         </span>
         <hr />
-        {links.map(([href, label]) => (
+        {links.map(([href, label, LinkIcon]) => (
           <Link href={href} key={href} onClick={() => close()}>
-            <GearSix aria-hidden="true" size={16} />
+            <LinkIcon aria-hidden="true" size={16} />
             <span>{label}</span>
             <CaretRight aria-hidden="true" size={12} />
           </Link>

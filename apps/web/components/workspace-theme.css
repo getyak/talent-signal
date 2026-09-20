@@ -14,6 +14,8 @@
   --workspace-title-size: 1.5rem;
   --workspace-object-size: 1.5rem;
   --workspace-section-size: 1.125rem;
+  --workspace-body-size: 0.9375rem;
+  --workspace-meta-size: 0.8125rem;
   --workspace-page-padding: clamp(20px, 3vw, 40px);
   --workspace-section-gap: 24px;
   --button-radius: 6px;

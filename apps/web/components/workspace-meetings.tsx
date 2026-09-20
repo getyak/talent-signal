@@ -171,7 +171,7 @@ export function WorkspaceMeetings({
             )}
           </section>
 
-          <aside aria-labelledby="meeting-context-title" className={styles.contextPane}>
+          {selected ? <aside aria-labelledby="meeting-context-title" className={styles.contextPane}>
             <header>
               <p>会议情境</p>
               <h2 id="meeting-context-title">{selected?.title ?? "选择一份草稿"}</h2>
@@ -213,7 +213,7 @@ export function WorkspaceMeetings({
                 选择日期不会创建事件。打开草稿后核对原文、时区与导出内容；导入仍由日历应用确认。
               </p>
             )}
-          </aside>
+          </aside> : null}
           </div>
         </>
       )}

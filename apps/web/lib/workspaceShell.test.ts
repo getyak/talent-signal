@@ -17,6 +17,8 @@ describe("persistent workspace shell", () => {
     const accountMenu = read("components/workspace-account-menu.tsx");
     const sessionBoundary = read("components/session-draft-session-boundary.tsx");
     const standaloneWorkspace = read("components/workspace-app.tsx");
+    const routeHeader = read("components/workspace-route-header.tsx");
+    const sidebarPeople = read("components/workspace-sidebar-people.tsx");
 
     expect(layout).toContain("<WorkspaceShellNav binding={pendingBinding} />");
     expect(layout).toContain('id="workspace-content"');
@@ -47,6 +49,24 @@ describe("persistent workspace shell", () => {
     expect(navigation).toContain('href: "/workspace/plugs"');
     expect(navigation).toContain("WorkspaceMobileSourcesLink");
     expect(navigation).toContain('aria-label="打开来源"');
+    // The generic More disclosure is gone, and Sources is a direct primary row.
+    expect(navigation).not.toContain("WorkspaceMoreDestinations");
+    expect(navigation).not.toContain("更多目的地");
+    // Sessions keeps one collapsed-rail icon link, never a duplicate expanded row.
+    expect(navigation).toContain("collapsedUtility");
+    expect(navigation).toContain('data-collapsed-only="true"');
+    expect(navigation).toContain("aria-label={collapsed ? route.label : undefined}");
+    // Connections lives in the account utilities with a real Plugs icon.
+    expect(accountMenu).toContain("Plugs");
+    expect(accountMenu).toContain('["/workspace/plugs", "连接", Plugs]');
+    // A Session detail supplies its own context; the shell header yields to it.
+    expect(routeHeader).toContain("if (SESSION_DETAIL.test(pathname)) return null;");
+    // A successfully empty people projection hides the auxiliary group without
+    // suppressing actionable read errors or a populated projection.
+    expect(sidebarPeople).toContain(
+      'if (state === "ready" && people.length === 0) return null;',
+    );
+    expect(sidebarPeople).toContain("人物目录暂时无法读取");
     expect(layout).toContain("<WorkspaceMobileSourcesLink />");
     const shellStyles = read("components/workspace-shell.module.css");
     expect(shellStyles).toContain(".mobileSources");
