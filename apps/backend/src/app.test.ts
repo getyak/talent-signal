@@ -33,6 +33,7 @@ describe("readiness rate limiting", () => {
           version: "065_screenshot_directory_authority",
         },
         { version: "058_account_management" },
+        { version: "069_account_access_event_details" },
       ],
     });
     const app = await buildApp({
@@ -61,11 +62,19 @@ describe("readiness rate limiting", () => {
     );
   }, 10_000);
 
-  it.each(["065_screenshot_directory_authority", "058_account_management"])(
+  it.each([
+    "065_screenshot_directory_authority",
+    "058_account_management",
+    "069_account_access_event_details",
+  ])(
     "stays unavailable when required migration %s is missing",
     async missing => {
       const query = vi.fn().mockResolvedValue({
-        rows: ["065_screenshot_directory_authority", "058_account_management"]
+        rows: [
+          "065_screenshot_directory_authority",
+          "058_account_management",
+          "069_account_access_event_details",
+        ]
           .filter(version => version !== missing).map(version => ({ version })),
       });
       const app = await buildApp({ config, pool: { query } as unknown as Pool });
