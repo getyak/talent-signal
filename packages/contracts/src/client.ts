@@ -214,10 +214,11 @@ export class TalentSignalClient {
 
   async signInWithPassword(
     request: PasswordLoginRequest,
+    signal?: AbortSignal,
   ): Promise<SessionResponse> {
     const response = await this.request<SessionResponse>(
       "/v1/auth/password/login",
-      { method: "POST", body: request, authenticated: false },
+      { method: "POST", body: request, authenticated: false, signal },
     );
     this.setAccessToken(response.access_token);
     return response;
@@ -225,10 +226,11 @@ export class TalentSignalClient {
 
   async registerWithPassword(
     request: PasswordRegistrationRequest,
+    signal?: AbortSignal,
   ): Promise<SessionResponse> {
     const response = await this.request<SessionResponse>(
       "/v1/auth/password/register",
-      { method: "POST", body: request, authenticated: false },
+      { method: "POST", body: request, authenticated: false, signal },
     );
     this.setAccessToken(response.access_token);
     return response;

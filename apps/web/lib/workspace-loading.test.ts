@@ -10,6 +10,7 @@ vi.mock("next/headers", () => ({cookies:async()=>({has:()=>false})}));
 vi.mock("@/lib/server/backendAuth",()=>({
  readPrimaryBackendSessionClaims:async()=>null,
  readBackendSessionClaims:async()=>({backendAccountId:"fixture",backendAccountName:"Fixture",backendAccountSlug:"fixture-alpha",backendExpiresAt:new Date(Date.now()+60000).toISOString()}),
+ authSecret:()=>"workspace-loading-test-secret",
 }));
 vi.mock("@/lib/server/testWorkspaceSession",()=>({TEST_WORKSPACE_COOKIE:"test-cookie",testWorkspaceSession:async()=>null}));
 vi.mock("@/app/workspace/settings/testing/actions",()=>({leaveTestWorkspace:vi.fn()}));

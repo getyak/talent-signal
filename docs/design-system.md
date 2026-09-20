@@ -1,7 +1,6 @@
 # Design system
 
 > Quiet relational intelligence for evidence-first recruiting.
-
 ## Design thesis
 
 Talent Signal should feel like a well-edited professional notebook with the
@@ -15,7 +14,6 @@ The design helps the recruiter move through:
 > evidence → change → dependency → next action → outcome
 
 without making the system feel more important than the relationship.
-
 ## Ownable causal grammar
 
 Public storytelling makes the visitor's transformation visible: capture a person,
@@ -283,6 +281,8 @@ action belongs after the information it commits.
 
 ### Desktop
 
+Desktop starts with the conversation canvas; Today stays directly reachable.
+Accept reference fidelity by rendered page structure and interactions, not a CSS reskin.
 Optimize for comparison, provenance, conflict resolution, research, and
 longitudinal editing.
 

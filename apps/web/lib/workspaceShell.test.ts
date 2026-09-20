@@ -11,12 +11,14 @@ function read(relativePath: string) {
 describe("persistent workspace shell", () => {
   it("owns account chrome and route-aware product navigation in one layout", () => {
     const layout = read("app/workspace/layout.tsx");
-    const navigation = read("components/workspace-shell-nav.tsx") + read("lib/workspace-navigation.ts");
+    const navigation =
+      read("components/workspace-shell-nav.tsx") +
+      read("lib/workspace-navigation.ts");
     const accountMenu = read("components/workspace-account-menu.tsx");
     const sessionBoundary = read("components/session-draft-session-boundary.tsx");
     const standaloneWorkspace = read("components/workspace-app.tsx");
 
-    expect(layout).toContain("<WorkspaceShellNav />");
+    expect(layout).toContain("<WorkspaceShellNav binding={pendingBinding} />");
     expect(layout).toContain('id="workspace-content"');
     expect(layout).toContain("<AccountControls");
     expect(layout).toContain("<MeetingDraftSessionBoundary");
@@ -36,11 +38,13 @@ describe("persistent workspace shell", () => {
     );
     expect(navigation).toContain('aria-label="工作台导航"');
     expect(navigation).toContain('aria-current={current ? "page" : undefined}');
+    expect(navigation).toContain('href: "/workspace"');
     expect(navigation).toContain('href: "/workspace/today"');
     expect(navigation).toContain('href: "/workspace/sessions"');
     expect(navigation).toContain('href: "/workspace/people"');
     expect(navigation).toContain('href: "/workspace/meetings"');
     expect(navigation).toContain('href: "/workspace/captures"');
+    expect(navigation).toContain('href: "/workspace/plugs"');
     expect(navigation).toContain("WorkspaceMobileSourcesLink");
     expect(navigation).toContain('aria-label="打开来源"');
     expect(layout).toContain("<WorkspaceMobileSourcesLink />");
@@ -48,13 +52,12 @@ describe("persistent workspace shell", () => {
     expect(shellStyles).toContain(".mobileSources");
     expect(shellStyles).toContain("min-height: 44px");
     expect(shellStyles).toContain("min-width: 44px");
-    expect(navigation).toContain('href: "/workspace/plugs"');
     expect(navigation).not.toContain('href: "/workspace/monitor"');
     expect(navigation).toContain("COLLAPSED_KEY");
-    expect(navigation).toContain('data-mobile-secondary={!route.mobile || undefined}');
+    expect(navigation).toContain('data-mobile={route.mobile ? "true" : "false"}');
     expect(accountMenu).toContain("onClick={() => close()}");
     expect(accountMenu).toContain('event.key === "Escape"');
-    expect(accountMenu).toContain('current === -1');
+    expect(accountMenu).toContain("current === -1");
     expect(accountMenu).toContain('key === "ArrowUp" ? items.length - 1 : 0');
     expect(accountMenu).toContain("close(true)");
     expect(accountMenu).toContain("trigger.current?.focus()");
@@ -67,8 +70,9 @@ describe("persistent workspace shell", () => {
     expect(accountMenu).toContain("clearAllPendingMeetingDraftIntents()");
     expect(accountMenu).toContain("clearAllPendingSessionDrafts()");
     expect(accountMenu).toContain("退出登录");
-    expect(accountMenu).toContain("简体中文");
     expect(accountMenu).toContain("<ThemeToggle");
+    expect(accountMenu).toContain("accountMenuLabel(identity)");
+    expect(accountMenu).toContain("<CaretDown");
     expect(standaloneWorkspace).toContain(
       "onSubmit={clearPendingLocalIntents}",
     );
@@ -76,6 +80,18 @@ describe("persistent workspace shell", () => {
       "clearAllPendingMeetingDraftIntents()",
     );
     expect(standaloneWorkspace).toContain("clearAllPendingSessionDrafts()");
+  });
+
+  it("keeps the ordinary chrome free of the Lab/FAT overlay", () => {
+    const layout = read("app/workspace/layout.tsx");
+    const labShell = read("components/talent-signal-lab/lab-shell.tsx");
+    const settings = read("components/settings-workspace.tsx");
+
+    expect(layout).not.toContain("capsuleVisible");
+    expect(labShell).toContain("capsuleVisible = false");
+    expect(labShell).toContain("enabled && capsuleVisible");
+    expect(settings).toContain('href="/workspace/lab"');
+    expect(settings).toContain('href="/workspace/settings/testing"');
   });
 
   it("leaves global account and navigation controls out of product surfaces", () => {
@@ -106,15 +122,44 @@ describe("persistent workspace shell", () => {
 
     expect(boundaryPage).toContain("<WorkspaceApp");
     expect(shellStyles).toContain(
-      ".shell:has(.stage > :global(.review-workspace)) > .rail",
+      ".shell:has(.stage > :global(.review-workspace)) > .sidebar",
     );
     expect(shellStyles).toContain(
-      ".shell:has(.stage > :global(.review-workspace)) > .stage",
+      ".shell:has(.stage > :global(.review-workspace))",
+    );
+    expect(shellStyles).toContain(
+      ".shell:has(.stage > :global(.context-workspace)) > .workspace > .routeHeader",
     );
   });
 
+  it("defaults the authenticated workspace to a durable quiet conversation canvas", () => {
+    const page = read("app/workspace/page.tsx");
+    const canvas = read("components/new-conversation.tsx");
+    const shellStyles = read("components/workspace-shell.module.css");
+
+    expect(page).toContain("<WorkspaceNewConversation");
+    expect(page).not.toContain('redirect("/workspace/today")');
+    expect(page).toContain("contactHandoffSessionVersion(current)");
+    expect(page).toContain("workspaceSessionsBinding(current)");
+    expect(page).toContain("workspaceSessionDraftStorageScope(current)");
+    // Create the canonical Session, persist the intent, then submit governed.
+    expect(canvas).toContain('workspaceSessionFetch("/api/workspace-sessions"');
+    expect(canvas).toContain("writePendingSessionDraft");
+    expect(canvas).toContain("clearPendingSessionDraft");
+    expect(canvas).toContain("useWorkspaceChat(");
+    expect(canvas).toContain("<AgentTurnThread");
+    expect(canvas).toContain("<CapturePanel");
+    expect(canvas).not.toContain("window.localStorage");
+    expect(canvas).toContain("今天想推进什么？");
+    expect(canvas).toContain("new-conversation-objective");
+    expect(shellStyles).toContain("grid-template-columns: var(--workspace-sidebar-width) minmax(0, 1fr)");
+    expect(shellStyles).toContain("height: 58px");
+  });
+
   it("focuses the Agent composer from a same-route shell transition and clears the intent", () => {
-    const navigation = read("components/workspace-shell-nav.tsx") + read("lib/workspace-navigation.ts");
+    const navigation =
+      read("components/workspace-shell-nav.tsx") +
+      read("lib/workspace-navigation.ts");
     const workspace = read("components/relationship-workspace-app.tsx");
 
     expect(navigation).toContain(
@@ -147,7 +192,26 @@ describe("persistent workspace shell", () => {
 
     expect(actions).toContain("BACKEND_LOGOUT_TIMEOUT_MS");
     expect(actions).toContain("logoutBackendWithinDeadline");
-    expect(actions).toContain("await signOut({ redirectTo: \"/\" })");
+    expect(actions).toContain('await signOut({ redirectTo: "/" })');
+  });
+});
+
+describe("settings composition", () => {
+  it("keeps account authority in the existing panel and exposes tools as links", () => {
+    const settings = read("components/settings-workspace.tsx");
+    const panel = read("components/account-settings.tsx");
+    const page = read("app/workspace/settings/page.tsx");
+
+    expect(settings).toContain("<AccountSettingsPanel");
+    expect(settings).toContain('href="/workspace/plugs"');
+    expect(settings).toContain('href="/workspace/captures"');
+    expect(settings).toContain('href="/workspace/settings/diagnostics"');
+    expect(settings).toContain("<AgentResponsePreference");
+    expect(settings).not.toContain("localStorage.setItem(\"talent-signal-account");
+    expect(panel).toContain("embedded");
+    expect(panel).toContain("saveAccountSettings");
+    expect(page).toContain("loadAccountSettings");
+    expect(page).toContain("isSettingsSection(requested)");
   });
 });
 

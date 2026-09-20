@@ -13,6 +13,25 @@ export class SessionSaveDrain {
   private active: Promise<void> | null = null;
   private generation = 0;
   private queued: { force: boolean; task: SaveDrainTask } | null = null;
+  private scheduled = 0;
+  private idleWaiters = new Set<() => void>();
+
+  /** Wait for active requests and every coalesced follow-up, including the
+   * microtask between them. This is a completion barrier, not a write lock.
+   * Callers must also prevent new saves while starting their next operation.
+   */
+  whenIdle(): Promise<void> {
+    if (!this.active && !this.queued && this.scheduled === 0) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => this.idleWaiters.add(resolve));
+  }
+
+  private resolveIdle(): void {
+    if (this.active || this.queued || this.scheduled !== 0) return;
+    for (const resolve of this.idleWaiters) resolve();
+    this.idleWaiters.clear();
+  }
 
   run(task: SaveDrainTask, force = false): Promise<void> {
     if (this.active) {
@@ -36,11 +55,16 @@ export class SessionSaveDrain {
       this.queued = null;
       if (queued) {
         const queuedGeneration = this.generation;
+        this.scheduled += 1;
         queueMicrotask(() => {
-          if (this.generation !== queuedGeneration) return;
-          void this.run(queued.task, queued.force);
+          this.scheduled -= 1;
+          if (this.generation === queuedGeneration) {
+            void this.run(queued.task, queued.force);
+          }
+          this.resolveIdle();
         });
       }
+      this.resolveIdle();
     };
     void pending.then(settled, settled);
     return pending;
@@ -49,5 +73,6 @@ export class SessionSaveDrain {
   invalidate(): void {
     this.generation += 1;
     this.queued = null;
+    this.resolveIdle();
   }
 }

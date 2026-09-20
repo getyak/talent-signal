@@ -310,6 +310,29 @@ final class AppModel: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var initializationTask: Task<Bool, Never>?
+    private var didInitialize = false
+
+    /// Native intake cannot save under the pre-login placeholder account.
+    func ensureInitialized() async -> Bool {
+        if didInitialize { return true }
+        if let initializationTask { return await initializationTask.value }
+        let task = Task { @MainActor in
+            do {
+                self.apply(try await self.service.loadWorkspace())
+                self.didInitialize = true
+                return true
+            } catch {
+                self.fail(error)
+                return false
+            }
+        }
+        initializationTask = task
+        let ready = await task.value
+        initializationTask = nil
+        return ready
+    }
+
     func load() async {
         do {
             apply(try await service.loadWorkspace())

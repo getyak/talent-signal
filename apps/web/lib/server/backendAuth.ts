@@ -11,6 +11,7 @@ import { headers } from "next/headers";
 import { getToken } from "next-auth/jwt";
 import { cache } from "react";
 
+import { withAuthRequestTimeout } from "@/lib/auth-request-timeout";
 import {
   BackendSessionExpiredError,
   backendSessionIsExpired,
@@ -43,27 +44,40 @@ export function backendAuthBaseUrl(): string {
   );
 }
 
+export const BACKEND_AUTH_REQUEST_TIMEOUT_MS = 5_000;
+
 function authClient() {
-  return new TalentSignalClient(backendAuthBaseUrl());
+  const client = new TalentSignalClient(backendAuthBaseUrl());
+  client.setClientPlatform("web");
+  return client;
 }
 
 export async function signInBackendAccount(
   request: Omit<PasswordLoginRequest, "client_label">,
 ): Promise<SessionResponse> {
-  return authClient().signInWithPassword({
-    ...request,
-    client_label: "talent-signal-web",
-  });
+  return withAuthRequestTimeout(
+    (signal) =>
+      authClient().signInWithPassword(
+        { ...request, client_label: "talent-signal-web" },
+        signal,
+      ),
+    { timeoutMs: BACKEND_AUTH_REQUEST_TIMEOUT_MS },
+  );
 }
 
 export async function registerBackendAccount(
   request: Omit<PasswordRegistrationRequest, "client_label">,
 ): Promise<SessionResponse> {
-  return authClient().registerWithPassword({
-    ...request,
-    client_label: "talent-signal-web",
-  });
+  return withAuthRequestTimeout(
+    (signal) =>
+      authClient().registerWithPassword(
+        { ...request, client_label: "talent-signal-web" },
+        signal,
+      ),
+    { timeoutMs: BACKEND_AUTH_REQUEST_TIMEOUT_MS },
+  );
 }
+
 
 export type BackendSessionClaims = {
   backendAccessToken: string;

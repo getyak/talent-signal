@@ -521,7 +521,6 @@ export function PursuitTodayPage({
       <main className={styles.main} id="main-content" tabIndex={-1}>
         <header className={styles.hero}>
           <div>
-            <p className={styles.eyebrow}>受治理的注意力</p>
             <h1>今日</h1>
             <p>
               先处理一项有依据的决定；其余内容保持安静，直到真正需要你的判断。

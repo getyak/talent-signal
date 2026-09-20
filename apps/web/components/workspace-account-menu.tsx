@@ -1,43 +1,54 @@
 "use client";
 
-import { SignOut } from "@phosphor-icons/react";
+import {
+  CaretDown,
+  GearSix,
+  Palette,
+  SignOut,
+} from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 
+import {
+  accountDisplayName,
+  accountInitials,
+  accountMenuLabel,
+  accountWorkspaceLabel,
+  type AccountIdentity,
+} from "@/lib/workspace-account";
 import { ThemeToggle } from "./theme-toggle";
 import { clearAllPendingSessionDrafts } from "./session-workbench/session-draft-pending";
 import { clearAllPendingMeetingDraftIntents } from "@/lib/meeting-draft-pending";
 import styles from "./workspace-shell.module.css";
 
 const links = [
-  ["/workspace/settings", "账号与安全"],
-  ["/workspace/settings?section=workspace", "工作空间管理"],
+  ["/workspace/settings", "设置"],
 ] as const;
-
-function initials(value: string): string {
-  return (
-    value
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("") || "TS"
-  );
-}
 
 export function WorkspaceAccountMenu({
   accountName,
+  workspaceName,
+  avatarUrl = null,
+  fixtureWorkspace = false,
   signOutAction,
 }: {
   accountName: string;
+  workspaceName: string | null;
+  avatarUrl?: string | null;
+  fixtureWorkspace?: boolean;
   signOutAction: (formData: FormData) => void | Promise<void>;
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
   const popover = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLElement>(null);
+  const identity: AccountIdentity = { accountName, workspaceName, avatarUrl };
+  const displayName = accountDisplayName(identity);
+  const workspaceLabel = accountWorkspaceLabel(identity);
+  const initials = accountInitials(accountName);
 
   function clearPendingLocalIntents() {
     clearAllPendingMeetingDraftIntents();
+    // One partitioned store also removes any unsent conversation canvas intent.
     clearAllPendingSessionDrafts();
   }
 
@@ -100,35 +111,63 @@ export function WorkspaceAccountMenu({
       ref={menu}
     >
       <summary
-        aria-label="账号与空间"
-        className={styles.avatar}
+        aria-label={accountMenuLabel(identity)}
+        className={styles.accountTrigger}
         ref={trigger}
-        title="账号与空间"
+        title={accountMenuLabel(identity)}
       >
-        {initials(accountName)}
+        <span aria-hidden="true" className={styles.avatar} data-size="account">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img alt="" src={avatarUrl} />
+          ) : (
+            initials
+          )}
+        </span>
+        <span className={styles.accountName}>
+          <strong>{displayName}</strong>
+          <small>{workspaceLabel}</small>
+        </span>
+        <CaretDown aria-hidden="true" className={styles.accountChevron} size={12} />
       </summary>
       <div aria-label="账号与空间操作" className={styles.accountPopover} ref={popover}>
-        <strong>{accountName}</strong>
+        <span className={styles.accountSummary}>
+          <span aria-hidden="true" className={styles.avatar} data-size="row">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img alt="" src={avatarUrl} />
+            ) : (
+              initials
+            )}
+          </span>
+          <span>
+            <strong>{displayName}</strong>
+            <small>{workspaceLabel}</small>
+          </span>
+        </span>
+        <hr />
         {links.map(([href, label]) => (
           <Link href={href} key={href} onClick={() => close()}>
-            {label}
+            <GearSix aria-hidden="true" size={16} />
+            <span>{label}</span>
           </Link>
         ))}
-        <span className={styles.accountLanguage}>
-          <span>语言</span>
-          <strong lang="zh-CN">简体中文</strong>
-        </span>
         <span className={styles.accountAppearance}>
+          <Palette aria-hidden="true" size={16} />
           <span>外观</span>
           <ThemeToggle label="切换工作区明暗主题" />
         </span>
         <hr />
-        <Link href="/workspace/plugs" onClick={() => close()}>连接与权限</Link>
-        <Link href="/workspace/monitor" onClick={() => close()}>运行反馈</Link>
+        {fixtureWorkspace ? (
+          <span className={styles.accountMetaRow}>
+            <span>工作区</span>
+            <strong>合成测试空间</strong>
+          </span>
+        ) : null}
         <form action={signOutAction} onSubmit={clearPendingLocalIntents}>
           <button type="submit">
-            <SignOut aria-hidden="true" size={17} />
-            退出登录
+            <SignOut aria-hidden="true" size={16} />
+            <span>退出登录</span>
           </button>
         </form>
       </div>

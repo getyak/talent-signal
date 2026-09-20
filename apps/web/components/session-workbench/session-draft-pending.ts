@@ -245,6 +245,54 @@ export function readPendingSessionDraft(
   }
 }
 
+/**
+ * The newest still-valid pending intent for a storage partition, across every
+ * session it may belong to. The unscoped conversation canvas uses this to
+ * restore an unsent objective after a reload; it never reads another account's
+ * partition, and expired or foreign records are pruned rather than returned.
+ */
+export function findPendingSessionDraft(
+  storageScope: string,
+  target = storage(),
+  now = Date.now(),
+  purpose?: string,
+): PendingSessionDraft | null {
+  if (!target) return null;
+  let newest: PendingSessionDraft | null = null;
+  try {
+    for (let index = target.length - 1; index >= 0; index -= 1) {
+      const itemKey = target.key(index);
+      if (!itemKey?.startsWith(PREFIX)) continue;
+      let value: unknown;
+      try {
+        value = JSON.parse(target.getItem(itemKey) ?? "null");
+      } catch {
+        safeRemove(target, itemKey);
+        continue;
+      }
+      if (
+        !validAt(value, now) ||
+        value.storageScope !== storageScope ||
+        Date.parse(value.expiresAt) <= now
+      ) {
+        safeRemove(target, itemKey);
+        continue;
+      }
+      if (purpose && (value as PendingSessionDraft & {purpose?: string}).purpose !== purpose) continue;
+      if (
+        !newest ||
+        Date.parse(value.latest.updatedAt) >
+          Date.parse(newest.latest.updatedAt)
+      ) {
+        newest = value;
+      }
+    }
+  } catch {
+    return newest;
+  }
+  return newest;
+}
+
 export function writePendingSessionDraft(
   pending: PendingSessionDraft,
   target = storage(),

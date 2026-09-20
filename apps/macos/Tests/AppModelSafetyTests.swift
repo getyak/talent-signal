@@ -3,6 +3,22 @@ import XCTest
 
 @MainActor
 final class AppModelSafetyTests: XCTestCase {
+    func testFirstNativeInitializationIsSharedAndDoesNotReloadOverACollectedDraft() async {
+        let service = SwitchingAccountService(accountIDs: ["real-account", "unexpected-reload"])
+        let model = AppModel(service: service, accountID: "pending-live-account")
+        async let first = model.ensureInitialized()
+        async let second = model.ensureInitialized()
+        let initialized = await (first, second)
+        XCTAssertTrue(initialized.0)
+        XCTAssertTrue(initialized.1)
+        model.addSelectedText("Synthetic first Quick Panel selection")
+        let itemIDs = model.capsule.items.map(\.id)
+        let readyAgain = await model.ensureInitialized()
+        XCTAssertTrue(readyAgain)
+        XCTAssertEqual(model.capsule.items.map(\.id), itemIDs)
+        XCTAssertEqual(model.relationshipScopeOptions.first?.id, "scope-real-account")
+    }
+
     func testFirstUsefulInsightAppearsBeforeIdentityOrScopeConfirmation() throws {
         let model = AppModel(service: FixtureRelationshipService(initialMode: .ready))
 

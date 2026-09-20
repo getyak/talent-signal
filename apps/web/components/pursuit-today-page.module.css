@@ -5,26 +5,26 @@
 
 .main {
   margin: 0 auto;
-  max-width: 1440px;
-  padding: var(--workspace-page-padding) var(--workspace-page-padding) 64px;
+  max-width: 1040px;
+  padding: 54px 64px 86px;
 }
 
 .errorStack {
   display: grid;
   gap: 16px;
   margin: 0 auto;
-  max-width: 1260px;
+  max-width: 1040px;
 }
 
 .hero {
-  align-items: center;
-  border-bottom: 1px solid var(--line);
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line-soft);
   display: flex;
   gap: 28px;
   justify-content: space-between;
-  margin: 0 auto var(--workspace-section-gap);
-  max-width: 1260px;
-  padding-bottom: 20px;
+  margin: 0 auto 30px;
+  max-width: 1040px;
+  padding-bottom: 22px;
 }
 
 .eyebrow,
@@ -33,62 +33,56 @@
 .agent label,
 .focusFacts dt,
 .supportingWork span {
-  color: var(--muted-strong);
-  font-family: var(--font-mono), monospace;
-  font-size: var(--workspace-meta-size);
-  font-weight: 650;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
 }
 
 .hero h1 {
-  font-size: var(--workspace-title-size);
-  font-weight: 650;
-  letter-spacing: -0.045em;
-  line-height: 1;
+  font-size: 1.75rem;
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  line-height: 1.25;
   margin-top: 7px;
 }
 
 .hero > div:first-child > p:last-child {
-  color: var(--muted-strong);
-  font-size: var(--workspace-body-size);
-  line-height: 1.55;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
   margin-top: 9px;
-  max-width: 620px;
+  max-width: 58ch;
 }
 
 .summary {
   align-items: center;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--line-soft);
   display: flex;
-  gap: 28px;
-  padding: 2px 4px 2px 24px;
+  gap: 24px;
+  padding: 2px 4px 2px 22px;
 }
 
 .summary > span {
   display: grid;
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
-  font-weight: 610;
+  font-weight: 620;
   gap: 2px;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.01em;
 }
 
 .summary small {
   color: var(--muted);
-  font-family: var(--font-mono), monospace;
-  font-size: var(--workspace-meta-size);
-  font-weight: 570;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 0.6875rem;
+  font-weight: 500;
 }
 
 .todayGrid {
   display: grid;
-  gap: clamp(28px, 3vw, 42px);
-  grid-template-columns: minmax(0, 1.7fr) minmax(290px, 0.72fr);
+  gap: 34px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.7fr);
   margin: 0 auto;
-  max-width: 1260px;
+  max-width: 1040px;
 }
 
 .sectionLabel {

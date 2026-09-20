@@ -1,5 +1,4 @@
 # Architecture
-
 ## Purpose
 
 Talent Signal needs one trustworthy Pursuit and relationship state across
@@ -16,7 +15,6 @@ The architecture therefore separates:
 
 No client, model, channel, connector, or generated document is the source of
 truth.
-
 ## System shape
 
 ![Talent Signal system architecture](talent-signal-system-architecture.png)
@@ -24,6 +22,8 @@ truth.
 The system has five conceptual layers:
 
 ### Surfaces
+
+Web and macOS share one Web product surface with no native bridge; native tools retain separate authorization ([ADR 0016](decisions/0016-shared-desktop-workspace-surface.md)).
 
 iOS, Web, browser capture, channels, and external agents provide different
 interaction modes while sharing identity, evidence, review, and action state through one backend.

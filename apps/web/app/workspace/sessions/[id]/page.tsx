@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { loadMeetingDrafts } from "@/lib/server/meetingDrafts";
+import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
 import { SessionWorkbench } from "@/components/session-workbench/session-workbench";
 import {
   backendSessionRecoveryHref,
@@ -77,9 +79,24 @@ export default async function SessionDetailPage({
     );
   }
 
+  let meetingLinks: Array<{id: string; title: string}> = [];
+  let meetingReadFailed = false;
+  if (detail.state === "active") {
+    try {
+      const projection = await loadMeetingDrafts();
+      const tasks = new Set(detail.turns.map(turn => turn.response.taskID));
+      meetingLinks = projection.drafts.filter(draft => draft.origin_session_id === detail.session_id &&
+        tasks.has(draft.source_task_id) && draft.status === "needs_review" && draft.content_available)
+        .map(draft => ({id: draft.id, title: draft.title ?? "会议草稿"}));
+    } catch { meetingReadFailed = true; }
+  }
   return (
     <SessionWorkbench
       initialDetail={detail}
+      meetingLinks={meetingLinks}
+      meetingReadFailed={meetingReadFailed}
+      accountId={claims.backendAccountId}
+      chatSessionVersion={contactHandoffSessionVersion(claims)}
       initialError={error}
       sessionRecoveryHref={sessionRecoveryHref}
       storageScope={workspaceSessionDraftStorageScope(claims)}

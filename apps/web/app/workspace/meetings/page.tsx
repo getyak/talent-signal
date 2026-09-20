@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   description: "与对话来源绑定、无隐式外部写入的会议草稿。",
   robots: { follow: false, index: false },
-  title: "会议 · Talent Signal",
+  title: "日程 · Talent Signal",
 };
 
 export default async function MeetingsPage({

@@ -13,13 +13,46 @@ import {
   passwordSignInSchema,
   safeRedirectTarget,
 } from "@/lib/auth-config";
+import {
+  authFailureCodeFromCredentialsCode,
+  authFailureIsRetryable,
+  authFailureMessage,
+  type AuthFailureCode,
+} from "@/lib/auth-feedback";
 import { authenticatedBackendClient } from "@/lib/server/backendAuth";
 
 export type SignInState = {
   error: string;
+  code?: AuthFailureCode;
+  retryable?: boolean;
+  /** Non-secret values restored onto the form after a failed action. */
+  values?: {
+    displayName?: string;
+    email?: string;
+    identifier?: string;
+  };
 };
 
 const BACKEND_LOGOUT_TIMEOUT_MS = 1_500;
+
+function formString(formData: FormData, name: string): string {
+  const value = formData.get(name);
+  return typeof value === "string" ? value : "";
+}
+
+function failedState(
+  code: AuthFailureCode,
+  mode: "register" | "sign-in",
+  values?: SignInState["values"],
+  message: string = authFailureMessage(code, mode),
+): SignInState {
+  return {
+    error: message,
+    code,
+    retryable: authFailureIsRetryable(code),
+    values,
+  };
+}
 
 async function logoutBackendWithinDeadline(
   logout: () => Promise<unknown>,
@@ -40,29 +73,17 @@ async function logoutBackendWithinDeadline(
   }
 }
 
-function credentialsErrorMessage(error: AuthError, mode: "register" | "sign-in") {
-  const code = "code" in error ? String(error.code) : "";
-  if (code === "service_unavailable") {
-    return "账号服务暂时不可用。请检查本地后端后重试。";
-  }
-  if (mode === "register" && code === "account_exists") {
-    return "该用户名或邮箱已被其他账号使用。";
-  }
-  return mode === "register"
-    ? "无法创建账号，请检查填写内容后重试。"
-    : "无法识别该用户名、邮箱或密码。";
-}
-
 export async function signInWithPasswordAccount(
   _previousState: SignInState,
   formData: FormData,
 ): Promise<SignInState> {
+  const values = { identifier: formString(formData, "identifier") };
   const parsed = passwordSignInSchema.safeParse({
     identifier: formData.get("identifier"),
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: "请输入邮箱和密码。" };
+    return failedState("invalid_input", "sign-in", values);
   }
 
   try {
@@ -73,7 +94,11 @@ export async function signInWithPasswordAccount(
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return { error: credentialsErrorMessage(error, "sign-in") };
+      const code = authFailureCodeFromCredentialsCode(
+        "code" in error ? String(error.code) : "",
+        "sign-in",
+      );
+      return failedState(code, "sign-in", values);
     }
     throw error;
   }
@@ -84,8 +109,17 @@ export async function registerPasswordAccount(
   _previousState: SignInState,
   formData: FormData,
 ): Promise<SignInState> {
+  const values = {
+    displayName: formString(formData, "displayName"),
+    email: formString(formData, "email"),
+  };
   if (formData.get("password") !== formData.get("confirmPassword")) {
-    return { error: "两次输入的密码不一致。" };
+    return failedState(
+      "invalid_input",
+      "register",
+      values,
+      "两次输入的密码不一致。",
+    );
   }
   const parsed = passwordRegistrationSchema.safeParse({
     username: formData.get("username") || `u${randomUUID().replaceAll("-", "")}`,
@@ -94,10 +128,12 @@ export async function registerPasswordAccount(
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return {
-      error:
-        "用户名需为 3–40 个字符，请填写有效邮箱，并设置至少 8 个字符的密码。",
-    };
+    return failedState(
+      "invalid_input",
+      "register",
+      values,
+      "用户名需为 3–40 个字符，请填写有效邮箱，并设置至少 8 个字符的密码。",
+    );
   }
 
   try {
@@ -108,7 +144,11 @@ export async function registerPasswordAccount(
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return { error: credentialsErrorMessage(error, "register") };
+      const code = authFailureCodeFromCredentialsCode(
+        "code" in error ? String(error.code) : "",
+        "register",
+      );
+      return failedState(code, "register", values);
     }
     throw error;
   }
@@ -119,6 +159,7 @@ export async function signInWithEmail(
   _previousState: SignInState,
   formData: FormData,
 ): Promise<SignInState> {
+  const values = { email: formString(formData, "email") };
   const redirectTo = safeRedirectTarget(formData.get("redirectTo"));
 
   try {
@@ -129,12 +170,14 @@ export async function signInWithEmail(
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return {
-        error:
-          error.type === "CredentialsSignin"
-            ? "无法识别该邮箱或密码。"
-            : "无法完成登录，请重试。",
-      };
+      const code =
+        error.type === "CredentialsSignin"
+          ? authFailureCodeFromCredentialsCode(
+              "code" in error ? String(error.code) : "",
+              "sign-in",
+            )
+          : "service_unavailable";
+      return failedState(code, "sign-in", values);
     }
     throw error;
   }

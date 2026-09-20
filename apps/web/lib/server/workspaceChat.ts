@@ -61,7 +61,14 @@ export async function askWorkspaceChat(client: TalentSignalClient, input: Worksp
         updatedAt: output.created_at, turns: [...payload.turns, {
         id: input.request_id, objective: input.objective.trim(), createdAt: now,
         response: { contractVersion: CONTRACT_VERSION, taskID: output.task_id, contextManifestID: "",
-          knowledgeSnapshotID: "", disposition: output.disposition, createdAt: output.created_at },
+          knowledgeSnapshotID: "", disposition: output.disposition, createdAt: output.created_at,
+          // A bounded historical display, never an executable action or evidence authority.
+          unboundConversationBlocks: output.blocks.slice(0, 32).map(block => ({
+            id: block.id, kind: block.kind, title: block.title, body: block.body,
+            status: block.status, citation_dependency_ids: [], requires_user_decision: false as const,
+            allows_static_share: false, target_ref: null,
+          })),
+        },
       }] },
     });
   }

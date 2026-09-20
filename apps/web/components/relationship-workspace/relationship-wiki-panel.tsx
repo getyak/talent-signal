@@ -268,9 +268,9 @@ export function RelationshipWikiPanel({
     >
       <header>
         <div>
-          <p className="eyebrow">关系 MEMORY</p>
+          <p className="eyebrow">有来源的关系记录</p>
           <h2 id="relationship-wiki-title">
-            记住会改变下一次沟通的内容，而不是堆积一份人物百科。
+            沟通要点
           </h2>
         </div>
         {view ? (
@@ -386,9 +386,9 @@ export function RelationshipWikiPanel({
         <div className="context-relationship-wiki__empty">
           <Quotes aria-hidden="true" size={26} weight="duotone" />
           <div>
-            <strong>需要时再编译一份关联来源的视图。</strong>
+            <strong>还没有沟通简报</strong>
             <p>
-              已确认事实、未解决证据、来源与有依据的最小下一步会清晰分离。
+              从已有来源整理要点，待核对内容会单独标明。
             </p>
           </div>
           <button
@@ -402,7 +402,7 @@ export function RelationshipWikiPanel({
             ) : (
               <Sparkle aria-hidden="true" size={17} weight="fill" />
             )}
-            编译 Memory
+            整理简报
           </button>
         </div>
       )}

@@ -12,6 +12,7 @@ import { RelationshipWorkspaceApp } from "@/components/relationship-workspace-ap
 import { WorkspaceApp } from "@/components/workspace-app";
 import {
   backendSessionRecoveryHref,
+  backendSessionIsExpired,
   isBackendSessionExpiredError,
 } from "@/lib/backend-session";
 import {
@@ -19,14 +20,19 @@ import {
   loadRelationshipWorkspaceInitialRead,
 } from "@/lib/server/localBackend";
 import { loadCandidateWorkspace } from "@/lib/server/candidateWorkspace";
+import {
+  workspaceSessionDraftStorageScope,
+  workspaceSessionsBinding,
+} from "@/lib/server/workspaceSessions";
+import { WorkspaceNewConversation } from "@/components/new-conversation";
 import WorkspaceLoading from "./loading";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "候选人工作台",
+  title: "工作区",
   description:
-    "面向关系驱动型寻访、始终关联来源的候选人知识工作台。",
+    "账号专属的对话画布：从一条消息开始，始终关联可核验的来源。",
   robots: {
     follow: false,
     index: false,
@@ -90,16 +96,36 @@ export default async function WorkspacePage({
     redirect(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
 
-  if (
-    isIntegrationMode() &&
-    !requestedCapture &&
-    !requestedPerson &&
-    !requestedContext &&
-    !requestedIdentityCase &&
-    !requestedReturnSession &&
-    !parameters.surface
-  ) {
-    redirect("/workspace/today");
+  const scopedRequest = Boolean(
+    requestedCapture ||
+      requestedPerson ||
+      requestedContext ||
+      requestedIdentityCase ||
+      requestedReturnSession ||
+      parameters.surface,
+  );
+
+  // The default authenticated entry is an unscoped conversation canvas. It uses
+  // the existing unscoped Session/Agent controller and never redirects to Today
+  // or embeds the CRM dashboard.
+  if (!scopedRequest) {
+    const claims = await readBackendSessionClaims();
+    const current =
+      claims && !backendSessionIsExpired(claims.backendExpiresAt) ? claims : null;
+    return (
+      <WorkspaceNewConversation
+        accountId={current?.backendAccountId ?? null}
+        sessionBinding={
+          current ? workspaceSessionsBinding(current) : null
+        }
+        sessionVersion={
+          current ? contactHandoffSessionVersion(current) : null
+        }
+        storageScope={
+          current ? workspaceSessionDraftStorageScope(current) : null
+        }
+      />
+    );
   }
 
   if (isIntegrationMode()) {

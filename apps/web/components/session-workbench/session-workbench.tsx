@@ -2,13 +2,16 @@
 
 import {
   ArrowLeft,
+  ArrowUp,
   Copy,
   Trash,
   Warning,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useWorkspaceChat } from "../relationship-workspace/use-workspace-chat";
 import { workspaceSessionFetch } from "@/components/workspace-session-request";
 
 import {
@@ -55,10 +58,15 @@ import {
   shouldPersistDraft,
 } from "./session-view";
 import styles from "./session-workbench.module.css";
+import chatStyles from "./session-conversation.module.css";
 
 const DEBOUNCE_MS = 900;
 
 type Props = {
+  meetingLinks?: Array<{id: string; title: string}>;
+  meetingReadFailed?: boolean;
+  accountId?: string;
+  chatSessionVersion?: string;
   initialDetail: SessionDetail;
   sessionVersion: string | null;
   initialError: string | null;
@@ -75,11 +83,18 @@ type DetailResponse = {
 
 export function SessionWorkbench({
   initialDetail,
+  meetingLinks = [],
+  meetingReadFailed = false,
+  accountId,
+  chatSessionVersion,
   sessionVersion,
   initialError,
   sessionRecoveryHref,
   storageScope,
 }: Props) {
+  const router = useRouter();
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [state, setState] = useState<DetailState>(() =>
     initialDetailState(initialDetail),
   );
@@ -87,6 +102,12 @@ export function SessionWorkbench({
   const [busy, setBusy] = useState<"reload" | "delete" | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [notice, setNotice] = useState(initialError ?? "");
+  const [sending, setSending] = useState(false);
+  const [sendPending, setSendPending] = useState(false);
+  const sendLock = useRef(false);
+  const sendAttempt = useRef<PendingSessionDraft | null>(null);
+  const { ask } = useWorkspaceChat(accountId ?? null, chatSessionVersion ?? null,
+    state.detail.state === "active" && state.detail.scope_kind === "unresolved_intent", setNotice);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveAttemptRef = useRef<SaveRequestBody | null>(null);
   const pendingDraftRef = useRef<PendingSessionDraft | null>(null);
@@ -131,6 +152,13 @@ export function SessionWorkbench({
       initialDetail.session_id,
     );
     if (!recovered) return;
+    if ((recovered as PendingSessionDraft & {purpose?: string}).purpose === "session-send") {
+      sendAttempt.current = recovered;
+      setSendPending(true);
+      commitState(previous => ({ ...previous, draft: recovered.latest.draft, status: "idle" }));
+      setNotice("上次发送结果尚未确认。重试会核对同一条消息，不会另建对话。");
+      return;
+    }
     const resolution = resolvePendingSessionDraft(
       recovered,
       stateRef.current.detail,
@@ -155,6 +183,7 @@ export function SessionWorkbench({
 
   const executePersist = useCallback(
     async ({ force, isCurrent }: SaveDrainContext) => {
+      if (sendAttempt.current) return;
       const current = stateRef.current;
       const activeBinding = bindingRef.current;
       if (!activeBinding) return;
@@ -320,7 +349,7 @@ export function SessionWorkbench({
   // Debounced persistence. Lifecycle flush keeps a committed draft from being
   // lost when the tab is backgrounded or removed.
   useEffect(() => {
-    if (state.status !== "pending") return;
+    if (state.status !== "pending" || sending || sendPending) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       void persist();
@@ -328,12 +357,13 @@ export function SessionWorkbench({
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [state.draft, state.status, persist]);
+  }, [state.draft, state.status, persist, sending, sendPending]);
 
   useEffect(() => {
     const saveDrain = saveDrainRef.current;
     function flush() {
       const current = stateRef.current;
+      if (sendAttempt.current) return;
       if (
         current.detail.state === "active" &&
         shouldPersistDraft({
@@ -379,6 +409,7 @@ export function SessionWorkbench({
   }
 
   async function remove() {
+    if (sendAttempt.current || sending) return;
     const activeBinding = bindingRef.current;
     if (!activeBinding) return;
     saveDrainRef.current.invalidate();
@@ -431,6 +462,65 @@ export function SessionWorkbench({
     }
   }
 
+  async function sendMessage() {
+    if (sendLock.current || sending || !accountId || !chatSessionVersion || stateRef.current.detail.state !== "active" || stateRef.current.detail.scope_kind !== "unresolved_intent") return;
+    const objective = stateRef.current.draft.trim();
+    if (!objective || objective.length > 1000 || stateRef.current.conflict) return;
+    sendLock.current = true;
+    setSending(true);
+    if (timer.current) clearTimeout(timer.current);
+    try {
+      if (!sendAttempt.current) {
+        await persist(true);
+        if (!mounted.current) return;
+        await saveDrainRef.current.whenIdle();
+        if (!mounted.current) return;
+        const current = stateRef.current;
+        if (current.conflict || current.status === "error" || current.detail.state !== "active") return;
+        sendAttempt.current = { ...createPendingSessionDraft({
+          storageScope, sessionId: current.detail.session_id, baseRevision: current.detail.revision,
+          draft: objective, idempotencyKey: crypto.randomUUID(), updatedAt: new Date().toISOString(), predecessor: null,
+        }), purpose: "session-send" } as PendingSessionDraft;
+        if (!writePendingSessionDraft(sendAttempt.current)) {
+          sendAttempt.current = null;
+          setNotice("无法保存发送状态，请恢复浏览器存储后重试。草稿仍保留。");
+          return;
+        }
+        setSendPending(true);
+      }
+      if (!mounted.current) return;
+      const attempt = sendAttempt.current;
+      const delivered = await ask(attempt.latest.draft, {
+        sessionId: attempt.sessionId, requestId: attempt.latest.idempotencyKey,
+      });
+      if (!mounted.current || !delivered || !bindingRef.current) return;
+      const readback = await readSession(attempt.sessionId, bindingRef.current);
+      if (!mounted.current || !readback) return;
+      clearDurableDraft(attempt.latest.idempotencyKey);
+      pendingDraftRef.current = null;
+      saveAttemptRef.current = null;
+      sendAttempt.current = null;
+      setSendPending(false);
+      commitState(() => initialDetailState(readback));
+      updateDraft("");
+      await persist(true);
+      if (!mounted.current) return;
+      setNotice("消息已保存。");
+      router.refresh();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "发送结果尚未确认，请重试同一条消息。");
+    } finally { sendLock.current = false; if (mounted.current) setSending(false); }
+  }
+
+  function endSendRetry() {
+    if (sending) return;
+    const attempt = sendAttempt.current;
+    if (attempt) clearDurableDraft(attempt.latest.idempotencyKey);
+    sendAttempt.current = null;
+    setSendPending(false);
+    setNotice("已结束重试，草稿保留。上一条消息可能已完成，可重新载入核对历史。");
+  }
+
   async function copyDraft() {
     try {
       await navigator.clipboard.writeText(state.draft);
@@ -445,7 +535,7 @@ export function SessionWorkbench({
   const statusLabel = draftStatusLabel(state.status);
 
   return (
-    <section aria-labelledby="session-title" className={styles.page}>
+    <section aria-labelledby="session-title" className={`${styles.page} ${chatStyles.conversation}`}>
       <Link className={styles.back} href="/workspace/sessions">
         <ArrowLeft aria-hidden="true" size={16} />
         <span>返回对话列表</span>
@@ -461,7 +551,7 @@ export function SessionWorkbench({
             {sessionDisplayTitle(detail.title)}
           </h1>
           <p className={styles.disclaimer}>
-            这条对话是历史记录，属于展示内容（{detail.display_authority}）。它不代表已核实的事实，也不授予任何执行权限。
+            对话保留思考过程；资料变更与外部行动仍需单独审阅。
           </p>
         </div>
         {detail.state === "active" ? (
@@ -488,7 +578,7 @@ export function SessionWorkbench({
             ) : (
               <button
                 className={styles.secondary}
-                disabled={!canDeleteSession(state)}
+                disabled={!canDeleteSession(state) || sending || sendPending}
                 onClick={() => {
                   setConfirmingDelete(true);
                   setNotice(
@@ -588,22 +678,33 @@ export function SessionWorkbench({
         )}
       </section>
 
-      <section aria-label="草稿" className={styles.composer}>
+      {meetingLinks.length > 0 ? <aside aria-label="待审阅日程">
+        <p>这条对话中的会议草稿</p>
+        {meetingLinks.map(item => <Link key={item.id} href={`/workspace/meetings?draft=${item.id}`}>审阅 {item.title}</Link>)}
+      </aside> : null}
+      {meetingReadFailed ? <p role="status">暂时无法读取关联日程。<Link href="/workspace/meetings">打开日程重试</Link></p> : null}
+      <section aria-label="草稿" className={`${styles.composer} ${chatStyles.composer}`}>
         <label className={styles.composerLabel} htmlFor="session-composer-draft">
-          草稿
+          继续这条对话
         </label>
         <p className={styles.hint}>
-          草稿放在这里是为了下次能接着写。它会自动保存在这条对话上，不会发送，也不会触发模型或对外操作。
+          {detail.scope_kind === "unresolved_intent" ? "草稿自动保存 · ⌘ Enter 发送" : "草稿自动保存；前往人物页继续这段关系。"}
         </p>
         <textarea
           aria-describedby="session-draft-status"
           className={styles.textarea}
           disabled={detail.state !== "active"}
+          readOnly={sending || sendPending}
           id="session-composer-draft"
           maxLength={12_000}
           onChange={(event) => updateDraft(event.target.value)}
-          placeholder={detail.state === "active" ? "写下你想保留的内容…" : "对话不可用，无法编辑草稿。"}
-          rows={6}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) {
+              event.preventDefault(); void sendMessage();
+            }
+          }}
+          placeholder={detail.state === "active" ? "输入消息，或粘贴一段内容…" : "对话不可用，无法编辑草稿。"}
+          rows={3}
           value={state.draft}
         />
         <div className={styles.composerFooter}>
@@ -620,9 +721,13 @@ export function SessionWorkbench({
             {state.error ? ` ${state.error}` : ""}
           </p>
           <div className={styles.actions}>
+            {sendPending && !sending ? <button className={styles.secondary} type="button" onClick={endSendRetry}>保留草稿，结束重试</button> : null}
+            {accountId && chatSessionVersion && detail.scope_kind === "unresolved_intent" ? <button className={styles.primary} type="button"
+              disabled={sending || detail.state !== "active" || state.conflict || !state.draft.trim() || state.draft.trim().length > 1000}
+              onClick={() => void sendMessage()}><ArrowUp aria-hidden="true" size={16} />{sending ? "发送中…" : sendPending ? "重试同一条消息" : "发送"}</button> : null}
             <button
               className={styles.secondary}
-              disabled={detail.state !== "active" || state.status === "saving"}
+              disabled={detail.state !== "active" || state.status === "saving" || sending || sendPending}
               onClick={() => void persist(true)}
               type="button"
             >

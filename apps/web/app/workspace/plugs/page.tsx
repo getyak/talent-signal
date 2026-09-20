@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   description: "账号连接、权限范围和失效状态。",
   robots: { follow: false, index: false },
-  title: "连接与权限 · Talent Signal",
+  title: "连接 · Talent Signal",
 };
 
 export default async function PlugsPage() {
