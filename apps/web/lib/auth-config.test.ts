@@ -118,6 +118,9 @@ describe("configured password verification", () => {
 });
 
 describe("safeRedirectTarget", () => {
+  it.each(["/\t/attacker.example", "/\n/attacker.example", "/\r/attacker.example"])("rejects URL-normalized external target %j", target => {
+    expect(safeRedirectTarget(target)).toBe("/workspace");
+  });
   it("accepts only local application paths", () => {
     expect(safeRedirectTarget("/workspace?view=list")).toBe(
       "/workspace?view=list",

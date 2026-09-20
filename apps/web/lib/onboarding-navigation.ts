@@ -64,10 +64,10 @@ export function oauthRetryTarget(raw: string | undefined, origin: string): strin
 export function canonicalLoginTarget(requestOrigin: string, configured: string | undefined,
   parameters: { callbackUrl?: string; error?: string; reason?: string; mode?: string }, production: boolean): string | null {
   if (!production || !configured) return null;
-  let canonical: URL;
-  try { canonical = new URL(configured); } catch { return null; }
+  let canonical: URL; let incoming: URL;
+  try { canonical = new URL(configured); incoming = new URL(requestOrigin); } catch { return null; }
   if (canonical.protocol !== "https:" || canonical.username || canonical.password ||
-      canonical.pathname !== "/" || canonical.search || canonical.hash || canonical.origin === requestOrigin) return null;
+      canonical.pathname !== "/" || canonical.search || canonical.hash || canonical.origin === incoming.origin) return null;
   const destination = new URL("/login", canonical);
   destination.searchParams.set("callbackUrl", onboardingCallbackTarget(parameters.callbackUrl));
   if (parameters.mode === "register") destination.searchParams.set("mode", "register");

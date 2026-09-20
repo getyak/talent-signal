@@ -15,6 +15,8 @@ describe("onboarding navigation targets", () => {
     const target = canonicalLoginTarget("http://localhost:3000", "https://app.example", { mode: "register", callbackUrl: "/workspace/settings" }, true);
     expect(target).toBe("https://app.example/login?callbackUrl=%2Fworkspace%2Fsettings&mode=register");
     expect(canonicalLoginTarget("https://app.example", "https://app.example", {}, true)).toBeNull();
+    expect(canonicalLoginTarget("https://APP.example:443", "https://app.example", {}, true)).toBeNull();
+    expect(canonicalLoginTarget("http://localhost:3000", "https://app.example", { callbackUrl: "/\t/attacker.example" }, true)).toBe("https://app.example/login?callbackUrl=%2Fworkspace");
     expect(canonicalLoginTarget("http://localhost:3026", "https://app.example", {}, false)).toBeNull();
     expect(canonicalLoginTarget("http://localhost:3000", "https://owner:password@app.example", {}, true)).toBeNull();
     expect(canonicalLoginTarget("http://localhost:3000", "https://app.example", { callbackUrl: "https://attacker.example" }, true)).toBe("https://app.example/login?callbackUrl=%2Fworkspace");

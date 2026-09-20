@@ -91,12 +91,17 @@ export function safeRedirectTarget(
     typeof value !== "string" ||
     !value.startsWith("/") ||
     value.startsWith("//") ||
-    value.includes("\\")
+    value.includes("\\") ||
+    /[\u0000-\u0020\u007f]/.test(value)
   ) {
     return fallback;
   }
 
-  return value;
+  try {
+    const target = new URL(value, "https://redirect.invalid");
+    if (target.origin !== "https://redirect.invalid") return fallback;
+    return target.pathname + target.search + target.hash;
+  } catch { return fallback; }
 }
 
 export function getDefaultAccount(

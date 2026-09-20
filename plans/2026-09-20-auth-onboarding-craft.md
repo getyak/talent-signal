@@ -111,3 +111,8 @@ runtime acceptance. No broad social search or model-generated biography was adde
   The client now connects explicitly to the verified literal IP while preserving
   original Host/SNI and certificate checks. Live https://example.com preview
   succeeded after this change; new CodeQL results must still be read back.
+
+- Final redirect review exposed a pre-existing control-character bypass in the
+  shared redirect sanitizer. It now rejects ASCII controls/whitespace, verifies
+  a parsed same-origin URL, and returns normalized path/query/fragment. Tests cover
+  CR/LF/TAB and canonical origin case/default-port normalization.
