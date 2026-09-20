@@ -21,6 +21,7 @@ import {
 } from "@/lib/server/backendAuth";
 import { getGoogleOAuthCredentials } from "@/lib/server/google-oauth";
 
+import { authCookieSecure } from "@/lib/auth-cookie-policy";
 import { GOOGLE_NONCE_COOKIE } from "@/lib/server/google-session";
 import { finishGoogleSignIn } from "@/lib/server/google-session";
 
@@ -299,14 +300,14 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
   },
   cookies: {
-    nonce: { name: GOOGLE_NONCE_COOKIE, options: { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" } },
+    nonce: { name: GOOGLE_NONCE_COOKIE, options: { httpOnly: true, sameSite: "lax", path: "/", secure: authCookieSecure() } },
     sessionToken: {
       name: AUTH_SESSION_COOKIE,
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: authCookieSecure(),
       },
     },
   },

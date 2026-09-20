@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { decode, encode } from "next-auth/jwt";
 import { CONTRACT_VERSION, TalentSignalClient, type SessionResponse } from "@talent-signal/contracts";
+import { authCookieSecure } from "../auth-cookie-policy";
 import { authSecret, backendAuthBaseUrl } from "./backendAuth";
 
 export const GOOGLE_NONCE_COOKIE = "talent-signal.google-nonce";
@@ -26,7 +27,7 @@ export async function prepareGoogleSignIn() {
   const value = await encode({ secret: authSecret(), salt: cookieName, maxAge: 300,
     token: { challengeID: challenge.challenge_id, endpoint: backendAuthBaseUrl() } });
   (await cookies()).set(cookieName, value, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 300,
-    secure: process.env.NODE_ENV === "production" });
+    secure: authCookieSecure() });
   return createHash("sha256").update(challenge.nonce).digest("hex");
 }
 
@@ -57,7 +58,7 @@ export async function bindGoogleNonce(authorizationURL: string, nonce: string) {
   const value = await encode({ secret: authSecret(), salt: GOOGLE_NONCE_COOKIE, maxAge: 300,
     token: { value: nonce, provider: "google" } });
   (await cookies()).set(GOOGLE_NONCE_COOKIE, value, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 300,
-    secure: process.env.NODE_ENV === "production" });
+    secure: authCookieSecure() });
   url.searchParams.set("nonce", nonce);
   return url.toString();
 }

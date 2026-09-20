@@ -138,6 +138,24 @@ in repository variables, files, or logs.
 Changing backend code does not require a new iOS archive while the origin and
 API contract remain compatible. Changing the origin requires a new archive.
 
+## Opt-in private-LAN HTTP cookie policy
+
+Auth.js session, nonce, and Google challenge cookies are `Secure` in
+production by default. Keep that default. The only exception is an explicitly
+enabled private-LAN HTTP Web deployment used for trusted local-network testing:
+set `TALENT_SIGNAL_ALLOW_LAN_HTTP=true` **and** set `AUTH_URL` to a plain-http
+origin whose host is a literal loopback (`127.0.0.1`, `localhost`, `::1`) or a
+literal RFC1918 IPv4 address (`10/8`, `172.16/12`, `192.168/16`). The origin
+must have no userinfo, query, hash, or non-root path, and its host text must be
+canonical — values the URL parser silently rewrites, such as `0x7f000001`,
+`127.1`, `2130706433`, `0177.0.0.1`, expanded IPv6, or percent-encoded hosts,
+are rejected. Public IPs, arbitrary DNS names, link-local `169.254/16`, the
+broad `172/8` range, and `https` origins always keep `Secure`. An invalid
+opt-in fails closed: `Secure` stays enabled and `decideAuthCookieSecure`
+returns an actionable reason. Never use this override with real candidate
+evidence or on an untrusted network; it exists only so a browser can complete
+login over HTTP on a trusted private LAN.
+
 ## Operating boundary
 
 Keep the Mac awake and on power, start Docker after login or reboot, and verify
