@@ -37,6 +37,8 @@ that the underlying virtualization failure cannot recur.
 - Disable repeated submission and mode switching while pending; show the correct
   login/registration pending label. Offer explicit retry, accessible errors, and
   password visibility controls.
+- Hide the decorative portrait/story area below 768px so the actual sign-in
+  fields appear in the first mobile viewport; keep the brand/back header.
 - Preserve callback validation and all existing session authority boundaries.
 
 ## Validation and remaining work
