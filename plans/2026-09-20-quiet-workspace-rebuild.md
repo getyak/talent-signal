@@ -45,7 +45,7 @@ error and retry; compile/build alone cannot establish visual completion.
 - Reference 8e4a4b0 was served locally and compared against the rebuilt product.
   Isolated PostgreSQL/backend/Web used synthetic fixtures only; no real candidate
   data or external action was needed. Temporary artifacts are removed at closeout.
-- Web: 688 passed, 1 skipped; lint, TypeScript and production build passed.
+- Web: 706 passed, 1 skipped; lint, TypeScript and production build passed.
 - macOS: 123 passed, 5 skipped, zero failures; Debug tests and Release build passed.
 - Independent Web/native reviewers closed all confirmed P0/P1 findings, including
   stale account search, duplicate sends, unmount continuation, native initialization
@@ -68,3 +68,11 @@ Native WebView requires the configured HTTPS service online. It is not an
 offline local React bundle and receives no privileged bridge. OAuth that leaves
 the configured origin opens only after user confirmation; password login is the
 validated existing flow in the isolated environment. No signed distribution claim yet.
+
+## Preserve installed login recovery
+
+Resident preflight identified c20c54d7, containing the already reviewed login
+recovery and mobile-entry fixes, ahead of main in a separate local branch.
+Merged those existing commits without conflicts so activation cannot regress
+installed authentication behavior. Independent integration review found no
+P0/P1/P2; rebuilt shared contracts before the combined test run.
