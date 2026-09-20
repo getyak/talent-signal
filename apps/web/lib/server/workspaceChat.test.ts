@@ -5,7 +5,7 @@ const sid = "b31d4f3e-fa98-4eea-8b57-7a278d10dd41", rid = "ca3322d4-4534-4e6c-95
 const input = { session_id: sid, request_id: rid, objective: "明天下午三点聊半小时", time_zone: "Asia/Shanghai" };
 const payload = { id: sid, scopeKind: "unresolved_intent" as const, personDisplayLabel: "", contextDisplayLabel: "", title: "test", turns: [], updatedAt: "2026-09-10T00:00:00Z", isUnread: false };
 const record = { contract_version: CONTRACT_VERSION, session: { session_id: sid, revision: 1, updated_at: payload.updatedAt, expires_at: "2026-09-17T00:00:00Z", deleted_at: null, payload, display_authority: "stale_unconfirmed" } } as AgentSessionResponse;
-const output = { task_id: tid, created_at: payload.updatedAt, disposition: "answer", blocks: [{ body: "草稿等待确认" }], external_effects: [], session_title: "安排明天下午会议" };
+const output = { task_id: tid, created_at: payload.updatedAt, disposition: "answer", blocks: [{ id: "answer-1", kind: "answer", title: "回复", status: "ready", body: "草稿等待确认", requires_user_decision: true, calendar_draft: { sensitive: "never persist executable payload" } }], external_effects: [], session_title: "安排明天下午会议" };
 function fixture() {
  const getAgentSession = vi.fn().mockResolvedValue(structuredClone(record));
  const saveAgentSession = vi.fn().mockResolvedValue(structuredClone(record));
@@ -22,7 +22,9 @@ describe("Web workspace conversation", () => {
   expect(f.saveAgentSession.mock.calls[1][1].idempotency_key).toBe(rid);
   expect(f.saveAgentSession.mock.calls[1][1].payload.title).toBe(output.session_title);
   expect(f.saveAgentSession.mock.calls[1][1].payload.turns[0]).toMatchObject({id:rid,objective:input.objective,response:{taskID:tid}});
-  expect(f.saveAgentSession.mock.calls[1][1].payload.turns[0].response).not.toHaveProperty("unboundConversationBlocks");
+  const history=f.saveAgentSession.mock.calls[1][1].payload.turns[0].response.unboundConversationBlocks;
+  expect(history[0]).toMatchObject({body:"草稿等待确认",requires_user_decision:false,allows_static_share:false,citation_dependency_ids:[],target_ref:null});
+  expect(history[0]).not.toHaveProperty("calendar_draft");
  });
  it("preserves the same intent key after a typed provider failure",async()=>{
   const f=fixture();f.createUnscopedChatTask.mockRejectedValueOnce(new TalentSignalHttpError(503,"CLAUDE_CHAT_RETRYABLE_FAILURE","retry",null));

@@ -1,17 +1,59 @@
-import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { auth } from '@/auth';
-import { AccountSettingsPanel } from '@/components/account-settings';
-import { loadAccountSettings } from '@/lib/server/accountBackend';
-import styles from '@/components/account-settings.module.css';
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-export const dynamic='force-dynamic';
-export const metadata:Metadata={title:'账号与空间',robots:{index:false,follow:false}};
-export default async function SettingsPage({searchParams}:{searchParams:Promise<{section?:string}>}){
-  if(!(await auth())?.user) redirect('/login?callbackUrl=%2Fworkspace%2Fsettings');
-  const section=(await searchParams).section==='workspace'?'workspace':'account';
-  let data;
-  try{data=await loadAccountSettings();}catch{ /* Render no account data from fixtures or stale JWT claims. */ }
-  return <main id="main-content" className={styles.page}>{data?<AccountSettingsPanel key={`${data.workspace.id}-${section}`} initial={data} section={section}/>:<><h1>账号设置暂时无法连接</h1><p>请确认账号服务已启动，或重新登录后继续。</p><Link className={styles.button} href="/login?callbackUrl=%2Fworkspace%2Fsettings">重新登录</Link></>}</main>;
+import { auth } from "@/auth";
+import { isSettingsSection } from "@/lib/settings-sections";
+import { SettingsWorkspace } from "@/components/settings-workspace";
+import { readBackendSessionClaims } from "@/lib/server/backendAuth";
+import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
+import { backendSessionIsExpired } from "@/lib/backend-session";
+import { loadAccountSettings } from "@/lib/server/accountBackend";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "设置",
+  description: "账号、空间与界面偏好。",
+  robots: { index: false, follow: false },
+};
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ section?: string }>;
+}) {
+  if (!(await auth())?.user) {
+    redirect("/login?callbackUrl=%2Fworkspace%2Fsettings");
+  }
+
+  const requested = (await searchParams).section;
+  let data: Awaited<ReturnType<typeof loadAccountSettings>> | null = null;
+  try {
+    data = await loadAccountSettings();
+  } catch {
+    /* Render no account data from fixtures or stale JWT claims. */
+  }
+
+  const labEnabled = data?.lab_enabled === true;
+  let section = isSettingsSection(requested) ? requested : "account";
+  if (section === "testing" && !labEnabled) section = "account";
+
+  let sessionVersion: string | null = null;
+  try {
+    const claims = await readBackendSessionClaims();
+    if (claims && !backendSessionIsExpired(claims.backendExpiresAt)) {
+      sessionVersion = contactHandoffSessionVersion(claims);
+    }
+  } catch {
+    /* An unreadable session leaves the preference pane read-only, not faked. */
+  }
+
+  return (
+    <SettingsWorkspace
+      initial={data}
+      labEnabled={labEnabled}
+      section={section}
+      sessionVersion={sessionVersion}
+    />
+  );
 }

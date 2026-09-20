@@ -33,3 +33,7 @@
 .banner { display:flex; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap:20px; padding:12px 24px; background:var(--surface); border-bottom:1px solid var(--line); font-size:13px; }
 .banner button { background:transparent; border:1px solid var(--line); color:var(--ink); padding:8px 12px; border-radius:8px; cursor:pointer; }
 @media(max-width:640px) { .page { padding:28px 20px 100px; } .tabs { gap:20px; font-size:14px; } .row { align-items:flex-start; flex-wrap:wrap; gap:8px; } .member { align-items:flex-start; } }
+
+.profileIdentity { display: flex; gap: 16px; align-items: center; margin-bottom: 24px; }
+.profileAvatar { width: 56px; height: 56px; flex: 0 0 56px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; font-size: 21px; background: var(--surface); color: var(--ink); }
+.profileIdentity h2 { margin-bottom: 4px; }

@@ -9,10 +9,10 @@ async function preferenceRequest(sessionVersion: string, input?: AgentPreference
     headers: { "x-workspace-session": sessionVersion, ...(input ? { "content-type": "application/json" } : {}) },
     ...(input ? { body: JSON.stringify(input) } : {}) });
   const body = await result.json();
-  if (!result.ok) throw new Error(body.message ?? "暂时无法读取回复偏好。");
+  if (!result.ok) throw new Error(body.code === "AGENT_PREFERENCES_DISABLED" || /not enabled for this workspace/i.test(body.message ?? "") ? "此工作空间尚未启用回复偏好。" : body.message ?? "暂时无法读取回复偏好。");
   return body;
 }
-export function AgentResponsePreference({ sessionVersion }: { sessionVersion: string }) {
+export function AgentResponsePreference({ sessionVersion, embedded = false }: { sessionVersion: string; embedded?: boolean }) {
   const [current, setCurrent] = useState<AgentPreferenceResponse["preference"] | null>(null);
   const [style, setStyle] = useState<AgentPreferenceMutation["response_style"]>("default");
   const [busy, setBusy] = useState(true), [message, setMessage] = useState(""), [error, setError] = useState("");
@@ -40,9 +40,9 @@ export function AgentResponsePreference({ sessionVersion }: { sessionVersion: st
       setCurrent(readback.preference); attempt.current = null; setMessage("已保存，新对话会使用这个偏好。");
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  return <section className={styles.preference} aria-labelledby="reply-preference-title">
-    <h1 id="reply-preference-title">回复偏好</h1>
-    <p>这是你为自己保存的偏好，会同步到 Web 和 iOS。当前消息中的要求优先。</p>
+  return <section className={styles.preference} aria-label={embedded ? "回复偏好" : undefined} aria-labelledby={embedded ? undefined : "reply-preference-title"}>
+    {!embedded && <h1 id="reply-preference-title">回复偏好</h1>}
+    {!embedded && <p>这是你为自己保存的偏好，会同步到 Web 和 iOS。当前消息中的要求优先。</p>}
     <label className={styles.field} htmlFor="reply-preference-style">回复顺序
     <select id="reply-preference-style" value={style} disabled={busy || !current} onChange={e => { setStyle(e.target.value as typeof style); attempt.current = null; setMessage(""); }}>
       <option value="default">按当前问题安排</option><option value="conclusion_first">先给结论，再展开说明</option>

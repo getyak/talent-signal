@@ -8,11 +8,15 @@ struct SelectedTextServiceBridge: View {
         Color.clear
             .frame(width: 0, height: 0)
             .onReceive(NotificationCenter.default.publisher(for: .talentSignalSelectedTextServiceRequest)) { notification in
-                guard let request = notification.object as? SelectedTextServiceRequest,
-                      model.addServiceSelectedText(request.text, requestID: request.id) else {
-                    return
+                guard let request = notification.object as? SelectedTextServiceRequest else { return }
+                Task {
+                    guard await model.ensureInitialized(),
+                          model.addServiceSelectedText(request.text, requestID: request.id) else {
+                        openWindow(id: "quick-panel")
+                        return
+                    }
+                    openWindow(id: "quick-panel")
                 }
-                openWindow(id: "quick-panel")
             }
             .accessibilityHidden(true)
     }

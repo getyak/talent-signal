@@ -107,7 +107,7 @@ export function RelationshipContactHeader({
 }) {
   const dependency = workspace
     ? relationshipCurrentDependency(workspace)
-    : "等待来源编译";
+    : "等待整理沟通记录";
   const profile = scope.person.profile ?? null;
   const contactPoints = scope.person.contact_points ?? [];
   const showsRecordDetails = Boolean(profile || contactPoints.length > 0);
@@ -173,7 +173,7 @@ export function RelationshipContactHeader({
           className="context-contact-header__signal"
           data-state={workspace ? "governed" : "uncompiled"}
         >
-          <span>{workspace ? "当前依赖项" : "当前工作状态"}</span>
+          <span>{"当前关注"}</span>
           <strong>{dependency}</strong>
           <small>
             {workspace

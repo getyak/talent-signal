@@ -96,7 +96,7 @@ export function RelationshipAgentPanel({
   submittedObjective,
 }: Props) {
   const reviewMode = mode === "review";
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(!createOpen);
   const [isComposing, setIsComposing] = useState(false);
   const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
   const priorBrief =
@@ -106,11 +106,11 @@ export function RelationshipAgentPanel({
 
   useEffect(() => {
     const mobile = window.matchMedia("(max-width: 840px)");
-    const syncMobileState = (event: MediaQueryListEvent | MediaQueryList) => {
-      setCollapsed(event.matches && !createOpen);
+    const syncMobileState = () => {
+      setCollapsed(!createOpen);
     };
 
-    syncMobileState(mobile);
+    syncMobileState();
     mobile.addEventListener("change", syncMobileState);
     return () => mobile.removeEventListener("change", syncMobileState);
   }, [createOpen]);
@@ -118,6 +118,11 @@ export function RelationshipAgentPanel({
   useEffect(() => {
     function expandForAgentTask() {
       setCollapsed(false);
+      window.requestAnimationFrame(() => {
+        const panel = document.getElementById("relationship-chat");
+        panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        panel?.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
+      });
     }
 
     window.addEventListener("talent-signal:focus-agent", expandForAgentTask);
@@ -162,7 +167,7 @@ export function RelationshipAgentPanel({
       </div>
       <div className="context-chat__intro">
         <p className="eyebrow">关系智能助理</p>
-        <h1 id="relationship-chat-title">询问、导航或修改此页面。</h1>
+        <h2 id="relationship-chat-title">围绕此人对话</h2>
         <p>
           {reviewMode
             ? "我的范围仅限此人与此段关系。每个回答和拟议变化都会保留其来源边界。"

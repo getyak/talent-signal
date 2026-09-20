@@ -21,9 +21,9 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   description:
-    "账号专属的联系人、关系情境与受治理来源目录。",
+    "账号专属的人物、关系情境与受治理来源目录。",
   robots: { follow: false, index: false },
-  title: "联系人",
+  title: "人物",
 };
 
 export default async function PeoplePage({

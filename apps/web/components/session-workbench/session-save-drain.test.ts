@@ -16,6 +16,47 @@ async function flushMicrotasks() {
 }
 
 describe("SessionSaveDrain", () => {
+  it("keeps a send marker behind the queued force save, not just the active request", async () => {
+    const drain = new SessionSaveDrain();
+    const first = deferred();
+    const second = deferred();
+    let marker: string | null = "draft";
+    const active = drain.run(async () => { await first.promise; });
+    const queued = vi.fn(async ({ force }: SaveDrainContext) => {
+      expect(force).toBe(true);
+      await second.promise;
+      marker = null;
+    });
+    const send = (async () => {
+      await drain.run(queued, true);
+      await drain.whenIdle();
+      marker = "same-request-send";
+    })();
+    first.resolve();
+    await active;
+    await flushMicrotasks();
+    expect(queued).toHaveBeenCalledOnce();
+    expect(marker).toBe("draft");
+    second.resolve();
+    await send;
+    await drain.whenIdle();
+    expect(marker).toBe("same-request-send");
+  });
+
+  it("settles all idle waiters after a failed save without hiding its rejection", async () => {
+    const drain = new SessionSaveDrain();
+    const gate = deferred();
+    const failure = new Error("save unavailable");
+    const active = drain.run(async () => { await gate.promise; throw failure; });
+    const rejected = expect(active).rejects.toBe(failure);
+    const first = drain.whenIdle();
+    const second = drain.whenIdle();
+    gate.resolve();
+    await rejected;
+    await Promise.all([first, second]);
+    await drain.whenIdle();
+  });
+
   it("serializes a newer draft behind the active request", async () => {
     const drain = new SessionSaveDrain();
     const first = deferred();
@@ -82,9 +123,15 @@ describe("SessionSaveDrain", () => {
       await active;
       expect(scheduled).toHaveLength(1);
 
+      let idle = false;
+      const barrier = drain.whenIdle().then(() => { idle = true; });
+      await flushMicrotasks();
+      expect(idle).toBe(false);
+
       drain.invalidate();
       scheduled[0]!();
-      await flushMicrotasks();
+      await barrier;
+      expect(idle).toBe(true);
       expect(task).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();

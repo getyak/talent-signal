@@ -1,0 +1,368 @@
+/*
+ * Quiet conversation canvas — the default authenticated /workspace entry.
+ *
+ * One 680 px reading column on a near-white canvas, a restrained serif
+ * greeting, and one raised composer. No dashboard, no decorative cards, no
+ * mock reply. Functional states (busy, failed, retry, unsent draft) stay
+ * visible rather than being hidden to keep the composition tidy.
+ */
+
+.canvas {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: calc(100dvh - 58px);
+  padding: 38px 54px 116px;
+}
+
+.canvas[data-empty="true"] {
+  justify-content: center;
+  padding-bottom: 140px;
+}
+
+.inner {
+  animation: surface-enter 260ms var(--ease-out);
+  margin: 0 auto;
+  min-width: 0;
+  width: min(100%, 680px);
+}
+
+.canvas[data-has-messages="true"] .inner {
+  width: min(100%, 760px);
+}
+
+@keyframes surface-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.welcome {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  margin: 0 0 34px 12px;
+}
+
+.welcomeMark {
+  background: var(--workspace-brand-image, none) center / contain no-repeat;
+  flex: 0 0 auto;
+  height: 30px;
+  width: 30px;
+}
+
+.welcomeTitle {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 1.875rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.thread {
+  padding: 4px 4px 26px;
+}
+
+.thread article {
+  margin: 12px 0 26px;
+}
+
+.thread p {
+  font-size: 0.875rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.userMessage {
+  background: color-mix(in srgb, var(--ts-chrome-surface, var(--surface-muted)) 82%, var(--surface));
+  border-radius: 15px 15px 5px 15px;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: 0.875rem;
+  line-height: 1.75;
+  margin-left: auto;
+  max-width: 78%;
+  padding: 12px 15px;
+  white-space: pre-wrap;
+}
+
+.composer {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--surface) 90%, transparent),
+    0 14px 40px color-mix(in srgb, var(--ink) 7%, transparent);
+  padding: 17px 18px 12px;
+  transition:
+    border-color 200ms var(--ease-out),
+    box-shadow 200ms var(--ease-out);
+}
+
+.composer:hover {
+  border-color: var(--line-strong);
+}
+
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--focus) 42%, var(--line));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--focus) 12%, transparent),
+    0 20px 54px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.composer textarea {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  display: block;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  max-height: 40dvh;
+  min-height: 70px;
+  outline: none;
+  resize: none;
+  width: 100%;
+}
+
+.composer textarea::placeholder {
+  color: color-mix(in srgb, var(--muted) 88%, var(--bg, var(--background)));
+}
+
+.composerFooter {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: 7px;
+}
+
+.composerStart {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.attach {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.attach:hover {
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 78%, transparent);
+  color: var(--ink);
+}
+
+.scopeLine {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.6875rem;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scopeLine a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.scopeLine a:hover {
+  color: var(--ink);
+}
+
+.composerActions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.send {
+  align-items: center;
+  background: var(--ink);
+  border: 0;
+  border-radius: 50%;
+  color: var(--surface);
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.send:not(:disabled):hover {
+  background: color-mix(in srgb, var(--ink) 86%, var(--muted));
+}
+
+.send:disabled {
+  background: color-mix(in srgb, var(--muted) 42%, var(--surface));
+  cursor: default;
+}
+
+.resume {
+  align-items: center;
+  background: var(--ts-chrome-surface, var(--surface-muted));
+  border: 0;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.6875rem;
+  gap: 6px;
+  margin-bottom: 12px;
+  min-height: 28px;
+  padding: 4px 10px;
+}
+
+.resume:hover {
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 90%, var(--surface));
+}
+
+.restored {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.6875rem;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.restored button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.6875rem;
+  min-height: 28px;
+  padding: 3px 11px;
+}
+
+.restored button:hover {
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 80%, var(--surface));
+}
+
+.status {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.75rem;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.error {
+  align-items: flex-start;
+  color: var(--accent-strong);
+  display: flex;
+  font-size: 0.75rem;
+  gap: 8px;
+  line-height: 1.65;
+  margin-top: 12px;
+}
+
+.error button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.6875rem;
+  min-height: 28px;
+  padding: 3px 11px;
+}
+
+.error button:hover {
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 80%, var(--surface));
+}
+
+@media (max-width: 760px) {
+  .canvas {
+    min-height: calc(100dvh - 56px - 78px);
+    padding: 26px 18px 74px;
+  }
+
+  .canvas[data-empty="true"] {
+    padding-bottom: 96px;
+  }
+
+  .welcome {
+    gap: 10px;
+    margin: 0 0 26px 4px;
+  }
+
+  .welcomeMark {
+    height: 25px;
+    width: 25px;
+  }
+
+  .welcomeTitle {
+    font-size: 1.5rem;
+  }
+
+  .composer {
+    border-radius: 15px;
+    padding: 14px 14px 10px;
+  }
+
+  .composer textarea {
+    min-height: 82px;
+  }
+
+  .attach {
+    height: 44px;
+    width: 44px;
+  }
+
+  .restored button {
+    min-height: 44px;
+  }
+
+  .send {
+    height: 44px;
+    width: 44px;
+  }
+
+  .resume {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inner {
+    animation: none;
+  }
+
+  .composer {
+    transition: none;
+  }
+}

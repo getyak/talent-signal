@@ -16,19 +16,22 @@ struct TalentSignalMacApp: App {
                     if isQuickPanelPreview {
                         QuickPanelView()
                             .frame(width: 560, height: 640)
-                    } else {
+                    } else if ProcessInfo.processInfo.arguments.contains("--native-tools-preview") ||
+                                ProcessInfo.processInfo.arguments.contains("--ui-testing") {
                         RelationshipWorkspaceView()
+                    } else {
+                        QuietWorkspaceView()
                     }
                 }
                     .environmentObject(model)
                     .environment(\.dynamicTypeSize, model.isAccessibilityZoomPreview ? .accessibility2 : .large)
                     .preferredColorScheme(model.isDarkAppearancePreview ? .dark : nil)
-                    .task { await model.load() }
+                    .task { _ = await model.ensureInitialized() }
                     .background(SelectedTextServiceBridge().environmentObject(model))
             }
             .frame(
-                minWidth: isQuickPanelPreview ? 520 : 1_020,
-                minHeight: isQuickPanelPreview ? 580 : 680
+                minWidth: isQuickPanelPreview ? 520 : 760,
+                minHeight: isQuickPanelPreview ? 580 : 540
             )
         }
         .defaultSize(
@@ -40,9 +43,16 @@ struct TalentSignalMacApp: App {
             TalentSignalCommands(model: model)
         }
 
+        Window("本机工具", id: "native-tools") {
+            NativeInitializationBoundary { RelationshipWorkspaceView() }
+                .environmentObject(model)
+                .frame(minWidth: 900, minHeight: 640)
+        }
+        .defaultSize(width: 1180, height: 820)
+
         Window("Quick Panel", id: "quick-panel") {
             ApplicationZoomContainer(enabled: model.isAccessibilityZoomPreview) {
-                QuickPanelView()
+                NativeInitializationBoundary { QuickPanelView() }
                     .environmentObject(model)
                     .environment(\.dynamicTypeSize, model.isAccessibilityZoomPreview ? .accessibility2 : .large)
                     .preferredColorScheme(model.isDarkAppearancePreview ? .dark : nil)
@@ -52,14 +62,8 @@ struct TalentSignalMacApp: App {
         .defaultSize(width: 560, height: 640)
         .windowResizability(.contentSize)
 
-        MenuBarExtra {
-            MenuBarPresenceView()
-                .environmentObject(model)
-        } label: {
-            Label(
-                model.isSignedOut ? "Signed out" : (model.isPaused ? "Paused" : model.mode.title),
-                systemImage: model.isSignedOut ? "person.crop.circle.badge.xmark" : (model.isPaused ? "pause.circle" : model.mode.systemImage)
-            )
+        MenuBarExtra("Talent Signal", systemImage: "circle.dotted") {
+            WorkspaceMenuBar()
         }
         .menuBarExtraStyle(.menu)
     }
@@ -96,19 +100,19 @@ private struct TalentSignalCommands: Commands {
 
             Button("Open Today") {
                 model.selectedNavigation = .today
-                openWindow(id: "workspace")
+                openWindow(id: "native-tools")
             }
             .keyboardShortcut("1", modifiers: [.command, .shift])
 
             Button("Open Relationship Workspace") {
                 model.selectedNavigation = .workspace
-                openWindow(id: "workspace")
+                openWindow(id: "native-tools")
             }
             .keyboardShortcut("2", modifiers: [.command, .shift])
 
             Button("Open first relationship follow-up") {
                 model.openFirstTodayAttentionFromKeyboard()
-                openWindow(id: "workspace")
+                openWindow(id: "native-tools")
             }
             .keyboardShortcut(.downArrow, modifiers: [.command, .option])
             .disabled(model.selectedNavigation != .today || model.todayAttention.items.isEmpty)
@@ -231,5 +235,36 @@ private struct TalentSignalCommands: Commands {
             .keyboardShortcut("9", modifiers: [.command, .option])
             .disabled(!model.isSyntheticFixture)
         }
+    }
+}
+
+private struct WorkspaceMenuBar: View {
+    @Environment(\.openWindow) private var openWindow
+    var body: some View {
+        Button("打开工作区") { openWindow(id: "workspace") }
+        Button("本机工具") { openWindow(id: "native-tools") }
+        Button("快速收集") { openWindow(id: "quick-panel") }
+        Divider()
+        Button("退出 Talent Signal") { NSApplication.shared.terminate(nil) }
+    }
+}
+
+private struct NativeInitializationBoundary<Content: View>: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var ready = false
+    @State private var attempt = 0
+    @ViewBuilder let content: Content
+    var body: some View {
+        Group {
+            if ready { content }
+            else {
+                VStack(spacing: 16) {
+                    if let message = model.errorMessage {
+                        Text(message).foregroundStyle(.secondary)
+                        Button("重试连接") { attempt += 1 }
+                    } else { ProgressView("连接本机工具…") }
+                }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }.task(id: attempt) { ready = await model.ensureInitialized() }
     }
 }

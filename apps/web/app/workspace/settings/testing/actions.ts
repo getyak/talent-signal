@@ -46,7 +46,7 @@ export async function manageTestWorkspace(_previous:TestActionState,form:FormDat
     if(error instanceof TalentSignalHttpError&&error.status===403)return {error:'当前环境或账号未开放测试空间。'};
     return {error:'操作结果暂时无法核验，请保留页面重试；不会切换到其他空间。'};
   }
-  revalidatePath('/workspace','layout');redirect('/workspace/today');
+  revalidatePath('/workspace','layout');redirect('/workspace');
 }
 export async function leaveTestWorkspace(){
   let primary:Awaited<ReturnType<typeof primaryAccount>>;
