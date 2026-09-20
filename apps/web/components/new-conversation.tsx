@@ -188,7 +188,6 @@ function ConversationCanvas({
       setObjective(boundedNewConversationObjective(pending.latest.draft));
       if ((pending as typeof pending & {attempted?: boolean}).attempted) setFailedObjective(pending.latest.draft);
       setRestored(true);
-      setNotice("已恢复离开前尚未发送的消息。");
     }
     restore(scope);
   }, [storageScope]);
