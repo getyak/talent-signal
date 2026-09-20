@@ -40,6 +40,10 @@ class AccountServiceCredentialsError extends CredentialsSignin {
   code = "service_unavailable";
 }
 
+class RateLimitedCredentialsError extends CredentialsSignin {
+  code = "rate_limited";
+}
+
 function canAttemptCredentialSignIn(email: string) {
   const now = Date.now();
   if (credentialAttempts.size > 500) {
@@ -132,6 +136,12 @@ const providers: Provider[] = [
         ) {
           return null;
         }
+        if (
+          error instanceof TalentSignalHttpError &&
+          (error.status === 429 || error.code === "RATE_LIMITED")
+        ) {
+          throw new RateLimitedCredentialsError();
+        }
         throw new AccountServiceCredentialsError();
       }
     },
@@ -152,7 +162,7 @@ const providers: Provider[] = [
 
       const email = normalizeEmail(parsed.data.email);
       if (!canAttemptCredentialSignIn(email)) {
-        return null;
+        throw new RateLimitedCredentialsError();
       }
 
       if (

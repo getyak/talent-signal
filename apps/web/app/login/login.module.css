@@ -31,6 +31,12 @@
 }
 @media(prefers-reduced-motion:reduce) { .page :global(.auth-provider) { transition: none; } .page :global(.auth-provider:hover) { transform: none; } }
 
+.fieldHeader { align-items: baseline; display: flex; gap: 12px; justify-content: space-between; }
+.passwordToggle { background: transparent; border: 0; color: var(--accent-strong); cursor: pointer; font-size: 0.62rem; font-weight: 720; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+.passwordToggle:disabled { color: var(--muted); cursor: not-allowed; }
+.retry { background: transparent; border: 1px solid currentColor; border-radius: 999px; color: var(--error); cursor: pointer; font-size: 0.62rem; font-weight: 720; margin-top: 8px; padding: 4px 12px; }
+.retry:disabled { cursor: not-allowed; opacity: 0.55; }
+
 .page :global(.auth-story .brand), .page :global(.auth-story .brand__mark) { color: var(--ink); }
 
 .page :global(.oauth-methods) { grid-template-columns: 1fr; }
