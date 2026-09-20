@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   isSettingsSection,
+  settingsDrilldownSections,
   SETTINGS_SECTIONS,
   type SettingsSection,
 } from "./settings-sections";
 
 describe("settings section schema", () => {
-  it("accepts every rendered section and the account default", () => {
+  it("accepts every rendered section and the overview default", () => {
     expect(SETTINGS_SECTIONS.map((section) => section.id)).toEqual([
+      "overview",
       "account",
       "workspace",
       "appearance",
@@ -30,5 +32,23 @@ describe("settings section schema", () => {
   it("is a pure server-safe predicate (no React or client boundary)", () => {
     const section: SettingsSection = "account";
     expect(isSettingsSection(section)).toBe(true);
+  });
+
+  it("keeps the overview out of the drilldown row and testing conditional", () => {
+    expect(settingsDrilldownSections(true).map((section) => section.id)).toEqual([
+      "account",
+      "workspace",
+      "appearance",
+      "connections",
+      "advanced",
+      "testing",
+    ]);
+    expect(settingsDrilldownSections(false).map((section) => section.id)).toEqual([
+      "account",
+      "workspace",
+      "appearance",
+      "connections",
+      "advanced",
+    ]);
   });
 });

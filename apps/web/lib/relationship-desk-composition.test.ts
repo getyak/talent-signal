@@ -47,7 +47,9 @@ describe("embedded relationship desk composition", () => {
 
   it("scales the person heading to the reference, not a poster", () => {
     expect(styles).toContain("context-contact-header__identity h1");
-    expect(styles).toContain("font-size: clamp(1.6rem, 2.4vw, 1.9rem)");
+    expect(styles).toContain("font-size: 1.6875rem");
+    expect(styles).toContain("context-contact-header__portrait");
+    expect(styles).toContain("display: none");
   });
 
   it("keeps the unscoped start panel in flow above the onboarding column", () => {

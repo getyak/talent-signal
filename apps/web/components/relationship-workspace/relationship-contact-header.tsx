@@ -184,7 +184,16 @@ export function RelationshipContactHeader({
       </div>
 
       {showsRecordDetails ? (
-        <div className="context-contact-record">
+        <details className="context-contact-details">
+          <summary>
+            资料与联系方式
+            <span>
+              {[profile ? "人物介绍" : null, contactPoints.length > 0 ? "结构化联系方式" : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </summary>
+          <div className="context-contact-record">
           {profile ? (
             <article className="context-contact-record__profile">
               <header>
@@ -237,7 +246,8 @@ export function RelationshipContactHeader({
               </dl>
             </section>
           ) : null}
-        </div>
+          </div>
+        </details>
       ) : null}
     </section>
   );

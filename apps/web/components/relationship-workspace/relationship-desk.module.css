@@ -70,26 +70,81 @@
   min-width: 0;
 }
 
-/* Reference scale: a person heading, not a poster. */
-.desk:global(.relationship-desk) :global(.context-contact-header__identity h1) {
-  font-size: clamp(1.6rem, 2.4vw, 1.9rem);
-  letter-spacing: -0.015em;
-  line-height: 1.2;
-  max-width: 24ch;
+/* Reference scale: the name appears once at 27 px, with a 12 px clue. */
+.desk:global(.relationship-desk) :global(.context-contact-header__identity h1),
+.desk:global(.relationship-desk) :global(.context-contact-header__identity h1[data-long="true"]) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.6875rem;
+  font-weight: 640;
+  letter-spacing: -0.022em;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
-.desk:global(.relationship-desk) :global(.context-contact-header__identity h1[data-long="true"]) {
-  font-size: clamp(1.4rem, 2vw, 1.6rem);
-  line-height: 1.25;
+/* No large profile portrait: identity is the name, the clue and its sources. */
+.desk:global(.relationship-desk) :global(.context-contact-header__portrait) {
+  display: none;
 }
 
 .desk:global(.relationship-desk) :global(.context-contact-overview) :global(.context-contact-header) {
-  align-items: center;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-bottom: 22px;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-header__identity > p:not(.eyebrow)) {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-top: 7px;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-header__identity > div) {
+  gap: 6px 12px;
+  margin-top: 11px;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-header__identity > div span) {
+  font-size: 0.6875rem;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-header__actions button) {
+  font-size: 0.75rem;
+  font-weight: 500;
+  min-height: 32px;
+  padding: 0 12px;
 }
 
 .desk:global(.relationship-desk) :global(.context-contact-header__signal) {
+  border-left: 0;
+  border-top: 1px solid var(--line-soft);
+  gap: 6px;
   grid-column: 1 / -1;
+  margin-top: 16px;
+  padding: 16px 0 0;
+}
+
+/* Current concern reads at 21 px in the same document voice as the name. */
+.desk:global(.relationship-desk) :global(.context-contact-header__signal strong) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.3125rem;
+  font-weight: 550;
+  letter-spacing: -0.012em;
+  line-height: 1.4;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-header__signal > span) {
+  font-size: 0.6875rem;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-header__signal small) {
+  font-size: 0.75rem;
+  line-height: 1.6;
 }
 
 .desk:global(.relationship-desk) :global(.context-contact-record) {
@@ -119,16 +174,16 @@
 
 /* Onboarding is a welcome, not a poster. */
 .desk:global(.relationship-desk) :global(.context-onboarding__header h1) {
-  font-size: clamp(1.6rem, 2.4vw, 1.9rem);
+  font-size: var(--workspace-title-size, 1.5rem);
   letter-spacing: -0.02em;
   line-height: 1.25;
   max-width: 26ch;
 }
 
 .desk:global(.relationship-desk) :global(.context-contact-create-stage h1) {
-  font-size: clamp(1.6rem, 2.4vw, 1.9rem);
+  font-size: var(--workspace-title-size, 1.5rem);
   letter-spacing: -0.02em;
-  line-height: 1.25;
+  line-height: 1.3;
   max-width: 22ch;
 }
 
@@ -137,6 +192,49 @@
 .desk:global(.relationship-desk) :global(.context-topbar) {
   height: 58px;
   padding: 0 28px;
+}
+
+/* Topbar actions stay quiet text and one compact primary action. */
+.desk:global(.relationship-desk) :global(.context-topbar a) {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.desk:global(.relationship-desk) :global(.context-topbar a:hover) {
+  color: var(--ink);
+}
+
+.desk:global(.relationship-desk) :global(.context-topbar .context-secondary-button) {
+  border-color: var(--line);
+  font-size: 0.75rem;
+  font-weight: 500;
+  min-height: 32px;
+  padding: 0 11px;
+}
+
+.desk:global(.relationship-desk) :global(.context-topbar .context-primary-button--compact) {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 550;
+  min-height: 32px;
+  padding: 0 13px;
+}
+
+/* Provenance stays visible; it is not a success badge. */
+.desk:global(.relationship-desk) :global(.context-topbar .context-secure-state) {
+  color: var(--muted) !important;
+  font-weight: 500;
+}
+
+/* Compact desktop controls return to finger size on narrow viewports. */
+@media (max-width: 840px) {
+  .desk:global(.relationship-desk) :global(.context-topbar > div:last-child) a,
+  .desk:global(.relationship-desk) :global(.context-topbar .context-secondary-button),
+  .desk:global(.relationship-desk) :global(.context-topbar .context-primary-button--compact),
+  .desk:global(.relationship-desk) :global(.context-contact-header__actions button) {
+    min-height: 44px;
+  }
 }
 
 .desk:global(.relationship-desk) :global(.context-topbar__crumb) {
@@ -201,13 +299,276 @@
 
 .desk:global(.relationship-desk) :global(.context-page) > :global(.context-chat[data-collapsed]) { display: none; }
 .desk:global(.relationship-desk) :global(.context-notebook) { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
-.desk:global(.relationship-desk) :global(.context-page):not(:has(> :global(.context-chat):not([data-collapsed]))) { max-width: 960px; }
+.desk:global(.relationship-desk) :global(.context-page):not(:has(> :global(.context-chat):not([data-collapsed]))) { max-width: 930px; }
+
+.desk:global(.relationship-desk) :global(.context-page) {
+  padding: 44px 48px 84px;
+}
+
+@media (min-width: 1181px) {
+  .desk:global(.relationship-desk) :global(.context-page) {
+    padding: 54px 64px 86px;
+  }
+}
 .desk:global(.relationship-desk) :global(.context-contact-header__identity .eyebrow) { display: none; }
-.desk:global(.relationship-desk) :global(.context-contact-header__avatar) { width: 56px; height: 56px; border-radius: 50%; font-size: 22px; }
-.desk:global(.relationship-desk) :global(.context-contact-header__signal) { border-left: 0; border-top: 1px solid var(--line); margin-top: 18px; padding: 20px 0 0; }
-.desk:global(.relationship-desk) :global(.context-relationship-wiki) { border: 0; padding: 0; }
-.desk:global(.relationship-desk) :global(.context-relationship-wiki h2) { font-size: 17px; }
+
+/* ── Quiet document rhythm for the living person record ──────────────────
+   One bounded document: hairline dividers instead of stacked cards, a single
+   heading scale, and metadata that stays the size of the clue. */
+.desk:global(.relationship-desk) :global(.context-section__heading) {
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.desk:global(.relationship-desk) :global(.context-section__heading h2),
+.desk:global(.relationship-desk) :global(.context-next-move h2),
+.desk:global(.relationship-desk) :global(.context-history h2),
+.desk:global(.relationship-desk) :global(.context-lineage__heading h2),
+.desk:global(.relationship-desk) :global(.context-effect-review__heading h2),
+.desk:global(.relationship-desk) :global(.context-resource-ledger h3),
+.desk:global(.relationship-desk) :global(.context-person-merge h3) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  margin-top: 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-section__heading > span),
+.desk:global(.relationship-desk) :global(.context-lineage__heading > span) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.desk:global(.relationship-desk) :global(.context-page-primary) {
+  gap: 30px;
+}
+
+/* Source figures stop behaving like cards and read as cited rows. */
+.desk:global(.relationship-desk) :global(.context-source-list figure) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--line-soft);
+  gap: 8px;
+  padding: 14px 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-source-list figcaption span) {
+  font-weight: 620;
+  letter-spacing: 0.05em;
+}
+
+/* Facts stay legible prose, not poster headlines. */
+.desk:global(.relationship-desk) :global(.context-fact__value) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  line-height: 1.6;
+}
+
+.desk:global(.relationship-desk) :global(.context-fact__edit input) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.875rem;
+  min-height: 38px;
+}
+
+/* The next step is one calm line of work, not an inverted dashboard card. */
+.desk:global(.relationship-desk) :global(.context-next-move) {
+  background: transparent;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  padding: 20px 0 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move__heading > span) {
+  background: var(--surface-muted);
+  border-radius: 8px;
+  color: var(--accent-strong);
+  height: 28px;
+  width: 28px;
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move .eyebrow) {
+  color: var(--muted);
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move h2) {
+  color: var(--ink);
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move__body) {
+  border-color: var(--line-soft);
+  margin: 16px 0 14px;
+  padding: 14px 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move__body > strong) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 560;
+  line-height: 1.6;
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move__body > p),
+.desk:global(.relationship-desk) :global(.context-next-move__body dt),
+.desk:global(.relationship-desk) :global(.context-next-move__body dl > div) {
+  color: var(--muted-strong);
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move__body dl > div) {
+  font-size: 0.6875rem;
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move__gate),
+.desk:global(.relationship-desk) :global(.context-next-move__empty) {
+  color: var(--muted-strong);
+}
+
+.desk:global(.relationship-desk) :global(.context-next-move .context-primary-button) {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--background);
+  width: auto;
+}
+
+.desk:global(.relationship-desk) :global(.context-history) {
+  border-top-color: var(--line-soft);
+}
+
+.desk:global(.relationship-desk) :global(.context-lineage) {
+  border-bottom-color: var(--line-soft);
+  padding: 22px 0 24px;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-record) {
+  border-top-color: var(--line-soft);
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-details) {
+  border-top: 1px solid var(--line-soft);
+  margin-top: 2px;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-details > summary) {
+  align-items: center;
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.75rem;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-details > summary > span) {
+  color: var(--muted);
+  font-size: 0.6563rem;
+  margin-left: auto;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-details) :global(.context-contact-record) {
+  border-top: 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-record__points) {
+  border-top-color: var(--line-soft);
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-record__profile > header span),
+.desk:global(.relationship-desk) :global(.context-contact-record__points > header span) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 560;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-record__points dl > div) {
+  min-height: 46px;
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki) {
+  border: 0;
+  gap: 14px;
+  margin: 20px 0 22px;
+  padding: 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki > header h2) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki__grid) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki__brief) {
+  background: transparent;
+  border: 0;
+  gap: 10px;
+  min-height: 0;
+  padding: 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki__brief h3) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.3125rem;
+  font-weight: 550;
+  letter-spacing: -0.012em;
+  line-height: 1.4;
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki__grid aside article) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--line-soft);
+  gap: 8px;
+  padding: 14px 0 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki__grid aside article[data-state="review"]) {
+  border-top-color: color-mix(in srgb, var(--accent) 42%, var(--line-soft));
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki__grid aside article h3) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-wiki__grid aside article > span) {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.6563rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.desk:global(.relationship-desk) :global(.context-relationship-memory) {
+  gap: 18px 32px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .desk:global(.relationship-desk) :global(.context-chat__intro h2) { font-size: 16px; margin: 5px 0; }
 @media(max-width:1080px) {
  .desk:global(.relationship-desk) :global(.context-page):has(> :global(.context-chat):not([data-collapsed])) { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Breakpoint padding last, so the narrow-page rhythm wins over the base rule. */
+@media (max-width: 1080px) {
+  .desk:global(.relationship-desk) :global(.context-page) {
+    padding: 40px 32px 80px;
+  }
+}
+
+@media (max-width: 760px) {
+  .desk:global(.relationship-desk) :global(.context-page) {
+    padding: 28px 20px 72px;
+  }
 }

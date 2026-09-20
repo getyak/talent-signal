@@ -9,6 +9,7 @@ import { signOutOfWorkspace } from "@/app/login/actions";
 import { TalentSignalLabShell } from "@/components/talent-signal-lab/lab-shell";
 import {
   WorkspaceMobileSourcesLink,
+  WorkspaceMoreDestinations,
   WorkspaceShellNav,
 } from "@/components/workspace-shell-nav";
 import { WorkspaceRecentSessions } from "@/components/workspace-recent-sessions";
@@ -146,6 +147,7 @@ export default async function WorkspaceLayout({
             <WorkspaceRecentSessions key={pendingBinding} binding={pendingBinding} />
           ) : null}
           <WorkspaceSidebarPeople binding={pendingBinding} />
+          <WorkspaceMoreDestinations />
         </div>
         <div className={styles.account} title={accountTitle}>
           {fixtureWorkspace ? (

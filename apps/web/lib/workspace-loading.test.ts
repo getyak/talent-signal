@@ -20,6 +20,7 @@ vi.mock("@/lib/server/labBackend", () => ({ loadLabManifest }));
 vi.mock("@/components/workspace-shell-nav", () => ({
   WorkspaceShellNav: () => null,
   WorkspaceCaptureLink: () => null,
+  WorkspaceMoreDestinations: () => null,
   WorkspaceMobileSourcesLink: () => null,
 }));
 vi.mock("@/components/theme-toggle", () => ({ ThemeToggle: () => null }));

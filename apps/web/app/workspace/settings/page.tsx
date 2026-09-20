@@ -35,8 +35,8 @@ export default async function SettingsPage({
   }
 
   const labEnabled = data?.lab_enabled === true;
-  let section = isSettingsSection(requested) ? requested : "account";
-  if (section === "testing" && !labEnabled) section = "account";
+  let section = isSettingsSection(requested) ? requested : "overview";
+  if (section === "testing" && !labEnabled) section = "overview";
 
   let sessionVersion: string | null = null;
   try {

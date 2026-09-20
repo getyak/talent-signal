@@ -58,7 +58,7 @@ export function WorkspacePlugs({
               return (
                 <li className={styles.row} data-status={connection.status} key={connection.id}>
                   <span aria-hidden="true" className={styles.icon}>
-                    <Icon size={19} weight="duotone" />
+                    <Icon size={18} weight="duotone" />
                   </span>
                   <div className={styles.body}>
                     <div className={styles.titleLine}>
@@ -75,6 +75,14 @@ export function WorkspacePlugs({
               );
             })}
           </ul>
+          <details className={styles.directionNote}>
+            <summary>连接方向与不可用能力</summary>
+            <p>
+              当前版本只实现读取方向：已授权的来源可以被读取，并在写入前始终询问。
+              把 Talent Signal 作为受控服务接入其他客户端（MCP 发布）尚未实现，
+              因此这里不提供方向切换、客户端列表或范围开关。
+            </p>
+          </details>
         </section>
       )}
 

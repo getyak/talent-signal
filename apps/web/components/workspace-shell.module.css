@@ -125,19 +125,77 @@
 .navGroup {
   display: grid;
   gap: 3px;
-  margin-top: 10px;
 }
 
-.navGroup:first-child {
-  margin-top: 0;
+/* The compact dock needs the mobile secondary destinations in its grid; the
+   desktop hierarchy hides this duplicate and owns the quieter More footer. */
+.mobileOnlyGroup {
+  display: none;
 }
 
-.navGroupLabel {
+.moreFooter {
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 3px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.moreTrigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
   color: var(--muted);
-  font-size: 0.6875rem;
-  font-weight: 560;
-  letter-spacing: 0.02em;
-  padding: 6px 11px 2px;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 0.78125rem;
+  gap: 11px;
+  min-height: 34px;
+  padding: 0 11px;
+  text-align: left;
+  width: 100%;
+}
+
+.moreTrigger:hover {
+  background: var(--hover, color-mix(in srgb, var(--ink) 7%, transparent));
+  color: var(--ink);
+}
+
+.moreTrigger > span:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+
+.moreList {
+  border-left: 1px solid var(--line-soft);
+  display: grid;
+  gap: 3px;
+  margin: 2px 0 0 16px;
+  padding-left: 8px;
+}
+
+.moreList[hidden] {
+  display: none;
+}
+
+.moreCaret {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  line-height: 1;
+}
+
+.navLink[data-nested="true"] {
+  font-size: 0.78125rem;
+}
+
+/* A supplementary destination stays visible while it is the current page. */
+.navLink[data-nested="true"][aria-current="page"] {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--ink);
 }
 
 .navLink {
@@ -190,7 +248,7 @@
   flex: 1 1 auto;
   flex-direction: column;
   gap: 0;
-  margin-top: 22px;
+  margin-top: 18px;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -211,7 +269,6 @@
 }
 
 .shell:has(.sidebarState[data-collapsed="true"]) .brandName,
-.shell:has(.sidebarState[data-collapsed="true"]) .navGroupLabel,
 .shell:has(.sidebarState[data-collapsed="true"]) .navLink > span,
 .shell:has(.sidebarState[data-collapsed="true"]) .accountName,
 .shell:has(.sidebarState[data-collapsed="true"]) .accountChevron,
@@ -228,6 +285,23 @@
 .shell:has(.sidebarState[data-collapsed="true"]) .navLink {
   justify-content: center;
   padding: 0;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .moreList {
+  display: none;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .moreTrigger {
+  justify-content: center;
+  padding: 0;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .moreTrigger > span {
+  display: none;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .moreFooter {
+  border-top-color: transparent;
 }
 
 .shell:has(.sidebarState[data-collapsed="true"]) .accountTrigger {
@@ -253,10 +327,15 @@
   align-items: center;
   color: var(--muted);
   display: flex;
-  font-size: 0.6875rem;
+  font-size: 0.71875rem;
   gap: 4px;
-  height: 28px;
+  height: 27px;
+  margin-top: 13px;
   padding: 0 8px;
+}
+
+.groupTitle:first-child {
+  margin-top: 0;
 }
 
 .groupTitle > span {
@@ -522,17 +601,22 @@
 }
 
 .avatar[data-size="account"] {
-  height: 26px;
-  width: 26px;
+  font-size: 0.625rem;
+  height: 23px;
+  width: 23px;
 }
 
 /* ── Account footer ──────────────────────────────────────────────────── */
 
 .account {
-  border-top: 1px solid var(--line-soft);
   flex: 0 0 auto;
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: 12px;
+}
+
+/* A test workspace keeps one honest badge; the default footer stays borderless. */
+.account:has(.environmentBadge) {
+  border-top: 1px solid var(--line-soft);
 }
 
 .accountMenu {
@@ -683,6 +767,27 @@
   color: var(--ink);
 }
 
+/* Row label flexes so a trailing value or caret stays flush right. */
+.accountPopover a > span:first-of-type {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountPopover > .accountMetaRow,
+.accountPopover > .accountMetaRow:hover {
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: default;
+}
+
+.accountPopover > .accountMetaRow > strong {
+  color: var(--muted);
+  font-weight: 500;
+}
+
 /* Only text labels flex; an avatar keeps its square footprint no matter how
    deep it sits in the popover. */
 .accountPopover .avatar,
@@ -690,10 +795,36 @@
   flex: 0 0 auto;
 }
 
-.accountPopover .accountAppearance > span:first-of-type,
 .accountPopover .accountMetaRow > span:first-child {
   flex: 1;
   min-width: 0;
+}
+
+/* Appearance reads as one menu row with icons, a label and a value. */
+.accountPopover :global(.theme-toggle--row) {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted-strong);
+  display: flex;
+  font-size: 0.8125rem;
+  gap: 9px;
+  min-height: 38px;
+  padding: 8px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.accountPopover :global(.theme-toggle--row:hover) {
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  color: var(--ink);
+}
+
+.accountPopover :global(.theme-toggle__value) {
+  color: var(--muted);
+  flex: 1;
+  text-align: right;
 }
 
 .accountPopover > span > strong {
@@ -713,16 +844,7 @@
   flex: 0 0 auto;
 }
 
-.accountPopover .accountAppearance :global(.theme-toggle) {
-  height: 34px;
-  width: 34px;
-}
 
-.accountPopover :global(.theme-toggle__dark),
-.accountPopover :global(.theme-toggle__light) {
-  align-items: center;
-  display: inline-flex;
-}
 
 /* ── Workspace column ────────────────────────────────────────────────── */
 
@@ -955,8 +1077,7 @@
 
   .brandRow,
   .sidebarScroll,
-  .account,
-  .navGroupLabel {
+  .account {
     display: none;
   }
 
@@ -974,6 +1095,13 @@
   .navGroup {
     display: contents;
   }
+
+  .mobileOnlyGroup {
+    display: contents;
+  }
+
+  /* The hierarchy scroll area, and with it the desktop More footer, is not part
+     of the compact dock (replaced at the breakpoint). */
 
   .navLink {
     border-radius: 10px;
