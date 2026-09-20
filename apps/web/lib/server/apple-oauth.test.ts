@@ -16,6 +16,12 @@ const { privateKey: fixturePrivateKey, publicKey: fixturePublicKey } =
 const fixturePrivateKeyPem = fixturePrivateKey
   .export({ type: "pkcs8", format: "pem" })
   .toString();
+// Corrupt the ephemeral fixture's payload while preserving its PEM envelope.
+// Do not put private-key-shaped literals in repository source.
+const malformedPrivateKeyPem = fixturePrivateKeyPem
+  .split("\n")
+  .map((line) => line.startsWith("-") || !line ? line : "broken")
+  .join("\n");
 
 const dynamicEnvironment = {
   AUTH_APPLE_ID: clientId,
@@ -169,7 +175,7 @@ describe("Apple private-key configuration completeness", () => {
       p384PrivateKeyPem,
       publicKeyPem,
       "not-a-pem",
-      "-----BEGIN PRIVATE KEY-----\nbroken\n-----END PRIVATE KEY-----",
+      malformedPrivateKeyPem,
     ]) {
       expect(
         getAppleOAuthCredentials({
@@ -188,7 +194,7 @@ describe("Apple private-key configuration completeness", () => {
     expect(
       getAppleOAuthCredentials({
         ...dynamicEnvironment,
-        AUTH_APPLE_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nbroken\n-----END PRIVATE KEY-----",
+        AUTH_APPLE_PRIVATE_KEY: malformedPrivateKeyPem,
       }),
     ).toBeNull();
 

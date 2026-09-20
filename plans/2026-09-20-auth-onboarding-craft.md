@@ -124,6 +124,14 @@ independent review, current-head CI and merge readback.
   passed. Type check, changed-file lint, docs/wiki/architecture and diff checks
   passed. Pi's final scope gate flagged the new auth regression test; the parent
   had explicitly authorized that addition and reviewed the seven-file scope.
+- CI identified private-key-shaped markers in malformed-key test placeholders,
+  not real keys. Malformed input is now derived by corrupting an ephemeral
+  generated fixture; the scanner and its rules remain unchanged.
+- Clean backend release `81c2f0cb` completed all deployment probes: original
+  observation write/read/delete, Apple key retrieval, synthetic voice and chat,
+  and HTTPS authentication contract. Both native and Web Apple audiences are
+  active. The saved image/revision and atomic backend/current pointer match;
+  the existing recovery LaunchAgent is loaded again and exited successfully.
 
 ## Runtime and security follow-through
 
