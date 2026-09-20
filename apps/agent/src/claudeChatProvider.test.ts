@@ -4,6 +4,7 @@ import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import { ClaudeHarnessInterruption, type ClaudeHarnessRequest } from "./claudeHarness.js";
 import { createEnvironmentChatAnswerProvider } from "./chatAnswerProvider.js";
 import { harnessContinuationFingerprint } from "./claudeHarnessContinuation.js";
+import { createVisibleTextFilter } from "./visibleTextFilter.js";
 import { bundledPrompt } from "./promptRegistry.js";
 import sharp from "sharp";
 import { createHash, randomUUID } from "node:crypto";
@@ -313,5 +314,37 @@ describe("Claude natural chat product adapter", () => {
       data: { operation: "propose_create", status: "needs_review" }, candidateFingerprint: "confirmed-tool-receipt" }));
     const result = await provider.run(request, invoke, new AbortController().signal);
     expect(result.structuredOutput).toEqual({ outcome: "contact_change_proposal", candidate_fingerprint: "confirmed-tool-receipt" });
+  });
+
+  it("forwards host-observed visible text and bounded stages without exposing title metadata", async () => {
+    const person = "10000000-0000-4000-8000-000000000001";
+    const context = "10000000-0000-4000-8000-000000000002";
+    const execute = vi.fn(async (_configuration, request: ClaudeHarnessRequest) => {
+      expect(request.onText).toBeTypeOf("function");
+      const search = request.tools.find(tool => tool.name === "contact_workspace_search")!;
+      await search.execute({ query: "陈夏" }, new AbortController().signal);
+      request.onText!("<session_title>查");
+      request.onText!("找陈夏</session_title>\n\n");
+      request.onText!("已经找到。");
+      return { ...outcome, text: "<session_title>查找陈夏</session_title>\n\n已经找到。" };
+    });
+    const invoke = vi.fn(async () => ({ ok: true as const, callID: "search", name: "contact_workspace",
+      data: { operation: "search", person_id: person, relationship_context_id: context } }));
+    const filter = createVisibleTextFilter(true);
+    const visible: string[] = [];
+    const stages: string[] = [];
+    const result = await new ClaudeChatProvider(configuration, execute).run({
+      runID: "synthetic", objective: "查找陈夏", systemPrompt: "Synthetic", sessionTitleRequested: true,
+      onVisibleText: text => { const out = filter.push(text); if (out) visible.push(out); },
+      onProgress: stage => stages.push(stage),
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "account", sessionID: null, currentPersonID: null, currentRelationshipContextID: null },
+      toolManifest: ["contact_workspace"],
+      budget: { maxTurns: 6, maxToolCalls: 6, maxDurationMs: 30_000, maxTaskTokens: 32_000, maxEstimatedUsd: 1 },
+    }, invoke, new AbortController().signal);
+    visible.push(filter.flush());
+    expect(visible.join("")).toBe("已经找到。");
+    expect(stages).toContain("contact_lookup");
+    expect(result.sessionTitle).toBe("查找陈夏");
+    expect(JSON.stringify(stages)).not.toContain("陈夏");
   });
 });

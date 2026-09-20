@@ -278,7 +278,7 @@ The safe response to uncertainty is visible incompleteness:
 - stale approval becomes a new preview;
 - duplicate intent reuses prior state;
 - partial execution becomes reconciliation;
-- missing destination proof never becomes optimistic success.
+- missing destination proof never becomes optimistic success; accepted conversation messages survive disconnect through an admission-first durable per-Session queue.
 
 Recovery is part of the ordinary product, not an operational exception.
 

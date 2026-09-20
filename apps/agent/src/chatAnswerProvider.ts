@@ -43,6 +43,8 @@ export interface RemoteChatAnswerRequest {
   continuation?: import("./claudeHarnessContinuation.js").HarnessContinuationFactory;
   /** Host-only source admission captured before compiling private context. */
   assertCurrent?: () => Promise<void>;
+  /** Host cancellation, composed by the provider with its own governor. */
+  signal?: AbortSignal;
   responsePreference?: import("./responsePreference.js").ResponsePreference;
   prompt_preset?: ChatPromptPreset;
   mode?: "relationship" | "unscoped_conversation";
@@ -60,13 +62,7 @@ export interface RemoteChatAnswerRequest {
 
 export interface RemoteChatImageInput {
   file_name: string;
-  media_type:
-    | "image/jpeg"
-    | "image/png"
-    | "image/webp"
-    | "image/gif"
-    | "image/heic"
-    | "image/heif";
+  media_type: "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "image/heic" | "image/heif";
   data: Uint8Array;
 }
 

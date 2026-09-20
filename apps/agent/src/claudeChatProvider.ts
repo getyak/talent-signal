@@ -138,6 +138,12 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       },
     });
     const imageGuards = new Map<string, () => Promise<void>>();
+    const abort = new AbortController();
+    const external = request.signal;
+    if (external) {
+      if (external.aborted) abort.abort(external.reason);
+      else external.addEventListener("abort", () => abort.abort(external.reason), { once: true });
+    }
     const assertCurrent = async () => { await request.assertCurrent?.(); for (const guard of imageGuards.values()) await guard(); };
     const sourceImageTools = evidenceImageTools(request, this.supportsImageInput, (id, guard) => imageGuards.set(id, guard));
     tools.push(...responsePreferenceTool(request.responsePreference), ...sourceImageTools);
@@ -159,7 +165,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
         memory_inventory: request.context_blocks.map(block => ({ type: block.type, status: block.status })),
         allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference) }),
       effort: "medium", budget: { ...DEFAULT_AGENT_BUDGET, maxDurationMs: 60_000 }, assertCurrent,
-    }, new AbortController().signal);
+    }, abort.signal);
     await assertCurrent();
     const parsedOutput = splitFirstTurnSessionTitle(result.text, request.objective);
     const body = parsedOutput.body;
@@ -221,6 +227,9 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
         schema: variant.schema, readOnly: variant.readOnly, alwaysLoad: true,
         execute: async (input, executionSignal) => {
           executionSignal.throwIfAborted();
+          if (name === "contact_workspace") {
+            request.onProgress?.(variant.operation === "search" ? "contact_lookup" : "contact_read");
+          }
           // Validate even direct adapter dispatch; operation is host-selected.
           const parsed = variant.schema.safeParse(input);
           if (!parsed.success) return { content: [{ type: "text", text: JSON.stringify({ error: "TOOL_INPUT_INVALID" }) }], isError: true };
@@ -237,10 +246,16 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
         } }));
     });
     tools.push(...responsePreferenceTool(request.responsePreference), ...calendar.tools);
+    // Host-observed partial text is a forming response only. A host callback
+    // exception or abort must never trigger a fallback model execution here.
+    const onText = request.onVisibleText
+      ? (text: string) => { try { request.onVisibleText?.(text); } catch { /* observation never gates the Run */ } }
+      : undefined;
     const supplied = request.observation;
     const trusted = supplied?.run_id === request.runID && supplied.workspace_id === request.scopeSummary.workspaceID
       && supplied.authorization_scope === "workspace_conversation" ? supplied : undefined;
     const outcome = await this.execute(this.configuration, { ...(request.continuation ? { continuation: request.continuation } : {}), ...(trusted ? { observation: trusted } : {}), objective: request.objective,
+      ...(onText ? { onText } : {}),
       systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions].filter(Boolean).join("\n\n"), tools,
       context: JSON.stringify({ calendar_clock: calendar.clock, scope: request.scopeSummary, conversation: boundedConversationHistory(request.conversationHistory),
         session_title_requested: sessionTitleRequested,

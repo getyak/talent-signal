@@ -18,6 +18,8 @@ import {
   type NewConversationIntent,
 } from "@/lib/new-conversation";
 import { WORKSPACE_NEW_CONVERSATION_EVENT } from "@/lib/workspace-navigation";
+import { QueuedConversation } from "./conversation/queued-conversation";
+import { conversationHome } from "@/lib/conversation-local";
 import { AgentTurnThread } from "./relationship-workspace/agent-turn-thread";
 import { useWorkspaceChat } from "./relationship-workspace/use-workspace-chat";
 import { ComposerAddMenu } from "./new-conversation-add-menu";
@@ -124,11 +126,11 @@ export function WorkspaceNewConversation({
   const [instance, setInstance] = useState(0);
 
   useEffect(() => {
-    const reset = () => setInstance((current) => current + 1);
+    const reset = () => { if (storageScope) conversationHome(storageScope, null); setInstance((current) => current + 1); };
     window.addEventListener(WORKSPACE_NEW_CONVERSATION_EVENT, reset);
     return () =>
       window.removeEventListener(WORKSPACE_NEW_CONVERSATION_EVENT, reset);
-  }, []);
+  }, [storageScope]);
 
   return (
     <ConversationCanvas
@@ -141,7 +143,15 @@ export function WorkspaceNewConversation({
   );
 }
 
-function ConversationCanvas({
+function ConversationCanvas(props: { accountId: string | null; sessionVersion: string | null; sessionBinding: string | null; storageScope: string | null }) {
+  const [legacy, setLegacy] = useState<boolean | null>(null);
+  useEffect(() => { const frame = requestAnimationFrame(() => setLegacy(Boolean(props.storageScope && readHomeConversationDraft(props.storageScope)))); return () => cancelAnimationFrame(frame); }, [props.storageScope]);
+  if (legacy === null) return <LegacyConversationCanvas {...props}/>;
+  if (!legacy && props.accountId && props.sessionVersion && props.sessionBinding && props.storageScope) return <QueuedConversation scope={props.storageScope} chatBinding={props.sessionVersion} detailBinding={props.sessionBinding}/>;
+  return <LegacyConversationCanvas {...props}/>;
+}
+
+function LegacyConversationCanvas({
   accountId,
   sessionVersion,
   sessionBinding,
