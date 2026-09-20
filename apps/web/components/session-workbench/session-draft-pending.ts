@@ -6,6 +6,16 @@ const STORAGE_SCOPE = /^[0-9a-f]{64}$/u;
 const MAX_DRAFT_LENGTH = 12_000;
 const MAX_RETENTION_MS = 24 * 60 * 60 * 1_000;
 
+/**
+ * The exact composer draft identity captured immediately before a Session send
+ * asks the Agent. Cleanup may only empty a server draft whose value and
+ * updated-at still match this pair; a missing identity fails closed.
+ */
+export type SessionSendCleanupIdentity = {
+  readonly composerDraft: string;
+  readonly composerDraftUpdatedAt: string;
+};
+
 export type PendingSessionDraft = {
   readonly v: 1;
   readonly storageScope: string;
@@ -20,6 +30,9 @@ export type PendingSessionDraft = {
   readonly predecessor: SaveRequestBody | null;
   readonly savedAt: string;
   readonly expiresAt: string;
+  /** Present on send records so a reload can still decide safe cleanup. */
+  readonly purpose?: string;
+  readonly cleanup?: SessionSendCleanupIdentity;
 };
 
 export type PendingSessionDraftResolution =
@@ -58,6 +71,14 @@ function mutation(value: unknown): value is SaveRequestBody {
     canonicalTimestamp(item.composer_draft_updated_at);
 }
 
+function cleanupIdentity(value: unknown): value is SessionSendCleanupIdentity {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Partial<SessionSendCleanupIdentity>;
+  return typeof item.composerDraft === "string" &&
+    item.composerDraft.length <= MAX_DRAFT_LENGTH &&
+    canonicalTimestamp(item.composerDraftUpdatedAt);
+}
+
 function valid(value: unknown): value is PendingSessionDraft {
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<PendingSessionDraft>;
@@ -73,6 +94,7 @@ function valid(value: unknown): value is PendingSessionDraft {
     !canonicalTimestamp(latest.updatedAt) ||
     !(latest.expectedRevision === null || revision(latest.expectedRevision)) ||
     !(item.predecessor === null || mutation(item.predecessor)) ||
+    !(item.cleanup === undefined || cleanupIdentity(item.cleanup)) ||
     !canonicalTimestamp(item.savedAt) ||
     !canonicalTimestamp(item.expiresAt)
   ) {

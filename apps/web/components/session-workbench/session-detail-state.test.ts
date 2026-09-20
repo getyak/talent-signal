@@ -76,12 +76,7 @@ describe("Session draft state", () => {
       expected_revision: 3,
       idempotency_key: requestId,
     });
-    expect(buildSaveRequest(markConflict(state), requestId, updatedAt)).toEqual({
-      composer_draft: "changed",
-      composer_draft_updated_at: updatedAt,
-      expected_revision: 3,
-      idempotency_key: requestId,
-    });
+    expect(buildSaveRequest(markConflict(state), requestId, updatedAt)).toBeNull();
   });
 
   it("retains recovery only for a canonical revision conflict", () => {

@@ -151,7 +151,7 @@ export function buildSaveRequest(
   idempotencyKey: string,
   updatedAt: string,
 ): SaveRequestBody | null {
-  if (state.detail.state !== "active") return null;
+  if (state.detail.state !== "active" || state.conflict) return null;
   if (boundedDraft(state.draft) === state.lastSavedDraft) return null;
   if (!isSessionId(idempotencyKey)) return null;
   const parsedUpdatedAt = Date.parse(updatedAt);
