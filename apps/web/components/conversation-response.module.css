@@ -1,0 +1,23 @@
+.response { color: var(--ink); font-size: 1rem; line-height: 1.85; min-width: 0; overflow-wrap: anywhere; }
+.response > :first-child { margin-top: 0; }
+.response > :last-child { margin-bottom: 0; }
+.response p { margin: 0 0 1em; white-space: pre-wrap; }
+.response :is(h3, h4, h5, h6) { color: var(--ink); font-size: 1rem; font-weight: 620; line-height: 1.6; margin: 1.5em 0 0.65em; }
+.response :is(ol, ul) { margin: 0.75em 0 1.1em; padding-left: 1.5em; }
+.response ol { list-style: decimal; }
+.response ul { list-style: disc; }
+.response li { margin: 0.35em 0; padding-left: 0.2em; }
+.response li p { margin-bottom: 0.5em; }
+.response strong { font-weight: 620; }
+.response blockquote { border-left: 2px solid var(--line-strong); color: var(--muted-strong); margin: 1em 0; padding: 0.15em 0 0.15em 1em; }
+.response blockquote p:last-child { margin-bottom: 0; }
+.response code { background: var(--surface-muted); border-radius: 4px; font-family: var(--font-mono, monospace); font-size: 0.875em; padding: 0.12em 0.35em; }
+.response pre { background: var(--surface-muted); border: 1px solid var(--line-soft); border-radius: 12px; line-height: 1.65; max-width: 100%; overflow-x: auto; padding: 16px 18px; white-space: pre; }
+.response pre code { background: transparent; padding: 0; }
+.tableScroll { margin: 1em 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.response table { border-collapse: collapse; font-size: 0.875rem; text-align: left; width: 100%; }
+.response :is(th, td) { border-bottom: 1px solid var(--line); min-width: 100px; padding: 10px 12px; vertical-align: top; }
+.response th { font-weight: 600; }
+.response hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
+.destination { color: var(--muted-strong); font-size: 0.875em; overflow-wrap: anywhere; }
+.response :is(pre, [tabindex]):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }

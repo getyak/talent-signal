@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useWorkspaceChat } from "../relationship-workspace/use-workspace-chat";
+import { ConversationResponse } from "../conversation-response";
 import { WorkspaceComposer } from "../workspace-composer";
 import { workspaceSessionFetch } from "@/components/workspace-session-request";
 
@@ -65,6 +66,13 @@ import {
   sessionStateNotice,
   shouldPersistDraft,
 } from "./session-view";
+import {
+  conversationNearBottom,
+  conversationScrollBehavior,
+  sessionBlockTitle,
+  sessionSupportsSend,
+  sessionTurnBlocks,
+} from "./session-presentation";
 import styles from "./session-workbench.module.css";
 import chatStyles from "./session-conversation.module.css";
 
@@ -127,11 +135,102 @@ export function SessionWorkbench({
   stateRef.current = state;
   bindingRef.current = binding;
 
+  // Conversation canvas structure: one named details disclosure and one named
+  // scroll region. Neither stores conversation content, only viewport state.
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const detailsSummaryRef = useRef<HTMLElement>(null);
+  const transcriptRef = useRef<HTMLElement>(null);
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
+  const wasConfirmingDelete = useRef(false);
+
+  useEffect(() => {
+    if (confirmingDelete) deleteCancelRef.current?.focus();
+    else if (wasConfirmingDelete.current) {
+      const trigger = deleteTriggerRef.current;
+      if (trigger && !trigger.disabled && detailsRef.current?.open) trigger.focus();
+      else detailsSummaryRef.current?.focus();
+    }
+    wasConfirmingDelete.current = confirmingDelete;
+  }, [confirmingDelete]);
+  const followLatestRef = useRef(true);
+  const landedRef = useRef(false);
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
+
   const commitState = useCallback((update: (current: DetailState) => DetailState) => {
     const next = update(stateRef.current);
     stateRef.current = next;
     setState(next);
   }, []);
+
+  // Outside pointer/focus closes the details disclosure without stealing focus.
+  useEffect(() => {
+    function closeFromOutside(event: Event) {
+      const node = detailsRef.current;
+      if (
+        node?.open &&
+        event.target instanceof Node &&
+        !node.contains(event.target)
+      ) {
+        node.open = false;
+      }
+    }
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("focusin", closeFromOutside);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("focusin", closeFromOutside);
+    };
+  }, []);
+
+  // Passive scroll tracking: incoming turns follow only while the reader is
+  // already at the latest message. Reopening lands at the latest turn once.
+  useEffect(() => {
+    const node = transcriptRef.current;
+    if (!node) return;
+    function update() {
+      if (!node) return;
+      const near = conversationNearBottom({
+        clientHeight: node.clientHeight,
+        scrollHeight: node.scrollHeight,
+        scrollTop: node.scrollTop,
+      });
+      followLatestRef.current = near;
+      setAwayFromLatest(!near);
+    }
+    update();
+    node.addEventListener("scroll", update, { passive: true });
+    // A growing draft, recovery notice, or shorter window changes the reading
+    // viewport without a scroll event. Preserve the reader's previous intent.
+    const resize = new ResizeObserver(() => {
+      if (followLatestRef.current) node.scrollTop = node.scrollHeight;
+      update();
+    });
+    resize.observe(node);
+    return () => {
+      resize.disconnect();
+      node.removeEventListener("scroll", update);
+    };
+  }, []);
+
+  const turnCount = state.detail.turns.length;
+  useEffect(() => {
+    const node = transcriptRef.current;
+    if (!node) return;
+    if (!landedRef.current) {
+      landedRef.current = true;
+      node.scrollTop = node.scrollHeight;
+      return;
+    }
+    if (!followLatestRef.current) return;
+    const reducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollTo({
+      behavior: conversationScrollBehavior(reducedMotion),
+      top: node.scrollHeight,
+    });
+  }, [turnCount]);
 
   const detail = state.detail;
   const scope = sessionScopeView({
@@ -581,152 +680,229 @@ export function SessionWorkbench({
   const stateNotice = sessionStateNotice(detail.state);
   const expiryNotice = sessionExpiryNotice(detail.expires_at);
   const statusLabel = draftStatusLabel(state.status);
+  const canAsk = sessionSupportsSend(detail);
+  const deleteWarning = confirmingDelete
+    ? "删除后历史内容不再提供，也无法在本机恢复。请确认要删除这条对话。"
+    : null;
 
   // Retrying an unconfirmed send is still a submission; the explicit retry
   // button and Enter both reuse the stored attempt.
   const canSend = Boolean(
     accountId &&
       chatSessionVersion &&
-      detail.state === "active" &&
-      detail.scope_kind === "unresolved_intent" &&
+      canAsk &&
       !state.conflict &&
       !sending &&
       state.draft.trim().length > 0 &&
       state.draft.trim().length <= 1000,
   );
 
+  function jumpToLatest() {
+    const node = transcriptRef.current;
+    if (!node) return;
+    followLatestRef.current = true;
+    setAwayFromLatest(false);
+    const reducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollTo({
+      behavior: conversationScrollBehavior(reducedMotion),
+      top: node.scrollHeight,
+    });
+  }
+
+  function closeDetails(returnFocus = false) {
+    if (detailsRef.current) detailsRef.current.open = false;
+    if (returnFocus) detailsSummaryRef.current?.focus();
+  }
+
   return (
-    <section aria-labelledby="session-title" className={`${styles.page} ${chatStyles.conversation}`}>
-      <header className={styles.detailHeader}>
-        <div>
-          <p className={styles.metaLine}>
-            {scope.label} · {sessionStateLabel(detail.state)} ·{" "}
-            {formatSessionTime(detail.updated_at)}
-          </p>
-          <h1 className={styles.title} id="session-title">
-            {sessionDisplayTitle(detail.title)}
-          </h1>
-        </div>
-        {detail.state === "active" ? (
-          <div className={styles.detailActions}>
-            {confirmingDelete ? (
-              <>
-                <button
-                  className={styles.danger}
-                  disabled={busy !== null}
-                  onClick={() => void remove()}
-                  type="button"
-                >
-                  {busy === "delete" ? "正在删除…" : "确认删除"}
-                </button>
-                <button
-                  className={styles.secondary}
-                  disabled={busy !== null}
-                  onClick={() => setConfirmingDelete(false)}
-                  type="button"
-                >
-                  取消
-                </button>
-              </>
-            ) : (
-              <button
-                className={styles.secondary}
-                disabled={!canDeleteSession(state) || sending || sendPending}
-                onClick={() => {
-                  setConfirmingDelete(true);
-                  setNotice(
-                    "删除后历史内容不再提供，也无法在本机恢复。请确认要删除这条对话。",
-                  );
-                }}
-                type="button"
-              >
-                <Trash aria-hidden="true" size={16} />
-                <span>删除对话</span>
-              </button>
-            )}
-          </div>
-        ) : null}
-      </header>
-
-      {stateNotice ? (
-        <p className={styles.warning} role="status">
-          {stateNotice}
-        </p>
-      ) : null}
-      {expiryNotice && detail.state === "active" ? (
-        <p className={styles.hint} role="status">
-          {expiryNotice}
-        </p>
-      ) : null}
-      {notice ? (
-        <p className={styles.notice} role="status">
-          {notice}
-          {sessionRecoveryHref ? (
-            <>
-              {" "}
-              <Link href={sessionRecoveryHref}>重新登录</Link>
-            </>
-          ) : null}
-        </p>
-      ) : null}
-
-      {state.conflict ? (
-        <div className={styles.conflict} role="alert">
-          <Warning aria-hidden="true" size={18} />
-          <div>
-            <p>{conflictView().message}</p>
+    <section
+      aria-labelledby="session-title"
+      className={chatStyles.conversation}
+      data-conversation-canvas="session"
+    >
+      <header className={chatStyles.header}>
+        <h1 className={chatStyles.title} id="session-title">
+          {sessionDisplayTitle(detail.title)}
+        </h1>
+        <details
+          className={chatStyles.conversationDetails}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              closeDetails(true);
+            }
+          }}
+          ref={detailsRef}
+        >
+          <summary ref={detailsSummaryRef}>对话详情</summary>
+          <div className={chatStyles.detailsPanel}>
+            <p className={styles.metaLine}>
+              {scope.label} · {sessionStateLabel(detail.state)} ·{" "}
+              {formatSessionTime(detail.updated_at)}
+            </p>
+            <p>{scope.note}</p>
+            <Link className={styles.primary} href={scope.returnHref}>
+              {scope.returnLabel}
+            </Link>
             <div className={styles.actions}>
               <button
-                className={styles.primary}
-                disabled={busy !== null}
-                onClick={() => void reload()}
+                className={styles.secondary}
+                disabled={
+                  !canPersistSessionDraft(state) ||
+                  state.status === "saving" ||
+                  sending ||
+                  sendPending
+                }
+                onClick={() => void persist(true)}
                 type="button"
               >
-                {busy === "reload" ? "正在载入…" : conflictView().reloadLabel}
+                立即保存
               </button>
               <button
                 className={styles.secondary}
+                disabled={detail.state !== "active"}
                 onClick={() => void copyDraft()}
                 type="button"
               >
                 <Copy aria-hidden="true" size={16} />
-                <span>{conflictView().keepDraftLabel}</span>
+                <span>复制草稿</span>
               </button>
+              {detail.state === "active" ? (
+                confirmingDelete ? (
+                  <>
+                    <button
+                      className={styles.danger}
+                      disabled={busy !== null}
+                      onClick={() => void remove()}
+                      type="button"
+                    >
+                      {busy === "delete" ? "正在删除…" : "确认删除"}
+                    </button>
+                    <button
+                      className={styles.secondary}
+                      disabled={busy !== null}
+                      ref={deleteCancelRef}
+                      onClick={() => setConfirmingDelete(false)}
+                      type="button"
+                    >
+                      取消
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className={styles.secondary}
+                    disabled={!canDeleteSession(state) || sending || sendPending}
+                    ref={deleteTriggerRef}
+                    onClick={() => setConfirmingDelete(true)}
+                    type="button"
+                  >
+                    <Trash aria-hidden="true" size={16} />
+                    <span>删除对话</span>
+                  </button>
+                )
+              ) : null}
             </div>
           </div>
-        </div>
-      ) : null}
+        </details>
+      </header>
 
-      <section aria-label="对话历史" className={styles.turns}>
+      <div className={chatStyles.feedback}>
+        {deleteWarning ? (
+          <p className={styles.warning} role="status">
+            {deleteWarning}
+          </p>
+        ) : null}
+        {stateNotice ? (
+          <p className={styles.warning} role="status">
+            {stateNotice}
+          </p>
+        ) : null}
+        {expiryNotice && detail.state === "active" ? (
+          <p className={styles.hint} role="status">
+            {expiryNotice}
+          </p>
+        ) : null}
+        {notice && notice !== "消息已保存。" ? (
+          <p className={styles.notice} role="status">
+            {notice}
+            {sessionRecoveryHref ? (
+              <>
+                {" "}
+                <Link href={sessionRecoveryHref}>重新登录</Link>
+              </>
+            ) : null}
+          </p>
+        ) : null}
+
+        {state.conflict ? (
+          <div className={styles.conflict} role="alert">
+            <Warning aria-hidden="true" size={18} />
+            <div>
+              <p>{conflictView().message}</p>
+              <div className={styles.actions}>
+                <button
+                  className={styles.primary}
+                  disabled={busy !== null}
+                  onClick={() => void reload()}
+                  type="button"
+                >
+                  {busy === "reload" ? "正在载入…" : conflictView().reloadLabel}
+                </button>
+                <button
+                  className={styles.secondary}
+                  onClick={() => void copyDraft()}
+                  type="button"
+                >
+                  <Copy aria-hidden="true" size={16} />
+                  <span>{conflictView().keepDraftLabel}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <section
+        aria-label="对话历史"
+        className={chatStyles.transcript}
+        ref={transcriptRef}
+        tabIndex={0}
+      >
         {detail.turns.length === 0 ? (
           <p className={styles.hint}>
             {detail.state === "active"
-              ? "这条对话还没有任何回复，也没有范围绑定。你可以在下方写下要保留的内容。"
+              ? "这条对话还没有回复。你可以在下方写下要保留的内容。"
               : "没有可显示的历史内容。"}
           </p>
         ) : (
-          <ol className={styles.turnList}>
-            {detail.turns.map((turn) => (
-              <li className={styles.turn} key={turn.id}>
-                <p className={styles.turnObjective}>{turn.objective}</p>
-                <p className={styles.turnMeta}>
-                  {formatSessionTime(turn.createdAt)}
-                </p>
-                {turn.response?.savedBlocks?.length || turn.response?.unboundConversationBlocks?.length ? (
-                  <div className={styles.turnBlocks}>
-                    {[
-                      ...(turn.response?.savedBlocks ?? []),
-                      ...(turn.response?.unboundConversationBlocks ?? []),
-                    ].map((block) => (
-                      <article className={styles.block} key={block.id}>
-                        <h3>{block.title}</h3>
-                        <p>{block.body}</p>
-                      </article>
-                    ))}
-                  </div>
-                ) : null}
-              </li>
-            ))}
+          <ol className={chatStyles.turnList}>
+            {detail.turns.map((turn) => {
+              const blocks = sessionTurnBlocks(turn.response);
+              return (
+                <li className={chatStyles.turn} key={turn.id}>
+                  <p className={chatStyles.userMessage}>{turn.objective}</p>
+                  <p className={chatStyles.messageMeta}>
+                    {formatSessionTime(turn.createdAt)}
+                  </p>
+                  {blocks.length ? (
+                    <div className={chatStyles.assistantMessage}>
+                      <p className={chatStyles.assistantLabel}>Talent Signal</p>
+                      {blocks.map((block) => {
+                        const title = sessionBlockTitle(block.title);
+                        return (
+                          <article key={block.id}>
+                            {title ? <h3>{title}</h3> : null}
+                            <ConversationResponse>{block.body}</ConversationResponse>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ol>
         )}
       </section>
@@ -736,7 +912,12 @@ export function SessionWorkbench({
         {meetingLinks.map(item => <Link key={item.id} href={`/workspace/meetings?draft=${item.id}`}>审阅 {item.title}</Link>)}
       </aside> : null}
       {meetingReadFailed ? <p role="status">暂时无法读取关联日程。<Link href="/workspace/meetings">打开日程重试</Link></p> : null}
-      <section aria-label="草稿">
+      <section aria-label="草稿" className={chatStyles.composerDock}>
+        {awayFromLatest ? (
+          <button className={chatStyles.jumpToLatest} onClick={jumpToLatest} type="button">
+            回到最新消息
+          </button>
+        ) : null}
         <WorkspaceComposer
           binding={binding}
           canSubmit={canSend}
@@ -745,32 +926,9 @@ export function SessionWorkbench({
           footerEnd={
             <div className={styles.actions}>
               {sendPending && !sending ? <button className={styles.secondary} type="button" onClick={endSendRetry}>保留草稿，结束重试</button> : null}
-              {accountId && chatSessionVersion && detail.scope_kind === "unresolved_intent" ? <button className={`${styles.primary} ${styles.send}`} aria-label={sending ? "发送中" : sendPending ? "重试同一条消息" : "发送"} title="发送 · Enter" type="button"
+              {accountId && chatSessionVersion && canAsk ? <button className={`${styles.primary} ${styles.send}`} aria-label={sending ? "发送中" : sendPending ? "重试同一条消息" : "发送"} title="发送 · Enter" type="button"
                 disabled={!canSend}
                 onClick={() => void sendMessage()}><ArrowUp aria-hidden="true" size={18} /><span className="sr-only">{sending ? "发送中…" : sendPending ? "重试同一条消息" : "发送"}</span></button> : null}
-              <details className={chatStyles.draftTools}>
-                <summary>草稿选项</summary>
-                <div>
-                  <p>{detail.scope_kind === "unresolved_intent" ? "自动保存 · Enter 发送，Shift+Enter 换行" : "自动保存；前往人物页继续这段关系。"}</p>
-                  <button
-                    className={styles.secondary}
-                    disabled={!canPersistSessionDraft(state) || state.status === "saving" || sending || sendPending}
-                    onClick={() => void persist(true)}
-                    type="button"
-                  >
-                    立即保存
-                  </button>
-                  <button
-                    className={styles.secondary}
-                    disabled={detail.state !== "active"}
-                    onClick={() => void copyDraft()}
-                    type="button"
-                  >
-                    <Copy aria-hidden="true" size={16} />
-                    <span>复制草稿</span>
-                  </button>
-                </div>
-              </details>
             </div>
           }
           footerStart={
@@ -783,7 +941,7 @@ export function SessionWorkbench({
               id="session-draft-status"
               role={state.status === "error" ? "alert" : "status"}
             >
-              {statusLabel}
+              {sending ? "正在回复…" : statusLabel}
               {state.error ? ` ${state.error}` : ""}
             </p>
           }
@@ -802,16 +960,14 @@ export function SessionWorkbench({
           value={state.draft}
           variant="session"
         />
+        {detail.state === "active" ? (
+          <p className={canAsk ? chatStyles.keyboardHint : styles.hint}>
+            {canAsk
+              ? "Enter 发送 · Shift+Enter 换行"
+              : <Link href={scope.returnHref}>{scope.returnLabel}</Link>}
+          </p>
+        ) : null}
       </section>
-
-      <details className={chatStyles.scopeDetails} aria-label="范围与返回">
-        <summary>对话范围 · {scope.label}</summary>
-        <p>对话保留思考过程；资料变更与外部行动仍需单独审阅。</p>
-        <p>{scope.note}</p>
-        <Link className={styles.primary} href={scope.returnHref}>
-          {scope.returnLabel}
-        </Link>
-      </details>
     </section>
   );
 }

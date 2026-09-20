@@ -8,7 +8,7 @@ vi.mock("@/lib/server/accountBackend",()=>({loadAccountSettings:settings}));
 vi.mock("@/lib/server/backendAuth",()=>({readBackendSessionClaims:claims,readPrimaryBackendSessionClaims:async()=>null}));
 vi.mock("@/lib/server/testWorkspaceSession",()=>({testWorkspaceSession:async()=>null,TEST_WORKSPACE_COOKIE:"test-cookie"}));
 vi.mock("@/components/talent-signal-lab/lab-shell",()=>({TalentSignalLabShell:()=>null}));
-vi.mock("@/components/workspace-shell-nav",()=>({WorkspaceCaptureLink:()=>null,WorkspaceMobileSourcesLink:()=>null,WorkspaceMoreDestinations:()=>null,WorkspaceShellNav:()=>null}));
+vi.mock("@/components/workspace-shell-nav",()=>({WorkspaceCaptureLink:()=>null,WorkspaceMobileSourcesLink:()=>null,WorkspaceShellNav:()=>null}));
 vi.mock("@/components/theme-toggle",()=>({ThemeToggle:()=>null}));
 import WorkspaceLayout from "./layout";
 function snapshot(value: unknown): string {

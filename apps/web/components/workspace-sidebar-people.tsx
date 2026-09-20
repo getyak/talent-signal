@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, CaretRight, ChatCircle, Users } from "@phosphor-icons/react";
+import { ArrowSquareOut, CaretRight, ChatCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -25,6 +25,11 @@ export function WorkspaceSidebarPeople({ binding }: { binding: string | null }) 
   const sessions = sidebarSessionRows(data?.sessions);
   const state = loading ? "loading" : failed ? "error" : "ready";
 
+  // An authorized but empty directory adds no navigation value: hide the whole
+  // auxiliary group instead of reserving space for "no contacts". Loading,
+  // actionable read errors and nonempty projections stay visible.
+  if (state === "ready" && people.length === 0) return null;
+
   return (
     <section aria-label="常用人物" className={styles.group}>
       <header className={styles.groupTitle}>
@@ -38,10 +43,6 @@ export function WorkspaceSidebarPeople({ binding }: { binding: string | null }) 
       ) : state === "error" ? (
         <p className={styles.groupEmpty}>
           人物目录暂时无法读取；不会用缓存或示例补齐。
-        </p>
-      ) : people.length === 0 ? (
-        <p className={styles.groupEmpty}>
-          <Users aria-hidden="true" size={13} /> 还没有联系人
         </p>
       ) : (
         <div className={styles.personList}>

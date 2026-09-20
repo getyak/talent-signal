@@ -5,7 +5,6 @@ import {
   ChatCircleDots,
   ClockCounterClockwise,
   Database,
-  DotsThree,
   House,
   Plus,
   Plugs,
@@ -15,7 +14,7 @@ import {
 import type { Icon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useSyncExternalStore, type MouseEvent } from "react";
+import { useSyncExternalStore, type MouseEvent } from "react";
 
 import {
   WORKSPACE_COMPOSE_HREF,
@@ -101,6 +100,7 @@ function NavLink({
   return (
     <Link
       aria-current={current ? "page" : undefined}
+      aria-label={collapsed ? route.label : undefined}
       className={styles.navLink}
       data-mobile={route.mobile ? "true" : "false"}
       data-nested={nested ? "true" : undefined}
@@ -133,13 +133,13 @@ export function WorkspaceShellNav({
   const pathname = usePathname();
   const { collapsed, setCollapsed } = useCollapsedState();
   const activeRoute = workspaceNavRouteForPath(pathname);
+  // Desktop primary order: new conversation, Today, People, Meetings, Sources.
+  // The mobile filter keeps only the first four (`mobile: true`).
   const primary = workspaceNavRoutes("primary");
-  // On the compact dock the mobile secondary destinations appear directly; on
-  // desktop the same routes live in the quieter More entry inside the
-  // conversation/people hierarchy.
-  const mobileSecondary = workspaceNavRoutes("secondary").filter(
-    (route) => route.mobile,
-  );
+  // The Sessions directory is already reachable from the recent-Sessions header
+  // while the rail is expanded. A collapsed rail hides that scroll area, so the
+  // same destination keeps one named icon link here instead of a duplicate row.
+  const collapsedUtility = workspaceNavRoutes("utility");
 
   return (
     <div
@@ -181,79 +181,20 @@ export function WorkspaceShellNav({
             />
           ))}
         </div>
-        <div className={styles.mobileOnlyGroup}>
-          {mobileSecondary.map((route) => (
-            <NavLink
-              collapsed={collapsed}
-              current={activeRoute?.id === route.id}
-              key={`mobile-${route.id}`}
-              route={route}
-            />
-          ))}
-        </div>
+        {collapsed ? (
+          <div className={styles.navGroup} data-collapsed-only="true">
+            {collapsedUtility.map((route) => (
+              <NavLink
+                collapsed
+                current={activeRoute?.id === route.id}
+                key={`utility-${route.id}`}
+                route={route}
+              />
+            ))}
+          </div>
+        ) : null}
       </nav>
     </div>
-  );
-}
-
-/**
- * Supplementary destinations, one compact disclosure at the foot of the
- * conversation and people hierarchy. It opens itself while a supplementary
- * route is the current page, so the active destination is never hidden, and it
- * keeps native keyboard semantics: a named button, `aria-expanded`, Escape-free
- * dismissal through the same button, and visible focus.
- */
-export function WorkspaceMoreDestinations() {
-  const pathname = usePathname();
-  const { collapsed, setCollapsed } = useCollapsedState();
-  const activeRoute = workspaceNavRouteForPath(pathname);
-  const routes = workspaceNavRoutes("secondary");
-  const activeIsNested = routes.some((route) => route.id === activeRoute?.id);
-  // The disclosure follows the route until the user overrides it for that exact
-  // page, so a supplementary destination is visible whenever it is current and
-  // an explicit collapse is never undone by a re-render.
-  const [override, setOverride] = useState<{
-    pathname: string;
-    open: boolean;
-  } | null>(null);
-  const open =
-    override?.pathname === pathname ? override.open : activeIsNested;
-
-  if (routes.length === 0) return null;
-
-  return (
-    <section aria-label="更多目的地" className={styles.moreFooter}>
-      <button
-        aria-expanded={open}
-        className={styles.moreTrigger}
-        onClick={() => {
-          if (collapsed) {
-            setCollapsed(false);
-            setOverride({ pathname, open: true });
-            return;
-          }
-          setOverride({ pathname, open: !open });
-        }}
-        type="button"
-      >
-        <DotsThree aria-hidden="true" size={17} weight="regular" />
-        <span>更多</span>
-        <span aria-hidden="true" className={styles.moreCaret}>
-          {open ? "−" : "+"}
-        </span>
-      </button>
-      <div className={styles.moreList} hidden={!open}>
-        {routes.map((route) => (
-          <NavLink
-            collapsed={false}
-            current={activeRoute?.id === route.id}
-            key={route.id}
-            nested
-            route={route}
-          />
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -285,15 +226,26 @@ export function WorkspaceCaptureLink() {
 
 export function WorkspaceMobileSourcesLink() {
   return (
-    <Link
-      aria-label="打开来源"
-      className={styles.mobileSources}
-      href="/workspace/captures"
-      title="来源"
-    >
-      <Database aria-hidden="true" size={18} weight="duotone" />
-      <span>来源</span>
-    </Link>
+    <>
+      <Link
+        aria-label="打开全部对话"
+        className={styles.mobileSources}
+        href="/workspace/sessions"
+        title="全部对话"
+      >
+        <ClockCounterClockwise aria-hidden="true" size={18} />
+        <span>对话</span>
+      </Link>
+      <Link
+        aria-label="打开来源"
+        className={styles.mobileSources}
+        href="/workspace/captures"
+        title="来源"
+      >
+        <Database aria-hidden="true" size={18} weight="duotone" />
+        <span>来源</span>
+      </Link>
+    </>
   );
 }
 
