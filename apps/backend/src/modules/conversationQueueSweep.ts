@@ -13,6 +13,20 @@ export async function sweepConversationQueue(
   client: DatabaseClient,
   accountId?: string,
 ): Promise<void> {
+  // Session reads and cursor pages call this sweep too. Accounts without queue
+  // material must not repeatedly scan their screenshot contexts for revocation.
+  const pending = await client.query<{ present: boolean }>(
+    `SELECT
+       EXISTS (SELECT 1 FROM conversation_queue_entries WHERE $1::uuid IS NULL OR account_id=$1)
+       OR EXISTS (SELECT 1 FROM conversation_queue_state WHERE $1::uuid IS NULL OR account_id=$1)
+       OR EXISTS (
+         SELECT 1 FROM conversation_queue_operations
+         WHERE created_at < now()-interval '30 days' AND ($1::uuid IS NULL OR account_id=$1)
+       ) AS present`,
+    [accountId ?? null],
+  );
+  if (!pending.rows[0]?.present) return;
+
   const expired = await client.query<{ run_id: string | null }>(
     `DELETE FROM conversation_queue_entries e
      USING agent_sessions s

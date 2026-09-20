@@ -37,6 +37,10 @@ auth secret; it is not a release deployment.
   database. Queue and SSE checks below ran separately with a disposable database.
 - Backend queue integration: 18 tests passed on the disposable database,
   including the later stop-before-first-token and unavailable-provider fixes.
+- Existing Session integration: 49 tests passed after adding an empty-queue
+  sweep fast path. A CI cursor-pagination case previously hit its 5-second
+  timeout; its original assertions and deadline remain unchanged. Queue
+  integration now also runs explicitly in the PostgreSQL CI step.
 - SSE transport/security: three tests passed, including revoked login/source
   denial and shutdown of an open connection before Fastify waits for clients.
 - Agent: delegated suite reported 276 passed and one skipped, with visible-text
@@ -118,6 +122,8 @@ local proof. No production rollout is implied.
   database-call assertions stay meaningful; worker execution has real-database coverage.
 - Stop before visible output preserves the user turn. Preview checks distinguish
   a user cancellation from lease loss, and late provider callbacks are ignored.
+- Session pagination skips queue source scans when the account has no queue
+  material or expired mutation receipts to sweep.
 
 ## Limits
 
