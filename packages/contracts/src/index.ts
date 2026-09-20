@@ -25,3 +25,5 @@ export * from "./meetingDraftSchemas.js";
 
 export * from "./productRunSchemas.js";
 export * from "./accountSchemas.js";
+
+export * from "./mcpSchemas.js";

@@ -5,6 +5,7 @@ import { registerAccountManagement } from "./modules/accountManagementRoutes.js"
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerMeetingDraftRoutes } from "./modules/meetingDraftRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
+import { registerMcpExtensionRoutes } from "./modules/mcpRoutes.js";
 import { registerScreenshotContactRoutes } from "./modules/screenshotContactRoutes.js";
 import { registerSystemHealthRoutes } from "./modules/systemHealth.js";
 import { registerReadinessRoutes } from "./modules/readinessRoutes.js";
@@ -771,6 +772,10 @@ export async function buildApp(
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
   registerAgentPreferenceRoutes(app, pool, authenticate, remoteChatProvider?.providerId === "claude-agent-sdk");
+  registerMcpExtensionRoutes(app, pool, authenticate, {
+    allowedOrigins: [],
+    deploymentWorkspaceIds: deploymentExposure?.workspaceIds,
+  });
   registerSystemHealthRoutes(app, pool, authenticate);
   registerRuntimeManifest(app, config);
   registerLoadedRuntimeConfiguration(app, config, authenticate, remoteChatProvider?.loadedTaskConfiguration, deploymentExposure);

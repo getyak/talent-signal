@@ -53,13 +53,13 @@ describe("workspace navigation accessibility and reachability", () => {
       "/workspace/today",
       "/workspace/people",
       "/workspace/meetings",
-      "/workspace/captures",
+      "/workspace/extensions",
     ].map((href) => html.indexOf(`href="${href}"`));
     expect(indices.every((index) => index > -1)).toBe(true);
     expect(indices).toEqual([...indices].sort((a, b) => a - b));
   });
 
-  it("keeps the compact dock to four destinations plus a named source button", () => {
+  it("keeps the compact dock to four destinations plus a named extension button", () => {
     expect(workspaceMobileNavRoutes().map((item) => item.id)).toEqual([
       "home",
       "today",
@@ -73,22 +73,21 @@ describe("workspace navigation accessibility and reachability", () => {
       );
     }
     expect(read("components/workspace-shell-nav.tsx")).toContain(
-      'aria-label="打开来源"',
+      'aria-label="打开扩展"',
     );
   });
 
-  it("keeps both conversations and sources directly reachable on narrow screens", () => {
+  it("keeps both conversations and extensions directly reachable on narrow screens", () => {
     const html = renderToStaticMarkup(createElement(WorkspaceMobileSourcesLink));
     expect(html).toContain('href="/workspace/sessions"');
-    expect(html).toContain('aria-label="打开全部对话"');
-    expect(html).toContain('href="/workspace/captures"');
-    expect(html).toContain('aria-label="打开来源"');
+    expect(html).toContain('aria-label="打开对话记录"');
+    expect(html).toContain('href="/workspace/extensions"');
+    expect(html).toContain('aria-label="打开扩展"');
   });
 
   it("keeps the removed routes reachable through their owning surfaces", () => {
     const nav = read("components/workspace-shell-nav.tsx");
     const recentSessions = read("components/workspace-recent-sessions.tsx");
-    const accountMenu = read("components/workspace-account-menu.tsx");
 
     // Sessions: recent-Sessions header when expanded, one named icon link when
     // the rail is collapsed.
@@ -96,8 +95,7 @@ describe("workspace navigation accessibility and reachability", () => {
     expect(nav).toContain("collapsedUtility");
     expect(nav).toContain("data-collapsed-only");
     expect(nav).not.toContain("WorkspaceMoreDestinations");
-    // Connections: account utilities with a real Plugs icon.
-    expect(accountMenu).toContain("Plugs");
-    expect(accountMenu).toContain("/workspace/plugs");
+    expect(render()).toContain('href="/workspace/extensions"');
+    expect(render()).not.toContain('href="/workspace/captures"');
   });
 });

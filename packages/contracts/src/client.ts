@@ -1,5 +1,18 @@
 import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } from "./productRunSchemas.js";
 import type { AccountSettings, AccountMutation } from "./accountSchemas.js";
+import type {
+  McpClientGrantCreateRequest,
+  McpClientGrantCreateResponse,
+  McpClientGrantListResponse,
+  McpClientGrantResponse,
+  McpClientGrantRevokeRequest,
+  McpConnectionActionRequest,
+  McpConnectionCreateRequest,
+  McpConnectionListResponse,
+  McpConnectionResponse,
+  McpConnectionUpdateRequest,
+  McpEndpointsResponse,
+} from "./mcpSchemas.js";
 import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
 import type { AgentPreferenceMutation, AgentPreferenceResponse } from "./agentPreferenceSchemas.js";
 import type { MeetingDraftDismissRequest, MeetingDraftListResponse, MeetingDraftListScope, MeetingDraftResponse, MeetingDraftUpdateRequest } from "./meetingDraftSchemas.js";
@@ -1045,6 +1058,70 @@ export class TalentSignalClient {
 
   getAgentPreference(): Promise<AgentPreferenceResponse> {
     return this.request("/v1/agent/preferences", { method: "GET" });
+  }
+
+  listMcpConnections(signal?: AbortSignal): Promise<McpConnectionListResponse> {
+    return this.request("/v1/mcp/connections", { method: "GET", signal });
+  }
+
+  createMcpConnection(
+    request: McpConnectionCreateRequest,
+  ): Promise<McpConnectionResponse> {
+    return this.request("/v1/mcp/connections", { method: "POST", body: request });
+  }
+
+  updateMcpConnection(
+    id: string,
+    request: McpConnectionUpdateRequest,
+  ): Promise<McpConnectionResponse> {
+    return this.request(`/v1/mcp/connections/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: request,
+    });
+  }
+
+  connectMcpConnection(
+    id: string,
+    request: McpConnectionActionRequest,
+  ): Promise<McpConnectionResponse> {
+    return this.request(
+      `/v1/mcp/connections/${encodeURIComponent(id)}/connect`,
+      { method: "POST", body: request },
+    );
+  }
+
+  disconnectMcpConnection(
+    id: string,
+    request: McpConnectionActionRequest,
+  ): Promise<McpConnectionResponse> {
+    return this.request(
+      `/v1/mcp/connections/${encodeURIComponent(id)}/disconnect`,
+      { method: "POST", body: request },
+    );
+  }
+
+  listMcpClientGrants(signal?: AbortSignal): Promise<McpClientGrantListResponse> {
+    return this.request("/v1/mcp/clients", { method: "GET", signal });
+  }
+
+  createMcpClientGrant(
+    request: McpClientGrantCreateRequest,
+  ): Promise<McpClientGrantCreateResponse> {
+    return this.request("/v1/mcp/clients", { method: "POST", body: request });
+  }
+
+  revokeMcpClientGrant(
+    id: string,
+    request: McpClientGrantRevokeRequest,
+  ): Promise<McpClientGrantResponse> {
+    return this.request(`/v1/mcp/clients/${encodeURIComponent(id)}/revoke`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  getMcpEndpoints(signal?: AbortSignal): Promise<McpEndpointsResponse> {
+    return this.request("/v1/mcp/endpoints", { method: "GET", signal });
   }
 
   saveAgentPreference(request: AgentPreferenceMutation): Promise<AgentPreferenceResponse> {

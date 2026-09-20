@@ -157,7 +157,7 @@ export function SessionDirectory({
             对话
           </h1>
           <p className={styles.lede}>
-            这里保存你最近的智能助理对话，用于继续上次的思路。历史内容是展示用途，不构成证据或执行授权。
+            从上次停下的地方继续。
           </p>
         </div>
         <button
@@ -188,10 +188,11 @@ export function SessionDirectory({
       ) : null}
 
       {sessions.length === 0 ? (
-        <p className={styles.empty} role="status">
-          {notice ??
-            "当前账号还没有可继续的对话。"}
-        </p>
+        error ? null : <div className={styles.empty} role="status">
+          <ChatCircleDots aria-hidden="true" size={26} weight="light" />
+          <h2>{complete ? "每段思路，都可以从这里继续" : "对话还未读取完整"}</h2>
+          <p>{complete ? "开始一段新对话，它会留在这里。" : notice}</p>
+        </div>
       ) : (
         <ul className={styles.list}>
           {sessions.map((session) => (

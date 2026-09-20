@@ -15,6 +15,7 @@ describe("workspace route ownership", () => {
     ["/workspace/people", "people"],
     ["/workspace/meetings", "meetings"],
     ["/workspace/plugs", "plugs"],
+    ["/workspace/extensions", "plugs"],
     ["/workspace/today", "today"],
     ["/workspace/pursuits/example", "today"],
     ["/workspace/sessions/example", "sessions"],
@@ -30,20 +31,20 @@ describe("workspace route ownership", () => {
   it("keeps internal tools out of primary retrieval", () => {
     expect(WORKSPACE_NAV_ROUTES.some((item) => item.matches("/workspace/monitor"))).toBe(false);
     // Direct desktop primary order: new conversation, Today, People, Meetings,
-    // Sources. Connections is an account utility and Sessions is a collapsed
+    // Extensions. Sources is a contextual utility and Sessions is a collapsed
     // rail utility rather than a primary destination.
     expect(workspaceNavRoutes("primary").map((item) => item.id)).toEqual([
       "home",
       "today",
       "people",
       "meetings",
-      "captures",
+      "plugs",
     ]);
     expect(workspaceNavRoutes("utility").map((item) => item.id)).toEqual([
       "sessions",
     ]);
     expect(workspaceNavRoutes("account").map((item) => item.id)).toEqual([
-      "plugs",
+      "captures",
     ]);
     // The compact dock keeps the four retrieval destinations; Sources has its
     // own header button instead.
