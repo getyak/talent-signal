@@ -286,6 +286,12 @@ Accept reference fidelity by rendered page structure and interactions, not a CSS
 Optimize for comparison, provenance, conflict resolution, research, and
 longitudinal editing.
 
+Source intake gives the material and its next action the main canvas. An empty
+history does not reserve a second navigation column; populated records earn an
+inbox and detail composition. Optional intent stays secondary, while permission,
+uncertain saves, and recovery remain visible where they affect the decision.
+Verify both empty and populated full viewports before calling the surface done.
+
 ### Channel
 
 Optimize for concise capture, status, and handoff. Do not compress high-risk
