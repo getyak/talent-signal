@@ -2,6 +2,7 @@ import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } fro
 import type { AccountSettings, AccountMutation } from "./accountSchemas.js";
 import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
 import type { AgentPreferenceMutation, AgentPreferenceResponse } from "./agentPreferenceSchemas.js";
+import type { MeetingDraftDismissRequest, MeetingDraftListResponse, MeetingDraftResponse } from "./meetingDraftSchemas.js";
 import type { SystemHealthResponse } from "./systemHealthSchemas.js";
 import type {
   AnalysisProposalResponse,
@@ -1058,6 +1059,18 @@ export class TalentSignalClient {
 
   deleteAgentSession(id: string, request: AgentSessionDeleteRequest): Promise<AgentSessionResponse> {
     return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "DELETE", body: request });
+  }
+
+  listMeetingDrafts(after?: string): Promise<MeetingDraftListResponse> {
+    return this.request(`/v1/meeting-drafts${after ? `?after=${encodeURIComponent(after)}` : ""}`, { method: "GET" });
+  }
+
+  getMeetingDraft(id: string): Promise<MeetingDraftResponse> {
+    return this.request(`/v1/meeting-drafts/${encodeURIComponent(id)}`, { method: "GET" });
+  }
+
+  dismissMeetingDraft(id: string, request: MeetingDraftDismissRequest): Promise<MeetingDraftResponse> {
+    return this.request(`/v1/meeting-drafts/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: request });
   }
 
   sync(after = 0): Promise<SyncResponse> {
