@@ -10,7 +10,7 @@ import {
   type ResourceCaptureResponse,
   type WorkspaceReviewResponse,
 } from "@talent-signal/contracts";
-import { Plus, ShieldCheck, UserPlus } from "@phosphor-icons/react";
+import { CaretRight, Plus, ShieldCheck, UserPlus } from "@phosphor-icons/react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
@@ -42,6 +42,7 @@ import {
 } from "./relationship-workspace/person-merge-review";
 import { RelationshipWikiPanel } from "./relationship-workspace/relationship-wiki-panel";
 import { RelationshipWorkspaceStatus } from "./relationship-workspace/relationship-workspace-status";
+import deskStyles from "./relationship-workspace/relationship-desk.module.css";
 import { useRelationshipAgentController } from "./relationship-workspace/use-relationship-agent-controller";
 import {
   relationshipReadbackSessionExpired,
@@ -864,7 +865,7 @@ export function RelationshipWorkspaceApp({
         跳到联系人背景
       </a>
       <div
-        className="context-workspace context-workspace--embedded"
+        className={`context-workspace context-workspace--embedded relationship-desk ${deskStyles.desk}`}
         data-has-scope={Boolean(activeScope)}
       >
         <p className="sr-only" aria-live="polite" role="status">
@@ -892,18 +893,21 @@ export function RelationshipWorkspaceApp({
         <main className="context-main" id="main-content" tabIndex={-1}>
           <header className="context-topbar">
             <div>
-              <span className="context-secure-state">
-                <ShieldCheck aria-hidden="true" size={16} weight="duotone" />
-                私密工作台
-              </span>
-              {activeScope ? (
+              <nav aria-label="人物面包屑" className="context-topbar__crumb">
+                <Link href="/workspace/people">人物</Link>
+                <CaretRight aria-hidden="true" size={12} />
                 <span>
-                  {workspace?.data_classification ===
-                  "synthetic_fixture_only"
-                    ? "合成审阅"
-                    : "敏感候选人证据"}
+                  {activeScope ? activeScope.person.display_label : "新建联系人"}
                 </span>
-              ) : null}
+              </nav>
+              <span className="context-secure-state">
+                <ShieldCheck aria-hidden="true" size={15} weight="duotone" />
+                {activeScope
+                  ? workspace?.data_classification === "synthetic_fixture_only"
+                    ? "合成审阅"
+                    : "敏感候选人证据"
+                  : "私密工作台"}
+              </span>
             </div>
             <div>
               {canonicalSessionReturnHref ? (

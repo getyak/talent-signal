@@ -19,7 +19,7 @@ import {
   sessionDisplayTitle,
   type SessionState,
 } from "./session-view";
-import styles from "./session-workbench.module.css";
+import styles from "./session-directory.module.css";
 
 export type SessionSummary = {
   session_id: string;

@@ -28,7 +28,6 @@ export function WorkspacePlugs({
   return (
     <main className={styles.page} id="main-content" tabIndex={-1}>
       <header className={styles.header}>
-        <p className={styles.eyebrow}>权限边界</p>
         <h1>连接</h1>
         <p>
           每个连接只显示当前可核验的状态和范围。登录、读取来源、准备草稿与执行外部写入是不同权限。

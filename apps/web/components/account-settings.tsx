@@ -39,12 +39,12 @@ function NameForm({name,kind,revision,label,onSaved}:{name:string;kind:string;re
   </MutationForm>;
 }
 
-export function AccountSettingsPanel({initial,section}:{initial:AccountSettings;section:'account'|'workspace'}){
+export function AccountSettingsPanel({initial,section,embedded=false}:{initial:AccountSettings;section:'account'|'workspace';embedded?:boolean}){
   const [data,setData]=useState(initial);
   const role=data.workspace.is_owner?'所有者':data.workspace.role==='admin'?'管理员':'成员';
   return <WorkspaceScope.Provider value={{workspaceId:data.workspace.id,userId:data.user.id}}>
-    <header className={styles.heading}><p className={styles.eyebrow}>你的身份与空间</p><h1>{section==='account'?'账号与安全':'工作空间'}</h1><p>{section==='account'?'管理自己的资料、登录方式与访问设备。':'空间中的资料与成员，始终有清楚的归属。'}</p></header>
-    <nav className={styles.tabs} aria-label="账号设置"><Link href="/workspace/settings" aria-current={section==='account'?'page':undefined}>账号与安全</Link><Link href="/workspace/settings?section=workspace" aria-current={section==='workspace'?'page':undefined}>工作空间</Link>{data.lab_enabled&&<Link href="/workspace/settings/testing">测试空间</Link>}</nav>
+    {embedded?null:<><header className={styles.heading}><p className={styles.eyebrow}>你的身份与空间</p><h1>{section==='account'?'账号与安全':'工作空间'}</h1><p>{section==='account'?'管理自己的资料、登录方式与访问设备。':'空间中的资料与成员，始终有清楚的归属。'}</p></header>
+    <nav className={styles.tabs} aria-label="账号设置"><Link href="/workspace/settings" aria-current={section==='account'?'page':undefined}>账号与安全</Link><Link href="/workspace/settings?section=workspace" aria-current={section==='workspace'?'page':undefined}>工作空间</Link>{data.lab_enabled&&<Link href="/workspace/settings/testing">测试空间</Link>}</nav></>}
     {section==='account'?<>
       <section className={styles.section}><h2>个人资料</h2><p className={styles.secondary}>{data.user.email}</p>{data.user.kind==='lab_human'?<p>测试身份由隔离空间管理。返回自己的账号后可以修改资料。</p>:<NameForm key={`profile-${data.user.revision}`} name={data.user.display_name} kind="profile" revision={data.user.revision} label="显示名称" onSaved={setData}/>}</section>
       <section className={styles.section}><h2>登录方式</h2>{data.user.login_methods.length?data.user.login_methods.map(method=><div className={styles.row} key={method}><strong>{methodNames[method]}</strong><span>已配置</span></div>):<p>此身份通过受限的测试会话访问。</p>}{!data.user.login_methods.includes('password')&&data.user.login_methods.length>0&&<p className={styles.secondary}>此账号没有设置邮箱密码，请使用上方已配置的方式登录。没有通用的默认密码。</p>}</section>

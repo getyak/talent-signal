@@ -97,10 +97,9 @@ export function WorkspaceMeetings({
       ) : null}
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>准备，不是执行</p>
-          <h1>会议</h1>
+          <h1>日程</h1>
           <p>
-            这里只显示智能助理生成并绑定原对话的日历草稿。选择日期或编辑时间不会创建事件；导入仍由日历应用确认。
+            只显示绑定原对话的日历草稿。选择日期不会创建事件；导入仍由日历应用确认。
           </p>
         </div>
         <Link className={styles.newConversation} href="/workspace?surface=desk&intent=compose">

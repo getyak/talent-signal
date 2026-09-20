@@ -1,280 +1,537 @@
+/*
+ * Quiet Workspace shell.
+ *
+ * 236 px expanded sidebar / 56 px rail, 58 px route header, near-white canvas
+ * with a warm-neutral chrome sidebar. Structure comes from page grouping and
+ * typography; borders stay hairline and material stays flat. Reduced motion,
+ * dark theme and mobile collapse are handled structurally, not recomposed.
+ */
+
 .shell {
+  --workspace-sidebar-width: var(--ts-sidebar-width, 236px);
   background: var(--background);
-  min-height: 100svh;
+  color: var(--ink);
+  display: grid;
+  grid-template-columns: var(--workspace-sidebar-width) minmax(0, 1fr);
+  min-height: 100dvh;
+  min-width: 320px;
 }
 
-.rail {
-  align-items: stretch;
-  background: var(--ts-chrome-surface);
-  border-right: 1px solid var(--line);
-  bottom: 0;
+.shell:has(.sidebarState[data-collapsed="true"]) {
+  --workspace-sidebar-width: var(--ts-rail-width, 56px);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+
+.sidebar {
+  background: var(--ts-chrome-surface, var(--surface-muted));
+  border-right: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  left: 0;
-  padding: 14px 12px;
-  position: fixed;
+  gap: 0;
+  height: 100dvh;
+  min-width: 0;
+  overflow: hidden;
+  padding: 15px 10px 10px;
+  position: sticky;
   top: 0;
-  transition: width 200ms var(--ease-out);
-  width: var(--ts-sidebar-width, 236px);
-  z-index: 80;
+  z-index: 40;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .sidebar {
+  align-items: stretch;
+  padding-left: 7px;
+  padding-right: 7px;
+}
+
+.sidebarState {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brandRow {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  margin-bottom: 21px;
+  min-height: 38px;
 }
 
 .brand {
   align-items: center;
-  display: inline-flex;
-  gap: 10px;
-  justify-content: flex-start;
-  min-height: 44px;
-  padding: 4px 8px;
-  text-decoration: none;
-  width: 100%;
-}
-
-.brand > span {
-  align-items: center;
-  background: var(--ink);
-  border-radius: 50%;
-  color: var(--background);
-  display: inline-flex;
-  flex: 0 0 auto;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.68rem;
-  font-weight: 780;
-  height: 23px;
-  justify-content: center;
-  letter-spacing: 0;
-  width: 23px;
-}
-
-.brand > strong {
-  color: var(--ink);
-  font-size: 0.83rem;
-  font-weight: 690;
-  letter-spacing: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.navRegion {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-}
-
-/* Search and collapse read as one compact pair directly under the brand. */
-.railTools {
-  border-bottom: 1px solid var(--line-soft);
-  display: grid;
-  gap: 4px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding-bottom: 10px;
-}
-
-.railTools a,
-.railTools button,
-.navigation a,
-.capture {
-  align-items: center;
   border-radius: 8px;
-  display: flex;
-  font: inherit;
+  color: var(--ink);
+  display: inline-flex;
+  flex: 1 1 auto;
   font-size: 0.8125rem;
-  font-weight: 560;
+  font-weight: 640;
   gap: 9px;
-  justify-content: flex-start;
-  min-height: 35px;
   min-width: 0;
-  padding: 6px 9px;
-  text-align: left;
+  padding: 6px 7px;
   text-decoration: none;
-  width: 100%;
 }
 
-.railTools a > span,
-.railTools button > span,
-.navigation a > span,
-.capture > span {
+.brandMark {
+  background: var(--workspace-brand-image, none) center / contain no-repeat;
+  flex: 0 0 auto;
+  height: 21px;
+  width: 21px;
+}
+
+.brandName {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.railTools a,
-.railTools button {
+.brandActions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.iconButton {
+  align-items: center;
   background: transparent;
   border: 0;
+  border-radius: 50%;
   color: var(--muted-strong);
   cursor: pointer;
-  font-weight: 520;
+  display: inline-flex;
+  font: inherit;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  text-decoration: none;
+  width: 30px;
 }
 
-.railTools :is(a, button):hover,
-.navigation a:hover {
-  background: var(--surface-muted);
+.iconButton:hover {
+  background: var(--hover, color-mix(in srgb, var(--ink) 7%, transparent));
   color: var(--ink);
 }
 
-.railTools svg,
-.navigation svg,
-.capture svg {
+.nav {
+  display: grid;
   flex: 0 0 auto;
+  gap: 3px;
 }
 
-.navigation {
+.navGroup {
   display: grid;
   gap: 3px;
-  width: 100%;
+  margin-top: 10px;
 }
 
-.navigation a {
+.navGroup:first-child {
+  margin-top: 0;
+}
+
+.navGroupLabel {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  padding: 6px 11px 2px;
+}
+
+.navLink {
+  align-items: center;
+  border-radius: 8px;
   color: var(--muted-strong);
-  font-weight: 520;
+  display: flex;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  gap: 11px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0 11px;
+  text-decoration: none;
   transition:
     background 180ms var(--ease-out),
     color 180ms var(--ease-out);
 }
 
-.navigation a[aria-current="page"] {
-  background: var(--surface-muted);
-  box-shadow: none;
+.navLink > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navLink:hover {
+  background: var(--hover, color-mix(in srgb, var(--ink) 7%, transparent));
   color: var(--ink);
+}
+
+.navLink[aria-current="page"] {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--ink);
+  font-weight: 560;
+}
+
+.navIcon {
+  flex: 0 0 auto;
+}
+
+/* A primary "new conversation" affordance that reads as a row, not a button. */
+.navLink[data-primary-action="true"] {
+  color: var(--ink);
+  font-weight: 560;
+}
+
+.sidebarScroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 22px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 1px;
+  scrollbar-color: var(--line) transparent;
+  scrollbar-width: thin;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .brandRow {
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .brand {
+  flex: 0 0 auto;
+  padding: 5px;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .brandName,
+.shell:has(.sidebarState[data-collapsed="true"]) .navGroupLabel,
+.shell:has(.sidebarState[data-collapsed="true"]) .navLink > span,
+.shell:has(.sidebarState[data-collapsed="true"]) .accountName,
+.shell:has(.sidebarState[data-collapsed="true"]) .accountChevron,
+.shell:has(.sidebarState[data-collapsed="true"]) .environmentBadge,
+.shell:has(.sidebarState[data-collapsed="true"]) .sidebarScroll {
+  display: none;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .brandActions {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .navLink {
+  justify-content: center;
+  padding: 0;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .accountTrigger {
+  justify-content: center;
+  padding: 8px;
+}
+
+.shell:has(.sidebarState[data-collapsed="true"]) .accountPopover {
+  bottom: 0;
+  left: calc(100% + 6px);
+}
+
+/* ── Sidebar groups (sessions, people) ───────────────────────────────── */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 14px;
+}
+
+.groupTitle {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.6875rem;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+}
+
+.groupTitle > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupTitle a,
+.groupTitle button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: inherit;
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
+  padding: 0;
+  text-decoration: none;
+  width: 24px;
+}
+
+.groupTitle a:hover,
+.groupTitle button:hover {
+  background: var(--hover, color-mix(in srgb, var(--ink) 7%, transparent));
+  color: var(--ink);
+}
+
+.groupHint,
+.groupEmpty {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  padding: 4px 8px 6px;
+}
+
+.rowList {
+  display: grid;
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sessionRow {
+  align-items: center;
+  border-radius: 8px;
+  color: var(--muted-strong);
+  display: flex;
+  font-size: 0.8125rem;
+  gap: 9px;
+  min-height: 34px;
+  min-width: 0;
+  padding: 5px 10px;
+  text-decoration: none;
+}
+
+.sessionRow:hover,
+.sessionRow[aria-current="page"] {
+  background: var(--hover, color-mix(in srgb, var(--ink) 7%, transparent));
+  color: var(--ink);
+}
+
+.sessionRow[aria-current="page"] {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.sessionRow > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionRow small {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+}
+
+.sessionDot {
+  background: transparent;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  flex: 0 0 7px;
+  height: 7px;
+  width: 7px;
+}
+
+.sessionDot[data-unread="true"] {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.personList {
+  display: grid;
+  gap: 1px;
+}
+
+.personRow {
+  border-radius: 8px;
+  display: block;
+}
+
+.personRowHead {
+  align-items: center;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: minmax(0, 1fr) 26px;
+}
+
+.personRowHead > .iconButton {
+  opacity: 0;
+}
+
+.personRow:hover .personRowHead > .iconButton,
+.personRow:focus-within .personRowHead > .iconButton {
+  opacity: 1;
+}
+
+.personRow[data-expanded="true"] {
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 55%, transparent);
+}
+
+.personDisclosure {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 9px;
+  grid-template-columns: 24px minmax(0, 1fr) 12px;
+  min-height: 36px;
+  padding: 4px 4px 4px 9px;
+  text-align: left;
+  width: 100%;
+}
+
+.personDisclosure:hover {
+  color: var(--ink);
+}
+
+.personSummary {
+  align-items: baseline;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.personSummary strong {
+  color: var(--ink);
+  flex: 0 0 auto;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
-/* Neutral, quiet new-conversation action; accent stays reserved for review. */
-.capture {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-  font-weight: 560;
-  justify-content: center;
-  margin-top: 2px;
-  transition:
-    background 180ms var(--ease-out),
-    border-color 180ms var(--ease-out),
-    color 180ms var(--ease-out);
+.personSummary small {
+  color: var(--muted);
+  font-size: 0.6563rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.capture:hover {
-  background: var(--surface-muted);
-  border-color: var(--line-strong);
-  color: var(--ink);
+.personCaret {
+  color: var(--muted);
+  transition: transform 160ms var(--ease-out);
 }
 
-.account {
+.personDisclosure[aria-expanded="true"] .personCaret {
+  transform: rotate(90deg);
+}
+
+.personConversations {
+  border-left: 1px solid var(--line-soft);
+  display: grid;
+  gap: 1px;
+  margin: 0 8px 7px 42px;
+  padding: 3px 0 1px 9px;
+}
+
+.personConversation {
   align-items: center;
-  border-top: 1px solid var(--line-soft);
-  display: flex;
-  gap: 8px;
-  margin-top: auto;
-  padding: 12px 6px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  font-size: 0.6875rem;
+  gap: 7px;
+  grid-template-columns: 12px minmax(0, 1fr);
+  min-height: 28px;
+  padding: 4px 5px;
+  text-align: left;
   width: 100%;
 }
 
-.avatar {
-  align-items: center;
-  background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
-  border-radius: 8px;
-  color: var(--accent-strong);
-  display: inline-flex;
-  font-size: 0.65rem;
-  font-weight: 820;
-  height: 44px;
-  justify-content: center;
-  width: 44px;
-}
-
-.environmentBadge {
-  color: var(--warning);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.6875rem;
-  font-weight: 760;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.accountControls {
-  align-items: center;
-  display: flex;
-  gap: 3px;
-  margin-left: auto;
-}
-
-.accountControls form button,
-.mobileAccount form button {
-  align-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  color: var(--muted-strong);
-  display: inline-flex;
-  height: 34px;
-  justify-content: center;
-  padding: 0;
-  width: 34px;
-}
-
-.accountControls form button:hover,
-.mobileAccount form button:hover {
-  background: var(--surface-muted);
-  border-color: var(--line-soft);
+.personConversation:hover {
+  background: var(--surface);
   color: var(--ink);
 }
 
-.stage {
-  margin-left: var(--ts-sidebar-width, 236px);
-  min-height: 100svh;
+.personConversation span {
   min-width: 0;
-  transition: margin-left 200ms var(--ease-out);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.mobileHeader {
-  display: none;
+.personConversations p {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  padding: 5px;
 }
 
-.mobileSources {
-  display: none;
-}
+/* ── Avatars ─────────────────────────────────────────────────────────── */
 
-.rail:has(.navRegion[data-collapsed="true"]) {
-  padding-inline: 8px;
-  width: 56px;
-}
-
-.rail:has(.navRegion[data-collapsed="true"]) :is(.brand > strong, .railTools span, .navigation span, .capture span, .environmentBadge, .accountControls) {
-  display: none;
-}
-
-.rail:has(.navRegion[data-collapsed="true"]) :is(.brand, .railTools a, .railTools button, .navigation a, .capture) {
+.avatar {
+  align-items: center;
+  aspect-ratio: 1;
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 86%, var(--surface));
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
   justify-content: center;
-  padding-inline: 0;
+  overflow: hidden;
 }
 
-.rail:has(.navRegion[data-collapsed="true"]) .railTools {
-  grid-template-columns: minmax(0, 1fr);
+.avatar > img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
 }
 
-.rail:has(.navRegion[data-collapsed="true"]) .account {
-  justify-content: center;
-  padding-inline: 0;
+.avatar[data-size="tiny"] {
+  font-size: 0.625rem;
+  height: 23px;
+  width: 23px;
 }
 
-.shell:has(.rail .navRegion[data-collapsed="true"]) .stage {
-  margin-left: 56px;
+.avatar[data-size="small"] {
+  height: 24px;
+  width: 24px;
 }
 
-/* The frozen boundary evaluator owns its own rail and account header. */
-.shell:has(.stage > :global(.review-workspace)) > .rail,
-.shell:has(.stage > :global(.review-workspace)) > .mobileHeader {
-  display: none;
+.avatar[data-size="row"] {
+  height: 28px;
+  width: 28px;
 }
 
-.shell:has(.stage > :global(.review-workspace)) > .stage {
-  margin-left: 0;
+.avatar[data-size="account"] {
+  height: 26px;
+  width: 26px;
+}
+
+/* ── Account footer ──────────────────────────────────────────────────── */
+
+.account {
+  border-top: 1px solid var(--line-soft);
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 10px;
 }
 
 .accountMenu {
@@ -290,73 +547,159 @@
   display: none;
 }
 
-.accountMenu summary:focus-visible,
-.rail :is(a, button):focus-visible,
-.mobileSources:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
+.accountTrigger {
+  align-items: center;
+  border-radius: 8px;
+  color: var(--muted-strong);
+  display: flex;
+  gap: 9px;
+  min-height: 45px;
+  padding: 7px 9px;
+  text-align: left;
+  width: 100%;
+}
+
+.accountTrigger:hover {
+  background: var(--hover, color-mix(in srgb, var(--ink) 7%, transparent));
+  color: var(--ink);
+}
+
+.accountName {
+  flex: 1;
+  font-size: 0.75rem;
+  min-width: 0;
+}
+
+.accountName strong {
+  color: var(--ink);
+  display: block;
+  font-weight: 560;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountName small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.6875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountChevron {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.environmentBadge {
+  align-self: flex-start;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning, var(--accent)) 34%, transparent);
+  color: var(--warning, var(--accent-strong));
+  display: inline-block;
+  font-size: 0.625rem;
+  font-weight: 620;
+  line-height: 1;
+  margin: 0 9px 6px;
+  padding: 4px 7px;
 }
 
 .accountPopover {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  bottom: 0;
-  box-shadow: 0 12px 40px #0002;
+  border-radius: 13px;
+  bottom: calc(100% + 8px);
+  box-shadow:
+    0 18px 48px color-mix(in srgb, var(--ink) 16%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--surface) 85%, transparent);
   display: grid;
-  gap: 3px;
-  left: 46px;
-  max-height: calc(100dvh - 32px);
+  gap: 2px;
+  left: 0;
+  max-height: min(70dvh, 520px);
   max-width: calc(100vw - 32px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 10px;
+  padding: 6px;
   position: absolute;
-  width: 220px;
+  width: 236px;
   z-index: 100;
 }
 
-.accountPopover strong {
-  font-size: 13px;
-  overflow-wrap: anywhere;
-  padding: 10px;
+.accountSummary {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+  padding: 9px 10px;
 }
 
-.accountPopover a {
+.accountSummary > span:last-child {
+  min-width: 0;
+}
+
+.accountSummary strong {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountSummary small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.6875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountPopover a,
+.accountPopover > span,
+.accountPopover form button {
   align-items: center;
-  border-radius: 7px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted-strong);
   display: flex;
-  font-size: 13px;
-  min-height: 44px;
+  font: inherit;
+  font-size: 0.8125rem;
+  gap: 9px;
+  min-height: 38px;
   padding: 8px 10px;
+  text-align: left;
+  text-decoration: none;
+  width: 100%;
 }
 
 .accountPopover a:hover,
-.accountPopover > span:hover {
+.accountPopover > span:hover,
+.accountPopover form button:hover {
   background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  color: var(--ink);
 }
 
-.accountPopover > span {
-  align-items: center;
-  border-radius: 7px;
-  color: var(--muted-strong);
-  display: flex;
-  font-size: 13px;
-  justify-content: space-between;
-  min-height: 44px;
-  padding: 6px 10px;
+/* Only text labels flex; an avatar keeps its square footprint no matter how
+   deep it sits in the popover. */
+.accountPopover .avatar,
+.accountPopover .avatar > span {
+  flex: 0 0 auto;
+}
+
+.accountPopover .accountAppearance > span:first-of-type,
+.accountPopover .accountMetaRow > span:first-child {
+  flex: 1;
+  min-width: 0;
 }
 
 .accountPopover > span > strong {
   color: var(--ink);
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 0.75rem;
+  font-weight: 560;
   padding: 0;
-}
-
-.accountAppearance :global(.theme-toggle) {
-  height: 44px;
-  width: 44px;
 }
 
 .accountPopover hr {
@@ -365,74 +708,276 @@
   margin: 5px 2px;
 }
 
-.accountPopover form button {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 7px;
-  color: var(--muted-strong);
-  display: flex;
-  font: inherit;
-  font-size: 13px;
-  gap: 9px;
-  min-height: 44px;
-  padding: 8px 10px;
-  width: 100%;
+.accountPopover svg {
+  flex: 0 0 auto;
 }
 
-.accountPopover form button:hover {
-  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+.accountPopover .accountAppearance :global(.theme-toggle) {
+  height: 34px;
+  width: 34px;
+}
+
+.accountPopover :global(.theme-toggle__dark),
+.accountPopover :global(.theme-toggle__light) {
+  align-items: center;
+  display: inline-flex;
+}
+
+/* ── Workspace column ────────────────────────────────────────────────── */
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  min-width: 0;
+}
+
+.routeHeader {
+  align-items: center;
+  background: var(--background);
+  border-bottom: 1px solid transparent;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 16px;
+  height: 58px;
+  justify-content: space-between;
+  padding: 0 31px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.crumb {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.75rem;
+  gap: 7px;
+  min-width: 0;
+}
+
+.crumb strong {
   color: var(--ink);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crumb a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.crumb a:hover {
+  color: var(--ink);
+}
+
+.headerEnd {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  gap: 10px;
+}
+
+.stage {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The frozen boundary evaluator and the scoped relationship desk own their
+   own chrome; the shell hides the inert product header for them. */
+.shell:has(.stage > :global(.review-workspace)) > .workspace > .routeHeader,
+.shell:has(.stage > :global(.review-workspace)) > .workspace > .mobileHeader,
+.shell:has(.stage > :global(.context-workspace)) > .workspace > .routeHeader {
+  display: none;
+}
+
+.shell:has(.stage > :global(.review-workspace)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.shell:has(.stage > :global(.review-workspace)) > .sidebar {
+  display: none;
+}
+
+/* ── Search dialog ───────────────────────────────────────────────────── */
+
+.searchDialog {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px color-mix(in srgb, var(--ink) 22%, transparent);
+  color: var(--ink);
+  max-height: min(80dvh, 620px);
+  max-width: calc(100vw - 32px);
+  padding: 16px;
+  width: 520px;
+}
+
+.searchDialog::backdrop {
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.searchDialogHeader {
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  gap: 9px;
+  padding: 4px 4px 11px;
+}
+
+.searchDialogHeader input {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  font-size: 0.875rem;
+  min-width: 0;
+  padding: 6px 2px;
+}
+
+.searchDialogHeader input:focus-visible {
+  outline: none;
+}
+
+.searchClose {
+  flex: 0 0 auto;
+}
+
+.searchResults {
+  display: grid;
+  gap: 4px;
+  max-height: min(56dvh, 420px);
+  overflow-y: auto;
+  padding-top: 9px;
+}
+
+.searchSection {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  padding: 8px 8px 4px;
+}
+
+.searchResult {
+  align-items: center;
+  border-radius: 9px;
+  color: var(--ink);
+  display: flex;
+  font-size: 0.8125rem;
+  gap: 11px;
+  min-height: 44px;
+  padding: 8px 9px;
+  text-align: left;
+  text-decoration: none;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.searchResult:hover,
+.searchResult:focus-visible {
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
+
+.searchResult > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.searchResult strong {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 520;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchResult small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.6875rem;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchEmpty {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  padding: 14px 8px;
+}
+
+/* ── Mobile chrome ───────────────────────────────────────────────────── */
+
+.mobileHeader {
+  display: none;
+}
+
+.mobileSources {
+  display: none;
 }
 
 @media (max-width: 760px) {
   .shell {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
   }
 
-  .rail,
-  .rail:has(.navRegion[data-collapsed="true"]) {
+  .sidebar {
     align-items: center;
     backdrop-filter: blur(24px) saturate(145%);
     -webkit-backdrop-filter: blur(24px) saturate(145%);
-    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    background: color-mix(in srgb, var(--surface) 84%, transparent);
     border: 1px solid var(--line);
     border-radius: 16px;
     bottom: calc(11px + env(safe-area-inset-bottom, 0px));
-    box-shadow: inset 0 1px 0 var(--edge-highlight), var(--shadow-focus);
-    display: grid;
-    gap: 7px;
-    grid-template-columns: minmax(0, 1fr) auto;
+    box-shadow: inset 0 1px 0 var(--edge-highlight, transparent), 0 10px 30px color-mix(in srgb, var(--ink) 12%, transparent);
+    display: block;
     height: 58px;
     left: 12px;
     padding: 7px;
     right: 12px;
     top: auto;
+    position: fixed;
     width: auto;
+    z-index: 60;
   }
 
-  .rail > .brand,
-  .rail > .account,
-  .railTools,
-  .navigation a[data-mobile-secondary="true"] {
+  .brandRow,
+  .sidebarScroll,
+  .account,
+  .navGroupLabel {
     display: none;
   }
 
-  .navRegion {
-    display: block;
-  }
-
-  .navigation {
+  .nav {
     display: grid;
     gap: 5px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+    margin: 0;
   }
 
-  .navigation a,
-  .capture,
-  .rail:has(.navRegion[data-collapsed="true"]) :is(.navigation a, .capture) {
+  .navLink[data-mobile="false"] {
+    display: none;
+  }
+
+  .navGroup {
+    display: contents;
+  }
+
+  .navLink {
     border-radius: 10px;
     flex-direction: column;
+    font-size: 0.625rem;
     gap: 2px;
     justify-content: center;
     min-height: 44px;
@@ -440,21 +985,15 @@
     padding: 4px 6px;
   }
 
-  .capture {
-    margin: 0;
-    min-width: 44px;
-  }
-
-  .stage,
-  .shell:has(.rail .navRegion[data-collapsed="true"]) .stage {
-    margin-left: 0;
+  .navLink > span {
+    max-width: 100%;
   }
 
   .mobileHeader {
     align-items: center;
     backdrop-filter: blur(18px) saturate(130%);
     -webkit-backdrop-filter: blur(18px) saturate(130%);
-    background: color-mix(in srgb, var(--background) 88%, transparent);
+    background: color-mix(in srgb, var(--background) 90%, transparent);
     border-bottom: 1px solid var(--line-soft);
     display: flex;
     height: 56px;
@@ -466,21 +1005,19 @@
   }
 
   .mobileHeader .brand {
-    display: inline-flex;
-    min-height: 44px;
-    padding: 0;
+    flex: 0 0 auto;
+    padding: 0 4px;
     width: auto;
   }
 
-  .mobileHeader .brand > span {
-    height: 30px;
-    width: 30px;
+  .mobileHeader .brandName {
+    display: none;
   }
 
   .mobileAccount {
     align-items: center;
     display: flex;
-    gap: 7px;
+    gap: 4px;
   }
 
   .mobileSources {
@@ -497,80 +1034,47 @@
   }
 
   .mobileSources:hover {
-    background: var(--surface-muted);
+    background: var(--hover, color-mix(in srgb, var(--ink) 7%, transparent));
     color: var(--ink);
   }
 
-  .mobileAccount .environmentBadge {
-    border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
-    border-radius: 999px;
-    padding: 5px 7px;
+  .mobileAccount .accountTrigger {
+    min-height: 44px;
+    padding: 4px 6px;
+    width: auto;
   }
 
-  .mobileAccount .avatar {
-    height: 44px;
-    width: 44px;
+  .mobileAccount .accountName,
+  .mobileAccount .accountChevron {
+    display: none;
   }
 
-  .accountPopover {
+  .mobileAccount .accountPopover {
     bottom: auto;
     left: auto;
-    max-height: calc(100dvh - 64px);
     right: 0;
-    top: 42px;
+    top: calc(100% + 6px);
+  }
+
+  .routeHeader {
+    display: none;
+  }
+
+  .accountMenu {
+    position: static;
   }
 }
 
 @media (max-width: 390px) {
-  .navigation a,
-  .capture {
-    font-size: 0;
-    gap: 0;
-  }
-
-  .capture {
-    min-width: 44px;
-  }
-
-  .mobileHeader .brand > strong {
-    display: none;
-  }
-
-  .mobileSources span {
-    font-size: 0;
+  .navLink {
+    font-size: 0.5625rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rail,
-  .stage,
-  .navigation a,
-  .capture {
+  .navLink,
+  .sidebar,
+  .personCaret {
     transition: none;
   }
 }
-
-.railTools button { width: 35px; padding: 8px; }
-.railTools button span { display: none; }
-.navRegion { min-height: 0; flex-shrink: 1; overflow-y: auto; }
-.rail > .brand, .rail > .capture, .rail > .account { flex-shrink: 0; }
-@media (max-width: 760px) {
-  .navigation a, .capture { min-height: 44px; }
-}
-
-.recentSessions { min-height: 0; min-width: 0; overflow-y: auto; margin-top: 20px; flex: 1; }
-.recentSessions header { display: flex; justify-content: space-between; padding: 8px; color: var(--muted); font-size: 12px; }
-.recentSessions header a { color: inherit; }
-.recentSessions ul { list-style: none; padding: 0; margin: 0; }
-.recentSessions li > a { display: flex; align-items: center; gap: 8px; min-height: 35px; padding: 7px 8px; border-radius: 6px; text-decoration: none; color: var(--muted); font-size: 13px; }
-.recentSessions li > a:hover, .recentSessions a[aria-current="page"] { background: var(--surface); color: var(--ink); }
-.recentSessions li > a > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
-.recentSessions svg, .recentSessions small { flex: 0 0 auto; }
-.recentSessions small { font-size: 12px; }
-.recentSessions p { color: var(--muted); font-size: 12px; line-height: 1.6; padding: 0 8px; }
-.rail:has(.navRegion[data-collapsed="true"]) .recentSessions { display: none; }
-@media (max-width: 760px) { .recentSessions { display: none; } }
-
-.brand > span { background: var(--workspace-brand-image) center / contain no-repeat; font-size: 0; border-radius: 0; }
-
-@media (min-width: 761px) and (max-height: 650px) { .recentSessions { display: none; } }

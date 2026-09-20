@@ -1,0 +1,245 @@
+/*
+ * Settings frame — reference section navigation plus a grouped detail pane.
+ *
+ * The left column is navigation, not decoration. Each pane leads with grouped
+ * rows (label, consequence, one control) instead of a raw form pile, and the
+ * advanced/testing tools stay progressive: they are links into dedicated
+ * surfaces, never inline switches that pretend to persist.
+ */
+
+.page {
+  margin: 0 auto;
+  max-width: 1040px;
+  padding: var(--workspace-page-padding, 40px) var(--workspace-page-padding, 40px) 84px;
+}
+
+.heading {
+  margin-bottom: 28px;
+}
+
+.heading h1 {
+  font-size: 1.75rem;
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  margin: 0;
+}
+
+.heading p {
+  color: var(--muted);
+  line-height: 1.7;
+  margin-top: 9px;
+  max-width: 62ch;
+}
+
+.frame {
+  align-items: start;
+  display: grid;
+  gap: 40px;
+  grid-template-columns: 196px minmax(0, 1fr);
+}
+
+.nav {
+  display: grid;
+  gap: 2px;
+  position: sticky;
+  top: 74px;
+}
+
+.nav a {
+  align-items: center;
+  border-radius: 8px;
+  color: var(--muted-strong);
+  display: flex;
+  font-size: 0.8125rem;
+  min-height: 36px;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+
+.nav a:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+}
+
+.nav a[aria-current="page"] {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-weight: 560;
+}
+
+.pane {
+  display: grid;
+  gap: 26px;
+  min-width: 0;
+}
+
+.group {
+  display: grid;
+  gap: 2px;
+}
+
+.groupHead {
+  margin-bottom: 6px;
+}
+
+.groupHead h2 {
+  font-size: 0.9375rem;
+  font-weight: 620;
+  margin: 0;
+}
+
+.groupHead p {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
+  margin-top: 5px;
+}
+
+.row {
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 14px 4px;
+}
+
+.row > div:first-child {
+  min-width: 0;
+}
+
+.row strong {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 560;
+}
+
+.row p {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  margin-top: 4px;
+}
+
+.rowValue {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.rowAction {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.75rem;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 13px;
+  text-decoration: none;
+}
+
+.rowAction:hover {
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+}
+
+.segmented {
+  align-items: center;
+  background: var(--ts-chrome-surface, var(--surface-muted));
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 3px;
+}
+
+.segmented button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.75rem;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 12px;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--surface);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 10%, transparent);
+  color: var(--ink);
+}
+
+.notice {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+
+.error {
+  color: var(--accent-strong);
+}
+
+.unavailable {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.unavailable h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .frame {
+    gap: 22px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nav {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    position: static;
+    padding-bottom: 4px;
+  }
+
+  .nav a {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 28px 20px 96px;
+  }
+
+  .row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .rowAction,
+  .segmented button {
+    min-height: 44px;
+  }
+}

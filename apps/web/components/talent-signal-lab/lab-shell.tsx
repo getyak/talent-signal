@@ -104,9 +104,15 @@ export function LabInspectable({ children, className = "" }: { children: ReactNo
 export function TalentSignalLabShell({
   children,
   initialManifest,
+  capsuleVisible = false,
 }: {
   children: ReactNode;
   initialManifest: LabManifestResponse | null;
+  /**
+   * The ordinary product chrome never shows the Lab/FAT capsule. Testing access
+   * lives behind Settings, which mounts the Lab workspace on its own route.
+   */
+  capsuleVisible?: boolean;
 }) {
   const [manifest, setManifest] = useState(initialManifest);
   const [session, setSession] = useState<LabSession | null>(initialManifest?.active_session ?? null);
@@ -280,7 +286,7 @@ export function TalentSignalLabShell({
   return (
     <LabContext.Provider value={context}>
       {children}
-      {enabled ? (
+      {enabled && capsuleVisible ? (
         <>
           <button
             aria-expanded={panelOpen}

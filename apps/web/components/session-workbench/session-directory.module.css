@@ -1,0 +1,251 @@
+/*
+ * Session directory — reference list composition.
+ *
+ * The durable detail lives in `session-workbench.module.css`; this module owns
+ * only the list surface so the two can evolve without one restyling the other.
+ * Rows stay quiet: a title, its real scope/turn/time metadata, and one link.
+ */
+
+.page {
+  display: grid;
+  margin: 0 auto;
+  max-width: 1040px;
+  padding: 54px 64px 86px;
+}
+
+.header {
+  align-items: flex-start;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-bottom: 26px;
+}
+
+.title {
+  color: var(--ink);
+  font-size: 1.75rem;
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.lede {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
+  margin-top: 9px;
+  max-width: 56ch;
+}
+
+.primary,
+.secondary {
+  align-items: center;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 520;
+  gap: 7px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 15px;
+  text-decoration: none;
+}
+
+.primary {
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  color: var(--background);
+}
+
+.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 86%, var(--muted));
+}
+
+.secondary {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+
+.secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+}
+
+.primary:disabled,
+.secondary:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.page :is(a, button):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.list {
+  border-top: 1px solid var(--line-soft);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list > li {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.row {
+  align-items: center;
+  border-radius: 10px;
+  color: var(--ink);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 74px;
+  padding: 14px;
+  text-decoration: none;
+  transition: background 140ms var(--ease-out);
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 62%, transparent);
+}
+
+.rowIcon {
+  align-items: center;
+  aspect-ratio: 1;
+  background: color-mix(in srgb, var(--surface-muted) 82%, var(--surface));
+  border-radius: 50%;
+  color: var(--muted-strong);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.rowBody {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rowTitle {
+  align-items: center;
+  display: flex;
+  font-size: 0.8125rem;
+  font-weight: 560;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unread {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-radius: 999px;
+  color: var(--accent-strong);
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  font-weight: 620;
+  padding: 2px 8px;
+}
+
+.rowMeta {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty,
+.error,
+.hint {
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.empty {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted-strong);
+  margin-top: 14px;
+  padding: 22px;
+}
+
+.error {
+  color: var(--accent-strong);
+  margin-top: 14px;
+}
+
+.hint {
+  color: var(--muted);
+}
+
+.moreRow {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.spin {
+  animation: session-directory-spin 900ms linear infinite;
+}
+
+@keyframes session-directory-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1100px) {
+  .page {
+    padding: 43px 40px 72px;
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 28px 20px 96px;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .row {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 13px 6px;
+  }
+
+  .row > svg {
+    display: none;
+  }
+
+  .primary,
+  .secondary {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .spin {
+    animation: none;
+    transition: none;
+  }
+}

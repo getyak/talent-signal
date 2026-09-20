@@ -114,17 +114,19 @@ describe("meeting calendar projection", () => {
         "utf8",
       );
       expect(legacySource).not.toContain("CalendarDraftReview");
-      expect(legacySource).toContain("MeetingDraftHandoff");
     }
     const scopedSource = readFileSync(
       resolve(import.meta.dirname, "../components/relationship-workspace/relationship-agent-panel.tsx"),
       "utf8",
     );
     expect(scopedSource).toContain('persistence="unbound"');
+    // The extracted turn thread owns the session-bound handoff that both the
+    // scoped desk and the default conversation canvas render.
     const sessionBoundSource = readFileSync(
-      resolve(import.meta.dirname, "../components/relationship-workspace/relationship-agent-start-panel.tsx"),
+      resolve(import.meta.dirname, "../components/relationship-workspace/agent-turn-thread.tsx"),
       "utf8",
     );
+    expect(sessionBoundSource).toContain("MeetingDraftHandoff");
     expect(sessionBoundSource).toContain('persistence="persisted"');
     const handoffSource = readFileSync(
       resolve(import.meta.dirname, "../components/meeting-draft-handoff.tsx"),

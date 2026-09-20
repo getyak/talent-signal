@@ -1,108 +1,138 @@
+/*
+ * Meetings / calendar — reference composition.
+ *
+ * A 1040px page: a plain month heading with adjacent-month controls, an
+ * unbordered seven-column month grid with one circle for the selected date and
+ * a dot for a real draft, and a single adjacent agenda column that also holds
+ * the selected draft's context. Selecting a date never creates an event.
+ */
+
 .page {
   display: grid;
-  gap: 28px;
+  gap: 26px;
   margin: 0 auto;
-  padding: var(--workspace-page-padding);
-  width: min(100%, 1280px);
+  max-width: 1040px;
+  padding: 54px 64px 86px;
+  width: 100%;
 }
 
 .header {
-  align-items: end;
-  border-bottom: 1px solid var(--line-soft);
+  align-items: flex-start;
   display: flex;
   gap: 24px;
   justify-content: space-between;
-  padding-bottom: 24px;
 }
 
 .eyebrow,
 .agendaHeading p,
 .contextPane > header p {
   color: var(--muted);
-  font-size: var(--workspace-meta-size);
-  letter-spacing: 0.08em;
+  font-size: 0.6875rem;
   margin: 0 0 7px;
-  text-transform: uppercase;
 }
 
 .header h1 {
   color: var(--ink);
-  font-size: var(--workspace-object-size);
-  font-weight: 560;
-  letter-spacing: 0;
+  font-size: 1.75rem;
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  line-height: 1.25;
   margin: 0;
 }
 
 .header > div > p:last-child {
-  color: var(--muted-strong);
-  line-height: 1.75;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
   margin: 9px 0 0;
-  max-width: 68ch;
+  max-width: 58ch;
 }
 
 .newConversation {
   align-items: center;
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  border-radius: var(--button-radius);
-  color: var(--background);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted-strong);
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: var(--workspace-meta-size);
+  font-size: 0.75rem;
   gap: 7px;
-  min-height: 44px;
-  padding: 9px 14px;
+  min-height: 34px;
+  padding: 0 14px;
   text-decoration: none;
+}
+
+.newConversation:hover {
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  color: var(--ink);
 }
 
 .workspace {
   align-items: start;
   display: grid;
-  gap: 28px;
-  grid-template-columns: minmax(420px, 1.2fr) minmax(230px, 0.72fr) minmax(280px, 0.9fr);
+  gap: 34px 42px;
+  grid-template-columns: minmax(0, 1fr) 292px;
 }
 
 .deepLinkNotice {
   border-left: 2px solid var(--accent);
   color: var(--muted-strong);
-  font-size: var(--workspace-meta-size);
+  font-size: 0.75rem;
   line-height: 1.65;
   margin: -8px 0 0;
   padding: 9px 12px;
 }
 
-.calendarPane,
-.agendaPane,
-.contextPane {
+.calendarPane {
+  grid-column: 1;
+  grid-row: 1 / span 2;
   min-width: 0;
+}
+
+.agendaPane {
+  border-left: 1px solid var(--line-soft);
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  padding-left: 26px;
+}
+
+.contextPane {
+  border-top: 1px solid var(--line-soft);
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  padding-top: 22px;
 }
 
 .monthHeader {
   align-items: center;
   display: grid;
-  grid-template-columns: 44px 1fr 44px;
-  margin-bottom: 13px;
+  gap: 6px;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  margin-bottom: 18px;
 }
 
 .monthHeader h2 {
   color: var(--ink);
-  font-size: 1rem;
-  font-weight: 650;
+  font-size: 0.9375rem;
+  font-weight: 560;
   margin: 0;
   text-align: center;
 }
 
 .monthHeader a {
   align-items: center;
-  border-radius: 7px;
+  border-radius: 50%;
   color: var(--muted-strong);
   display: inline-flex;
-  height: 44px;
+  height: 32px;
   justify-content: center;
+  width: 32px;
 }
 
 .monthHeader a:hover {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 78%, transparent);
   color: var(--ink);
 }
 
@@ -116,16 +146,19 @@
   display: contents;
 }
 
-.weekdays span {
+.weekdays {
   color: var(--muted);
-  font-size: 0.7rem;
-  padding: 6px;
+  font-size: 0.6875rem;
+  margin-bottom: 10px;
   text-align: center;
 }
 
+.weekdays span {
+  padding: 4px;
+}
+
 .monthGrid {
-  border-left: 1px solid var(--line-soft);
-  border-top: 1px solid var(--line-soft);
+  text-align: center;
 }
 
 .dayCell {
@@ -134,112 +167,112 @@
 }
 
 .day {
-  align-content: space-between;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line-soft);
-  border-right: 1px solid var(--line-soft);
+  align-content: center;
+  align-items: center;
+  aspect-ratio: 1;
   color: var(--ink-soft);
   display: grid;
   flex: 1;
-  min-height: 67px;
-  padding: 8px;
+  gap: 4px;
+  justify-items: center;
+  min-height: 46px;
+  padding: 4px;
   text-decoration: none;
 }
 
 .day[data-in-month="false"] {
-  background: var(--background);
   color: var(--muted);
 }
 
-.day:hover {
-  background: var(--surface-muted);
-}
-
-.day[aria-current="date"] {
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-
 .day > span {
-  font-size: var(--workspace-meta-size);
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  font-size: 0.75rem;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.day:hover > span {
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 78%, transparent);
+}
+
+.day[aria-current="date"] > span {
+  background: var(--ink);
+  color: var(--background);
 }
 
 .day small {
   align-items: center;
-  background: var(--accent-soft);
-  border-radius: 999px;
-  color: var(--accent-strong);
+  background: var(--focus, var(--accent));
+  border-radius: 50%;
+  color: transparent;
   display: inline-flex;
-  font-size: 0.67rem;
-  height: 20px;
+  font-size: 0;
+  height: 3px;
   justify-content: center;
-  justify-self: end;
-  width: 20px;
+  width: 3px;
 }
 
 .agendaHeading {
-  align-items: end;
+  align-items: baseline;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .agendaHeading h2,
 .contextPane > header h2 {
   color: var(--ink);
-  font-size: 1rem;
-  font-weight: 650;
+  font-size: 0.8125rem;
+  font-weight: 560;
   margin: 0;
   overflow-wrap: anywhere;
 }
 
 .agendaHeading > span {
   color: var(--muted);
-  font-size: var(--workspace-meta-size);
+  font-size: 0.6875rem;
 }
 
 .agendaList {
-  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 2px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.agendaList li {
-  border-bottom: 1px solid var(--line-soft);
-}
-
 .agendaList a {
+  border-radius: 9px;
   display: grid;
   gap: 4px;
-  padding: 14px 10px;
+  padding: 10px 9px;
   text-decoration: none;
+  transition: background 140ms var(--ease-out);
 }
 
 .agendaList a:hover,
 .agendaList a[aria-current="true"] {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--hover, var(--surface-muted)) 70%, transparent);
 }
 
 .agendaList time,
 .agendaList small {
   color: var(--muted);
-  font-size: var(--workspace-meta-size);
+  font-size: 0.6875rem;
 }
 
 .agendaList strong {
   color: var(--ink);
-  font-size: var(--workspace-body-size);
-  font-weight: 640;
+  font-size: 0.8125rem;
+  font-weight: 520;
   overflow-wrap: anywhere;
 }
 
-.contextPane {
-  border-left: 1px solid var(--line);
-  padding-left: 24px;
-}
-
 .contextPane > header {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .contextMeta {
@@ -247,13 +280,13 @@
   border-top: 1px solid var(--line-soft);
   display: grid;
   gap: 7px;
-  margin: 0 0 18px;
+  margin: 0 0 16px;
   padding: 12px 0;
 }
 
 .contextMeta > div {
   display: flex;
-  font-size: var(--workspace-meta-size);
+  font-size: 0.6875rem;
   gap: 12px;
   justify-content: space-between;
 }
@@ -273,15 +306,15 @@
   border-top: 1px solid var(--line-soft);
   display: grid;
   gap: 10px;
-  margin-top: 18px;
-  padding-top: 15px;
+  margin-top: 16px;
+  padding-top: 14px;
 }
 
 .contextLinks > a {
-  color: var(--ink-soft);
-  font-size: var(--workspace-meta-size);
   align-items: center;
+  color: var(--ink-soft);
   display: inline-flex;
+  font-size: 0.75rem;
   min-height: 44px;
   padding-block: 8px;
   width: fit-content;
@@ -296,16 +329,16 @@
   align-items: center;
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: var(--button-radius);
+  border-radius: 999px;
   color: var(--muted-strong);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: var(--workspace-meta-size);
+  font-size: 0.75rem;
   gap: 6px;
   justify-content: center;
-  min-height: 44px;
-  padding: 8px 12px;
+  min-height: 34px;
+  padding: 6px 13px;
   width: fit-content;
 }
 
@@ -321,14 +354,14 @@
 
 .dismissArea small {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.6875rem;
   line-height: 1.55;
   max-width: 34rem;
 }
 
 .dismissArea p {
   color: var(--error);
-  font-size: var(--workspace-meta-size);
+  font-size: 0.75rem;
   line-height: 1.6;
   margin: 0;
 }
@@ -338,31 +371,31 @@
 }
 
 .empty {
-  align-items: start;
-  border-top: 1px solid var(--line);
+  align-items: flex-start;
+  border-top: 1px solid var(--line-soft);
   color: var(--muted-strong);
   display: flex;
   gap: 11px;
-  padding: 18px 8px;
+  padding: 16px 4px;
 }
 
 .empty strong {
   color: var(--ink-soft);
-  font-size: var(--workspace-body-size);
+  font-size: 0.8125rem;
 }
 
 .empty p,
 .contextEmpty {
   color: var(--muted);
-  font-size: var(--workspace-meta-size);
+  font-size: 0.75rem;
   line-height: 1.7;
   margin: 5px 0 0;
 }
 
 .error {
-  align-items: start;
+  align-items: flex-start;
   border: 1px solid color-mix(in srgb, var(--error) 34%, var(--line));
-  border-radius: var(--object-radius);
+  border-radius: 12px;
   color: var(--error);
   display: flex;
   gap: 12px;
@@ -390,7 +423,7 @@
 .unavailable {
   border-top: 1px solid var(--line-soft);
   color: var(--muted);
-  font-size: var(--workspace-meta-size);
+  font-size: 0.75rem;
   padding-top: 16px;
 }
 
@@ -411,48 +444,70 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 1120px) {
+  .page {
+    padding: 43px 40px 72px;
+  }
+}
+
+@media (max-width: 900px) {
   .workspace {
-    grid-template-columns: minmax(390px, 1.35fr) minmax(230px, 0.8fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .calendarPane,
+  .agendaPane,
+  .contextPane {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .agendaPane {
+    border-left: 0;
+    border-top: 1px solid var(--line-soft);
+    padding: 22px 0 0;
   }
 
   .contextPane {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-    grid-column: 1 / -1;
-    padding: 24px 0 0;
+    padding-top: 22px;
   }
 }
 
 @media (max-width: 760px) {
   .page {
-    gap: 24px;
-    padding: 28px 20px 104px;
+    gap: 22px;
+    padding: 28px 20px 96px;
   }
 
   .header {
-    align-items: start;
     flex-direction: column;
+    gap: 14px;
   }
 
-  .workspace {
-    grid-template-columns: minmax(0, 1fr);
+  .header h1 {
+    font-size: 1.5rem;
   }
 
-  .contextPane {
-    grid-column: auto;
+  .newConversation {
+    align-self: flex-start;
+    min-height: 44px;
   }
 
   .day {
-    min-height: 52px;
-    padding: 6px;
+    min-height: 42px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .agendaList a {
+    transition: none;
+  }
+
   .spin {
     animation-duration: 1.6s;
   }

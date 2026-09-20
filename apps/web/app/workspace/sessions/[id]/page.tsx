@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
 import { SessionWorkbench } from "@/components/session-workbench/session-workbench";
 import {
   backendSessionRecoveryHref,
@@ -80,6 +81,8 @@ export default async function SessionDetailPage({
   return (
     <SessionWorkbench
       initialDetail={detail}
+      accountId={claims.backendAccountId}
+      chatSessionVersion={contactHandoffSessionVersion(claims)}
       initialError={error}
       sessionRecoveryHref={sessionRecoveryHref}
       storageScope={workspaceSessionDraftStorageScope(claims)}

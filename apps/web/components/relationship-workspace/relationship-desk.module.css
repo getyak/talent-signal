@@ -1,0 +1,200 @@
+/*
+ * Embedded relationship desk inside the authenticated workspace shell.
+ *
+ * The previous layout anchored the Agent panel to the viewport
+ * (`position: fixed; left: 84px`) and offset the content column with a large
+ * margin, so the product sidebar clipped the panel at 1280px. The desk is now
+ * a notebook column with an optional right-hand Agent rail in normal flow,
+ * sized to the shell's content area. Compound `:global` selectors keep these
+ * layout rules authoritative over the older global desk rules regardless of
+ * stylesheet order.
+ */
+
+.desk:global(.relationship-desk) :global(.context-main) {
+  margin-left: 0;
+  min-width: 0;
+}
+
+/* Unscoped start panel: a bounded panel above the onboarding column instead of
+   a viewport-fixed sidebar. */
+.desk:global(.relationship-desk) > :global(.context-chat--standalone) {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-object);
+  height: auto;
+  inset: auto;
+  margin: 20px auto 0;
+  max-height: none;
+  max-width: 760px;
+  position: static;
+  width: min(100% - 40px, 760px);
+}
+
+.desk:global(.relationship-desk) :global(.context-page) {
+  align-items: start;
+  display: grid;
+  gap: 30px;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0 auto;
+  max-width: 1280px;
+}
+
+/* Only a page that actually owns an Agent panel gets the right rail. */
+.desk:global(.relationship-desk)
+  :global(.context-page):has(> :global(.context-chat)) {
+  grid-template-columns: minmax(0, 1fr) 336px;
+}
+
+.desk:global(.relationship-desk) :global(.context-page) > :global(.context-chat) {
+  align-self: start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  bottom: auto;
+  box-shadow: var(--shadow-object);
+  grid-column: 2;
+  grid-row: 1 / span 800;
+  height: auto;
+  left: auto;
+  margin: 0;
+  max-height: calc(100dvh - 96px);
+  position: sticky;
+  right: auto;
+  top: 74px;
+  width: auto;
+  z-index: 1;
+}
+
+.desk:global(.relationship-desk) :global(.context-page) > :not(:global(.context-chat)) {
+  grid-column: 1;
+  min-width: 0;
+}
+
+/* Reference scale: a person heading, not a poster. */
+.desk:global(.relationship-desk) :global(.context-contact-header__identity h1) {
+  font-size: clamp(1.6rem, 2.4vw, 1.9rem);
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  max-width: 24ch;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-header__identity h1[data-long="true"]) {
+  font-size: clamp(1.4rem, 2vw, 1.6rem);
+  line-height: 1.25;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-overview) :global(.context-contact-header) {
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-header__signal) {
+  grid-column: 1 / -1;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-record) {
+  margin-left: 0;
+}
+
+/* The page's own two-column grids would compete with the Agent rail; inside the
+   notebook column they stack, so sections read top-to-bottom. */
+.desk:global(.relationship-desk) :global(.context-page-grid) {
+  gap: 28px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.desk:global(.relationship-desk) :global(.context-page-aside) {
+  position: static;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-record) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-record__points) {
+  border-left: 0;
+  border-top: 1px solid var(--line-soft);
+  padding-left: 0;
+}
+
+/* Onboarding is a welcome, not a poster. */
+.desk:global(.relationship-desk) :global(.context-onboarding__header h1) {
+  font-size: clamp(1.6rem, 2.4vw, 1.9rem);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  max-width: 26ch;
+}
+
+.desk:global(.relationship-desk) :global(.context-contact-create-stage h1) {
+  font-size: clamp(1.6rem, 2.4vw, 1.9rem);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  max-width: 22ch;
+}
+
+/* The desk's own topbar is the route header while the shell hides the generic
+   one; keep it flush with the notebook column. */
+.desk:global(.relationship-desk) :global(.context-topbar) {
+  height: 58px;
+  padding: 0 28px;
+}
+
+.desk:global(.relationship-desk) :global(.context-topbar__crumb) {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.75rem;
+  gap: 7px;
+  min-width: 0;
+}
+
+.desk:global(.relationship-desk) :global(.context-topbar__crumb a) {
+  color: inherit;
+  text-decoration: none;
+}
+
+.desk:global(.relationship-desk) :global(.context-topbar__crumb a:hover) {
+  color: var(--ink);
+}
+
+.desk:global(.relationship-desk) :global(.context-topbar__crumb span) {
+  color: var(--ink);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1080px) {
+  .desk:global(.relationship-desk) :global(.context-page) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .desk:global(.relationship-desk) :global(.context-page) > :global(.context-chat) {
+    grid-column: 1;
+    grid-row: auto;
+    max-height: none;
+    order: 2;
+    position: static;
+  }
+
+  .desk:global(.relationship-desk) :global(.context-page) > :not(:global(.context-chat)) {
+    order: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .desk:global(.relationship-desk) :global(.context-page) {
+    gap: 22px;
+    padding-inline: 20px;
+  }
+
+  .desk:global(.relationship-desk) :global(.context-contact-overview) :global(.context-contact-header) {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .desk:global(.relationship-desk) :global(.context-contact-header__actions) {
+    grid-column: 1 / -1;
+  }
+}

@@ -13,8 +13,8 @@ import { useState } from "react";
 
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
+import { AgentTurnThread } from "./agent-turn-thread";
 import type { AgentContactDraft } from "@/lib/agent-contact-intake";
-import { MeetingDraftHandoff } from "@/components/meeting-draft-handoff";
 import type { WorkspaceChatTurn } from "./use-workspace-chat";
 import { AgentVoiceInput } from "./agent-voice-input";
 
@@ -97,15 +97,7 @@ export function RelationshipAgentStartPanel({
             onDeferred={onDeferred}
           />
         ) : turns.length ? (
-          <div className="context-chat__response" aria-live="polite">
-            {turns.map(turn => <article key={turn.response.task_id}>
-              <p className="context-agent-user-message">{turn.objective}</p>
-              {turn.response.blocks.map(block => <div key={block.id}>
-                <p style={{ whiteSpace: "pre-wrap" }}>{block.body}</p>
-                {block.calendar_draft?.source_request_id === turn.response.task_id ? <MeetingDraftHandoff draft={block.calendar_draft} persistence="persisted" /> : null}
-              </div>)}
-            </article>)}
-          </div>
+          <AgentTurnThread turns={turns} />
         ) : (
           <div className="context-agent-welcome">
             <span><ChatCircleDots aria-hidden="true" size={16} /></span>
