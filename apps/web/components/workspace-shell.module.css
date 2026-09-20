@@ -136,6 +136,7 @@
 .moreFooter {
   border-top: 1px solid var(--line-soft);
   display: grid;
+  flex: 0 0 auto;
   gap: 3px;
   margin-top: auto;
   padding-top: 12px;
@@ -318,6 +319,7 @@
 
 .group {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
   padding-bottom: 14px;
@@ -327,7 +329,8 @@
   align-items: center;
   color: var(--muted);
   display: flex;
-  font-size: 0.71875rem;
+  flex: 0 0 auto;
+  font-size: 0.75rem;
   gap: 4px;
   height: 27px;
   margin-top: 13px;
@@ -369,7 +372,7 @@
 .groupHint,
 .groupEmpty {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.6;
   padding: 4px 8px 6px;
 }

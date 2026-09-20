@@ -56,7 +56,7 @@ All interactions used Computer Use with screenshots and accessibility readback. 
 | Home composer | Slash opening/filtering, keyboard selection without send, Escape, native undo, real person insertion; oversized paste warning retains original text | Full OS IME candidate selection not run; composition/keyCode guards covered by unit tests |
 | Existing session | Synthetic send/response, draft save and reload, >1000-character send prevention, long-text internal scroll, dark message readability | Deterministic reply verifies transport and rendering, not model answer quality |
 | Mentions | Real synthetic account/person/context, no-match and failure states, backend stop/restart then Retry reloads directory | Mentions insert readable text; they deliberately do not bind private evidence scope |
-| Responsive input | Screenshots at 375x812 and 375x400; clipped popup replaced by adaptive/inline menu, footer controls remain reachable | Chrome device emulation; no claim of physical mobile-keyboard certification |
+| Responsive input | Screenshots at 375x812, 375x400 and 200% browser zoom; clipped popup replaced by adaptive/inline menu, footer controls remain reachable; sidebar groups scroll without collapsing over each other | Chrome device emulation; no claim of physical mobile-keyboard certification |
 | Search / navigation | Cmd-K, centered dialog, avatar proportions, Arrow keys and Enter navigate to actual synthetic person | Large production-account directory performance not measured |
 | People / person workspace | Empty and populated directory, synthetic detail, note creation and deterministic brief, review-needed facts retained | No external contact write performed |
 | Meetings | Month/day navigation, Today based on local date, narrow/dark reading and empty draft state | Real Calendar import not executed |
@@ -67,6 +67,6 @@ All interactions used Computer Use with screenshots and accessibility readback. 
 
 ## Verification and release status
 
-- Final Web suite: 118 passed files, 1 skipped; 771 passed tests, 1 skipped. Typecheck, lint and docs/architecture checks passed. Composer regression suite passed 33/33.
+- Final Web suite: 118 passed files, 1 skipped; 771 passed tests, 1 skipped. Typecheck, lint, docs/architecture checks and production build passed. Composer regression suite passed 33/33. Follow-up recovery tests passed 58/58 and sidebar checks passed 23/23; real screenshots confirmed the single restored-draft notice and 200% sidebar scrolling.
 - Independent review: 99 focused checks passed, then reviewed final whitespace and source recovery changes; no unresolved P0/P1/P2. This is code review, not an invented usability score.
 - Final complete check, PR, merge and release readback are recorded below when available. The >96 target remains an acceptance aspiration: the missing real-provider, physical keyboard and broad human usability evidence prevents certifying every module at that score.
