@@ -121,7 +121,7 @@ changes. Tool descriptions own usage, the host owns authorization and validation
 and adapters add terminal protocol. Give useful partial answers and clarify
 material gaps. See [prompt operations](operations/opik-prompts.md).
 
-Conversation uses natural prose. Typed data belongs at tool and durable artifact
+Conversation uses natural prose. Streaming exposes filtered visible text and bounded stage codes; cancellation never starts a second provider run. Typed data belongs at tool and durable artifact
 boundaries, where product validation can act on it. Curated Skills describe
 methods; loading a Skill or delegating a read does not add permissions, expand
 evidence access, or create execution authority.

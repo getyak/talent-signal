@@ -1,0 +1,1084 @@
+import { randomUUID } from "node:crypto";
+
+import type { AgentProviderRequest, AgentProviderResult } from "@talent-signal/agent";
+import { Pool } from "pg";
+import Fastify from "fastify";
+import { afterAll, describe, expect, it, vi } from "vitest";
+
+import type { RemoteChatAnswerProviding, RemoteChatAnswerRequest, RemoteChatAnswerResult } from "./chatAnswerProvider.js";
+import {
+  ConversationQueueLeaseLostError,
+  admitConversationQueueEntry,
+  claimNextConversationQueueEntry,
+  finalizeConversationQueueEntry,
+  mutateConversationQueueEntry,
+  readConversationQueueSnapshot,
+  reclaimStaleConversationQueueEntry,
+  recordConversationQueueResult,
+  sweepConversationQueue,
+} from "./conversationQueue.js";
+import { ConversationQueueRunner } from "./conversationQueueRunner.js";
+import { registerConversationQueueRoutes } from "./conversationQueueRoutes.js";
+import { ApiError } from "../lib/apiError.js";
+import { subscribeConversationQueueLive, type ConversationQueueLivePreview } from "./conversationQueueLive.js";
+import { getAgentSession } from "./agentSessions.js";
+import type { AuthContext } from "./auth.js";
+
+const databaseURL = process.env.CONTACT_AGENT_TEST_DATABASE_URL;
+if (databaseURL && !["127.0.0.1", "localhost"].includes(new URL(databaseURL).hostname)) {
+  throw new Error("Use an isolated local PostgreSQL database for conversation queue tests.");
+}
+const pool = databaseURL ? new Pool({ connectionString: databaseURL, max: 8, connectionTimeoutMillis: 5000, query_timeout: 20000 }) : null;
+// Real disposable-database round trips can exceed the default Vitest budget on
+// a loaded host; assertions are unchanged.
+vi.setConfig({ testTimeout: 30_000 });
+const suite = databaseURL ? describe : describe.skip;
+
+afterAll(async () => {
+  await pool?.end();
+});
+
+const silentLogger = { info: () => undefined, warn: () => undefined, error: () => undefined };
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitFor(
+  predicate: () => boolean | Promise<boolean>,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return;
+    await sleep(15);
+  }
+  throw new Error("Timed out waiting for the expected conversation queue state.");
+}
+
+interface SeededSession {
+  auth: AuthContext;
+  accountId: string;
+  userId: string;
+  sessionId: string;
+}
+
+async function seedSession(options: {
+  composerDraft?: string;
+  screenshotTaskIDs?: string[];
+  expiresIn?: string;
+} = {}): Promise<SeededSession> {
+  const accountId = randomUUID();
+  const userId = randomUUID();
+  const sessionId = randomUUID();
+  const auth: AuthContext = {
+    accountId,
+    accountSlug: `cq-${accountId}`,
+    userId,
+    userEmail: `${userId}@example.test`,
+    sessionId: randomUUID(),
+    userKind: "simulated_human",
+  };
+  await pool!.query("INSERT INTO accounts(id,slug,name) VALUES($1,$2,'Conversation queue proof')", [accountId, auth.accountSlug]);
+  await pool!.query(
+    "INSERT INTO users(id,account_id,email,display_name,kind) VALUES($1,$2,$3,'CQ proof','simulated_human')",
+    [userId, accountId, auth.userEmail],
+  );
+  const now = new Date().toISOString();
+  const payload = {
+    id: sessionId,
+    scopeKind: "unresolved_intent",
+    personDisplayLabel: "",
+    contextDisplayLabel: "",
+    title: "",
+    turns: [],
+    updatedAt: now,
+    createdAt: now,
+    ...(options.composerDraft ? { composerDraft: options.composerDraft } : {}),
+    ...(options.screenshotTaskIDs ? { screenshotTaskIDs: options.screenshotTaskIDs } : {}),
+  };
+  await pool!.query(
+    `INSERT INTO agent_sessions(account_id,id,created_by_user_id,revision,payload,created_at,expires_at)
+     VALUES($1,$2,$3,1,$4::jsonb,now(),now()+$5::interval)`,
+    [accountId, sessionId, userId, JSON.stringify(payload), options.expiresIn ?? "7 days"],
+  );
+  return { auth, accountId, userId, sessionId };
+}
+
+async function removeProofAccount(accountId: string): Promise<void> {
+  const tables = (
+    await pool!.query<{ table_name: string }>(
+      "SELECT table_name FROM lab_test_workspace_table_manifest WHERE scope='account' ORDER BY table_name",
+    )
+  ).rows.map((row) => row.table_name);
+  const targets = [...tables, "sessions"];
+  await pool!.query(
+    `WITH ${targets.map((table, index) => `d${index} AS (DELETE FROM "${table}" WHERE account_id=$1 RETURNING 1)`).join(",")}
+     SELECT ${targets.map((_, index) => `(SELECT count(*) FROM d${index})`).join("+")} AS removed`,
+    [accountId],
+  );
+  await pool!.query("DELETE FROM users WHERE account_id=$1", [accountId]);
+  await pool!.query("DELETE FROM accounts WHERE id=$1", [accountId]);
+}
+
+function gate(): { promise: Promise<void>; release: () => void } {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => { release = resolve; });
+  return { promise, release };
+}
+
+class ScriptedConversationProvider implements RemoteChatAnswerProviding {
+  readonly providerId = "zhipu-chat-completions" as const;
+  readonly id = "zhipu-chat-completions";
+  readonly model = "synthetic-conversation-model";
+  readonly supportsImageInput = false;
+  readonly calls: string[] = [];
+  active = 0;
+  maxActive = 0;
+  preGateDeltas: string[] = [];
+  postGateDeltas: string[] = [];
+  gateForObjective: ((objective: string) => Promise<void> | null) | null = null;
+  /** Models a provider that does not honour cancellation promptly. */
+  ignoreAbortForObjective: ((objective: string) => boolean) | null = null;
+  onBeforeReturn: (() => Promise<void>) | null = null;
+  failWith: Error | null = null;
+  lastSignal: AbortSignal | null = null;
+
+  async answer(_request: RemoteChatAnswerRequest): Promise<RemoteChatAnswerResult> {
+    throw new Error("The governed agent path is required for this synthetic provider.");
+  }
+
+  async run(
+    request: AgentProviderRequest,
+    _invokeTool: unknown,
+    signal: AbortSignal,
+  ): Promise<AgentProviderResult> {
+    this.calls.push(request.objective);
+    this.active += 1;
+    this.maxActive = Math.max(this.maxActive, this.active);
+    this.lastSignal = signal;
+    try {
+      for (const delta of this.preGateDeltas) {
+        signal.throwIfAborted();
+        request.onVisibleText?.(delta);
+      }
+      request.onProgress?.("answer");
+      const held = this.gateForObjective?.(request.objective);
+      if (held) {
+        if (this.ignoreAbortForObjective?.(request.objective)) {
+          await held;
+        } else {
+          await Promise.race([
+            held,
+            new Promise<never>((_resolve, reject) => {
+              if (signal.aborted) reject(signal.reason);
+              else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+            }),
+          ]);
+        }
+      }
+      signal.throwIfAborted();
+      for (const delta of this.postGateDeltas) {
+        signal.throwIfAborted();
+        request.onVisibleText?.(delta);
+      }
+      await this.onBeforeReturn?.();
+      if (this.failWith) throw this.failWith;
+      const body = [...this.preGateDeltas, ...this.postGateDeltas].join("") || "回答正文";
+      return {
+        structuredOutput: { outcome: "reply", title: "回复", body },
+        inputTokens: 1,
+        outputTokens: 1,
+        estimatedUsd: 0,
+        turns: 1,
+        permissionDenials: [],
+      };
+    } finally {
+      this.active -= 1;
+    }
+  }
+}
+
+async function startRunner(
+  provider: RemoteChatAnswerProviding | null,
+  workerId = `w-${randomUUID()}`,
+): Promise<ConversationQueueRunner> {
+  const runner = new ConversationQueueRunner({
+    pool: pool!,
+    provider,
+    logger: silentLogger,
+    workerId,
+    pollIntervalMs: 10,
+    heartbeatMs: 40,
+    recoveryIntervalMs: 10_000,
+  });
+  runner.start();
+  return runner;
+}
+
+async function entryRow(sessionId: string, accountId: string) {
+  return (
+    await pool!.query<{
+      status: string;
+      content_state: string;
+      failure_code: string | null;
+      result: unknown;
+      objective: string | null;
+      run_id: string | null;
+      lease_generation: number;
+      cancel_requested: boolean;
+    }>(
+      "SELECT status,content_state,failure_code,result,objective,run_id,lease_generation,cancel_requested FROM conversation_queue_entries WHERE account_id=$1 AND session_id=$2 ORDER BY sequence",
+      [accountId, sessionId],
+    )
+  ).rows;
+}
+
+async function queueState(sessionId: string, accountId: string) {
+  return (
+    await pool!.query<{ paused: boolean; revision: number }>(
+      "SELECT paused,revision FROM conversation_queue_state WHERE account_id=$1 AND session_id=$2",
+      [accountId, sessionId],
+    )
+  ).rows[0];
+}
+
+suite("durable conversation queue", () => {
+  it("interrupts active work on shutdown without persisting a stopped answer or starting the next message", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const held = gate();
+    provider.preGateDeltas = ["unfinished private preview"];
+    provider.gateForObjective = () => held.promise;
+    const runner = await startRunner(provider);
+    try {
+      for (const objective of ["active at shutdown", "must stay queued"]) {
+        await admitConversationQueueEntry(pool!, seeded.auth, {
+          session_id: seeded.sessionId, message_id: randomUUID(),
+          idempotency_key: randomUUID(), objective,
+        });
+      }
+      await waitFor(() => provider.calls.length === 1);
+      await runner.close();
+      const entries = await entryRow(seeded.sessionId, seeded.accountId);
+      expect(entries.map(entry => entry.status)).toEqual(["interrupted", "queued"]);
+      expect(entries[0]?.failure_code).toBe("RUNNER_SHUTDOWN");
+      expect(provider.lastSignal?.aborted).toBe(true);
+      expect(provider.calls).toEqual(["active at shutdown"]);
+      expect((await queueState(seeded.sessionId, seeded.accountId))?.paused).toBe(true);
+      expect((await getAgentSession(pool!, seeded.auth, seeded.sessionId)).payload?.turns).toHaveLength(0);
+    } finally {
+      held.release();
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("admits before provider work, streams a genuine preview, and preserves strict FIFO", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const hold = gate();
+    provider.preGateDeltas = ["正在整理"];
+    provider.postGateDeltas = ["回答正文"];
+    provider.gateForObjective = (objective) => (objective === "第一条" ? hold.promise : null);
+    const previews: ConversationQueueLivePreview[] = [];
+    const unsubscribe = subscribeConversationQueueLive((event) => {
+      if (event.type === "preview") previews.push(event.preview);
+    });
+    const runner = await startRunner(provider);
+    try {
+      const first = await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "第一条",
+      });
+      expect(first.response.status).toBe("queued");
+      // Admission returns before any provider work.
+      expect(provider.calls).toHaveLength(0);
+
+      await waitFor(() => provider.calls.length === 1);
+      await waitFor(() => previews.some((preview) => preview.text.includes("正在整理")));
+      expect(provider.gateForObjective).not.toBeNull();
+
+      // Two more messages queue while the first is still running.
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "第二条",
+      });
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "第三条",
+      });
+      await sleep(120);
+      expect(provider.calls).toHaveLength(1);
+      const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      expect(snapshot.active?.objective).toBe("第一条");
+      expect(snapshot.queued.map((entry) => entry.objective)).toEqual(["第二条", "第三条"]);
+
+      hold.release();
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId)).every((row) => row.status === "completed"));
+      expect(provider.calls).toEqual(["第一条", "第二条", "第三条"]);
+      expect(provider.maxActive).toBe(1);
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(session.payload?.turns.map((turn) => turn.objective)).toEqual(["第一条", "第二条", "第三条"]);
+    } finally {
+      unsubscribe();
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("keeps a newer composer draft across an older completion", async () => {
+    const seeded = await seedSession({ composerDraft: "新草稿没有被覆盖" });
+    const provider = new ScriptedConversationProvider();
+    provider.postGateDeltas = ["回答"];
+    const runner = await startRunner(provider);
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "旧消息",
+      });
+      await waitFor(async () =>
+        (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "completed",
+      );
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(session.payload?.composerDraft).toBe("新草稿没有被覆盖");
+      expect(session.payload?.turns).toHaveLength(1);
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("replays a duplicate admission and rejects changed input for the same id", async () => {
+    const seeded = await seedSession();
+    const messageId = randomUUID();
+    const key = randomUUID();
+    try {
+      const first = await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: key,
+        session_id: seeded.sessionId,
+        message_id: messageId,
+        objective: "同一条",
+      });
+      const replay = await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: key,
+        session_id: seeded.sessionId,
+        message_id: messageId,
+        objective: "同一条",
+      });
+      expect(replay.replayed).toBe(true);
+      expect(replay.response.queue_entry_id).toBe(first.response.queue_entry_id);
+      await expect(
+        admitConversationQueueEntry(pool!, seeded.auth, {
+          idempotency_key: key,
+          session_id: seeded.sessionId,
+          message_id: messageId,
+          objective: "内容已改变",
+        }),
+      ).rejects.toMatchObject({ statusCode: 409 });
+      await expect(
+        admitConversationQueueEntry(pool!, seeded.auth, {
+          idempotency_key: randomUUID(),
+          session_id: seeded.sessionId,
+          message_id: messageId,
+          objective: "内容已改变",
+        }),
+      ).rejects.toMatchObject({ statusCode: 409 });
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("checks revisions for queued edits and withdraws without touching a claimed entry", async () => {
+    const seeded = await seedSession();
+    const admitted = await admitConversationQueueEntry(pool!, seeded.auth, {
+      idempotency_key: randomUUID(),
+      session_id: seeded.sessionId,
+      message_id: randomUUID(),
+      objective: "原始内容",
+    });
+    try {
+      const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      const edited = await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "edit",
+        queue_entry_id: admitted.response.queue_entry_id,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+        objective: "编辑后的内容",
+      });
+      expect(edited.applied.status).toBe("queued");
+      await expect(
+        mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+          kind: "edit",
+          queue_entry_id: admitted.response.queue_entry_id,
+          expected_revision: snapshot.revision,
+          idempotency_key: randomUUID(),
+          objective: "过期修订",
+        }),
+      ).rejects.toMatchObject({ statusCode: 409 });
+      const current = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "withdraw",
+        queue_entry_id: admitted.response.queue_entry_id,
+        expected_revision: current.revision,
+        idempotency_key: randomUUID(),
+      });
+      expect(await entryRow(seeded.sessionId, seeded.accountId)).toHaveLength(0);
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("replays a successful queued edit idempotently and rejects a claimed edit", async () => {
+    const seeded = await seedSession();
+    const messageId = randomUUID();
+    const editKey = randomUUID();
+    const admitted = await admitConversationQueueEntry(pool!, seeded.auth, {
+      idempotency_key: randomUUID(),
+      session_id: seeded.sessionId,
+      message_id: messageId,
+      objective: "原始内容",
+    });
+    try {
+      const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      const edited = await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "edit",
+        queue_entry_id: admitted.response.queue_entry_id,
+        expected_revision: snapshot.revision,
+        idempotency_key: editKey,
+        objective: "编辑后的内容",
+      });
+      const replay = await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "edit",
+        queue_entry_id: admitted.response.queue_entry_id,
+        expected_revision: snapshot.revision,
+        idempotency_key: editKey,
+        objective: "编辑后的内容",
+      });
+      expect(replay.replayed).toBe(true);
+      expect(replay.applied).toEqual(edited.applied);
+
+      const claimed = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        workerId: "claim-test",
+      });
+      expect(claimed).not.toBeNull();
+      const claimedState = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await expect(
+        mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+          kind: "edit",
+          queue_entry_id: admitted.response.queue_entry_id,
+          expected_revision: claimedState.revision,
+          idempotency_key: randomUUID(),
+          objective: "已开始后编辑",
+        }),
+      ).rejects.toMatchObject({ statusCode: 409, code: "CONVERSATION_QUEUE_ENTRY_CLAIMED" });
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("stops the active run, pauses the queue, stores only an owned partial, then resumes on continue", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const hold = gate();
+    provider.preGateDeltas = ["已经生成的部分"];
+    provider.postGateDeltas = ["不会出现"];
+    provider.gateForObjective = (objective) => (objective === "会被停止" ? hold.promise : null);
+    const runner = await startRunner(provider);
+    try {
+      const stoppedMessageId = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: stoppedMessageId,
+        objective: "会被停止",
+      });
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "停止后仍然排队",
+      });
+      await waitFor(async () => {
+        const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+        return snapshot.active !== null;
+      });
+      const active = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "stop",
+        expected_revision: active.revision,
+        idempotency_key: randomUUID(),
+        run_id: active.active!.run_id!,
+      });
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "cancelled");
+      expect((await queueState(seeded.sessionId, seeded.accountId))!.paused).toBe(true);
+      expect(provider.calls).toHaveLength(1);
+      const rows = await entryRow(seeded.sessionId, seeded.accountId);
+      expect(rows[0]?.content_state).toBe("scrubbed");
+      expect(rows[0]?.objective).toBeNull();
+      expect(rows.map((row) => row.status)).toEqual(["cancelled", "queued"]);
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(session.payload?.turns).toHaveLength(1);
+      expect(session.payload?.turns[0]?.response.taskID).toBe(`cancelled-${stoppedMessageId}`);
+      expect(session.payload?.turns[0]?.response.unboundConversationBlocks?.[0]?.body).toBe("已经生成的部分");
+
+      // The follow-up stays unclaimed while paused.
+      await sleep(80);
+      expect(provider.calls).toHaveLength(1);
+      const paused = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "continue",
+        expected_revision: paused.revision,
+        idempotency_key: randomUUID(),
+      });
+      await waitFor(() => provider.calls.length === 2);
+      await waitFor(async () => {
+        const finalRows = await entryRow(seeded.sessionId, seeded.accountId);
+        return finalRows.map((row) => row.status).join(",") === "cancelled,completed";
+      });
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("never commits a cancelled run's stale result when the provider ignores the abort", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    provider.postGateDeltas = ["迟到的完整回答"];
+    // Deliberately uncooperative: it ignores the abort signal and resolves only
+    // when the test releases the gate after the stop was acknowledged.
+    let releaseLate: () => void = () => undefined;
+    provider.gateForObjective = () => new Promise<void>((resolve) => { releaseLate = resolve; });
+    provider.ignoreAbortForObjective = () => true;
+    const runner = await startRunner(provider);
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "不合作的提供方",
+      });
+      await waitFor(async () => {
+        const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+        return snapshot.active !== null;
+      });
+      const active = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "stop",
+        expected_revision: active.revision,
+        idempotency_key: randomUUID(),
+        run_id: active.active!.run_id!,
+      });
+      // The stop is acknowledged durably while the provider still runs.
+      await waitFor(async () => {
+        const row = (await entryRow(seeded.sessionId, seeded.accountId))[0];
+        return row?.cancel_requested === true && row.status === "running";
+      });
+      releaseLate();
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "cancelled");
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(session.payload?.turns ?? []).toHaveLength(0);
+      const rows = await entryRow(seeded.sessionId, seeded.accountId);
+      expect(rows[0]?.status).toBe("cancelled");
+      expect(rows[0]?.result).toBeNull();
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  }, 20000);
+
+  it("pauses after a failure, retries only on request, and preserves a result when persistence fails", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    provider.postGateDeltas = ["回答"];
+    const runner = await startRunner(provider);
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "第一次失败",
+      });
+      provider.failWith = new Error("synthetic provider failure");
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "failed");
+      expect((await queueState(seeded.sessionId, seeded.accountId))!.paused).toBe(true);
+      provider.failWith = null;
+
+      const failed = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      expect(failed.queued[0]?.failure_code).toBe("MODEL_RUN_FAILED");
+      // Retry re-queues but does not clear the pause.
+      const retried = await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "retry",
+        queue_entry_id: failed.queued[0]!.queue_entry_id,
+        expected_revision: failed.revision,
+        idempotency_key: randomUUID(),
+      });
+      expect(retried.applied.status).toBe("queued");
+      expect((await queueState(seeded.sessionId, seeded.accountId))!.paused).toBe(true);
+      await sleep(80);
+      expect(provider.calls).toHaveLength(1);
+      const continued = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "continue",
+        expected_revision: continued.revision,
+        idempotency_key: randomUUID(),
+      });
+      await waitFor(async () =>
+        (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "completed",
+      );
+      expect(provider.calls).toHaveLength(2);
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("retains a successful result for replay when canonical persistence fails once", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    provider.postGateDeltas = ["已经生成"];
+    // Corrupt the Session payload after the provider succeeds and before
+    // persistence, so the canonical save fails once and must replay.
+    provider.onBeforeReturn = async () => {
+      await pool!.query(
+        "UPDATE agent_sessions SET payload='{\"turns\":[]}'::jsonb,revision=revision+1 WHERE account_id=$1 AND id=$2",
+        [seeded.accountId, seeded.sessionId],
+      );
+    };
+    const runner = await startRunner(provider);
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "持久化会先失败",
+      });
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "failed");
+      const failed = await entryRow(seeded.sessionId, seeded.accountId);
+      expect(failed[0]?.failure_code).toBe("PERSISTENCE_PENDING");
+      expect(failed[0]?.result).not.toBeNull();
+      expect(provider.calls).toHaveLength(1);
+
+      // Restore a valid Session payload, then explicitly retry: only persistence replays.
+      const now = new Date().toISOString();
+      await pool!.query(
+        "UPDATE agent_sessions SET payload=$3::jsonb,revision=revision+1 WHERE account_id=$1 AND id=$2",
+        [
+          seeded.accountId,
+          seeded.sessionId,
+          JSON.stringify({
+            id: seeded.sessionId,
+            scopeKind: "unresolved_intent",
+            personDisplayLabel: "",
+            contextDisplayLabel: "",
+            title: "",
+            turns: [],
+            isUnread: false,
+            updatedAt: now,
+            createdAt: now,
+          }),
+        ],
+      );
+      const pending = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "retry",
+        queue_entry_id: pending.queued[0]!.queue_entry_id,
+        expected_revision: pending.revision,
+        idempotency_key: randomUUID(),
+      });
+      const continued = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "continue",
+        expected_revision: continued.revision,
+        idempotency_key: randomUUID(),
+      });
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "completed");
+      expect(provider.calls).toHaveLength(1);
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(session.payload?.turns).toHaveLength(1);
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("fences a stale worker after lease expiry and lets recovery reclaim the entry", async () => {
+    const seeded = await seedSession();
+    const messageId = randomUUID();
+    const admitted = await admitConversationQueueEntry(pool!, seeded.auth, {
+      idempotency_key: randomUUID(),
+      session_id: seeded.sessionId,
+      message_id: messageId,
+      objective: "租约测试",
+    });
+    try {
+      const claimed = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        workerId: "stale-worker",
+      });
+      expect(claimed).not.toBeNull();
+      const fence = {
+        accountId: claimed!.accountId,
+        sessionId: claimed!.sessionId,
+        entryId: claimed!.entryId,
+        runId: claimed!.runId,
+        leaseOwner: claimed!.leaseOwner,
+        leaseGeneration: claimed!.leaseGeneration,
+      };
+      await pool!.query(
+        "UPDATE conversation_queue_entries SET lease_expires_at=now()-interval '1 second' WHERE account_id=$1 AND id=$2",
+        [seeded.accountId, admitted.response.queue_entry_id],
+      );
+      await expect(
+        recordConversationQueueResult(pool!, fence, {
+          body: { contract_version: "2026-01-01.1", task_id: randomUUID(), disposition: "answer", blocks: [], external_effects: [], created_at: new Date().toISOString() },
+          conversationMessageIDs: [],
+          previousTaskIDs: [],
+          conversationSources: [],
+          remoteStatus: "completed",
+          audit: { providerID: null, model: null, providerRequestID: null, prompt: null, contactAgentEventKind: null },
+        } as never),
+      ).rejects.toBeInstanceOf(ConversationQueueLeaseLostError);
+      const reclaimed = await reclaimStaleConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        entryId: admitted.response.queue_entry_id,
+        workerId: "recovery-worker",
+      });
+      expect(reclaimed).not.toBeNull();
+      expect(reclaimed!.leaseGeneration).toBeGreaterThan(fence.leaseGeneration);
+      const finalized = await finalizeConversationQueueEntry(pool!, {
+        fence: {
+          accountId: reclaimed!.accountId,
+          sessionId: reclaimed!.sessionId,
+          entryId: reclaimed!.entryId,
+          runId: reclaimed!.runId,
+          leaseOwner: reclaimed!.leaseOwner,
+          leaseGeneration: reclaimed!.leaseGeneration,
+        },
+        status: "interrupted",
+        failureCode: "RUNNER_INTERRUPTED",
+      });
+      expect(finalized.applied).toBe(true);
+      expect((await queueState(seeded.sessionId, seeded.accountId))!.paused).toBe(true);
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("isolates accounts and users, and fences deleted or expired Sessions", async () => {
+    const owner = await seedSession();
+    const other = await seedSession();
+    try {
+      await admitConversationQueueEntry(pool!, owner.auth, {
+        idempotency_key: randomUUID(),
+        session_id: owner.sessionId,
+        message_id: randomUUID(),
+        objective: "私有队列",
+      });
+      await expect(
+        readConversationQueueSnapshot(pool!, other.auth, owner.sessionId),
+      ).rejects.toMatchObject({ statusCode: 404 });
+      const sameAccountOtherUser: AuthContext = {
+        ...owner.auth,
+        userId: randomUUID(),
+        userEmail: "other@example.test",
+      };
+      await expect(
+        readConversationQueueSnapshot(pool!, sameAccountOtherUser, owner.sessionId),
+      ).rejects.toMatchObject({ statusCode: 404 });
+
+      await pool!.query(
+        "UPDATE agent_sessions SET payload=NULL,deleted_at=now() WHERE account_id=$1 AND id=$2",
+        [owner.accountId, owner.sessionId],
+      );
+      await expect(
+        readConversationQueueSnapshot(pool!, owner.auth, owner.sessionId),
+      ).rejects.toMatchObject({ statusCode: 410 });
+      await sweepConversationQueue(pool!, owner.accountId);
+      expect(await entryRow(owner.sessionId, owner.accountId)).toHaveLength(0);
+    } finally {
+      await removeProofAccount(owner.accountId);
+      await removeProofAccount(other.accountId);
+    }
+  });
+
+  it("fences revoked screenshot context and never displays stale queued material", async () => {
+    const revokedTask = randomUUID();
+    const seeded = await seedSession({ screenshotTaskIDs: [revokedTask] });
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "依赖已撤回来源",
+      }).catch(() => undefined);
+      await expect(
+        readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId),
+      ).rejects.toMatchObject({ statusCode: 410 });
+      await sweepConversationQueue(pool!, seeded.accountId);
+      expect(await entryRow(seeded.sessionId, seeded.accountId)).toHaveLength(0);
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("does not extend the Session lifetime and removes rows on expiry", async () => {
+    const seeded = await seedSession({ expiresIn: "1 hour" });
+    const admitted = await admitConversationQueueEntry(pool!, seeded.auth, {
+      idempotency_key: randomUUID(),
+      session_id: seeded.sessionId,
+      message_id: randomUUID(),
+      objective: "继承会话期限",
+    });
+    try {
+      const entry = (
+        await pool!.query<{ expires_at: Date }>(
+          "SELECT expires_at FROM conversation_queue_entries WHERE account_id=$1 AND id=$2",
+          [seeded.accountId, admitted.response.queue_entry_id],
+        )
+      ).rows[0]!;
+      const session = (
+        await pool!.query<{ expires_at: Date }>(
+          "SELECT expires_at FROM agent_sessions WHERE account_id=$1 AND id=$2",
+          [seeded.accountId, seeded.sessionId],
+        )
+      ).rows[0]!;
+      expect(entry.expires_at.toISOString()).toBe(session.expires_at.toISOString());
+      await pool!.query(
+        "UPDATE agent_sessions SET expires_at=now()-interval '1 hour' WHERE account_id=$1 AND id=$2",
+        [seeded.accountId, seeded.sessionId],
+      );
+      await sweepConversationQueue(pool!, seeded.accountId);
+      expect(await entryRow(seeded.sessionId, seeded.accountId)).toHaveLength(0);
+      expect(await queueState(seeded.sessionId, seeded.accountId)).toBeUndefined();
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("exposes a usable terminal state after recovery of a crashed run", async () => {
+    const seeded = await seedSession();
+    const admitted = await admitConversationQueueEntry(pool!, seeded.auth, {
+      idempotency_key: randomUUID(),
+      session_id: seeded.sessionId,
+      message_id: randomUUID(),
+      objective: "崩溃恢复",
+    });
+    const provider = new ScriptedConversationProvider();
+    try {
+      const claimed = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        workerId: "crashed-worker",
+      });
+      expect(claimed).not.toBeNull();
+      await pool!.query(
+        "UPDATE conversation_queue_entries SET lease_expires_at=now()-interval '1 second' WHERE account_id=$1 AND id=$2",
+        [seeded.accountId, admitted.response.queue_entry_id],
+      );
+      const recoveryRunner = new ConversationQueueRunner({
+        pool: pool!,
+        provider,
+        logger: silentLogger,
+        workerId: "recovery-runner",
+        pollIntervalMs: 10,
+      });
+      await recoveryRunner.recover();
+      const rows = await entryRow(seeded.sessionId, seeded.accountId);
+      expect(rows[0]?.status).toBe("interrupted");
+      expect(rows[0]?.failure_code).toBe("RUNNER_INTERRUPTED");
+      expect(provider.calls).toHaveLength(0);
+      const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      expect(snapshot.paused).toBe(true);
+      expect(snapshot.queued[0]?.status).toBe("interrupted");
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("accepts every mutation kind through the real Fastify route contract", async () => {
+    const seeded = await seedSession();
+    const app = Fastify();
+    app.decorateRequest("auth", null as unknown as AuthContext);
+    registerConversationQueueRoutes(app, pool!, async (request) => {
+      (request as unknown as { auth: AuthContext }).auth = seeded.auth;
+    });
+    app.setErrorHandler((error, request, reply) => {
+      if (error instanceof ApiError) {
+        void reply.status(error.statusCode).send({
+          error: { code: error.code, message: error.message, request_id: request.id },
+        });
+        return;
+      }
+      void reply.status(500).send({
+        error: { code: "INTERNAL_ERROR", message: "synthetic", request_id: request.id },
+      });
+    });
+    await app.ready();
+    const url = `/v1/agent-sessions/${seeded.sessionId}/conversation-queue`;
+    const inject = (method: "GET" | "POST", path: string, body?: Record<string, unknown>) =>
+      app.inject({
+        method,
+        url: path,
+        ...(body
+          ? { headers: { "content-type": "application/json" }, payload: JSON.stringify(body) }
+          : {}),
+      });
+    const post = (body: Record<string, unknown>) => inject("POST", `${url}/mutations`, body);
+    try {
+      const admitted = await inject("POST", url, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "HTTP 编辑目标",
+      });
+      expect(admitted.statusCode).toBe(202);
+      const firstEntryID = (admitted.json() as { queue_entry_id: string }).queue_entry_id;
+
+      const readRevision = async () => {
+        const response = await inject("GET", url);
+        expect(response.statusCode).toBe(200);
+        return response.json() as {
+          revision: number;
+          active: { run_id: string } | null;
+          queued: Array<{ queue_entry_id: string }>;
+        };
+      };
+
+      let snapshot = await readRevision();
+      const edit = await post({
+        kind: "edit",
+        queue_entry_id: firstEntryID,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+        objective: "HTTP 编辑后",
+      });
+      expect(edit.statusCode, edit.body).toBe(200);
+      expect(edit.json().applied.kind).toBe("edit");
+
+      snapshot = await readRevision();
+      const continued = await post({
+        kind: "continue",
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+      expect(continued.statusCode, continued.body).toBe(200);
+      expect(continued.json().applied.kind).toBe("continue");
+
+      const claimed = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        workerId: "http-stop",
+      });
+      expect(claimed).not.toBeNull();
+      snapshot = await readRevision();
+      const stop = await post({
+        kind: "stop",
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+        run_id: claimed!.runId,
+      });
+      expect(stop.statusCode, stop.body).toBe(200);
+      expect(stop.json().applied.kind).toBe("stop");
+
+      // Stop leaves the run cancel-requested; finalize it truthfully, then
+      // unpause through the HTTP continue command.
+      await finalizeConversationQueueEntry(pool!, {
+        fence: {
+          accountId: claimed!.accountId,
+          sessionId: claimed!.sessionId,
+          entryId: claimed!.entryId,
+          runId: claimed!.runId,
+          leaseOwner: claimed!.leaseOwner,
+          leaseGeneration: claimed!.leaseGeneration,
+        },
+        status: "cancelled",
+      });
+      snapshot = await readRevision();
+      await post({
+        kind: "continue",
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+
+      // retry: a second entry is claimed and moved to a retryable failure.
+      const secondAdmit = await inject("POST", url, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "HTTP 重试目标",
+      });
+      expect(secondAdmit.statusCode).toBe(202);
+      const secondEntryID = (secondAdmit.json() as { queue_entry_id: string }).queue_entry_id;
+      const secondClaim = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        workerId: "http-retry",
+      });
+      expect(secondClaim).not.toBeNull();
+      await finalizeConversationQueueEntry(pool!, {
+        fence: {
+          accountId: secondClaim!.accountId,
+          sessionId: secondClaim!.sessionId,
+          entryId: secondClaim!.entryId,
+          runId: secondClaim!.runId,
+          leaseOwner: secondClaim!.leaseOwner,
+          leaseGeneration: secondClaim!.leaseGeneration,
+        },
+        status: "failed",
+        failureCode: "RUN_FAILED",
+      });
+      snapshot = await readRevision();
+      const retry = await post({
+        kind: "retry",
+        queue_entry_id: secondEntryID,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+      expect(retry.statusCode, retry.body).toBe(200);
+      expect(retry.json().applied.kind).toBe("retry");
+
+      const extra = await inject("POST", url, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "HTTP 撤回目标",
+      });
+      expect(extra.statusCode).toBe(202);
+      const extraEntryID = (extra.json() as { queue_entry_id: string }).queue_entry_id;
+      snapshot = await readRevision();
+      const withdraw = await post({
+        kind: "withdraw",
+        queue_entry_id: extraEntryID,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+      expect(withdraw.statusCode, withdraw.body).toBe(200);
+      expect(withdraw.json().applied.kind).toBe("withdraw");
+
+      const invalidStop = await post({
+        kind: "stop",
+        expected_revision: 0,
+        idempotency_key: randomUUID(),
+      });
+      expect(invalidStop.statusCode).toBe(400);
+    } finally {
+      await app.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  }, 20000);
+
+});

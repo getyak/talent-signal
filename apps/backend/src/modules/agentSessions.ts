@@ -24,6 +24,7 @@ import {
   type AgentSessionChatSource,
 } from "./agentSessionSources.js";
 import { sweepHarnessSessions } from "./harnessSessions.js";
+import { sweepConversationQueue } from "./conversationQueueSweep.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 if (!FormatRegistry.Has("uuid"))
@@ -276,6 +277,7 @@ export async function sweepAgentSessions(
     AND payload IS DISTINCT FROM redact_agent_session_payload(account_id,payload)`,
     [accountId ?? null],
   );
+  await sweepConversationQueue(client, accountId);
 }
 
 /**
@@ -1127,6 +1129,9 @@ export async function readAgentSessionConversation(
     text: string;
   }> = [];
   for (const turn of turns) {
+    // A stopped partial answer has no durable lineage and must not re-enter the
+    // model as successful assistant history.
+    if (turn.response.taskID.startsWith("cancelled-")) continue;
     if (
       turn.response.disposition === "screenshot_processing" ||
       payload.screenshotTaskIDs?.includes(turn.response.taskID) ||

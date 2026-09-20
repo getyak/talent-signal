@@ -13,7 +13,7 @@ import {
   type UnscopedChatTaskRequest,
   type UnscopedChatTaskResponse,
 } from "@talent-signal/contracts";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
@@ -45,7 +45,7 @@ export interface UnscopedChatTaskMutationResult {
   status: number;
 }
 
-interface UnscopedChatExecution {
+export interface UnscopedChatExecution {
   body: UnscopedChatTaskResponse;
   conversationMessageIDs: string[];
   conversationSources?: AgentSessionChatSource[];
@@ -108,6 +108,12 @@ export async function executeUnscopedChatTask(input: {
   createdAt?: Date;
   referenceTime?: Date;
   continuation?: (sources: () => { expiresAt: Date; personIDs: readonly string[] }) => HarnessContinuationFactory;
+  /** Host-observed forming text while the provider is still active. */
+  onVisibleText?: (text: string) => void;
+  /** Host-observed bounded stage code; never tool arguments. */
+  onProgress?: (stage: import("@talent-signal/agent").AgentVisibleProgressStage) => void;
+  /** External stop, composed with the governor's own abort. */
+  signal?: AbortSignal;
 }): Promise<UnscopedChatExecution> {
   const taskID = randomUUID();
   const calendarContext = calendarDraftContextForRequest(taskID, input.request.time_zone, input.referenceTime ?? input.createdAt ?? new Date());
@@ -172,6 +178,9 @@ export async function executeUnscopedChatTask(input: {
           ...(assertCurrent ? { assertCurrent } : {}),
           ...(responsePreference ? { responsePreference } : {}),
           ...(calendarContext ? { calendarContext } : {}),
+          ...(input.onVisibleText ? { onVisibleText: input.onVisibleText } : {}),
+          ...(input.onProgress ? { onProgress: input.onProgress } : {}),
+          ...(input.signal ? { signal: input.signal } : {}),
           recordSourcePerson: personID => { sourcePeople.add(personID); },
           ...(observation ? { observation: { ...observation, authorization_scope: "workspace_conversation" } } : {}),
         });
@@ -202,6 +211,7 @@ export async function executeUnscopedChatTask(input: {
           allowed_citation_ids: [],
           images: [],
           ...(observation ? { observation } : {}),
+          ...(input.signal ? { signal: input.signal } : {}),
         }));
         if (providerResult.kind === "question_set") {
           throw new Error("Unscoped Chat cannot return an evidence question set.");
@@ -213,9 +223,10 @@ export async function executeUnscopedChatTask(input: {
     } catch {
       providerResult = null;
       agentProviderResult = null;
-      if (input.provider.providerId === "claude-agent-sdk") {
+      if (input.provider.providerId === "claude-agent-sdk" || input.signal?.aborted) {
         // The SDK owns retries within the admitted Run. A second remote call
-        // here would bypass its source/lease checks and reset the Run budget.
+        // here would bypass its source/lease checks and reset the Run budget;
+        // a cancelled or revoked run must never start another provider call.
         block = localFallbackBlock(input.request.objective, true);
       } else try {
         providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
@@ -227,6 +238,7 @@ export async function executeUnscopedChatTask(input: {
           allowed_citation_ids: [],
           images: [],
           ...(observation ? { observation } : {}),
+          ...(input.signal ? { signal: input.signal } : {}),
         }));
         if (providerResult.kind === "question_set") {
           throw new Error("Unscoped Chat cannot return an evidence question set.");
@@ -344,50 +356,72 @@ export async function createUnscopedChatTask(
       if (execution.remoteStatus === "fallback") await client.query("ROLLBACK TO SAVEPOINT harness_product_reply");
       await client.query("RELEASE SAVEPOINT harness_product_reply");
     }
-    await appendAudit(
-      client,
-      { accountId: auth.accountId, actorUserId: auth.userId },
-      "unscoped_chat_task.completed",
-      "unscoped_chat_task",
-      execution.body.task_id,
-      {
-        context_scope: "agent_bounded_contact_lookup",
-        conversation_session_id: request.session_id ?? null,
-        conversation_message_ids: execution.conversationMessageIDs,
-        current_message_id: request.message_id ?? null,
-        evidence_count: 0,
-        external_effect_count: 0,
-        disposition: execution.body.disposition,
-        remote_chat_status: execution.remoteStatus,
-        remote_chat_provider_id:
-          execution.agentProviderResult?.providerID
-            ?? execution.providerResult?.provider_id
-            ?? null,
-        remote_chat_model:
-          execution.agentProviderResult?.model
-            ?? execution.providerResult?.model
-            ?? null,
-        remote_chat_provider_request_id:
-          execution.agentProviderResult?.providerRequestID
-            ?? execution.providerResult?.provider_request_id
-            ?? null,
-        contact_agent_event_kind: execution.body.agent_event?.kind ?? null,
-        prompt: execution.agentProviderResult?.prompt ?? (execution.providerResult?.prompt_snapshot
-          ? { name: execution.providerResult.prompt_snapshot.name, revision: execution.providerResult.prompt_snapshot.revision,
-            versionId: execution.providerResult.prompt_snapshot.versionId, source: execution.providerResult.prompt_snapshot.source } : null),
-      },
-    );
-    await recordSessionChatSources(client, auth, request.session_id, execution.body.task_id, execution.conversationSources ?? [], execution.previousTaskIDs);
-    if (request.session_id) {
-      await recordMeetingDraftsForTask(client, auth, {
-        blocks: execution.body.blocks,
-        ...(request.message_id ? { messageID: request.message_id } : {}),
-        sessionID: request.session_id,
-        taskID: execution.body.task_id,
-      });
-    }
+    await recordUnscopedChatCompletionEvidence(client, auth, request, execution);
     await completeIdempotency(client, idempotency, 201, execution.body);
     return { body: execution.body, replayed: false, status: 201,
       labProductOutcome: execution.remoteStatus === "agent_completed" || execution.remoteStatus === "completed" ? "accepted" : "fallback" };
   });
+}
+
+/**
+ * The single governed completion boundary shared by the synchronous endpoint
+ * and the durable queue runner: audit, Session chat-source lineage, and meeting
+ * draft registration. Callers own their surrounding transaction so a replay
+ * gate can make this exactly once.
+ */
+export async function recordUnscopedChatCompletionEvidence(
+  client: PoolClient,
+  auth: AuthContext,
+  request: UnscopedChatTaskRequest,
+  execution: UnscopedChatExecution,
+): Promise<void> {
+  await appendAudit(
+    client,
+    { accountId: auth.accountId, actorUserId: auth.userId },
+    "unscoped_chat_task.completed",
+    "unscoped_chat_task",
+    execution.body.task_id,
+    {
+      context_scope: "agent_bounded_contact_lookup",
+      conversation_session_id: request.session_id ?? null,
+      conversation_message_ids: execution.conversationMessageIDs,
+      current_message_id: request.message_id ?? null,
+      evidence_count: 0,
+      external_effect_count: 0,
+      disposition: execution.body.disposition,
+      remote_chat_status: execution.remoteStatus,
+      remote_chat_provider_id:
+        execution.agentProviderResult?.providerID
+          ?? execution.providerResult?.provider_id
+          ?? null,
+      remote_chat_model:
+        execution.agentProviderResult?.model
+          ?? execution.providerResult?.model
+          ?? null,
+      remote_chat_provider_request_id:
+        execution.agentProviderResult?.providerRequestID
+          ?? execution.providerResult?.provider_request_id
+          ?? null,
+      contact_agent_event_kind: execution.body.agent_event?.kind ?? null,
+      prompt: execution.agentProviderResult?.prompt ?? (execution.providerResult?.prompt_snapshot
+        ? { name: execution.providerResult.prompt_snapshot.name, revision: execution.providerResult.prompt_snapshot.revision,
+          versionId: execution.providerResult.prompt_snapshot.versionId, source: execution.providerResult.prompt_snapshot.source } : null),
+    },
+  );
+  await recordSessionChatSources(
+    client,
+    auth,
+    request.session_id,
+    execution.body.task_id,
+    execution.conversationSources ?? [],
+    execution.previousTaskIDs,
+  );
+  if (request.session_id) {
+    await recordMeetingDraftsForTask(client, auth, {
+      blocks: execution.body.blocks,
+      ...(request.message_id ? { messageID: request.message_id } : {}),
+      sessionID: request.session_id,
+      taskID: execution.body.task_id,
+    });
+  }
 }

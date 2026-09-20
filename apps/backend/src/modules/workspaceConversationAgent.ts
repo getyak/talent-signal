@@ -13,6 +13,7 @@ import {
   type AgentProvider,
   type AgentProviderResult,
   type AgentToolResult,
+  type AgentVisibleProgressStage,
   type ConversationMessage,
   type RuntimeObservationContext,
 } from "@talent-signal/agent";
@@ -182,6 +183,9 @@ export async function executeWorkspaceConversationAgentCore(input: {
   assertCurrent?: () => Promise<void>;
   responsePreference?: import("@talent-signal/agent").ResponsePreference;
   calendarContext?: import("@talent-signal/agent").CalendarDraftContext;
+  onVisibleText?: (text: string) => void;
+  onProgress?: (stage: AgentVisibleProgressStage) => void;
+  signal?: AbortSignal;
 }): Promise<WorkspaceConversationAgentExecution> {
   const searchResults = new Map<string, WorkspaceContactSearchResult>();
   const readableScopes = new Set<string>();
@@ -201,6 +205,14 @@ export async function executeWorkspaceConversationAgentCore(input: {
     () => abort.abort(new Error("WORKSPACE_CONVERSATION_TIMEOUT")),
     durationMs,
   );
+  // External stop composes with the existing timeout and source-revocation
+  // aborts; it never creates a second provider execution.
+  const onExternalAbort = () =>
+    abort.abort(input.signal?.reason ?? new Error("USER_CANCELLED"));
+  if (input.signal) {
+    if (input.signal.aborted) onExternalAbort();
+    else input.signal.addEventListener("abort", onExternalAbort, { once: true });
+  }
 
   const invokeTool = async (
     name: string,
@@ -483,6 +495,8 @@ export async function executeWorkspaceConversationAgentCore(input: {
         ...(input.assertCurrent ? { assertCurrent: input.assertCurrent } : {}),
         ...(input.responsePreference ? { responsePreference: input.responsePreference } : {}),
         ...(input.calendarContext ? { calendarContext: input.calendarContext } : {}),
+        ...(input.onVisibleText ? { onVisibleText: input.onVisibleText } : {}),
+        ...(input.onProgress ? { onProgress: input.onProgress } : {}),
         objective: input.objective,
         sessionTitleRequested: input.sessionTitleRequested === true,
         conversationHistory: input.conversationHistory ?? [],
@@ -621,6 +635,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
     };
   } finally {
     clearTimeout(timeout);
+    input.signal?.removeEventListener("abort", onExternalAbort);
   }
 }
 
@@ -639,6 +654,9 @@ export async function executeWorkspaceConversationAgent(input: {
   assertCurrent?: () => Promise<void>;
   responsePreference?: import("@talent-signal/agent").ResponsePreference;
   calendarContext?: import("@talent-signal/agent").CalendarDraftContext;
+  onVisibleText?: (text: string) => void;
+  onProgress?: (stage: AgentVisibleProgressStage) => void;
+  signal?: AbortSignal;
   recordSourcePerson?: (personID: string) => void;
 }): Promise<WorkspaceConversationAgentExecution> {
   const refs = input.observation?.source_refs;
@@ -690,6 +708,9 @@ export async function executeWorkspaceConversationAgent(input: {
         ...(input.assertCurrent ? { assertCurrent: input.assertCurrent } : {}),
         ...(input.responsePreference ? { responsePreference: input.responsePreference } : {}),
         ...(input.calendarContext ? { calendarContext: input.calendarContext } : {}),
+    ...(input.onVisibleText ? { onVisibleText: input.onVisibleText } : {}),
+    ...(input.onProgress ? { onProgress: input.onProgress } : {}),
+    ...(input.signal ? { signal: input.signal } : {}),
     ...(input.messageID === undefined ? {} : { messageID: input.messageID }),
     ...(input.sessionTitleRequested === undefined ? {} : { sessionTitleRequested: input.sessionTitleRequested }),
     ...(input.conversationHistory === undefined ? {} : { conversationHistory: input.conversationHistory }),

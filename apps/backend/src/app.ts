@@ -3,6 +3,8 @@ import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessR
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
+import { registerConversationQueueRoutes } from "./modules/conversationQueueRoutes.js";
+import { ConversationQueueRunner, type ConversationQueueProviderSelector } from "./modules/conversationQueueRunner.js";
 import { registerMeetingDraftRoutes } from "./modules/meetingDraftRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerMcpExtensionRoutes } from "./modules/mcpRoutes.js";
@@ -768,6 +770,7 @@ export async function buildApp(
   registerProductRunMonitoring(app, pool, authenticate);
   registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
   registerAgentSessionRoutes(app, pool, authenticate);
+  registerConversationQueueRoutes(app, pool, authenticate);
   registerMeetingDraftRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
@@ -3121,6 +3124,48 @@ export async function buildApp(
   );
 
   const stopProductProjection = startProductRunProjection(pool, () => app.log.error("Product run Opik projection unavailable; local records retained"));
+  // The durable queue path keeps the configured Lab provider selection and
+  // frozen reference clock, so Web does not silently lose Lab experiment arms.
+  const conversationQueueSelectProvider: ConversationQueueProviderSelector | undefined =
+    config.internalLabEnabled
+      ? async (client, input) => {
+          const trial = labTrials.taskContext(
+            input.auth,
+            "unscoped_chat",
+            input.idempotencyKey,
+          );
+          const provider = await trial.select(client);
+          return {
+            provider,
+            finish: (outcome) => Promise.resolve(trial.finish(outcome)),
+          };
+        }
+      : undefined;
+  const conversationQueueRunner = new ConversationQueueRunner({
+    pool,
+    provider: remoteChatProvider,
+    logger: app.log,
+    ...(conversationQueueSelectProvider
+      ? { selectProvider: conversationQueueSelectProvider }
+      : {}),
+    ...(dependencies.chatReferenceClock
+      ? { referenceClock: dependencies.chatReferenceClock }
+      : {}),
+  });
+  app.addHook("onReady", async () => {
+    await conversationQueueRunner.recover().catch((error: unknown) => {
+      app.log.error(
+        { err: error },
+        "Conversation queue recovery is pending and will retry.",
+      );
+    });
+  });
+  conversationQueueRunner.start();
+  registerRecurringJob(app, {
+    name: "conversation-queue-recovery",
+    intervalMs: config.retentionSweepIntervalMs,
+    run: () => conversationQueueRunner.recover(),
+  });
   registerRecurringJob(app, {
     name: "contact-task-retention-sweep",
     intervalMs: config.retentionSweepIntervalMs,
@@ -3133,6 +3178,7 @@ export async function buildApp(
       await runSourceLifecycleSweep(pool);
     },
   });
+  app.addHook("preClose", async () => { await conversationQueueRunner.close(); });
   app.addHook("onClose", async () => {
     await stopProductProjection();
     await screenshotRunner?.close();
