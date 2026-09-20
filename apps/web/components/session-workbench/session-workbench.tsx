@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { QueuedConversation } from "../conversation/queued-conversation";
 import { useWorkspaceChat } from "../relationship-workspace/use-workspace-chat";
 import { ConversationResponse } from "../conversation-response";
 import { WorkspaceComposer } from "../workspace-composer";
@@ -97,7 +98,19 @@ type DetailResponse = {
   session_version?: string;
 };
 
-export function SessionWorkbench({
+export function SessionWorkbench(props: Props) {
+  const [legacy, setLegacy] = useState<boolean | null>(null);
+  useEffect(() => {
+    const pending = readPendingSessionDraft(props.storageScope, props.initialDetail.session_id);
+    const frame = requestAnimationFrame(() => setLegacy(Boolean(pending)));
+    return () => cancelAnimationFrame(frame);
+  }, [props.storageScope, props.initialDetail.session_id]);
+  if (legacy === null) return <LegacySessionWorkbench {...props}/>;
+  if (!legacy && props.initialDetail.scope_kind === "unresolved_intent" && props.chatSessionVersion && props.sessionVersion) return <QueuedConversation key={`${props.storageScope}:${props.initialDetail.session_id}:${props.chatSessionVersion}`} initialDetail={props.initialDetail} scope={props.storageScope} chatBinding={props.chatSessionVersion} detailBinding={props.sessionVersion} meetingLinks={props.meetingLinks} meetingReadFailed={props.meetingReadFailed}/>;
+  return <LegacySessionWorkbench {...props}/>;
+}
+
+function LegacySessionWorkbench({
   initialDetail,
   meetingLinks = [],
   meetingReadFailed = false,

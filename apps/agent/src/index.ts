@@ -26,6 +26,7 @@ export * from "./schemas.js";
 export * from "./scriptedProvider.js";
 export * from "./toolCatalog.js";
 export * from "./types.js";
+export * from "./visibleTextFilter.js";
 export * from "./prompts.js";
 export * from "./promptRegistry.js";
 export * from "./runtimeObservation.js";

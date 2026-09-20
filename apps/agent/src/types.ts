@@ -368,6 +368,17 @@ export interface ConversationMessage {
   text: string;
 }
 
+/** Bounded, host-owned execution stages a provider may report to the product. */
+export const AGENT_VISIBLE_PROGRESS_STAGES = [
+  "contact_lookup",
+  "contact_read",
+  "calendar_draft",
+  "answer",
+] as const;
+
+export type AgentVisibleProgressStage =
+  (typeof AGENT_VISIBLE_PROGRESS_STAGES)[number];
+
 export interface AgentProviderRequest {
   calendarContext?: import("./calendarDraft.js").CalendarDraftContext;
   /** Trusted host source lineage for opt-in private observation; never model authority. */
@@ -375,6 +386,13 @@ export interface AgentProviderRequest {
   continuation?: import("./claudeHarnessContinuation.js").HarnessContinuationFactory;
   /** Host-only source admission captured before compiling private context. */
   assertCurrent?: () => Promise<void>;
+  /**
+   * Host-observed visible main-session text while the provider is still active.
+   * A forming response only: never evidence, citation, or execution authority.
+   */
+  onVisibleText?: (text: string) => void;
+  /** Host-observed bounded stage code. Never carries model input or tool arguments. */
+  onProgress?: (stage: AgentVisibleProgressStage) => void;
   responsePreference?: import("./responsePreference.js").ResponsePreference;
   runID: string;
   objective: string;

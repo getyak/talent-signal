@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildApp } from "./app.js";
+import { buildApp as buildAppWithWorkers, type AppDependencies } from "./app.js";
 import type { BackendConfig } from "./config.js";
 import { REQUIRED_SYSTEM_MIGRATIONS } from "./modules/systemHealth.js";
 import type { VoiceTranscriptionServing } from "./modules/voiceTranscription.js";
@@ -21,6 +21,12 @@ const config: BackendConfig = {
 };
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
+
+// These route-boundary tests measure their own database calls. Queue worker
+// execution is independently covered with a real disposable database.
+const buildApp = (dependencies: AppDependencies) => buildAppWithWorkers({
+  ...dependencies, conversationQueueWorkerEnabled: false,
+});
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
@@ -66,6 +72,7 @@ describe("readiness rate limiting", () => {
         { version: "070_meeting_drafts" },
         { version: "071_agent_session_list_snapshots" },
         { version: "072_mcp_extensions" },
+        { version: "073_conversation_queue" },
         { version: "073_account_onboarding" },
       ],
     });
@@ -106,6 +113,7 @@ describe("readiness rate limiting", () => {
           "070_meeting_drafts",
           "071_agent_session_list_snapshots",
           "072_mcp_extensions",
+          "073_conversation_queue",
           "073_account_onboarding",
         ]
           .filter(version => version !== missing).map(version => ({ version })),

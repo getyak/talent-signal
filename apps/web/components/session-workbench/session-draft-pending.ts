@@ -1,3 +1,4 @@
+import { clearConversationLocal, pruneConversationLocal } from "../../lib/conversation-local";
 import type { SaveRequestBody, SessionDetail } from "./session-detail-state";
 
 const PREFIX = "talent-signal:session-draft-pending:v1:";
@@ -360,6 +361,7 @@ export function prunePendingSessionDrafts(
   now = Date.now(),
 ): void {
   if (!target) return;
+  pruneConversationLocal(storageScope, target);
   try {
     for (let index = target.length - 1; index >= 0; index -= 1) {
       const itemKey = target.key(index);
@@ -384,6 +386,7 @@ export function prunePendingSessionDrafts(
 
 export function clearAllPendingSessionDrafts(target = storage()): void {
   if (!target) return;
+  clearConversationLocal(undefined, undefined, target);
   try {
     for (let index = target.length - 1; index >= 0; index -= 1) {
       const itemKey = target.key(index);

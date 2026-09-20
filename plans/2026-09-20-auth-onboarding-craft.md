@@ -156,3 +156,28 @@ independent review, current-head CI and merge readback.
   shared redirect sanitizer. It now rejects ASCII controls/whitespace, verifies
   a parsed same-origin URL, and returns normalized path/query/fragment. Tests cover
   CR/LF/TAB and canonical origin case/default-port normalization.
+
+## September 21 final integration
+
+- A dedicated Sign in with Apple key was created after explicit confirmation,
+  scoped only to the Talent Signal primary App ID and Web Services ID. Its
+  P-256 private key and identifiers were stored in staging `/web` in Infisical;
+  a credential round trip matched without exposing the key. The active Web
+  runtime now advertises Apple and reaches Apple's Talent Signal authorization
+  page. Owner password/passkey verification and the completed callback remain
+  pending; this is not reported as a successful sign-in.
+- Main advanced to `7ae47717` with `073_conversation_queue` after
+  `073_account_onboarding` had already been deployed. Keep main's 77-entry
+  history as an unchanged prefix and append the deployed onboarding identifier.
+  Preserve both SQL files and checksums; the exact pair is a narrow historical
+  prefix exception, while additional/replacement collisions remain rejected.
+  Readiness requires both independent schemas. The combined manifest has 78
+  migrations. GET-24 owns the subsequent 074 migration and deployment window.
+- Independent final review found that session readback accepted an AbortSignal
+  without forwarding it to fetch. The shared client now forwards cancellation;
+  a real-client regression proves the network request aborts at the deadline.
+- After main integration: 966 Web tests passed (1 skipped), 53 focused backend
+  tests passed, and both type checks passed. The first backend run used stale
+  built contract exports from before the queue merge; rebuilding dependencies
+  resolved it. The final cancellation change passed 61 focused auth tests.
+  Documentation and all 13 architecture guard tests passed.

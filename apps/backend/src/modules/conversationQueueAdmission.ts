@@ -1,0 +1,325 @@
+import { createHash, randomUUID } from "node:crypto";
+
+import {
+  CONTRACT_VERSION,
+  type ConversationQueueAdmitRequest,
+  type ConversationQueueAdmitResponse,
+  type ConversationQueueApplied,
+  type ConversationQueueEntryStatus,
+  type ConversationQueueMutationRequest,
+  type ConversationQueueSnapshot,
+} from "@talent-signal/contracts";
+import type { Pool, PoolClient } from "pg";
+
+import { inTransaction } from "../database/pool.js";
+import { ApiError } from "../lib/apiError.js";
+import { claimIdempotency, completeIdempotency } from "../lib/idempotency.js";
+import type { AuthContext } from "./auth.js";
+import { assertSessionForChat } from "./agentSessionSources.js";
+import {
+  allocateConversationQueueSequence,
+  asNumber,
+  bumpConversationQueueState,
+  CONVERSATION_QUEUE_MAX_ENTRIES,
+  type ConversationQueueEntryRow,
+  lockConversationQueueSession,
+  readConversationQueueSnapshot,
+  readConversationQueueState,
+} from "./conversationQueueState.js";
+import { publishConversationQueueChanged, publishConversationQueueStop } from "./conversationQueueLive.js";
+
+export const CONVERSATION_QUEUE_OPERATION_SCOPE = "conversation_queue_admit";
+
+const ACTIVE_STATUSES: ConversationQueueEntryStatus[] = [
+  "queued",
+  "running",
+  "failed",
+  "interrupted",
+];
+
+function admitReceipt(
+  row: ConversationQueueEntryRow,
+  state: { revision: number },
+): ConversationQueueAdmitResponse {
+  return {
+    contract_version: CONTRACT_VERSION,
+    session_id: row.session_id,
+    message_id: row.message_id,
+    queue_entry_id: row.id,
+    run_id: row.run_id,
+    status: row.status,
+    sequence: asNumber(row.sequence),
+    revision: row.revision,
+    snapshot_revision: state.revision,
+    accepted_at: row.created_at.toISOString(),
+  };
+}
+
+export async function admitConversationQueueEntry(
+  pool: Pool,
+  auth: AuthContext,
+  request: ConversationQueueAdmitRequest,
+): Promise<{ response: ConversationQueueAdmitResponse; replayed: boolean }> {
+  const outcome = await inTransaction(pool, async (client) => {
+    const expiresAt = await assertSessionForChat(client, auth, request.session_id);
+    const idempotency = await claimIdempotency(
+      client,
+      { accountId: auth.accountId, actorUserId: auth.userId },
+      CONVERSATION_QUEUE_OPERATION_SCOPE,
+      request.idempotency_key,
+      {
+        session_id: request.session_id,
+        message_id: request.message_id,
+        objective: request.objective,
+        time_zone: request.time_zone ?? null,
+      },
+    );
+    if (idempotency.replay) {
+      const replay = idempotency.replay.body as ConversationQueueAdmitResponse;
+      if (!replay || replay.message_id !== request.message_id) {
+        throw new ApiError(
+          409,
+          "CONVERSATION_QUEUE_IDEMPOTENCY_CONFLICT",
+          "This request key already identifies a different message.",
+        );
+      }
+      return { response: replay, replayed: true };
+    }
+    await lockConversationQueueSession(client, request.session_id);
+    const existing = (
+      await client.query<ConversationQueueEntryRow>(
+        "SELECT * FROM conversation_queue_entries WHERE account_id=$1 AND session_id=$2 AND message_id=$3",
+        [auth.accountId, request.session_id, request.message_id],
+      )
+    ).rows[0];
+    if (existing) {
+      if (
+        existing.idempotency_key !== request.idempotency_key ||
+        existing.objective !== request.objective
+      ) {
+        throw new ApiError(
+          409,
+          "CONVERSATION_QUEUE_MESSAGE_CONFLICT",
+          "This message id already identifies a different queued intention.",
+        );
+      }
+      const response = admitReceipt(
+        existing,
+        await readConversationQueueState(client, auth.accountId, request.session_id),
+      );
+      await completeIdempotency(client, idempotency, 202, response);
+      return { response, replayed: true };
+    }
+    const queueDepth = (
+      await client.query<{ count: string }>(
+        `SELECT count(*) AS count FROM conversation_queue_entries
+         WHERE account_id=$1 AND session_id=$2 AND status = ANY($3::text[])`,
+        [auth.accountId, request.session_id, ACTIVE_STATUSES],
+      )
+    ).rows[0]!.count;
+    if (Number(queueDepth) >= CONVERSATION_QUEUE_MAX_ENTRIES) {
+      throw new ApiError(
+        429,
+        "CONVERSATION_QUEUE_FULL",
+        "This conversation queue is full. Let an earlier message finish first.",
+      );
+    }
+    const { sequence, revision } = await allocateConversationQueueSequence(
+      client,
+      auth.accountId,
+      request.session_id,
+    );
+    const entry = (
+      await client.query<ConversationQueueEntryRow>(
+        `INSERT INTO conversation_queue_entries(
+           account_id,session_id,id,message_id,created_by_user_id,auth_session_id,sequence,status,content_state,
+           objective,time_zone,idempotency_key,revision,expires_at
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,'queued','retained',$8,$9,$10,1,$11)
+         RETURNING *`,
+        [
+          auth.accountId,
+          request.session_id,
+          randomUUID(),
+          request.message_id,
+          auth.userId,
+          auth.sessionId,
+          sequence,
+          request.objective,
+          request.time_zone ?? null,
+          request.idempotency_key,
+          expiresAt,
+        ],
+      )
+    ).rows[0]!;
+    const response = admitReceipt(entry, { revision });
+    await completeIdempotency(client, idempotency, 202, response);
+    return { response, replayed: false };
+  });
+  if (!outcome.replayed) {
+    queueMicrotask(() =>
+      publishConversationQueueChanged(auth.accountId, request.session_id),
+    );
+  }
+  return outcome;
+}
+
+interface MutationOutcome {
+  snapshot: ConversationQueueSnapshot;
+  applied: ConversationQueueApplied;
+  replayed: boolean;
+}
+
+function mutationHash(sessionId: string, request: ConversationQueueMutationRequest): string {
+  return createHash("sha256").update(JSON.stringify({ sessionId, ...request })).digest("hex");
+}
+
+export async function mutateConversationQueueEntry(
+  pool: Pool,
+  auth: AuthContext,
+  sessionId: string,
+  request: ConversationQueueMutationRequest,
+): Promise<MutationOutcome> {
+  const outcome = await inTransaction(pool, async (client) => {
+    await assertSessionForChat(client, auth, sessionId);
+    const existingOperation = (
+      await client.query<{ request_hash: string; applied: ConversationQueueApplied }>(
+        "SELECT request_hash,applied FROM conversation_queue_operations WHERE account_id=$1 AND actor_user_id=$2 AND idempotency_key=$3 FOR UPDATE",
+        [auth.accountId, auth.userId, request.idempotency_key],
+      )
+    ).rows[0];
+    if (existingOperation) {
+      if (existingOperation.request_hash !== mutationHash(sessionId, request)) {
+        throw new ApiError(
+          409,
+          "CONVERSATION_QUEUE_IDEMPOTENCY_CONFLICT",
+          "This operation key already identifies a different queue change.",
+        );
+      }
+      const snapshot = await readConversationQueueSnapshot(client, auth, sessionId);
+      return { snapshot, applied: existingOperation.applied, replayed: true };
+    }
+    await lockConversationQueueSession(client, sessionId);
+    const state = await readConversationQueueState(client, auth.accountId, sessionId);
+    if (state.revision !== request.expected_revision) {
+      throw new ApiError(
+        409,
+        "CONVERSATION_QUEUE_REVISION_CONFLICT",
+        "The conversation queue changed on another device. Read its current state.",
+        { revision: state.revision },
+      );
+    }
+    const applied = await applyMutation(client, auth, sessionId, request);
+    await client.query(
+      "INSERT INTO conversation_queue_operations(account_id,actor_user_id,idempotency_key,request_hash,applied) VALUES($1,$2,$3,$4,$5)",
+      [auth.accountId, auth.userId, request.idempotency_key, mutationHash(sessionId, request), applied],
+    );
+    const snapshot = await readConversationQueueSnapshot(client, auth, sessionId);
+    return { snapshot, applied, replayed: false };
+  });
+  if (!outcome.replayed) publishConversationQueueChanged(auth.accountId, sessionId);
+  return outcome;
+}
+
+async function applyMutation(
+  client: PoolClient,
+  auth: AuthContext,
+  sessionId: string,
+  request: ConversationQueueMutationRequest,
+): Promise<ConversationQueueApplied> {
+  if (request.kind === "continue") {
+    const blocked = await client.query("SELECT 1 FROM conversation_queue_entries WHERE account_id=$1 AND session_id=$2 AND status IN ('failed','interrupted') LIMIT 1", [auth.accountId, sessionId]);
+    if (blocked.rowCount) throw new ApiError(409, "CONVERSATION_QUEUE_RETRY_REQUIRED", "Retry or remove the unfinished message before continuing.");
+    await bumpConversationQueueState(client, auth.accountId, sessionId, { paused: false });
+    return { kind: "continue", queue_entry_id: null, run_id: null, status: null };
+  }
+  if (request.kind === "stop") {
+    const row = (
+      await client.query<{ id: string }>(
+        `UPDATE conversation_queue_entries
+         SET cancel_requested=true, updated_at=now(), revision=revision+1
+         WHERE account_id=$1 AND session_id=$2 AND run_id=$3 AND status='running'
+         RETURNING id`,
+        [auth.accountId, sessionId, request.run_id],
+      )
+    ).rows[0];
+    if (!row) {
+      const terminal = (
+        await client.query<{ status: ConversationQueueEntryStatus }>(
+          "SELECT status FROM conversation_queue_entries WHERE account_id=$1 AND session_id=$2 AND run_id=$3",
+          [auth.accountId, sessionId, request.run_id],
+        )
+      ).rows[0];
+      return {
+        kind: "stop",
+        queue_entry_id: null,
+        run_id: request.run_id,
+        status: terminal?.status ?? null,
+      };
+    }
+    await bumpConversationQueueState(client, auth.accountId, sessionId);
+    queueMicrotask(() => publishConversationQueueStop(auth.accountId, sessionId, request.run_id));
+    return { kind: "stop", queue_entry_id: row.id, run_id: request.run_id, status: "running" };
+  }
+  const row = (
+    await client.query<ConversationQueueEntryRow>(
+      "SELECT * FROM conversation_queue_entries WHERE account_id=$1 AND session_id=$2 AND id=$3 FOR UPDATE",
+      [auth.accountId, sessionId, request.queue_entry_id],
+    )
+  ).rows[0];
+  if (!row) {
+    throw new ApiError(
+      404,
+      "CONVERSATION_QUEUE_ENTRY_NOT_FOUND",
+      "This queued message is no longer available.",
+    );
+  }
+  if (request.kind === "edit") {
+    if (row.status !== "queued") {
+      throw new ApiError(
+        409,
+        "CONVERSATION_QUEUE_ENTRY_CLAIMED",
+        "This message has already started and can no longer be edited.",
+      );
+    }
+    await client.query(
+      "UPDATE conversation_queue_entries SET objective=$3, updated_at=now(), revision=revision+1 WHERE account_id=$1 AND id=$2",
+      [auth.accountId, row.id, request.objective],
+    );
+    await bumpConversationQueueState(client, auth.accountId, sessionId);
+    return { kind: "edit", queue_entry_id: row.id, run_id: row.run_id, status: "queued" };
+  }
+  if (request.kind === "withdraw") {
+    if (!["queued", "failed", "interrupted"].includes(row.status)) {
+      throw new ApiError(
+        409,
+        "CONVERSATION_QUEUE_ENTRY_CLAIMED",
+        "This message has already started and cannot be withdrawn.",
+      );
+    }
+    await client.query(
+      "DELETE FROM conversation_queue_entries WHERE account_id=$1 AND id=$2",
+      [auth.accountId, row.id],
+    );
+    await bumpConversationQueueState(client, auth.accountId, sessionId);
+    return { kind: "withdraw", queue_entry_id: row.id, run_id: null, status: null };
+  }
+  // retry: an explicit action that re-queues one entry. Only an explicit
+  // Continue clears the pause, so a failed old message can never move silently
+  // ahead of later ones.
+  if (!["failed", "interrupted"].includes(row.status)) {
+    throw new ApiError(
+      409,
+      "CONVERSATION_QUEUE_ENTRY_NOT_RETRYABLE",
+      "Only a failed or interrupted message can be retried explicitly.",
+    );
+  }
+  await client.query(
+    `UPDATE conversation_queue_entries
+     SET status='queued', failure_code=NULL, stage=NULL, lease_owner=NULL, lease_expires_at=NULL,
+         cancel_requested=false, updated_at=now(), revision=revision+1
+     WHERE account_id=$1 AND id=$2`,
+    [auth.accountId, row.id],
+  );
+  await bumpConversationQueueState(client, auth.accountId, sessionId);
+  return { kind: "retry", queue_entry_id: row.id, run_id: row.run_id, status: "queued" };
+}
