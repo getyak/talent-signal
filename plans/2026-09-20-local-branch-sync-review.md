@@ -75,16 +75,25 @@ Independent reviewers examined PR #202-204 runtime and PR #205-207 Web changes.
 No P0 was confirmed. This is scoped deep review, not proof the entire repository
 has no defects. GitHub Dependabot was also read back: two high PostCSS findings
 (#8/#22) belong to archived design-prototype development lockfiles; medium
-findings cover those snapshots, Hono, and the macOS Linux-only GLib lineage.
+findings cover those snapshots, Hono, and the macOS Hybrid Cargo dependency graph.
 They remain outside these two confirmed production-path P1 fixes; no claim is
 made that all dependency advisories are resolved.
 
 ## Milestones and verification
 
 - Complete: baseline, branch/PR/patch audit, independent initial P1 review.
-- Active: Pi implements the two bounded fixes; parent reviews and verifies.
-- Pending: independent fix review, full relevant tests/types/docs/security,
-  branch publication, latest-head GitHub CI/Security, merge and main readback.
+- Complete: Pi implementation plus parent corrections; independent reviewers
+  closed both P1 findings on the final source. The Web review required additional
+  combined-race coverage and a conflict gate before all pending rebases.
+- Complete: Web 736 tests passed / one existing skipped, Agent Host 80 passed;
+  Web/Agent Host typechecks, changed-file ESLint, docs/architecture, secret
+  hygiene and diff whitespace checks passed.
+- Active: latest-head GitHub CI/Security, merge and main readback.
+
+The Firecrawl contract is checked against the upstream scraper metadata
+assignment (`sourceURL` original versus `url` final). No live paid-provider
+request or deployment is claimed. Server and competing browser draft tests use
+synthetic data, including legacy send records and inactive session readbacks.
 
 Retain original worktrees and uncommitted files. Archive refs are history only;
 never treat publication as review approval or production integration.

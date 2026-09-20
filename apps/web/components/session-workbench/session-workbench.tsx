@@ -46,6 +46,14 @@ import {
   type PendingSessionDraft,
 } from "./session-draft-pending";
 import {
+  canPersistSessionDraft,
+  captureSessionSendCleanupIdentity,
+  clearSentDraftStorage,
+  forcedNoopCleanupKey,
+  planDraftPersistence,
+  resolveSessionSendCompletion,
+} from "./session-send-cleanup";
+import {
   conflictView,
   draftStatusLabel,
   formatSessionTime,
@@ -110,6 +118,7 @@ export function SessionWorkbench({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveAttemptRef = useRef<SaveRequestBody | null>(null);
   const pendingDraftRef = useRef<PendingSessionDraft | null>(null);
+  const foreignPendingRef = useRef(false);
   const saveDrainRef = useRef(new SessionSaveDrain());
   const deleteKeyRef = useRef<string | null>(null);
   const stateRef = useRef(state);
@@ -151,7 +160,7 @@ export function SessionWorkbench({
       initialDetail.session_id,
     );
     if (!recovered) return;
-    if ((recovered as PendingSessionDraft & {purpose?: string}).purpose === "session-send") {
+    if (recovered.purpose === "session-send") {
       sendAttempt.current = recovered;
       setSendPending(true);
       commitState(previous => ({ ...previous, draft: recovered.latest.draft, status: "idle" }));
@@ -184,11 +193,16 @@ export function SessionWorkbench({
     async ({ force, isCurrent }: SaveDrainContext) => {
       if (sendAttempt.current) return;
       const current = stateRef.current;
+      if (!canPersistSessionDraft(current)) return;
       const activeBinding = bindingRef.current;
       if (!activeBinding) return;
       let durablePending = pendingDraftRef.current;
       let request = saveAttemptRef.current;
-      if (!request && durablePending?.latest.draft === current.draft) {
+      if (
+        !request &&
+        durablePending?.latest.draft === current.draft &&
+        current.draft !== current.lastSavedDraft
+      ) {
         durablePending = beginPendingSessionDraft(
           durablePending,
           current.detail.revision,
@@ -210,8 +224,15 @@ export function SessionWorkbench({
       if (!request) {
         if (force && current.detail.state === "active") {
           saveAttemptRef.current = null;
-          pendingDraftRef.current = null;
-          clearDurableDraft();
+          const cleanupKey = forcedNoopCleanupKey({
+            foreign: foreignPendingRef.current,
+            pending: pendingDraftRef.current,
+          });
+          if (cleanupKey) {
+            clearDurableDraft(cleanupKey);
+            pendingDraftRef.current = null;
+            foreignPendingRef.current = false;
+          }
         }
         return;
       }
@@ -241,6 +262,7 @@ export function SessionWorkbench({
           if (saveAttemptRef.current === request) saveAttemptRef.current = null;
           if (!shouldRetainDraftAfterConflict(response.status, payload.code)) {
             pendingDraftRef.current = null;
+            foreignPendingRef.current = false;
             clearDurableDraft();
             setNotice(payload.message || "登录已改变，请重新打开这段对话。");
           }
@@ -250,6 +272,7 @@ export function SessionWorkbench({
         if (isDetailGoneResponse(response.status)) {
           if (saveAttemptRef.current === request) saveAttemptRef.current = null;
           pendingDraftRef.current = null;
+          foreignPendingRef.current = false;
           clearDurableDraft();
           setNotice(payload.message || "这段对话已删除或过期。");
           try {
@@ -271,6 +294,7 @@ export function SessionWorkbench({
         if (payload.detail.state !== "active") {
           if (saveAttemptRef.current === request) saveAttemptRef.current = null;
           pendingDraftRef.current = null;
+          foreignPendingRef.current = false;
           clearDurableDraft();
           commitState((previous) =>
             markDeleted(previous, payload.detail as SessionDetail),
@@ -282,6 +306,7 @@ export function SessionWorkbench({
         if (latestPending?.latest.idempotencyKey === request.idempotency_key) {
           clearDurableDraft(request.idempotency_key);
           pendingDraftRef.current = null;
+          foreignPendingRef.current = false;
         } else if (latestPending) {
           const rebased = rebasePendingSessionDraft(
             latestPending,
@@ -321,26 +346,23 @@ export function SessionWorkbench({
   const updateDraft = useCallback(
     (value: string) => {
       const current = stateRef.current;
-      const next = applyDraftInput(current, value);
-      if (next.draft === current.lastSavedDraft) {
-        pendingDraftRef.current = null;
-        clearDurableDraft();
-      } else {
-        const pending = createPendingSessionDraft({
-          baseRevision: current.detail.revision,
-          draft: next.draft,
-          idempotencyKey: crypto.randomUUID(),
-          predecessor: saveAttemptRef.current,
-          sessionId: current.detail.session_id,
-          storageScope,
-          updatedAt: new Date().toISOString(),
-        });
-        pendingDraftRef.current = pending;
-        if (!writePendingSessionDraft(pending)) {
-          setNotice("本机草稿恢复存储不可用；请等待保存完成后再离开。");
-        }
+      const plan = planDraftPersistence({
+        adopted: foreignPendingRef.current ? pendingDraftRef.current : null,
+        current,
+        idempotencyKey: crypto.randomUUID(),
+        predecessor: saveAttemptRef.current,
+        sessionId: current.detail.session_id,
+        storageScope,
+        updatedAt: new Date().toISOString(),
+        value,
+      });
+      foreignPendingRef.current = plan.foreign;
+      pendingDraftRef.current = plan.pending;
+      if (plan.clear) clearDurableDraft();
+      if (plan.write && plan.pending && !writePendingSessionDraft(plan.pending)) {
+        setNotice("本机草稿恢复存储不可用；请等待保存完成后再离开。");
       }
-      commitState(() => next);
+      commitState(() => plan.state);
     },
     [clearDurableDraft, commitState, storageScope],
   );
@@ -449,6 +471,7 @@ export function SessionWorkbench({
       setConfirmingDelete(false);
       deleteKeyRef.current = null;
       pendingDraftRef.current = null;
+      foreignPendingRef.current = false;
       clearDurableDraft();
       commitState((previous) =>
         markDeleted(previous, payload.detail as SessionDetail),
@@ -476,10 +499,15 @@ export function SessionWorkbench({
         if (!mounted.current) return;
         const current = stateRef.current;
         if (current.conflict || current.status === "error" || current.detail.state !== "active") return;
-        sendAttempt.current = { ...createPendingSessionDraft({
-          storageScope, sessionId: current.detail.session_id, baseRevision: current.detail.revision,
-          draft: objective, idempotencyKey: crypto.randomUUID(), updatedAt: new Date().toISOString(), predecessor: null,
-        }), purpose: "session-send" } as PendingSessionDraft;
+        const cleanup = captureSessionSendCleanupIdentity(current);
+        sendAttempt.current = {
+          ...createPendingSessionDraft({
+            storageScope, sessionId: current.detail.session_id, baseRevision: current.detail.revision,
+            draft: objective, idempotencyKey: crypto.randomUUID(), updatedAt: new Date().toISOString(), predecessor: null,
+          }),
+          purpose: "session-send",
+          ...(cleanup ? { cleanup } : {}),
+        };
         if (!writePendingSessionDraft(sendAttempt.current)) {
           sendAttempt.current = null;
           setNotice("无法保存发送状态，请恢复浏览器存储后重试。草稿仍保留。");
@@ -495,16 +523,36 @@ export function SessionWorkbench({
       if (!mounted.current || !delivered || !bindingRef.current) return;
       const readback = await readSession(attempt.sessionId, bindingRef.current);
       if (!mounted.current || !readback) return;
-      clearDurableDraft(attempt.latest.idempotencyKey);
-      pendingDraftRef.current = null;
+      const storageStatus = clearSentDraftStorage(
+        storageScope,
+        attempt.sessionId,
+        attempt.latest.idempotencyKey,
+      );
+      const competing =
+        storageStatus === "competing"
+          ? readPendingSessionDraft(storageScope, attempt.sessionId)
+          : null;
+      const completion = resolveSessionSendCompletion({
+        competing,
+        identity: attempt.cleanup,
+        readback,
+        storage: storageStatus,
+      });
       saveAttemptRef.current = null;
       sendAttempt.current = null;
       setSendPending(false);
-      commitState(() => initialDetailState(readback));
-      updateDraft("");
-      await persist(true);
-      if (!mounted.current) return;
-      setNotice("消息已保存。");
+      foreignPendingRef.current = completion.foreign;
+      pendingDraftRef.current = completion.pending;
+      commitState(() => completion.state);
+      if (completion.cleanupWrite) {
+        // The readback exact-matches the draft captured before the ask. Empty
+        // it with the readback revision as the CAS guard; persist() derives
+        // the request from this state and never writes a new local pending
+        // record, so a competing pending draft cannot be replaced.
+        await persist(true);
+        if (!mounted.current) return;
+      }
+      setNotice(completion.notice);
       router.refresh();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "发送结果尚未确认，请重试同一条消息。");
@@ -720,7 +768,7 @@ export function SessionWorkbench({
                 <p>{detail.scope_kind === "unresolved_intent" ? "自动保存 · ⌘ Enter 发送" : "自动保存；前往人物页继续这段关系。"}</p>
             <button
               className={styles.secondary}
-              disabled={detail.state !== "active" || state.status === "saving" || sending || sendPending}
+              disabled={!canPersistSessionDraft(state) || state.status === "saving" || sending || sendPending}
               onClick={() => void persist(true)}
               type="button"
             >
