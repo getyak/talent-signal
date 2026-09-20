@@ -1,0 +1,51 @@
+/* Authenticated host adapter: shared palette, no changes to public surfaces. */
+.quiet-workspace {
+  --background: var(--ts-content-surface);
+  --surface: var(--ts-panel-surface);
+  --surface-muted: var(--ts-chrome-surface);
+  --background-deep: var(--ts-chrome-surface);
+  --ink: var(--ts-ink);
+  --ink-soft: var(--ts-ink);
+  --muted: var(--ts-chrome-muted);
+  --muted-strong: var(--ts-chrome-muted);
+  --line: var(--ts-divider);
+  --line-soft: var(--ts-divider);
+  --accent: var(--ts-accent);
+  --workspace-title-size: 1.5rem;
+  --workspace-object-size: 1.5rem;
+  --workspace-section-size: 1.125rem;
+  --workspace-page-padding: clamp(20px, 3vw, 40px);
+  --workspace-section-gap: 24px;
+  --button-radius: 6px;
+  --card-radius: 8px;
+  --object-radius: 8px;
+  --shadow-object: none;
+  --shadow-accent: none;
+  background: var(--background);
+  color: var(--ink);
+}
+.quiet-workspace :is(h1, h2, h3) { letter-spacing: 0; }
+.quiet-workspace .context-contact-header__avatar {
+  border-radius: 50%;
+  height: 36px;
+  width: 36px;
+  font-size: 14px;
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+.quiet-workspace .context-contact-header__identity h1 {
+  font-size: var(--workspace-object-size);
+  line-height: 1.4;
+}
+.quiet-workspace .context-contact-record {
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.quiet-workspace .context-chat__composer textarea { font-size: 14px; }
+.quiet-workspace .context-chat__response-meta { font-size: 12px; }
+.quiet-workspace .context-onboarding__header h1 { font-size: 24px; }
+.quiet-workspace :focus-visible { outline-offset: 3px; }
+
+.quiet-workspace { --workspace-brand-image: url("/brand/symbol.svg"); }
+:root[data-theme="dark"] .quiet-workspace { --workspace-brand-image: url("/brand/symbol-reverse.svg"); }

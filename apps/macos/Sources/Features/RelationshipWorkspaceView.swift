@@ -32,7 +32,7 @@ struct RelationshipWorkspaceView: View {
                 .background(TSBrand.canvas)
             }
             .navigationSplitViewStyle(.balanced)
-            .navigationSplitViewColumnWidth(min: 220, ideal: 238, max: 270)
+            .navigationSplitViewColumnWidth(min: 220, ideal: 236, max: 270)
         }
         .animation((reduceMotion || model.isReducedMotionPreview) ? nil : .easeInOut(duration: 0.18), value: model.mode)
         .toolbar {
@@ -59,12 +59,12 @@ private struct WorkspaceSidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                TSBrandMark(size: 26)
+                TSBrandMark(size: 23)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Talent Signal")
                         .font(.headline)
                         .foregroundStyle(TSBrand.ink)
-                    Text("Relationship desk")
+                    Text("Workspace")
                         .font(.caption)
                         .foregroundStyle(TSBrand.secondaryInk)
                 }
