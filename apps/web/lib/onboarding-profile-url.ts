@@ -8,7 +8,7 @@ export function normalizeOnboardingProfileUrl(input: string): string | null {
   if (!value) return "";
   if (value.length > 2000 || /[\s\u0000-\u001f\u007f\\]/u.test(value)) return null;
   const candidate = /^https:\/\//iu.test(value)
-    ? value
+    ? `https://${value.slice(8)}`
     : /^[^:/?#]+\.[^:/?#]+(?::\d+)?(?:[/?#]|$)/u.test(value)
       ? `https://${value}`
       : null;
