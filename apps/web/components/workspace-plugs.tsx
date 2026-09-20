@@ -39,17 +39,17 @@ export function WorkspacePlugs({
           <WarningCircle aria-hidden="true" size={20} />
           <div>
             <strong>连接状态暂时无法核验</strong>
-            <p>{error} 没有使用浏览器缓存或默认“已连接”状态。</p>
-            <Link href="/workspace/plugs">重新读取</Link>
+            <p>{error} 请重新读取，核验成功前不会启用连接。</p>
+            <a href="/workspace/plugs">重新读取</a>
           </div>
         </section>
       ) : (
         <section aria-labelledby="connections-title" className={styles.listSection}>
           <div className={styles.sectionHeading}>
             <div>
-              <h2 id="connections-title">当前连接</h2>
+              <h2 id="connections-title">连接状态</h2>
             </div>
-            <span>{connections.length} 项</span>
+            <span>{connections.filter(connection => connection.status === "connected").length} 项已连接 · {connections.length} 项能力</span>
           </div>
           <ul className={styles.list}>
             {connections.map((connection) => {

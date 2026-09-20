@@ -21,6 +21,7 @@ import { WORKSPACE_NEW_CONVERSATION_EVENT } from "@/lib/workspace-navigation";
 import { AgentTurnThread } from "./relationship-workspace/agent-turn-thread";
 import { useWorkspaceChat } from "./relationship-workspace/use-workspace-chat";
 import { ComposerAddMenu } from "./new-conversation-add-menu";
+import { WorkspaceComposer } from "./workspace-composer";
 import {
   clearPendingSessionDraft,
   writePendingSessionDraft,
@@ -187,7 +188,6 @@ function ConversationCanvas({
       setObjective(boundedNewConversationObjective(pending.latest.draft));
       if ((pending as typeof pending & {attempted?: boolean}).attempted) setFailedObjective(pending.latest.draft);
       setRestored(true);
-      setNotice("已恢复离开前尚未发送的消息。");
     }
     restore(scope);
   }, [storageScope]);
@@ -319,54 +319,46 @@ function ConversationCanvas({
           />
         )}
 
-        <div className={styles.composer} role="group" aria-label="消息输入">
-
-          <label className="sr-only" htmlFor="new-conversation-objective">
-            给 Talent Signal 发消息
-          </label>
-          <textarea
-            id="new-conversation-objective"
-            maxLength={1_000}
-            readOnly={creating || busy || failedObjective !== null}
-            onChange={(event) =>
-              updateObjective(event.target.value)
+        <div role="group" aria-label="消息输入">
+          <WorkspaceComposer
+            binding={sessionBinding}
+            canSubmit={sendable && failedObjective === null}
+            footerEnd={
+              <button
+                aria-label="发送"
+                className={styles.send}
+                disabled={!(sendable && failedObjective === null)}
+                onClick={() => void submit()}
+                type="button"
+              >
+                <ArrowUp aria-hidden="true" size={17} weight="bold" />
+              </button>
             }
-            onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing
-              ) {
-                event.preventDefault();
-                void submit();
-              }
-            }}
-            placeholder="输入消息，或粘贴一段内容…"
-            rows={2}
-            value={objective}
-          />
-          <div className={styles.composerFooter}>
-            <div className={styles.composerStart}>
-              {enabled ? (
+            footerStart={
+              enabled ? (
                 <ComposerAddMenu
                   binding={sessionBinding}
                   onCapture={() => setCaptureOpen(true)}
                   onNavigate={(href) => router.push(href)}
                 />
-              ) : null}
-            </div>
-            <div className={styles.composerActions}>
-              <button
-                aria-label="发送"
-                className={styles.send}
-                disabled={!sendable}
-                type="button"
-                onClick={() => void submit()}
-              >
-                <ArrowUp aria-hidden="true" size={17} weight="bold" />
-              </button>
-            </div>
-          </div>
+              ) : null
+            }
+            id="new-conversation-objective"
+            label="给 Talent Signal 发消息"
+            maxLength={1_000}
+            onCapture={() => setCaptureOpen(true)}
+            onNavigate={(href) => router.push(href)}
+            onSubmit={() => void submit()}
+            onValueChange={updateObjective}
+            placeholder="输入消息，或粘贴一段内容…"
+            readOnly={creating || busy || failedObjective !== null}
+            rows={2}
+            suggestionsEnabled={
+              enabled && !creating && !busy && failedObjective === null
+            }
+            value={objective}
+            variant="home"
+          />
         </div>
 
         {!enabled ? (

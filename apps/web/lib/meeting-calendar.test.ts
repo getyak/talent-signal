@@ -4,6 +4,8 @@ import type { MeetingDraftRecord } from "@talent-signal/contracts";
 import {
   adjacentMeetingMonth,
   defaultMeetingDay,
+  meetingToday,
+  meetingTodayHref,
   meetingCalendarDayLabel,
   meetingCalendarDays,
   meetingDraftCalendarValue,
@@ -236,5 +238,17 @@ describe("meeting calendar projection", () => {
     expect(
       meetingDraftExpiryLabel(redactedDraft),
     ).toBe("原来源保留期结束");
+  });
+});
+
+describe("today navigation", () => {
+  it("uses device calendar components instead of slicing UTC", () => {
+    const local = new Date(2026, 8, 20, 0, 2);
+    expect(meetingToday(local)).toBe("2026-09-20");
+    expect(meetingToday(new Date(2027, 0, 1))).toBe("2027-01-01");
+  });
+  it("navigates to a complete date and rejects impossible dates", () => {
+    expect(meetingTodayHref("2026-09-20")).toBe("/workspace/meetings?month=2026-09&day=2026-09-20");
+    expect(meetingTodayHref("2026-02-31")).toBe("/workspace/meetings");
   });
 });

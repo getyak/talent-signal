@@ -27,7 +27,7 @@
 .agendaHeading p,
 .contextPane > header p {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   margin: 0 0 7px;
 }
 
@@ -109,7 +109,7 @@
   align-items: center;
   display: grid;
   gap: 6px;
-  grid-template-columns: 32px auto 32px;
+  grid-template-columns: auto 36px auto 36px;
   margin: 16px 0 0;
 }
 
@@ -126,9 +126,10 @@
   border-radius: 50%;
   color: var(--muted-strong);
   display: inline-flex;
-  height: 32px;
+  min-height: 36px;
   justify-content: center;
-  width: 32px;
+  min-width: 36px;
+  padding: 0 4px;
 }
 
 .monthHeader a:hover {
@@ -148,7 +149,7 @@
 
 .weekdays {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   margin-bottom: 10px;
   text-align: center;
 }
@@ -225,7 +226,7 @@
 .agendaHeading h2,
 .contextPane > header h2 {
   color: var(--ink);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 560;
   margin: 0;
   overflow-wrap: anywhere;
@@ -233,7 +234,7 @@
 
 .agendaHeading > span {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .agendaList {
@@ -261,12 +262,12 @@
 .agendaList time,
 .agendaList small {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .agendaList strong {
   color: var(--ink);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 520;
   overflow-wrap: anywhere;
 }
@@ -286,7 +287,7 @@
 
 .contextMeta > div {
   display: flex;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   gap: 12px;
   justify-content: space-between;
 }
@@ -354,7 +355,7 @@
 
 .dismissArea small {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.55;
   max-width: 34rem;
 }
@@ -381,7 +382,7 @@
 
 .empty strong {
   color: var(--ink-soft);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .empty p,

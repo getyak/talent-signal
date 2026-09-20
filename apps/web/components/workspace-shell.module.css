@@ -136,6 +136,7 @@
 .moreFooter {
   border-top: 1px solid var(--line-soft);
   display: grid;
+  flex: 0 0 auto;
   gap: 3px;
   margin-top: auto;
   padding-top: 12px;
@@ -318,6 +319,7 @@
 
 .group {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
   padding-bottom: 14px;
@@ -327,7 +329,8 @@
   align-items: center;
   color: var(--muted);
   display: flex;
-  font-size: 0.71875rem;
+  flex: 0 0 auto;
+  font-size: 0.75rem;
   gap: 4px;
   height: 27px;
   margin-top: 13px;
@@ -369,7 +372,7 @@
 .groupHint,
 .groupEmpty {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.6;
   padding: 4px 8px 6px;
 }
@@ -937,7 +940,8 @@
   max-height: min(80dvh, 620px);
   max-width: calc(100vw - 32px);
   padding: 16px;
-  width: 520px;
+  width: 560px;
+  margin: min(15dvh, 120px) auto auto;
 }
 
 .searchDialog::backdrop {
@@ -1008,7 +1012,7 @@
   background: color-mix(in srgb, var(--ink) 6%, var(--surface));
 }
 
-.searchResult > span {
+.searchResult > span:not(.avatar) {
   flex: 1;
   min-width: 0;
 }
@@ -1207,3 +1211,8 @@
     transition: none;
   }
 }
+
+.searchResult .avatar { flex: 0 0 32px; height: 32px; width: 32px; }
+.searchResult:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.searchHint { border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 12px; margin-top: 10px; padding: 12px 8px 0; }
+.searchRetry { background: var(--surface-muted); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); cursor: pointer; font: inherit; margin-top: 12px; min-height: 40px; padding: 8px 14px; }

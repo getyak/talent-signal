@@ -95,7 +95,7 @@ export function webWorkspaceConnections(
       id: "google-calendar",
       label: "Google Calendar",
       description:
-        "会议页可以准备并下载日历草稿；当前没有日历 OAuth 适配器，也不会直接创建事件。",
+        "可在日程页核对并下载会议草稿，再交给日历应用导入。当前版本不直接连接 Google 日历。",
       status: "not_connected",
       scopeLabel: "已授予范围：无",
       canAuthorize: false,
@@ -106,7 +106,7 @@ export function webWorkspaceConnections(
       description:
         "仅由本机壳子在用户明确选择窗口后提供；Web 页面没有屏幕读取权限。",
       status: "not_connected",
-      scopeLabel: "当前主机：Web · 原生能力：不可用",
+      scopeLabel: "工作台不读取屏幕 · 请在 Mac 的「本机工具」中选择窗口",
       canAuthorize: false,
     }),
   ];

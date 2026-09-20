@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   searchWorkspaceResults,
+  isWorkspaceSearchShortcut,
   type WorkspaceSearchPerson,
   type WorkspaceSearchSession,
 } from "@/lib/workspace-search";
@@ -77,6 +78,8 @@ export function activeDirectorySessions(payload: SessionResponse, now = Date.now
 /** Disposable, bound data shared by search and the persistent people sidebar. */
 export function useWorkspaceDirectory(binding: string | null, enabled: boolean) {
   const pathname = usePathname();
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const retry = useCallback(() => setRefreshVersion(value => value + 1), []);
   const [result, setResult] = useState<{ binding: string; data: DirectorySnapshot | null; failed: boolean } | null>(null);
   useEffect(() => {
     if (!enabled || !binding) return;
@@ -121,7 +124,7 @@ export function useWorkspaceDirectory(binding: string | null, enabled: boolean) 
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [binding, enabled, pathname]);
+  }, [binding, enabled, pathname, refreshVersion]);
   useEffect(() => {
     if (!enabled || result?.binding !== binding || !result?.data) return;
     const expirations = (result.data.sessions.sessions ?? []).map(row =>
@@ -134,12 +137,12 @@ export function useWorkspaceDirectory(binding: string | null, enabled: boolean) 
   }, [result, binding, enabled]);
   const current = enabled && binding && result?.binding === binding ? result : null;
   return { data: current?.data ? { ...current.data, sessions: activeDirectorySessions(current.data.sessions) } : null,
-    loading: Boolean(enabled && binding && !current), failed: current?.failed ?? !binding };
+    loading: Boolean(enabled && binding && !current), failed: current?.failed ?? !binding, retry };
 }
 
 /** Real account-scoped People directory projection; never a fixture. */
 export function useWorkspaceSearchSources(binding: string | null, enabled: boolean) {
-  const { data, loading, failed } = useWorkspaceDirectory(binding, enabled);
+  const { data, loading, failed, retry } = useWorkspaceDirectory(binding, enabled);
   const people: WorkspaceSearchPerson[] = (data?.people.people ?? []).flatMap(person => {
     const id = cleanLabel(person.id), label = cleanLabel(person.display_label);
     return id && label ? [{ id, label, detail: cleanLabel(person.contexts?.[0]?.display_label) || "联系人",
@@ -149,7 +152,7 @@ export function useWorkspaceSearchSources(binding: string | null, enabled: boole
     const id = cleanLabel(row.session_id), title = cleanLabel(row.title);
     return id && title ? [{ id, title, detail: [cleanLabel(row.person_label), cleanLabel(row.context_label)].filter(Boolean).join(" · ") || "账号专属对话" }] : [];
   });
-  return { people, sessions, loading, failed };
+  return { people, sessions, loading, failed, retry };
 }
 
 /**
@@ -169,7 +172,7 @@ export function WorkspaceGlobalSearchDialog({
   const trigger = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const { people, sessions, loading, failed } = useWorkspaceSearchSources(
+  const { people, sessions, loading, failed, retry } = useWorkspaceSearchSources(
     binding,
     open,
   );
@@ -197,8 +200,7 @@ export function WorkspaceGlobalSearchDialog({
         target?.isContentEditable;
       if (
         !typing &&
-        (event.metaKey || event.ctrlKey) &&
-        event.key.toLocaleLowerCase() === "k"
+        !event.isComposing && isWorkspaceSearchShortcut(event)
       ) {
         // The shell mounts one trigger per breakpoint; only the visible one
         // owns the shortcut, so a hidden modal never opens.
@@ -220,7 +222,7 @@ export function WorkspaceGlobalSearchDialog({
         className={styles.iconButton}
         onClick={show}
         ref={trigger}
-        title={label}
+        title={`${label} · ⌘K / Ctrl+K`}
         type="button"
       >
         <MagnifyingGlass aria-hidden="true" size={17} />
@@ -230,6 +232,19 @@ export function WorkspaceGlobalSearchDialog({
         className={styles.searchDialog}
         onClose={() => { setOpen(false); setQuery(""); trigger.current?.focus(); }}
         ref={dialog}
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 ||
+              (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
+          const links = Array.from(dialog.current?.querySelectorAll<HTMLAnchorElement>("[data-search-result]") ?? []);
+          if (!links.length) return;
+          const index = links.indexOf(document.activeElement as HTMLAnchorElement);
+          if (document.activeElement !== input.current && index < 0) return;
+          event.preventDefault();
+          const next = index < 0 ? (event.key === "ArrowDown" ? 0 : links.length - 1)
+            : (index + (event.key === "ArrowDown" ? 1 : -1) + links.length) % links.length;
+          links[next]?.focus();
+          links[next]?.scrollIntoView({ block: "nearest" });
+        }}
       >
         <div className={styles.searchDialogHeader}>
           <MagnifyingGlass aria-hidden="true" size={17} />
@@ -254,18 +269,19 @@ export function WorkspaceGlobalSearchDialog({
         <div className={styles.searchResults}>
           {!hasQuery ? (
             <p className={styles.searchEmpty}>
-              输入姓名、机构或对话标题。结果只来自当前账号已授权的目录。
+              输入姓名、机构或对话标题。
             </p>
           ) : loading ? (
             <p className={styles.searchEmpty} role="status">
               正在读取当前账号的目录…
             </p>
+          ) : failed ? (
+            <div className={styles.searchEmpty} role="alert">
+              <p>暂时无法读取人物与对话。请重试，已保存的内容不会丢失。</p>
+              <button className={styles.searchRetry} onClick={retry} type="button">重新载入</button>
+            </div>
           ) : results.total === 0 ? (
-            <p className={styles.searchEmpty}>
-              {failed
-                ? "目录暂时无法读取；这里不会用缓存或示例结果补齐。"
-                : "没有匹配的人物或对话。"}
-            </p>
+            <p className={styles.searchEmpty} role="status">没有找到“{query.trim()}”。试试姓名的一部分或机构名称。</p>
           ) : (
             <>
               {results.people.length ? (
@@ -274,6 +290,7 @@ export function WorkspaceGlobalSearchDialog({
                   {results.people.map((person) => (
                     <Link
                       className={styles.searchResult}
+                      data-search-result=""
                       href={`/workspace?person=${encodeURIComponent(person.id)}`}
                       key={person.id}
                       onClick={close}
@@ -299,6 +316,7 @@ export function WorkspaceGlobalSearchDialog({
                   {results.sessions.map((session) => (
                     <Link
                       className={styles.searchResult}
+                      data-search-result=""
                       href={`/workspace/sessions/${encodeURIComponent(session.id)}`}
                       key={session.id}
                       onClick={close}
@@ -315,6 +333,7 @@ export function WorkspaceGlobalSearchDialog({
             </>
           )}
         </div>
+        <p className={styles.searchHint}>↑ ↓ 选择 · Enter 打开 · Esc 关闭</p>
       </dialog>
     </>
   );

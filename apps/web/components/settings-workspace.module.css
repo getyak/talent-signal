@@ -3,7 +3,7 @@
  *
  * The reference settings page is a single 800 px column (672 px of content):
  * a 28 px heading and divider, one featured identity card, then grouped rows
- * with a 12.5 px label, readable 10.5–12 px help, and compact right-aligned
+ * with readable labels and supporting text, and compact right-aligned
  * controls. Drilldown pages keep the same rhythm and add a back link plus a
  * quiet section row. Nothing here is a wide two-column admin form.
  */
@@ -32,7 +32,7 @@
 .heading p,
 .sectionHeading p {
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: 0.875rem;
   line-height: 1.7;
   margin-top: 8px;
   max-width: 62ch;
@@ -161,7 +161,7 @@
 .featuredCopy span {
   color: var(--muted);
   display: block;
-  font-size: 0.6563rem;
+  font-size: 0.75rem;
   margin-top: 6px;
 }
 
@@ -187,7 +187,7 @@
 
 .groupHead p {
   color: var(--muted);
-  font-size: 0.71875rem;
+  font-size: 0.75rem;
   line-height: 1.6;
   margin-top: 5px;
 }
@@ -211,13 +211,13 @@
 
 .row strong {
   display: block;
-  font-size: 0.78125rem;
+  font-size: 0.875rem;
   font-weight: 610;
 }
 
 .row p {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   line-height: 1.6;
   margin-top: 5px;
   max-width: 46ch;
@@ -226,7 +226,7 @@
 .rowValue {
   color: var(--muted);
   flex: 0 0 auto;
-  font-size: 0.71875rem;
+  font-size: 0.75rem;
   text-align: right;
 }
 
@@ -267,7 +267,7 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: 0.71875rem;
+  font-size: 0.75rem;
   gap: 6px;
   min-height: 28px;
   padding: 4px 12px;

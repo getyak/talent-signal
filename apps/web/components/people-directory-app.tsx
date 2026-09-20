@@ -98,7 +98,7 @@ export function PeopleDirectoryApp({
             <div>
               <h1>人物</h1>
               <p>
-                按已确认线索检索人物，并回到其关系情境与准确证据。
+                查找你认识的人，回顾沟通与下一步。
                 {returnSessionId
                   ? " 这次选择会保留原对话入口，但不会自动改变对话范围。"
                   : ""}
@@ -112,7 +112,7 @@ export function PeopleDirectoryApp({
               )}
             >
               <UserPlus aria-hidden="true" size={16} />
-              使用 Agent 新建联系人
+              添加联系人
             </Link>
           </header>
 
@@ -141,16 +141,16 @@ export function PeopleDirectoryApp({
                 hint={
                   sessionRecoveryHref
                     ? "重新登录后会回到同一目录视图；系统不会用陈旧联系人状态替代当前结果。"
-                    : "目录不会用旧缓存推断关系状态。排查本地后端后可重试；如果只是继续验证产品闭环，可以先进入冻结边界案例。"
+                    : "请稍后重新载入；你的联系人和已保存的来源不会因此丢失。"
                 }
                 primaryHref={
                   sessionRecoveryHref
                     ? sessionRecoveryHref
-                    : "/workspace/boundaries"
+                    : withReturnSession(`/workspace/people${query ? `?query=${encodeURIComponent(query)}` : ""}`, returnSessionId)
                 }
-                primaryLabel={sessionRecoveryHref ? "重新登录" : "打开冻结边界案例"}
-                secondaryHref="/relationships"
-                secondaryLabel="查看关系产品视图"
+                primaryLabel={sessionRecoveryHref ? "重新登录" : "重新载入"}
+                secondaryHref="/workspace"
+                secondaryLabel="返回对话"
                 title="人物目录暂时不可用。"
               />
             </div>
@@ -162,7 +162,7 @@ export function PeopleDirectoryApp({
                 <p>
                   {query
                     ? "请尝试其他姓名、邮箱或电话。联系方式会保持掩码，且只有在你明确输入时才会用于搜索。"
-                    : "导入一份受治理的来源，创建第一张关系页面。"}
+                    : "从一段聊天或人物介绍开始，整理你的第一位联系人。"}
                 </p>
               </div>
               {query ? (
@@ -175,7 +175,7 @@ export function PeopleDirectoryApp({
                 <Link
                   href={withReturnSession("/workspace?surface=desk", returnSessionId)}
                 >
-                  打开智能助理
+                  添加第一位联系人
                 </Link>
               )}
             </div>

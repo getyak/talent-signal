@@ -107,7 +107,7 @@
 }
 
 .desk:global(.relationship-desk) :global(.context-contact-header__identity > div span) {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .desk:global(.relationship-desk) :global(.context-contact-header__actions button) {
@@ -136,7 +136,7 @@
 }
 
 .desk:global(.relationship-desk) :global(.context-contact-header__signal > span) {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 560;
   letter-spacing: 0.01em;
   text-transform: none;
@@ -338,7 +338,7 @@
 .desk:global(.relationship-desk) :global(.context-section__heading > span),
 .desk:global(.relationship-desk) :global(.context-lineage__heading > span) {
   font-family: var(--font-sans), sans-serif;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -420,7 +420,7 @@
 }
 
 .desk:global(.relationship-desk) :global(.context-next-move__body dl > div) {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .desk:global(.relationship-desk) :global(.context-next-move__gate),
@@ -465,7 +465,7 @@
 
 .desk:global(.relationship-desk) :global(.context-contact-details > summary > span) {
   color: var(--muted);
-  font-size: 0.6563rem;
+  font-size: 0.75rem;
   margin-left: auto;
 }
 
@@ -480,7 +480,7 @@
 .desk:global(.relationship-desk) :global(.context-contact-record__profile > header span),
 .desk:global(.relationship-desk) :global(.context-contact-record__points > header span) {
   font-family: var(--font-sans), sans-serif;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 560;
   letter-spacing: 0;
   text-transform: none;
@@ -545,7 +545,7 @@
 
 .desk:global(.relationship-desk) :global(.context-relationship-wiki__grid aside article > span) {
   font-family: var(--font-sans), sans-serif;
-  font-size: 0.6563rem;
+  font-size: 0.75rem;
   letter-spacing: 0.02em;
   text-transform: none;
 }
