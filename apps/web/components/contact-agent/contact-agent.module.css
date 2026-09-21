@@ -199,3 +199,91 @@
 .intentDetails > summary::before { content: "+"; width: 14px; color: var(--muted); }
 .intentDetails[open] > summary::before { content: "−"; }
 .historyItem:disabled { opacity: .65; }
+
+/* Dialog presentation: the conversation hosts this intake inside a modal, so
+   the page grid, sidebar and guide are removed and only the composer + result
+   card remain. */
+.dialog { min-height: 0; }
+.dialog .layout { display: block; max-width: none; padding: 0; }
+.dialog .content { width: 100%; }
+.dialog .profileComposer { margin-bottom: 0; }
+.dialog .composer { border: 0; border-radius: 0; padding: 0; background: transparent; }
+.dialog .card { margin-bottom: 0; }
+.dialog .retentionDisclosure { max-width: none; }
+
+/* Scoped original-image readback. */
+.imageViewButton,
+.imageViewLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: .75rem;
+  min-height: 36px;
+  padding: 6px 13px;
+}
+.imageViewButton:hover,
+.imageViewLink:hover { border-color: var(--line-strong); background: var(--surface-muted); }
+.imageViewLink { border: 0; background: transparent; min-height: 0; padding: 0; text-decoration: underline; text-underline-offset: 3px; color: var(--muted-strong); }
+
+.viewerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: color-mix(in srgb, var(--ink) 52%, transparent);
+}
+.viewer {
+  position: fixed;
+  z-index: 91;
+  inset: 4vh 4vw;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 30px 90px color-mix(in srgb, var(--ink) 34%, transparent);
+  color: var(--ink);
+  overflow: auto;
+}
+.viewerHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.viewerHeader h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+.viewerHeader button { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.viewerStatus { color: var(--muted); font-size: .8125rem; margin: 0; }
+.viewerError { display: flex; align-items: center; gap: 10px; color: var(--error); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); border-left: 2px solid var(--error); padding: 12px 14px; font-size: .8125rem; }
+.viewerError p { margin: 0; }
+.viewerError button { margin-left: auto; border: 0; background: transparent; color: inherit; text-decoration: underline; min-height: 36px; cursor: pointer; }
+.viewer img { display: block; margin: 0 auto; max-width: 100%; max-height: 72vh; object-fit: contain; border-radius: 8px; }
+.viewerNote { margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.7; }
+
+.pendingAttempt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent-strong, var(--accent));
+  border-radius: 8px;
+  background: var(--surface-muted);
+  font-size: .8125rem;
+  line-height: 1.7;
+}
+.pendingAttempt p { margin: 0; flex: 1 1 260px; }
+.pendingAttempt button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}

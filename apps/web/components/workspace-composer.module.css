@@ -282,3 +282,23 @@
   width: 100%;
   box-shadow: none;
 }
+
+.composer[data-dragging="true"] {
+  border-color: color-mix(in srgb, var(--focus) 60%, var(--line));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--focus) 16%, transparent),
+    0 7px 24px color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.dropHint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--muted-strong);
+  font-size: 0.8125rem;
+  pointer-events: none;
+}

@@ -10,9 +10,15 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type DragEvent,
   type ReactNode,
 } from "react";
 
+import {
+  dataTransferHasFileEntries,
+  imageFilesFromClipboard,
+  validateAttachmentBatch,
+} from "@/components/contact-agent/capture-intake";
 import {
   COMPOSER_DISCOVERY_HINT,
   composerDescribedBy,
@@ -64,6 +70,13 @@ export type WorkspaceComposerProps = {
   onSubmit: () => void;
   onNavigate: (href: string) => void;
   onCapture?: () => void;
+  /**
+   * Direct image intake. When present the composer accepts dropped or pasted
+   * image files and hands the validated batch to the caller without submitting
+   * anything or inserting into the draft. Plain text paste, URL drag and the
+   * `/`/`@` menus are untouched.
+   */
+  onFiles?: (files: File[]) => void;
   footerStart?: ReactNode;
   footerEnd?: ReactNode;
 };
@@ -93,6 +106,7 @@ export function WorkspaceComposer({
   onSubmit,
   onNavigate,
   onCapture,
+  onFiles,
   footerStart,
   footerEnd,
 }: WorkspaceComposerProps) {
@@ -104,13 +118,17 @@ export function WorkspaceComposer({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const pendingCaret = useRef<number | null>(null);
+  const dragDepth = useRef(0);
   const [pasteError, setPasteError] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [caret, setCaret] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [overflowSignature, setOverflowSignature] = useState<string | null>(null);
 
   const active = suggestionsEnabled && !disabled && !readOnly;
+  const fileIntake = Boolean(onFiles) && !disabled && !readOnly;
   const trigger = useMemo(
     () => (active && caret >= 0 ? detectComposerTrigger(value, caret) : null),
     [active, caret, value],
@@ -335,6 +353,62 @@ export function WorkspaceComposer({
     }
   }
 
+  function acceptsFiles(files: File[]) {
+    if (!onFiles || !files.length) return;
+    const result = validateAttachmentBatch([], files);
+    if (!result.ok) {
+      setFileError(result.error);
+      return;
+    }
+    setFileError(null);
+    onFiles([...result.accepted]);
+  }
+
+  function transferHasFiles(transfer: DataTransfer | null): boolean {
+    if (!transfer) return false;
+    if (Array.from(transfer.types ?? []).includes("Files")) return true;
+    if ((transfer.files?.length ?? 0) > 0) return true;
+    return dataTransferHasFileEntries(Array.from(transfer.items ?? []));
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLDivElement>) {
+    if (!fileIntake || !transferHasFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!fileIntake || !transferHasFiles(event.dataTransfer)) return;
+    // Cancel the browser default for files only; plain text and URL drags keep
+    // their native behaviour (e.g. dropping a link inserts its text).
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleDragLeave() {
+    if (!fileIntake) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    if (!fileIntake || !transferHasFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length === 0) {
+      if (
+        dataTransferHasFileEntries(Array.from(event.dataTransfer?.items ?? []))
+      ) {
+        setFileError("暂不支持文件夹，请拖入 PNG、JPEG 或 WebP 图片。");
+      }
+      return;
+    }
+    acceptsFiles(files);
+  }
+
   function renderItem(item: MenuItem, index: number) {
     const selected = menuOpen && index === highlighted;
     return (
@@ -373,10 +447,20 @@ export function WorkspaceComposer({
   ]);
 
   return (
-    <div className={styles.composer} data-variant={variant}
+    <div className={styles.composer} data-dragging={dragging ? "true" : undefined} data-variant={variant}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) close();
-      }}>
+      }}
+      onDragEnter={fileIntake ? handleDragEnter : undefined}
+      onDragLeave={fileIntake ? handleDragLeave : undefined}
+      onDragOver={fileIntake ? handleDragOver : undefined}
+      onDrop={fileIntake ? handleDrop : undefined}
+    >
+      {dragging && fileIntake ? (
+        <div className={styles.dropHint} role="status">
+          松开后保存并整理图片
+        </div>
+      ) : null}
       {menuOpen && trigger ? (
         <div className={styles.menu} ref={menu}>
           <div
@@ -440,12 +524,25 @@ export function WorkspaceComposer({
         onChange={(event) => {
           setDismissed(null);
           setPasteError(null);
+          setFileError(null);
           syncCaret(event);
           // A new edit restarts the highlighted suggestion from the top.
           setActiveIndex(0);
           onValueChange(event.target.value);
         }}
         onPaste={(event) => {
+          if (fileIntake) {
+            const images = imageFilesFromClipboard(
+              Array.from(event.clipboardData?.items ?? []),
+            );
+            if (images.length) {
+              // Image paste is intake, never draft text. Text-only paste keeps
+              // the ordinary length guard below.
+              event.preventDefault();
+              acceptsFiles(images);
+              return;
+            }
+          }
           const element = event.currentTarget;
           const text = event.clipboardData.getData("text/plain");
           if (value.length - (element.selectionEnd - element.selectionStart) + text.length > maxLength) {
@@ -466,6 +563,7 @@ export function WorkspaceComposer({
       />
 
       {pasteError ? <p className={styles.overflow} role="alert">{pasteError}</p> : null}
+      {fileError ? <p className={styles.overflow} role="alert">{fileError}</p> : null}
       <div className={styles.footer}>
         <div className={styles.footerStart}>
           {footerStart}

@@ -129,8 +129,8 @@ export function ComposerAddMenu({
           >
             <FileImage aria-hidden="true" size={17} weight="duotone" />
             <span>
-              <strong>导入截图或图片</strong>
-              <small>选择一份设备上的对话截图</small>
+              <strong>保存并整理图片</strong>
+              <small>拖入或粘贴截图，另存为来源</small>
             </span>
           </button>
           <div className={styles.addDivider} />
@@ -191,7 +191,7 @@ export function ComposerAddMenu({
           </div>
           <button className={styles.addAction} type="button" onClick={() => { close(); onNavigate("/workspace/people"); }}>查看全部人物 <ArrowRight aria-hidden="true" size={14} /></button>
           <p className={styles.addNote}>
-            打开人物页面不会发出这条消息；未发送的内容会留在本机，可随时恢复。
+            图片会保存为来源，不会作为对话消息发送。打开人物页面也不会发出这条消息；未发送的内容会留在本机，可随时恢复。
           </p>
         </div>
       ) : null}
