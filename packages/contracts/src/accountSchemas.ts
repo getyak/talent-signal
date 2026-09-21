@@ -23,6 +23,65 @@ export const AccountSettingsSchema = Type.Object({
   lab_enabled: Type.Boolean(),
 }, { additionalProperties: false });
 
+const OnboardingStatus = Type.Union([
+  Type.Literal("pending"),
+  Type.Literal("completed"),
+  Type.Literal("skipped"),
+]);
+const OnboardingFocus = Type.String({ maxLength: 280 });
+const OnboardingProfileUrl = Type.String({
+  maxLength: 2000,
+  pattern: "^(|https://[^\\s]+)$",
+});
+export const AccountOnboardingSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    account_id: ID,
+    user_id: ID,
+    display_name: Type.String({ minLength: 1, maxLength: 100 }),
+    focus: OnboardingFocus,
+    profile_url: OnboardingProfileUrl,
+    status: OnboardingStatus,
+    revision: Revision,
+  },
+  { $id: "AccountOnboarding", additionalProperties: false },
+);
+export const AccountOnboardingMutationSchema = Type.Object(
+  {
+    id: ID,
+    expected_revision: Revision,
+    display_name: Type.String({ minLength: 1, maxLength: 100, pattern: "\\S" }),
+    focus: OnboardingFocus,
+    profile_url: OnboardingProfileUrl,
+    status: Type.Union([Type.Literal("completed"), Type.Literal("skipped")]),
+  },
+  { $id: "AccountOnboardingMutation", additionalProperties: false },
+);
+export const AccountOnboardingPreviewRequestSchema = Type.Object(
+  { url: Type.String({ minLength: 1, maxLength: 2000 }) },
+  { $id: "AccountOnboardingPreviewRequest", additionalProperties: false },
+);
+export const AccountOnboardingPreviewSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    profile_url: Type.String({ minLength: 1, maxLength: 2000 }),
+    excerpt: Type.String({ maxLength: 600 }),
+    retrieved_at: Time,
+  },
+  { $id: "AccountOnboardingPreview", additionalProperties: false },
+);
+
+export type AccountOnboarding = Static<typeof AccountOnboardingSchema>;
+export type AccountOnboardingMutation = Static<
+  typeof AccountOnboardingMutationSchema
+>;
+export type AccountOnboardingPreviewRequest = Static<
+  typeof AccountOnboardingPreviewRequestSchema
+>;
+export type AccountOnboardingPreview = Static<
+  typeof AccountOnboardingPreviewSchema
+>;
+
 const Common = { id: ID, expected_revision: Revision };
 export const AccountMutationSchema = Type.Union([
   Type.Object({ ...Common, kind: Type.Literal("profile"), name: Name }, { additionalProperties: false }),

@@ -262,6 +262,18 @@ test("rejects new numeric-prefix collisions", () => {
   );
 });
 
+test("allows only the exact deployed 073 pair", () => {
+  const names = ["073_conversation_queue", "073_account_onboarding"];
+  assert.deepEqual(validateMigrationInventory(names, names.map(name => `${name}.sql`)), []);
+  for (const unexpected of [
+    [...names, "073_unreviewed"],
+    ["073_conversation_queue", "073_replacement"],
+  ]) {
+    assert.ok(validateMigrationInventory(unexpected, unexpected.map(name => `${name}.sql`))
+      .some(error => error.includes("outside the frozen legacy baseline")));
+  }
+});
+
 test("rejects direct, aliased, and linked inward workspace dependencies", () => {
   assert.deepEqual(
     unexpectedWorkspaceDependencies(

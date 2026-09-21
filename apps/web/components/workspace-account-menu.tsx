@@ -1,5 +1,6 @@
 "use client";
 
+import { clearTimeWorkspaceStorage } from "@/lib/time-workspace-storage";
 import {
   CaretDown,
   CaretRight,
@@ -48,6 +49,7 @@ export function WorkspaceAccountMenu({
   const initials = accountInitials(accountName);
 
   function clearPendingLocalIntents() {
+    clearTimeWorkspaceStorage();
     clearAllPendingMeetingDraftIntents();
     // One partitioned store also removes any unsent conversation canvas intent.
     clearAllPendingSessionDrafts();

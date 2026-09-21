@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildApp } from "./app.js";
+import { buildApp as buildAppWithWorkers, type AppDependencies } from "./app.js";
 import type { BackendConfig } from "./config.js";
 import { REQUIRED_SYSTEM_MIGRATIONS } from "./modules/systemHealth.js";
 import type { VoiceTranscriptionServing } from "./modules/voiceTranscription.js";
@@ -21,6 +21,12 @@ const config: BackendConfig = {
 };
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
+
+// These route-boundary tests measure their own database calls. Queue worker
+// execution is independently covered with a real disposable database.
+const buildApp = (dependencies: AppDependencies) => buildAppWithWorkers({
+  ...dependencies, conversationQueueWorkerEnabled: false,
+});
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
@@ -50,7 +56,7 @@ describe("readiness rate limiting", () => {
     expect(ready.json()).toEqual({
       status: "ready",
       database: "ready",
-      migration: "072_mcp_extensions",
+      migration: "074_time_workspace",
     });
     expect(query).toHaveBeenCalledTimes(1);
   });
@@ -66,6 +72,9 @@ describe("readiness rate limiting", () => {
         { version: "070_meeting_drafts" },
         { version: "071_agent_session_list_snapshots" },
         { version: "072_mcp_extensions" },
+        { version: "073_conversation_queue" },
+        { version: "073_account_onboarding" },
+        { version: "074_time_workspace" },
       ],
     });
     const app = await buildApp({
@@ -105,6 +114,9 @@ describe("readiness rate limiting", () => {
           "070_meeting_drafts",
           "071_agent_session_list_snapshots",
           "072_mcp_extensions",
+          "073_conversation_queue",
+          "073_account_onboarding",
+          "074_time_workspace",
         ]
           .filter(version => version !== missing).map(version => ({ version })),
       });
@@ -307,5 +319,33 @@ describe("voice transcription route", () => {
       clientRequestId: "10000000-0000-4000-8000-000000000001",
       mimeType: "audio/wav",
     });
+  });
+});
+
+// The private boundary uses the real application hooks and authentication. Any
+// additional query (Session, observation reconciliation, Lab, etc.) fails here.
+describe("private conversation persistence boundary", () => {
+  it("runs only authentication SQL and never sends transient text to the pool", async () => {
+    const query = vi.fn(async (sql: string) => {
+      expect(sql).toContain("FROM sessions");
+      expect(sql).toContain("sessions.token_hash = $1");
+      expect(sql.trimStart()).toMatch(/^SELECT/u);
+      return { rows: [{ account_id: "30000000-0000-4000-8000-000000000001",
+        account_slug: "fixture-alpha", user_id: "40000000-0000-4000-8000-000000000001",
+        user_email: "synthetic@example.test", user_kind: "simulated_human",
+        session_id: "50000000-0000-4000-8000-000000000001" }] };
+    });
+    const app = await buildApp({ config, pool: { query } as unknown as Pool,
+      privateConversationProvider: { providerId: "claude", model: "synthetic", async *stream() { yield "synthetic answer"; } },
+    });
+    apps.push(app);
+    const response = await app.inject({ method: "POST", url: "/v1/private-conversation",
+      headers: { authorization: "Bearer synthetic-session" },
+      payload: { messages: [{ role: "user", content: "private-boundary-canary" }] },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('"type":"done"');
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(query.mock.calls)).not.toContain("private-boundary-canary");
   });
 });

@@ -16,6 +16,7 @@ export * from "./labCISchemas.js";
 export * from "./labWorkspaceSchemas.js";
 export * from "./labFeatureSchemas.js";
 export * from "./agentSessionSchemas.js";
+export * from "./conversationQueueSchemas.js";
 export * from "./feedbackSchemas.js";
 export * from "./agentPreferenceSchemas.js";
 export * from "./systemHealthSchemas.js";
@@ -27,3 +28,4 @@ export * from "./productRunSchemas.js";
 export * from "./accountSchemas.js";
 
 export * from "./mcpSchemas.js";
+export * from "./timeWorkspaceSchemas.js";

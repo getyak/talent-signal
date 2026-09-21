@@ -1,5 +1,6 @@
 import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } from "./productRunSchemas.js";
-import type { AccountSettings, AccountMutation } from "./accountSchemas.js";
+import type { TimeScope, TimeActivityListResponse, TimeScheduleMutationRequest, TimeScheduleDeleteRequest, TimeScheduleResponse, TimeReviewRequest, TimeReviewResponse } from "./timeWorkspaceSchemas.js";
+import type { AccountSettings, AccountMutation, AccountOnboarding, AccountOnboardingMutation, AccountOnboardingPreview, AccountOnboardingPreviewRequest } from "./accountSchemas.js";
 import type {
   McpClientGrantCreateRequest,
   McpClientGrantCreateResponse,
@@ -14,6 +15,13 @@ import type {
   McpEndpointsResponse,
 } from "./mcpSchemas.js";
 import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
+import type {
+  ConversationQueueAdmitRequest,
+  ConversationQueueAdmitResponse,
+  ConversationQueueMutationRequest,
+  ConversationQueueMutationResponse,
+  ConversationQueueSnapshot,
+} from "./conversationQueueSchemas.js";
 import type { AgentPreferenceMutation, AgentPreferenceResponse } from "./agentPreferenceSchemas.js";
 import type { MeetingDraftDismissRequest, MeetingDraftListResponse, MeetingDraftListScope, MeetingDraftResponse, MeetingDraftUpdateRequest } from "./meetingDraftSchemas.js";
 import type { SystemHealthResponse } from "./systemHealthSchemas.js";
@@ -273,6 +281,32 @@ export class TalentSignalClient {
     return this.request<AccountSettings>("/v1/account/settings", { method: "GET" });
   }
 
+  accountOnboarding(signal?: AbortSignal): Promise<AccountOnboarding> {
+    return this.request<AccountOnboarding>("/v1/account/onboarding", {
+      method: "GET", signal,
+    });
+  }
+
+  updateAccountOnboarding(
+    input: AccountOnboardingMutation,
+    signal?: AbortSignal,
+  ): Promise<AccountOnboarding> {
+    return this.request<AccountOnboarding>("/v1/account/onboarding", {
+      method: "POST", signal,
+      body: input,
+    });
+  }
+
+  previewAccountOnboarding(
+    request: AccountOnboardingPreviewRequest,
+    signal?: AbortSignal,
+  ): Promise<AccountOnboardingPreview> {
+    return this.request<AccountOnboardingPreview>(
+      "/v1/account/onboarding/preview",
+      { method: "POST", body: request, signal },
+    );
+  }
+
   systemHealth(signal?: AbortSignal): Promise<SystemHealthResponse> {
     return this.request<SystemHealthResponse>("/v1/system/health", {
       method: "GET",
@@ -284,8 +318,8 @@ export class TalentSignalClient {
     return this.request<AccountSettings>("/v1/account/settings", {method: "POST", body: input});
   }
 
-  currentSession(): Promise<CurrentSessionResponse> {
-    return this.request("/v1/auth/session", { method: "GET" });
+  currentSession(signal?: AbortSignal): Promise<CurrentSessionResponse> {
+    return this.request("/v1/auth/session", { method: "GET", signal });
   }
 
   async logout(): Promise<LogoutResponse> {
@@ -1128,16 +1162,37 @@ export class TalentSignalClient {
     return this.request("/v1/agent/preferences", { method: "PUT", body: request });
   }
 
-  getAgentSession(id: string): Promise<AgentSessionResponse> {
-    return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "GET" });
+  getAgentSession(id: string, signal?: AbortSignal): Promise<AgentSessionResponse> {
+    return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "GET", ...(signal ? { signal } : {}) });
   }
 
-  saveAgentSession(id: string, request: AgentSessionMutationRequest): Promise<AgentSessionResponse> {
-    return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "PUT", body: request });
+  saveAgentSession(id: string, request: AgentSessionMutationRequest, signal?: AbortSignal): Promise<AgentSessionResponse> {
+    return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "PUT", body: request, ...(signal ? { signal } : {}) });
   }
 
   deleteAgentSession(id: string, request: AgentSessionDeleteRequest): Promise<AgentSessionResponse> {
     return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "DELETE", body: request });
+  }
+
+  admitConversationQueueEntry(request: ConversationQueueAdmitRequest, signal?: AbortSignal): Promise<ConversationQueueAdmitResponse> {
+    return this.request(`/v1/agent-sessions/${encodeURIComponent(request.session_id)}/conversation-queue`, { method: "POST", body: request, ...(signal ? { signal } : {}) });
+  }
+
+  getConversationQueue(sessionId: string, signal?: AbortSignal): Promise<ConversationQueueSnapshot> {
+    return this.request(`/v1/agent-sessions/${encodeURIComponent(sessionId)}/conversation-queue`, { method: "GET", ...(signal ? { signal } : {}) });
+  }
+
+  mutateConversationQueue(sessionId: string, request: ConversationQueueMutationRequest, signal?: AbortSignal): Promise<ConversationQueueMutationResponse> {
+    return this.request(`/v1/agent-sessions/${encodeURIComponent(sessionId)}/conversation-queue/mutations`, { method: "POST", body: request, ...(signal ? { signal } : {}) });
+  }
+
+  /** Authenticated SSE observation. Reconnection only resumes observation. */
+  openConversationQueueStream(sessionId: string, signal?: AbortSignal): Promise<Response> {
+    return this.rawRequest(`/v1/agent-sessions/${encodeURIComponent(sessionId)}/conversation-queue/stream`, {
+      method: "GET",
+      headers: { accept: "text/event-stream" },
+      ...(signal ? { signal } : {}),
+    });
   }
 
   listMeetingDrafts(after?: string, scope: MeetingDraftListScope = "all"): Promise<MeetingDraftListResponse> {
@@ -1160,6 +1215,30 @@ export class TalentSignalClient {
 
   sync(after = 0): Promise<SyncResponse> {
     return this.request(`/v1/sync?after=${after}`, { method: "GET" });
+  }
+
+  listTimeActivities(scope: TimeScope, after?: string): Promise<TimeActivityListResponse> {
+    const query = new URLSearchParams({ from: scope.from, to: scope.to, time_zone: scope.time_zone });
+    if (scope.person_id) query.set("person_id", scope.person_id);
+    if (scope.kind) query.set("kind", scope.kind);
+    if (after) query.set("after", after);
+    return this.request(`/v1/time/activities?${query}`, { method: "GET" });
+  }
+
+  getTimeSchedule(id: string): Promise<TimeScheduleResponse> {
+    return this.request(`/v1/time/schedules/${encodeURIComponent(id)}`, { method: "GET" });
+  }
+
+  putTimeSchedule(id: string, input: TimeScheduleMutationRequest): Promise<TimeScheduleResponse> {
+    return this.request(`/v1/time/schedules/${encodeURIComponent(id)}`, { method: "PUT", body: input });
+  }
+
+  deleteTimeSchedule(id: string, input: TimeScheduleDeleteRequest): Promise<TimeScheduleResponse> {
+    return this.request(`/v1/time/schedules/${encodeURIComponent(id)}`, { method: "DELETE", body: input });
+  }
+
+  reviewTimeRange(input: TimeReviewRequest): Promise<TimeReviewResponse> {
+    return this.request("/v1/time/review", { method: "POST", body: input });
   }
 
   private async request<T>(

@@ -17,7 +17,10 @@ import {
   objectiveIsSendable,
   type NewConversationIntent,
 } from "@/lib/new-conversation";
+import { useLegacyConversationRecovery } from "./conversation/use-legacy-recovery";
 import { WORKSPACE_NEW_CONVERSATION_EVENT } from "@/lib/workspace-navigation";
+import { QueuedConversation } from "./conversation/queued-conversation";
+import { conversationHome } from "@/lib/conversation-local";
 import { AgentTurnThread } from "./relationship-workspace/agent-turn-thread";
 import { useWorkspaceChat } from "./relationship-workspace/use-workspace-chat";
 import { ComposerAddMenu } from "./new-conversation-add-menu";
@@ -105,10 +108,12 @@ async function createCanonicalSession(
  * The default authenticated entry: a quiet conversation canvas over a real,
  * canonical Session.
  *
- * Sending creates the Session through the existing `/api/workspace-sessions`
- * route, persists the unsent objective as a scoped pending intent, then submits
- * through the existing governed workspace chat controller. A reload therefore
- * repeats the same Session and the same request id instead of starting over.
+ * Every new send goes through the durable conversation queue, which admits the
+ * message, echoes it immediately and releases the composer. A pre-queue
+ * conversation-home record never swaps this surface back to the old blocking
+ * controller; it is described truthfully inside the queue surface and is never
+ * replayed automatically. The legacy blocking canvas remains only as a
+ * disabled waiting shell before the account is ready.
  */
 export function WorkspaceNewConversation({
   accountId,
@@ -124,11 +129,11 @@ export function WorkspaceNewConversation({
   const [instance, setInstance] = useState(0);
 
   useEffect(() => {
-    const reset = () => setInstance((current) => current + 1);
+    const reset = () => { if (storageScope) conversationHome(storageScope, null); setInstance((current) => current + 1); };
     window.addEventListener(WORKSPACE_NEW_CONVERSATION_EVENT, reset);
     return () =>
       window.removeEventListener(WORKSPACE_NEW_CONVERSATION_EVENT, reset);
-  }, []);
+  }, [storageScope]);
 
   return (
     <ConversationCanvas
@@ -141,7 +146,42 @@ export function WorkspaceNewConversation({
   );
 }
 
-function ConversationCanvas({
+function ConversationCanvas(props: { accountId: string | null; sessionVersion: string | null; sessionBinding: string | null; storageScope: string | null }) {
+  const { accountId, sessionVersion, sessionBinding, storageScope } = props;
+  // Storage is never a render input, so the first client render matches the
+  // server and an authenticated-ready home never mounts a live legacy
+  // controller. The hook carries the account partition and clears itself at
+  // the record's own expiry or when another tab removes it.
+  const recovery = useLegacyConversationRecovery(
+    accountId && sessionVersion && sessionBinding ? storageScope : null,
+  );
+
+  if (!accountId || !sessionVersion || !sessionBinding || !storageScope) {
+    // Not authenticated-ready yet: a disabled waiting shell, never a send path.
+    return (
+      <LegacyConversationCanvas
+        accountId={accountId}
+        sessionBinding={sessionBinding}
+        sessionVersion={sessionVersion}
+        storageScope={storageScope}
+      />
+    );
+  }
+  return (
+    <QueuedConversation
+      // Remount on any account, Session or binding change so no id, outbox,
+      // queue snapshot or recovery from the previous account can ever render
+      // or send under the next one.
+      key={`${accountId}:${sessionVersion}:${sessionBinding}:${storageScope}`}
+      chatBinding={sessionVersion}
+      detailBinding={sessionBinding}
+      legacyRecovery={recovery}
+      scope={storageScope}
+    />
+  );
+}
+
+function LegacyConversationCanvas({
   accountId,
   sessionVersion,
   sessionBinding,
@@ -217,7 +257,7 @@ function ConversationCanvas({
   }
 
   async function submit() {
-    if (submitLock.current || creating || busy) return;
+    if (!enabled || submitLock.current || creating || busy) return;
     const submitted = boundedNewConversationObjective(objective).trim();
     if (!objectiveIsSendable(objective, busy) || !submitted) return;
     if (!sessionBinding || !storageScope) {

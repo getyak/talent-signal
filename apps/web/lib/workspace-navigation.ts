@@ -94,7 +94,7 @@ export const WORKSPACE_NAV_ROUTES: readonly WorkspaceNavRoute[] = [
   {
     id: "meetings",
     href: "/workspace/meetings",
-    label: "日程",
+    label: "时间",
     section: "primary",
     mobile: true,
     matches: (pathname) => workspacePathMatches(pathname, "/workspace/meetings"),

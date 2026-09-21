@@ -1,5 +1,6 @@
 import { scryptSync, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { getAppleOAuthCredentials } from "./server/apple-oauth";
 
 const configuredPasswordPattern =
   /^scrypt\$([a-f0-9]{32,128})\$([a-f0-9]{128})$/i;
@@ -22,7 +23,7 @@ export const passwordRegistrationSchema = z.object({
     .max(40)
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/),
   email: z.string().trim().email().max(320),
-  displayName: z.string().trim().min(1).max(100),
+  displayName: z.string().trim().max(100).optional(),
   password: z.string().min(8).max(128),
 });
 
@@ -37,8 +38,46 @@ export type DefaultAccount = {
 
 type Environment = Record<string, string | undefined>;
 type AuthAvailabilityOverrides = {
+  apple?: boolean;
   google?: boolean;
 };
+
+/**
+ * Apple delivers the callback as a cross-site form POST. Its state and nonce
+ * cookies therefore need `Secure; SameSite=None`, which browsers only accept
+ * over HTTPS. Availability must fail closed on plain HTTP rather than show a
+ * button whose callback could never validate.
+ */
+export function appleFormPostCookiesSupported(
+  environment: Environment = process.env,
+): boolean {
+  const authUrl = environment.AUTH_URL?.trim();
+  if (authUrl) {
+    try {
+      return new URL(authUrl).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+  return environment.NODE_ENV === "production";
+}
+
+/**
+ * Derive the single display name used by password registration. An explicit
+ * name wins; otherwise the email local-part is a bounded, human-readable
+ * fallback, and a neutral product name is the last resort.
+ */
+export function deriveRegistrationDisplayName(
+  email: string,
+  displayName?: string | null,
+): string {
+  const provided = typeof displayName === "string" ? displayName.trim() : "";
+  if (provided) return provided.slice(0, 100);
+  const localPart = email.trim().toLowerCase().split("@")[0] ?? "";
+  const cleaned = localPart.replace(/[^\p{L}\p{N}._-]+/gu, " ").trim();
+  if (cleaned) return cleaned.slice(0, 100);
+  return "Talent Signal Recruiter";
+}
 
 export function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -52,12 +91,17 @@ export function safeRedirectTarget(
     typeof value !== "string" ||
     !value.startsWith("/") ||
     value.startsWith("//") ||
-    value.includes("\\")
+    value.includes("\\") ||
+    /[\u0000-\u0020\u007f]/.test(value)
   ) {
     return fallback;
   }
 
-  return value;
+  try {
+    const target = new URL(value, "https://redirect.invalid");
+    if (target.origin !== "https://redirect.invalid") return fallback;
+    return target.pathname + target.search + target.hash;
+  } catch { return fallback; }
 }
 
 export function getDefaultAccount(
@@ -97,10 +141,12 @@ export function getAuthAvailability(
   const account = getDefaultAccount(environment);
 
   return {
-    apple: Boolean(
-      environment.AUTH_APPLE_ID?.trim() &&
-        environment.AUTH_APPLE_SECRET?.trim(),
-    ),
+    apple:
+      overrides.apple ??
+      Boolean(
+        getAppleOAuthCredentials(environment) &&
+          appleFormPostCookiesSupported(environment),
+      ),
     defaultAccount: account.quickLoginEnabled,
     defaultAccountEmail: account.email,
     defaultAccountName: account.name,

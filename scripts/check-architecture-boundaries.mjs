@@ -17,11 +17,17 @@ const MIGRATION_MANIFEST =
 const MIGRATION_DIRECTORY = "apps/backend/src/database";
 const WORKSPACE_CONFIGURATION = "pnpm-workspace.yaml";
 const WORKSPACE_PATTERNS = ["apps/*", "packages/*"];
-const FROZEN_MIGRATION_COUNT = 76;
+const FROZEN_MIGRATION_COUNT = 79;
 const FROZEN_MIGRATION_DIGEST =
-  "d7c9a7305f029e89690834fd5f58de5b7aaad7354a251e089f0d43c4a10b88b3";
+  "855bcb306376a075a6968b78b3dc19d8c0c69c90c23686a257fd6a3f46618d60";
 
 const LEGACY_MIGRATION_PREFIX_COLLISIONS = new Map([
+  // Onboarding was deployed before the queue migration merged into main.
+  // Preserve both released identifiers and SQL checksums instead of renumbering.
+  [
+    "073",
+    ["073_account_onboarding", "073_conversation_queue"],
+  ],
   [
     "047",
     ["047_proposed_extracted_text", "047_screenshot_contact_tasks"],

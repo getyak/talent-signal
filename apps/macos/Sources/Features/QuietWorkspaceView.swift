@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import WebKit
+import UniformTypeIdentifiers
 
 /// The product window has no script handlers or native capability bridge.
 /// Native intake remains a separate, explicitly opened window with its own scope.
@@ -35,6 +36,16 @@ struct WorkspaceOrigin: Equatable {
         #endif
     }
 
+    /// Only the configured main-frame origin may request a calendar download.
+    /// Blob URLs retain their creating origin; file/data/foreign blobs are rejected.
+    func allowsCalendarDownload(_ candidate: URL, from source: URL) -> Bool {
+        guard contains(source) else { return false }
+        if contains(candidate) { return true }
+        guard candidate.scheme == "blob",
+              let embedded = URL(string: String(candidate.absoluteString.dropFirst(5))) else { return false }
+        return contains(embedded)
+    }
+
     var entryURL: URL { url.appendingPathComponent("workspace") }
 
     func contains(_ candidate: URL) -> Bool {
@@ -46,13 +57,15 @@ struct WorkspaceOrigin: Equatable {
 }
 
 @MainActor
-final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
+final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
     let origin: WorkspaceOrigin
     let webView: WKWebView
     @Published var failure: String?
     @Published var loading = true
     @Published var canGoBack = false
     @Published var externalURL: URL?
+    @Published var downloadStatus: String?
+    private var calendarDownloads = Set<ObjectIdentifier>()
     private var navigationObservation: NSKeyValueObservation?
 
     init(origin: WorkspaceOrigin) {
@@ -87,6 +100,12 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { decisionHandler(.cancel); return }
+        if action.shouldPerformDownload, action.sourceFrame.isMainFrame,
+           let source = action.sourceFrame.request.url,
+           origin.allowsCalendarDownload(url, from: source) {
+            decisionHandler(.download)
+            return
+        }
         if origin.contains(url) {
             if action.targetFrame == nil {
                 webView.load(action.request)
@@ -100,6 +119,61 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
             externalURL = url
         }
         decisionHandler(.cancel)
+    }
+
+    // WebKit's download delegate preserves normal browser isolation. No JS bridge is added.
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        calendarDownloads.insert(ObjectIdentifier(download))
+        download.delegate = self
+    }
+
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse,
+                  suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        guard calendarDownloads.contains(ObjectIdentifier(download)),
+              response.mimeType?.lowercased() == "text/calendar",
+              let window = webView.window else {
+            calendarDownloads.remove(ObjectIdentifier(download))
+            downloadStatus = "只能保存工作区生成的日历文件。"
+            completionHandler(nil)
+            return
+        }
+        let panel = NSSavePanel()
+        panel.title = "保存日历文件"
+        panel.message = "保存后请在日历应用中核对并确认导入。"
+        panel.allowedContentTypes = [UTType(filenameExtension: "ics") ?? .data]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "Talent Signal-\(UUID().uuidString.prefix(8)).ics"
+        panel.beginSheetModal(for: window) { [weak self] result in
+            guard result == .OK, let url = panel.url else {
+                self?.calendarDownloads.remove(ObjectIdentifier(download))
+                self?.downloadStatus = "已取消保存日历文件。"
+                completionHandler(nil)
+                return
+            }
+            // WKDownload requires a new file. Never remove an existing user file.
+            guard !FileManager.default.fileExists(atPath: url.path) else {
+                self?.calendarDownloads.remove(ObjectIdentifier(download))
+                self?.downloadStatus = "此文件已存在，请重新下载并选择新文件名。"
+                completionHandler(nil)
+                return
+            }
+            completionHandler(url)
+        }
+    }
+
+    func downloadDidFinish(_ download: WKDownload) {
+        guard calendarDownloads.remove(ObjectIdentifier(download)) != nil else { return }
+        downloadStatus = "日历文件已保存。请打开文件，在日历应用中核对并确认导入。"
+    }
+
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        guard calendarDownloads.remove(ObjectIdentifier(download)) != nil else { return }
+        downloadStatus = "日历文件未能保存，请重试下载。"
+    }
+
+    func download(_ download: WKDownload, willPerformHTTPRedirection response: HTTPURLResponse,
+                  newRequest request: URLRequest, decisionHandler: @escaping (WKDownload.RedirectPolicy) -> Void) {
+        decisionHandler(request.url.map(origin.contains) == true ? .allow : .cancel)
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -200,6 +274,13 @@ private struct ConnectedQuietWorkspace: View {
                 ProgressView().controlSize(.mini).padding(6)
                     .accessibilityLabel("正在载入工作区").allowsHitTesting(false)
             }
+            if let status = browser.downloadStatus {
+                HStack {
+                    Text(status).font(.callout)
+                    Button("关闭") { browser.downloadStatus = nil }
+                }.padding(12).background(.regularMaterial).clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding().accessibilityElement(children: .contain)
+            }
             if let failure = browser.failure {
                 VStack(spacing: 18) {
                     Image(systemName: "network.slash").font(.title)
@@ -273,7 +354,7 @@ struct QuietWorkspaceView: View {
             VStack(alignment: .leading, spacing: 20) {
                 TSBrandMark(size: 28)
                 Text("打开你的工作区").font(.title2)
-                Text("连接 Talent Signal Web，在 Mac 上继续同一份对话、人物和日程。")
+                Text("连接 Talent Signal Web，在 Mac 上继续同一份对话、人物和时间记录。")
                     .foregroundStyle(.secondary)
                 TextField("https://你的工作区地址", text: $originDraft)
                     .textFieldStyle(.roundedBorder).onSubmit(connect)

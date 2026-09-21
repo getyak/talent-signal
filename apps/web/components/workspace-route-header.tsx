@@ -1,6 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { Ghost } from "@phosphor-icons/react";
 
 import {
   isWorkspaceHomePath,
@@ -9,6 +11,15 @@ import {
 import styles from "./workspace-shell.module.css";
 
 const SESSION_DETAIL = /^\/workspace\/sessions\/[^/]+$/u;
+
+export function WorkspacePrivacyEntry({ mobile = false }: { mobile?: boolean }) {
+  const pathname = usePathname();
+  if (!isWorkspaceHomePath(pathname)) return null;
+  return <Link href="/workspace/private" aria-label="隐私模式" title="隐私模式"
+    className={`${styles.privacyEntry} ${mobile ? styles.mobilePrivacyEntry : ""}`}>
+    <Ghost size={17} aria-hidden="true"/><span>隐私模式</span>
+  </Link>;
+}
 
 /**
  * The 58px route header. It states where the user is for directory surfaces.
@@ -27,6 +38,7 @@ export function WorkspaceRouteHeader() {
       <div className={styles.crumb}>
         <strong>{isWorkspaceHomePath(pathname) ? "新对话" : label}</strong>
       </div>
+      <WorkspacePrivacyEntry />
     </header>
   );
 }

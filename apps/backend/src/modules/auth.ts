@@ -282,6 +282,12 @@ export async function createAppleSession(
     }
 
     const subjectHash = sha256(`${token.issuer}:${token.subject}`);
+    // Serialize first sign-ins for the same subject before checking/creating
+    // identity, mirroring the Google flow so concurrent Apple callbacks cannot
+    // race a duplicate auth_identities insert.
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+      `apple:${subjectHash}`,
+    ]);
     const existing = await client.query<{
       account_id: string;
       account_name: string;
@@ -319,8 +325,22 @@ export async function createAppleSession(
       const accountSlug = `personal-${randomUUID()}`;
       const displayName = boundedName(request);
       const email = token.emailVerified && token.email
-        ? token.email
+        ? token.email.trim().toLowerCase()
         : `apple-${subjectHash.slice(0, 24)}@private.talentsignal.invalid`;
+      // Never turn a matching email into authority over an existing workspace.
+      // Apple subject owns the federated identity; a visible email collision
+      // requires the user to sign in with the existing method instead.
+      const collision = await client.query(
+        `SELECT id FROM users WHERE lower(email) = $1 LIMIT 1`,
+        [email],
+      );
+      if (collision.rowCount) {
+        throw new ApiError(
+          409,
+          "APPLE_ACCOUNT_LINK_REQUIRED",
+          "This email already has a workspace. Sign in with its existing method to preserve that account.",
+        );
+      }
       await client.query(
         `INSERT INTO accounts(id, slug, name) VALUES ($1, $2, $3)`,
         [accountId, accountSlug, `${displayName}'s workspace`],

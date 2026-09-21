@@ -1,9 +1,14 @@
+import { requestLoggerOptions } from "./lib/requestLogger.js";
 import {RunArtifactSchema} from "@talent-signal/contracts";
 import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessRunFiles.js";
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
+import { registerAccountOnboarding } from "./modules/accountOnboardingRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
+import { registerConversationQueueRoutes } from "./modules/conversationQueueRoutes.js";
+import { ConversationQueueRunner, type ConversationQueueProviderSelector } from "./modules/conversationQueueRunner.js";
 import { registerMeetingDraftRoutes } from "./modules/meetingDraftRoutes.js";
+import { registerTimeWorkspaceRoutes } from "./modules/timeWorkspaceRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerMcpExtensionRoutes } from "./modules/mcpRoutes.js";
 import { registerScreenshotContactRoutes } from "./modules/screenshotContactRoutes.js";
@@ -261,6 +266,12 @@ import {
   type RemoteChatAnswerProviding,
 } from "./modules/chatAnswerProvider.js";
 import {
+  createEnvironmentPrivateConversationProvider,
+  isPrivateConversationRequest,
+  registerPrivateConversationRoutes,
+  type PrivateConversationProvider,
+} from "./modules/privateConversation.js";
+import {
   CHAT_MEDIA_MAX_BYTES,
   createChatMediaAsset,
   deleteChatMediaAsset,
@@ -473,8 +484,11 @@ export interface AppDependencies {
   voiceTranscriber?: VoiceTranscriptionServing;
   chatMediaStorage?: ChatMediaStorage;
   remoteChatProvider?: RemoteChatAnswerProviding | null;
+  privateConversationProvider?: PrivateConversationProvider | null;
   labProviders?: Map<string, RemoteChatAnswerProviding>;
   labJobWorkerEnabled?: boolean;
+  /** Disable background queue execution only for an explicitly isolated host/test. */
+  conversationQueueWorkerEnabled?: boolean;
   labCIVerifier?: LabCIVerifying | null;
   personResearchProvider?: PersonResearchAgentProviding | null;
   screenshotContact?: ScreenshotContactDependencies | null;
@@ -491,6 +505,9 @@ export async function buildApp(
   const remoteChatProvider = dependencies.remoteChatProvider === undefined
     ? createEnvironmentChatAnswerProvider()
     : dependencies.remoteChatProvider;
+  const privateConversationProvider = dependencies.privateConversationProvider === undefined
+    ? createEnvironmentPrivateConversationProvider()
+    : dependencies.privateConversationProvider;
   const deploymentExposure = captureDeploymentExposure();
   assertCandidateDeploymentExposure(deploymentExposure, remoteChatProvider?.loadedTaskConfiguration);
   const personResearchProvider =
@@ -506,36 +523,7 @@ export async function buildApp(
     ...(config.tls
       ? { https: { cert: config.tls.certificatePem, key: config.tls.privateKeyPem } }
       : {}),
-    logger: {
-      level: process.env.LOG_LEVEL ?? "info",
-      redact: {
-        paths: [
-          "req.headers.authorization",
-          "req.body.payload",
-          "body.payload",
-          "req.body.password",
-          "req.body.access_token",
-          "req.body.audio_base64",
-          "req.body.content_parts[*].content_text",
-          "req.body.content_parts[*].content_base64",
-          "req.body.image.data_base64",
-          "req.body.expected_behavior",
-          "req.body.review_note",
-          "headers.authorization",
-          "body.password",
-          "body.access_token",
-          "body.audio_base64",
-          "body.content_parts[*].content_text",
-          "body.content_parts[*].content_base64",
-          "body.image.data_base64",
-          "body.expected_behavior",
-          "body.review_note",
-          "access_token",
-          "password_scrypt",
-        ],
-        censor: "[redacted]",
-      },
-    },
+    logger: requestLoggerOptions(),
     requestIdHeader: "x-request-id",
     genReqId: () => randomUUID(),
     bodyLimit: 2 * 1024 * 1024,
@@ -548,6 +536,9 @@ export async function buildApp(
     });
   });
   app.addHook("onResponse", async (request, reply) => {
+    // The private transport keeps no product-run or observation footprint; its
+    // hijacked stream never triggers the reconciliation sweep.
+    if (isPrivateConversationRequest(request)) return;
     if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && reply.statusCode < 400) {
       await sweepRuntimeObservationSources(pool).catch(() => {
         request.log.error({ code: "RUNTIME_OBSERVATION_SOURCE_RECONCILIATION_PENDING" }, "Private observation source reconciliation will retry.");
@@ -727,6 +718,12 @@ export async function buildApp(
   app.post<{ Body: AppleLoginChallengeRequest }>(
     "/v1/auth/apple/challenges",
     {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: "1 minute",
+        },
+      },
       schema: {
         tags: ["auth"],
         body: AppleLoginChallengeRequestSchema,
@@ -745,6 +742,12 @@ export async function buildApp(
   app.post<{ Body: AppleLoginRequest }>(
     "/v1/auth/apple",
     {
+      config: {
+        rateLimit: {
+          max: 12,
+          timeWindow: "1 minute",
+        },
+      },
       schema: {
         tags: ["auth"],
         body: AppleLoginRequestSchema,
@@ -767,11 +770,15 @@ export async function buildApp(
   const authenticate = createAuthGuard(pool, deploymentExposure?.workspaceIds);
   registerProductRunMonitoring(app, pool, authenticate);
   registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
+  registerAccountOnboarding(app, pool, authenticate);
   registerAgentSessionRoutes(app, pool, authenticate);
+  registerConversationQueueRoutes(app, pool, authenticate);
   registerMeetingDraftRoutes(app, pool, authenticate);
+  registerTimeWorkspaceRoutes(app, pool, authenticate, remoteChatProvider);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
   registerAgentPreferenceRoutes(app, pool, authenticate, remoteChatProvider?.providerId === "claude-agent-sdk");
+  registerPrivateConversationRoutes(app, authenticate, privateConversationProvider);
   registerMcpExtensionRoutes(app, pool, authenticate, {
     allowedOrigins: [],
     deploymentWorkspaceIds: deploymentExposure?.workspaceIds,
@@ -3121,6 +3128,50 @@ export async function buildApp(
   );
 
   const stopProductProjection = startProductRunProjection(pool, () => app.log.error("Product run Opik projection unavailable; local records retained"));
+  // The durable queue path keeps the configured Lab provider selection and
+  // frozen reference clock, so Web does not silently lose Lab experiment arms.
+  const conversationQueueSelectProvider: ConversationQueueProviderSelector | undefined =
+    config.internalLabEnabled
+      ? async (client, input) => {
+          const trial = labTrials.taskContext(
+            input.auth,
+            "unscoped_chat",
+            input.idempotencyKey,
+          );
+          const provider = await trial.select(client);
+          return {
+            provider,
+            finish: (outcome) => Promise.resolve(trial.finish(outcome)),
+          };
+        }
+      : undefined;
+  const conversationQueueRunner = new ConversationQueueRunner({
+    pool,
+    provider: remoteChatProvider,
+    logger: app.log,
+    ...(conversationQueueSelectProvider
+      ? { selectProvider: conversationQueueSelectProvider }
+      : {}),
+    ...(dependencies.chatReferenceClock
+      ? { referenceClock: dependencies.chatReferenceClock }
+      : {}),
+  });
+  if (dependencies.conversationQueueWorkerEnabled !== false) {
+    app.addHook("onReady", async () => {
+      await conversationQueueRunner.recover().catch((error: unknown) => {
+        app.log.error(
+          { err: error },
+          "Conversation queue recovery is pending and will retry.",
+        );
+      });
+    });
+    conversationQueueRunner.start();
+    registerRecurringJob(app, {
+      name: "conversation-queue-recovery",
+      intervalMs: config.retentionSweepIntervalMs,
+      run: () => conversationQueueRunner.recover(),
+    });
+  }
   registerRecurringJob(app, {
     name: "contact-task-retention-sweep",
     intervalMs: config.retentionSweepIntervalMs,
@@ -3133,6 +3184,7 @@ export async function buildApp(
       await runSourceLifecycleSweep(pool);
     },
   });
+  app.addHook("preClose", async () => { await conversationQueueRunner.close(); });
   app.addHook("onClose", async () => {
     await stopProductProjection();
     await screenshotRunner?.close();

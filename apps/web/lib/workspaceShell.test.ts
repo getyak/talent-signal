@@ -282,7 +282,7 @@ describe("relationship workspace initial read", () => {
     expect(login).toContain(
       'parameters.reason === "backend_session_expired"',
     );
-    expect(login).toContain("登录已过期，请重新登录以回到刚才的页面。");
+    expect(login).toContain("登录已过期。重新登录后，可以继续刚才的工作。");
     expect(login).toContain("session?.user && !sessionExpired && !parameters.error");
   });
 

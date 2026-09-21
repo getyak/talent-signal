@@ -9,7 +9,7 @@
     "auth:hash-password": "node scripts/hash-password.mjs",
     "start": "next start",
     "lint": "eslint app components lib proxy.ts proxy.test.ts next.config.ts vitest.config.ts postcss.config.mjs",
-    "typecheck": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && pnpm --filter @talent-signal/workspace-ui build && tsc --noEmit",
+    "typecheck": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && pnpm --filter @talent-signal/workspace-ui build && tsc6 --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

@@ -70,7 +70,7 @@ not readable type or touch targets. Calendar views change time layout; filters
 change which records appear. Preserve that distinction, and keep conflicts,
 uncertain writes, and recovery visible when metadata is collapsed.
 
-Web and desktop conversations use one readable transcript and a stable reply composer. Growing a draft follows the latest reply only when the reader was already there. Keep title, content, and input primary; technical scope and draft utilities belong in named details. Unresolved errors, conflicts, and deletion consequences remain visible. Primary work destinations stay direct; hide successfully empty auxiliary groups, place account utilities with the account, and preserve explicit narrow-screen entries for hidden rail destinations.
+Web and desktop conversations use one readable transcript and a stable reply composer. Sending releases the input immediately; durable admission, forming output, and completion remain distinct. Later messages enter a visible, editable queue; Stop pauses it until explicit continuation. Growing a draft follows the latest reply only when the reader was already there. Keep title, content, and input primary; technical scope and draft utilities belong in named details. Unresolved errors, conflicts, and deletion consequences remain visible. Primary work destinations stay direct; hide successfully empty auxiliary groups, place account utilities with the account, and preserve explicit narrow-screen entries for hidden rail destinations.
 
 ### Space is part of the hierarchy
 
@@ -92,7 +92,7 @@ The primary surfaces answer different questions:
 | Sessions | Which recent Agent conversation should I resume? |
 | Pursuits | Which outcome am I trying to advance? |
 | People | Who or what am I looking for? |
-| Meetings | Who am I meeting next, and what should I prepare or record? |
+| Time | What happened in this period, and what should I prepare for the next contact? |
 | Pursuit page | What outcome, milestone, gap, and action are current? |
 | Candidate page | What is currently true for this person in this Pursuit? |
 | Timeline | How did understanding and action change? |
@@ -222,8 +222,7 @@ The design must distinguish:
 - contested;
 - superseded.
 
-Use plain language that describes what the user can do next. Never make a
-failed or uncertain state look complete.
+Use plain language that describes what the user can do next. Never make a failed or uncertain state look complete. A forming streamed reply is not a citation, card, or completed answer; only validated blocks replace it, and a stopped run stays visibly incomplete.
 
 ## Pursuit and candidate pages
 

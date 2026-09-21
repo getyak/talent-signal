@@ -35,7 +35,7 @@ struct WorkspaceDesktopCommands: Commands {
         CommandMenu("前往") {
             Button("人物") { browser?.navigate(.people) }
                 .keyboardShortcut("1").disabled(browser == nil)
-            Button("日程") { browser?.navigate(.calendar) }
+            Button("时间") { browser?.navigate(.calendar) }
                 .keyboardShortcut("2").disabled(browser == nil)
             Button("工作区设置") { browser?.navigate(.settings) }
                 .keyboardShortcut(",", modifiers: [.command, .shift]).disabled(browser == nil)
