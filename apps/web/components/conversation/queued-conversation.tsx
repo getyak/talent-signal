@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { conversationHome } from "@/lib/conversation-local";
 import type { LegacyConversationRecovery } from "@/lib/conversation-legacy";
 import { isNewConversationId, newConversationCaptureHref } from "@/lib/new-conversation";
+import { WORKSPACE_NEW_CONVERSATION_EVENT } from "@/lib/workspace-navigation";
 import { ConversationResponse } from "../conversation-response";
 import { ComposerAddMenu } from "../new-conversation-add-menu";
 import { WorkspaceComposer } from "../workspace-composer";
@@ -24,8 +25,41 @@ type Props = { initialDetail?: SessionDetail; scope: string; chatBinding: string
 export function QueuedConversation(props: Props) {
   const router = useRouter();
   const [id, setId] = useState<string | null>(props.initialDetail?.session_id ?? null);
+  const [admitted, setAdmitted] = useState(Boolean(props.initialDetail));
+  const handedOff = useRef(Boolean(props.initialDetail));
+  const navigating = useRef(false);
+  useEffect(() => {
+    // A Next Link can be pending while the old pathname is still visible.
+    const leaving = () => { navigating.current = true; };
+    const linkIntent = (event: MouseEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!link || (link.target && link.target !== "_self") || link.hasAttribute("download")) return;
+      const destination = new URL(link.href);
+      if (destination.origin === window.location.origin && (destination.pathname !== window.location.pathname || destination.search !== window.location.search)) {
+        leaving();
+        // The retained Home tree is reused when a brand link returns home.
+        if (!props.initialDetail && handedOff.current && destination.pathname === "/workspace" && !destination.search && !destination.hash) window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT));
+      }
+    };
+    document.addEventListener("click", linkIntent, true);
+    window.addEventListener("popstate", leaving);
+    return () => { document.removeEventListener("click", linkIntent, true); window.removeEventListener("popstate", leaving); };
+  }, [props.initialDetail]);
   useEffect(() => { let current = true; queueMicrotask(() => { if (current && !props.initialDetail) { const next = conversationHome(props.scope) ?? crypto.randomUUID(); conversationHome(props.scope, next); setId(next); } }); return () => { current = false; }; }, [props.scope, props.initialDetail]);
-  const chat = useConversation({ id, scope: props.scope, chatBinding: props.chatBinding, detailBinding: props.detailBinding, initial: props.initialDetail, onAdmitted: sessionId => { if (!props.initialDetail) { conversationHome(props.scope, null); router.replace(`/workspace/sessions/${sessionId}`); } } });
+  const chat = useConversation({ id, scope: props.scope, chatBinding: props.chatBinding, detailBinding: props.detailBinding, initial: props.initialDetail, onAdmitted: sessionId => {
+    if (handedOff.current) return;
+    handedOff.current = true;
+    setAdmitted(true);
+    if (conversationHome(props.scope) === sessionId) conversationHome(props.scope, null);
+    // Admission must not reload the route and unmount an actively edited composer.
+    // Next integrates native History API updates with usePathname; refresh still
+    // opens the canonical Session. Do not rewrite an intervening navigation.
+    // https://nextjs.org/docs/app/getting-started/linking-and-navigating#native-history-api
+    if (!navigating.current && window.location.pathname === "/workspace" && !window.location.search && !window.location.hash) {
+      window.history.replaceState(null, "", `/workspace/sessions/${sessionId}`);
+    }
+  } });
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -58,15 +92,22 @@ export function QueuedConversation(props: Props) {
   }, [chat.ready]);
   function latest() { userScroll.current = false; follows.current = true; setAway(false); viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }
   function send() { if (chat.submit()) { userScroll.current = false; follows.current = true; setAway(false); } }
+  function navigate(href: string) { navigating.current = true; router.push(href); }
+  async function remove() {
+    if (await chat.remove()) {
+      window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT));
+      router.replace("/workspace");
+    }
+  }
   async function applyEdit(entry: string) { if (await chat.mutate({ kind: "edit", queue_entry_id: entry, objective: editValue.trim() })) setEditing(null); }
 
   return <section className={styles.canvas} aria-label="对话" data-conversation-canvas data-empty={!hasContent}>
-    {props.initialDetail && <header className={styles.header}><h1>{chat.detail?.title || "新对话"}</h1><details className={styles.details}><summary>对话详情</summary><div className={styles.detailPanel}>
+    {admitted && <header className={styles.header}><h1>{chat.detail?.title || "新对话"}</h1><details className={styles.details}><summary>对话详情</summary><div className={styles.detailPanel}>
       <p>历史回复保留当时的判断，执行前请核对当前信息。</p>
       {chat.detail && <p>保留至 {new Date(chat.detail.expires_at).toLocaleDateString("zh-CN")}</p>}
       {props.meetingLinks?.map(meeting => <a key={meeting.id} href={`/workspace/meetings?draft=${encodeURIComponent(meeting.id)}`}>{meeting.title}</a>)}
       {props.meetingReadFailed && <p>相关日程暂时无法读取。</p>}
-      {!chat.unavailable && (confirmDelete ? <div className={styles.confirm}><p>删除对话、草稿和待处理消息？</p><button onClick={async () => { if (await chat.remove()) router.replace("/workspace"); }}>确认删除</button><button onClick={() => setConfirmDelete(false)}>保留</button></div> : <button className={styles.textButton} onClick={() => setConfirmDelete(true)}><Trash size={16}/>删除对话</button>)}
+      {!chat.unavailable && (confirmDelete ? <div className={styles.confirm}><p>删除对话、草稿和待处理消息？</p><button onClick={() => void remove()}>确认删除</button><button onClick={() => setConfirmDelete(false)}>保留</button></div> : <button className={styles.textButton} onClick={() => setConfirmDelete(true)}><Trash size={16}/>删除对话</button>)}
     </div></details></header>}
     <div className={styles.transcript} ref={viewport} role="region" aria-label="对话记录" tabIndex={0} onWheel={() => { userScroll.current = true; }} onTouchStart={() => { userScroll.current = true; }} onPointerDown={() => { userScroll.current = true; }} onKeyDown={event => { if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown"].includes(event.key)) userScroll.current = true; }} onScroll={() => { if (viewport.current && userScroll.current) { follows.current = conversationNearBottom(viewport.current); setAway(!follows.current); } }}>
       <div className={styles.content} ref={content}>
@@ -84,8 +125,8 @@ export function QueuedConversation(props: Props) {
       </section>}
       {(chat.error || notice || chat.draftConflict || chat.unavailable) && <div className={styles.notice} role="status">{chat.unavailable ? "这段对话已结束或登录状态发生变化，请重新打开工作台。" : chat.draftConflict ? <>另一处也修改了草稿，当前输入已保留。<button onClick={() => void chat.keepDraft()}>保留当前草稿</button></> : chat.error || notice}</div>}
       <div className={styles.composer}>
-        <WorkspaceComposer id="queued-conversation-composer" label="消息" value={chat.draft} maxLength={1000} variant="home" rows={2} placeholder={active ? "继续补充，会按顺序处理…" : paused ? "继续输入，消息会加入暂停的队列…" : "有什么想一起理清的？"} canSubmit={canSend} disabled={!chat.ready || chat.unavailable} binding={props.detailBinding} onValueChange={chat.changeDraft} onSubmit={send} onNavigate={href => router.push(href)} onCapture={() => setCapture(true)}
-          footerStart={<ComposerAddMenu binding={props.detailBinding} onCapture={() => setCapture(true)} onNavigate={href => router.push(href)}/>}
+        <WorkspaceComposer id="queued-conversation-composer" label="消息" value={chat.draft} maxLength={1000} variant="home" rows={2} placeholder={active ? "继续补充，会按顺序处理…" : paused ? "继续输入，消息会加入暂停的队列…" : "有什么想一起理清的？"} canSubmit={canSend} disabled={!chat.ready || chat.unavailable} binding={props.detailBinding} onValueChange={chat.changeDraft} onSubmit={send} onNavigate={navigate} onCapture={() => setCapture(true)}
+          footerStart={<ComposerAddMenu binding={props.detailBinding} onCapture={() => setCapture(true)} onNavigate={navigate}/>}
           footerEnd={<div className={styles.sendActions}>{active && <button type="button" className={styles.stop} aria-label="停止当前回复" title="停止当前回复，保留后续队列" disabled={chat.mutating || active.cancel_requested} onClick={() => void chat.mutate({kind:"stop",run_id:active.run_id!})}><Stop size={16} weight="fill"/><span>停止</span></button>}<button type="button" className={styles.send} aria-label={active || queued.length || paused ? "加入队列" : "发送消息"} title={active || paused ? "加入队列" : "发送"} disabled={!canSend} onClick={send}><ArrowUp size={21} weight="bold"/></button></div>}/>
       </div>
       {!hasContent && <div className={styles.starters} aria-label="开始一个话题">{["你可以帮我做什么？", "梳理今天需要跟进的人"].map(text => <button key={text} onClick={() => { chat.changeDraft(text); document.getElementById("queued-conversation-composer")?.focus(); }}>{text}<ArrowUp size={13} aria-hidden="true"/></button>)}</div>}

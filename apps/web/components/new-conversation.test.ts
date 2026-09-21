@@ -32,6 +32,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+import { conversationHome, writeConversationDraft } from "@/lib/conversation-local";
 import { newConversationPendingDraft } from "@/lib/new-conversation";
 import { WORKSPACE_NEW_CONVERSATION_EVENT } from "@/lib/workspace-navigation";
 import { WorkspaceNewConversation } from "./new-conversation";
@@ -126,6 +127,7 @@ async function render(props: Props = READY): Promise<void> {
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   localStorage.clear();
+  window.history.replaceState(null, "", "/workspace");
   fetcher.mockReset();
   router.push.mockReset();
   router.refresh.mockReset();
@@ -207,6 +209,225 @@ describe("authenticated home with a legacy conversation-home record", () => {
     expect(JSON.stringify(body)).not.toContain("旧版草稿");
     // Admission never converts, re-keys or clears the legacy record.
     expect(localStorage.getItem(draftKey(SCOPE, SESSION_ID))).not.toBeNull();
+  });
+
+  it("keeps the same focused composer and second draft when admission returns", async () => {
+    let acceptFirst: ((response: Response) => void) | undefined;
+    let admittedId = "";
+    fetcher.mockImplementation((url, init) => {
+      if (init?.method === "POST" && String(url).endsWith("/conversation-queue")) {
+        admittedId = String(url).split("/").at(-2)!;
+        if (!acceptFirst) return new Promise<Response>((resolve) => { acceptFirst = resolve; });
+        return Promise.resolve(Response.json({}, { status: 202 }));
+      }
+      return new Promise<Response>(() => {});
+    });
+    // Model a route transition replacing the page while the server reads it.
+    // This reproduces the production failure if admission triggers navigation.
+    router.replace.mockImplementation(() => {
+      root?.render(createElement("div", null, "Loading the Session"));
+    });
+    await render();
+    await flush();
+    const composer = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
+    await act(async () => {
+      composer.focus();
+      setComposerValue(composer, "First synthetic message");
+    });
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+    await flush();
+    expect(acceptFirst).toBeDefined();
+    expect(composer.value).toBe("");
+    await act(async () => setComposerValue(composer, "Second draft still being edited"));
+    composer.setSelectionRange(7, 12);
+
+    await act(async () => acceptFirst?.(Response.json({}, { status: 202 })));
+    await flush();
+    expect(document.querySelector("#queued-conversation-composer")).toBe(composer);
+    expect(document.activeElement).toBe(composer);
+    expect(composer.value).toBe("Second draft still being edited");
+    expect([composer.selectionStart, composer.selectionEnd]).toEqual([7, 12]);
+    expect(window.location.pathname).toBe(`/workspace/sessions/${admittedId}`);
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(document.querySelector("h1")?.textContent).toBe("新对话");
+
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+    await flush();
+    const admissions = fetcher.mock.calls.filter(([, init]) => init?.method === "POST");
+    expect(admissions).toHaveLength(2);
+    expect(admissions[1][0]).toBe(admissions[0][0]);
+    expect(JSON.parse(String(admissions[1][1].body)).objective).toBe("Second draft still being edited");
+    expect(composer.value).toBe("");
+    expect(document.activeElement).toBe(composer);
+
+    await act(async () => {
+      window.history.replaceState(null, "", "/workspace");
+      window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT));
+    });
+    await flush();
+    expect(document.querySelector("#queued-conversation-composer")).not.toBe(composer);
+    expect(document.querySelector("h1")).toBeNull();
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2);
+  });
+
+  it.each(["/workspace/private", "/workspace/people", "/workspace?person=synthetic-person"])(
+    "does not replace an intervening navigation to %s when admission finishes",
+    async (destination) => {
+      let accept: ((response: Response) => void) | undefined;
+      fetcher.mockImplementation(() => new Promise<Response>((resolve) => { accept = resolve; }));
+      await render();
+      await flush();
+      const composer = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
+      await act(async () => setComposerValue(composer, "Synthetic navigation race"));
+      await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+      await flush();
+      expect(accept).toBeDefined();
+      window.history.replaceState(null, "", destination);
+      await act(async () => accept?.(Response.json({}, { status: 202 })));
+      await flush();
+      expect(window.location.pathname + window.location.search).toBe(destination);
+      expect(router.replace).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["before first receipt", "after first receipt"])(
+    "preserves another tab's home draft created %s",
+    async (timing) => {
+      let accept: ((response: Response) => void) | undefined;
+      fetcher.mockImplementation((url, init) => {
+        if (init?.method === "POST" && String(url).endsWith("/conversation-queue")) {
+          return new Promise<Response>((resolve) => { accept = resolve; });
+        }
+        return new Promise<Response>(() => {});
+      });
+      await render();
+      await flush();
+      const composer = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
+      await act(async () => setComposerValue(composer, "Tab A first"));
+      await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+      if (timing === "after first receipt") {
+        await act(async () => accept?.(Response.json({}, { status: 202 })));
+        await flush();
+        await act(async () => setComposerValue(composer, "Tab A second"));
+        await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+      }
+      // Another tab created a fresh Home while A's network receipt is pending.
+      conversationHome(SCOPE, OTHER_SESSION_ID);
+      writeConversationDraft(SCOPE, OTHER_SESSION_ID, {
+        value: "Tab B unsent draft", updatedAt: new Date().toISOString(),
+        expiresAt: Date.now() + 60_000, writer: "tab-b",
+      });
+      await act(async () => accept?.(Response.json({}, { status: 202 })));
+      await flush();
+      expect(conversationHome(SCOPE)).toBe(OTHER_SESSION_ID);
+      await act(async () => root?.unmount());
+      mount?.remove();
+      window.history.replaceState(null, "", "/workspace");
+      await render();
+      await flush();
+      expect(document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")?.value).toBe("Tab B unsent draft");
+    },
+  );
+
+  it.each(["/workspace/private", "/workspace/people", "/workspace?person=synthetic-person"])(
+    "does not interrupt an uncommitted Link transition to %s",
+    async (destination) => {
+      let accept: ((response: Response) => void) | undefined;
+      fetcher.mockImplementation(() => new Promise<Response>((resolve) => { accept = resolve; }));
+      await render();
+      await flush();
+      const composer = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
+      await act(async () => setComposerValue(composer, "Pending navigation"));
+      await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+      const link = document.createElement("a");
+      link.href = destination;
+      // Like Next Link: prevent browser navigation while the server route loads.
+      link.addEventListener("click", (event) => event.preventDefault());
+      mount?.append(link);
+      link.click();
+      expect(window.location.pathname).toBe("/workspace");
+      const replace = vi.spyOn(window.history, "replaceState");
+      try {
+        await act(async () => accept?.(Response.json({}, { status: 202 })));
+        await flush();
+        expect(replace).not.toHaveBeenCalled();
+        expect(router.replace).not.toHaveBeenCalled();
+      } finally { replace.mockRestore(); }
+    },
+  );
+
+  it("resets the retained Home when the brand link returns to the start", async () => {
+    fetcher.mockImplementation((url, init) => init?.method === "POST" && String(url).endsWith("/conversation-queue")
+      ? Promise.resolve(Response.json({}, { status: 202 })) : new Promise<Response>(() => {}));
+    await render();
+    await flush();
+    const composer = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
+    await act(async () => setComposerValue(composer, "Before home link"));
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+    await flush();
+    const admittedPath = window.location.pathname;
+    const link = document.createElement("a");
+    link.href = "/workspace";
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      // Next reuses its Home component tree when returning to the same page.
+      window.history.replaceState(null, "", "/workspace");
+    });
+    mount?.append(link);
+    await act(async () => link.click());
+    await flush();
+    const fresh = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
+    expect(fresh).not.toBe(composer);
+    expect(document.querySelector("h1")).toBeNull();
+    await act(async () => setComposerValue(fresh, "After home link"));
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+    await flush();
+    expect(window.location.pathname).not.toBe(admittedPath);
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2);
+  });
+
+  it("resets a retained Home after deleting its admitted conversation", async () => {
+    let sessionId = "";
+    fetcher.mockImplementation((url, init) => {
+      if (init?.method === "POST") {
+        sessionId = String(url).split("/").at(-2)!;
+        return Promise.resolve(Response.json({}, { status: 202 }));
+      }
+      if (String(url).endsWith("/stream")) {
+        const snapshot = { session_id: sessionId, revision: 1, paused: false, queued: [], active: null, preview: null };
+        return Promise.resolve(new Response(new ReadableStream({ start(controller) {
+          controller.enqueue(new TextEncoder().encode(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`));
+        } })));
+      }
+      return Promise.resolve(Response.json({ detail: {
+        session_id: sessionId, revision: init?.method === "DELETE" ? 2 : 1,
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+        state: init?.method === "DELETE" ? "deleted" : "active",
+        turns: [], title: "Synthetic deletion", composer_draft: "",
+      } }));
+    });
+    router.replace.mockImplementation((href: string) => window.history.replaceState(null, "", href));
+    await render();
+    await flush();
+    const composer = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
+    await act(async () => setComposerValue(composer, "First session"));
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+    await flush();
+    const deletedId = sessionId;
+    await act(async () => button("删除对话")?.click());
+    await act(async () => button("确认删除")?.click());
+    await flush();
+    const fresh = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
+    expect(fresh).not.toBe(composer);
+    expect(fresh.disabled).toBe(false);
+    expect(fresh.value).toBe("");
+    expect(window.location.pathname).toBe("/workspace");
+    expect(document.querySelector("h1")).toBeNull();
+    await act(async () => setComposerValue(fresh, "Fresh after delete"));
+    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')?.click());
+    await flush();
+    expect(sessionId).not.toBe(deletedId);
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2);
   });
 
   it.each([
