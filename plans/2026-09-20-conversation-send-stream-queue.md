@@ -85,9 +85,43 @@ for exact checks and their boundaries. Backend type checking, the production Web
 build, focused client tests, 541 backend unit tests, and 21 queue/SSE tests pass. Independent HTTP proof
 covers ten admission, streaming, cancellation, and recovery properties.
 
-The implementation is isolated on its task branch. No resident migration or
-production deployment has been performed. Release requires an exact-head CI
-result; rollout remains a separate, unperformed operation.
+PR #217 merged as `7ae47717`. The original implementation evidence predates
+resident rollout. Web and backend were subsequently released from `9b4ea5fe`
+on September 21; the follow-up below records runtime proof and the remaining
+legacy home compatibility fix.
+
+## Follow-up: legacy home draft trapped the queue (2026-09-21)
+
+A pre-queue `conversation-home` record permanently selected the blocking home
+controller. Authenticated-ready home now renders the queue immediately, including
+SSR, regardless of old storage. Its full account/binding key resets all queue
+state on account changes. The not-ready legacy shell remains disabled.
+
+A compact notice preserves the exact old text and original expiry. Missing or
+false `attempted` flags mean UNKNOWN, never permission to replay or re-key.
+Original durable request identity stays untouched. The notice offers only text
+readback: the old Session controller cannot be used as a safe recovery target,
+because it rebases home intents into ordinary drafts and can later assign a new
+request ID. No link into that controller is provided. New messages remain usable.
+A scoped storage listener and an expiry timer remove stale displayed recovery;
+reset/remount never extends retention or duplicates the notice.
+
+Regression coverage seeds real partitioned storage, delays admission, and proves
+immediate echo/composer release through `/conversation-queue`, no old replay,
+unchanged original identity, SSR, account remount, storage denial, original
+whitespace, reset, cross-tab removal, and live expiry. Existing shell assertions
+now expect the queue surface. Local full Web tests, typecheck, lint and docs
+checks passed (979 full-suite passes plus one skipped case; 15 focused
+assertions passed after the final navigation removal). Independent review
+closed the account isolation, recovery-target and retention findings, with no
+remaining P0/P1. Exact-head CI, merge and resident readback remain delivery gates.
+
+Resident release follow-up: the previous handoff opened an older resident build.
+On September 21, Web and backend were deployed from merged `9b4ea5fe`, with both
+073 migrations present. Authenticated browser testing confirmed immediate user
+message echo, a second message queued while the first ran, sequential completion,
+and draft recovery after reload. This proves the merged queue release; this
+legacy-draft patch still requires its own merge and resident revision readback.
 
 ## Open risks
 
