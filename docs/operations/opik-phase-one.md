@@ -69,8 +69,13 @@ durable SQLite ledger for the entire budget scope and all its runs; a new
 run, worker or month readback must never select a fresh ledger to reset spend.
 Controller files bind baseline, dataset, evaluator and optimizer versions.
 The permit supplies currency, per-run and per-month monetary/resource limits,
-concurrency and a reserved final-validation allowance. Missing money, pricing
-or credentials leaves paid execution unconfigured.
+concurrency and a reserved final-validation allowance. A monetary limit may be
+the explicit string `"unlimited"` when the owner has authorized no ceiling;
+missing authorization is still unconfigured. Usage, request reservations and
+final-validation reserves remain finite integer amounts. Missing pricing or
+credentials also leaves paid execution unconfigured. The dated
+[GET-12 parameter receipt](../evaluations/2026-09-21-get-12/README.md) owns the
+current CNY authorization, model choice, existing instance and release handoff.
 
 ```sh
 pnpm --filter @talent-signal/eval-runner optimization start --controller-dir /private/controller --run-id RUN_ID

@@ -270,6 +270,36 @@ describe("optimization controller", () => {
     await f.command("resume"); await f.command("run", { offlineFetcher: fetcher });
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+  it("accepts explicit CNY unlimited money while still enforcing finite non-money ceilings", async () => {
+    const f = fixture();
+    f.permit.currency = "CNY";
+    f.permit.runLimits = { ...f.permit.runLimits, amountMicros: "unlimited", candidateCount: 1, concurrency: 2 };
+    f.permit.monthlyLimits = { ...f.permit.monthlyLimits, amountMicros: "unlimited", candidateCount: 1, concurrency: 2 };
+    f.configuration.pricing = { currency: "CNY", inputMicrosPerMillionTokens: 1, outputMicrosPerMillionTokens: 1 };
+    f.write("permit.json", f.permit); f.write("controller.json", f.configuration);
+    const fetcher = vi.fn<typeof fetch>(async (_url, init) => providerReply(init));
+    await f.command("start"); await f.command("run", { offlineFetcher: fetcher });
+    expect(fetcher).toHaveBeenCalledTimes(2); // The finite candidate ceiling still binds.
+    const owned = readOptimizationBudgetController(f.directory, "run-1");
+    try {
+      expect(owned.ledger.snapshot("run-1").permit).toMatchObject({ currency: "CNY",
+        runLimits: { amountMicros: "unlimited" }, monthlyLimits: { amountMicros: "unlimited" } });
+      expect(owned.ledger.summarize("run-1").spent.candidateCount).toBe(1);
+    } finally { owned.ledger.close(); }
+  });
+  it("still requires pinned pricing before an unlimited CNY permit can dispatch", async () => {
+    const f = fixture();
+    f.permit.currency = "CNY";
+    f.permit.runLimits = { ...f.permit.runLimits, amountMicros: "unlimited" };
+    f.permit.monthlyLimits = { ...f.permit.monthlyLimits, amountMicros: "unlimited" };
+    (f.configuration as { pricing: unknown }).pricing = null;
+    f.write("permit.json", f.permit); f.write("controller.json", f.configuration);
+    const network = vi.fn<typeof fetch>(); vi.stubGlobal("fetch", network);
+    await f.command("start");
+    const result = await f.command("run", { apiKey: "test-key" });
+    expect(result.status).toBe("unconfigured");
+    expect(network).not.toHaveBeenCalled();
+  });
   it("preserves issued unknown spend across restart and refuses a second paid attempt", async () => {
     const f = fixture(); const network = vi.fn<typeof fetch>(async () => { throw new Error("network-lost-after-send"); }); vi.stubGlobal("fetch", network);
     await f.command("start"); await f.command("run", { apiKey: "test-key" });

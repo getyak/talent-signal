@@ -13,9 +13,10 @@ within the owner's delegated scope. Candidate generators and development scorers
 have no access to independent holdouts or release credentials. The separately
 calibrated final judge receives frozen evaluation material only through the
 trusted independent executor; it has no business-action or release authority. No per-case privacy gate is added. Credentials stay
-out of evaluation content. Monetary limits and environment/exposure scope are
-still missing in GET-12; funded optimization and candidate rollout depend on
-those parameters. Implementation, deterministic proof and the existing baseline
+out of evaluation content. The [GET-12 parameter receipt](../docs/evaluations/2026-09-21-get-12/README.md)
+now records CNY with explicitly unlimited per-run/monthly money, DeepSeek Flash
+and production-inclusive scope. Provider/controller preparation, exact audience
+binding and live acceptance remain with GET-18/20. Implementation, deterministic proof and the existing baseline
 TestFlight backend update proceed under the current delivery authorization.
 
 ## Current evidence
@@ -93,13 +94,13 @@ outbox/runtime integration respectively. Independent review follows integration.
    GET-13/14/15/16/17/19 are Done with acceptance receipts. GET-11 remains
    In Progress with GET-12/18/20/21 unaccepted; an integration's automatic
    Done transition after PR 155 was restored to the actual acceptance state.
-5. **Pending:** funded real optimization and scoped release/rollback once GET-12
-   parameters arrive; report any unavailable external proof honestly.
+5. **Pending:** funded real optimization and scoped release/rollback using the
+   recorded GET-12 parameters; report any unavailable external proof honestly.
 
 The current user has authorized branch publication, PR creation, remediation,
 merge after all applicable checks pass, and closing corresponding Linear issues
-only after their actual acceptance conditions are met. A parameter request is
-pending for funded optimization; this does not block the existing baseline
+only after their actual acceptance conditions are met. The monetary parameter
+request was answered on 2026-09-21; this does not certify funded optimization or block the existing baseline
 TestFlight implementation deployment. Do not use a PR closing keyword to
 prematurely complete GET-11's unobserved live-optimization acceptance.
 
