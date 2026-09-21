@@ -72,3 +72,20 @@ Storage audit reports 119 GiB available, no devices
 outside the shared pool, and no registered task artifacts. One pre-existing
 unregistered artifact is outside this task's cleanup authority. GET-38 must
 remain open until the corrected acceptance is proven.
+
+## Deployment acceptance correction
+
+PR #232 merged at `98d28c3bc97b8fb4bc855fc68eb2ab9f50e97890` after
+all current-head CI, security and both Vercel previews passed. Resident Web
+and backend were deployed; migration 075, provider/observation/auth probes,
+saved image/revision pair and keeper recovery were verified.
+
+An images-only real Claude run correctly identified three red circles, one
+blue square, and PINE-4729. The original readback matched all 57,765 bytes and
+SHA-256. Reload acceptance then exposed an existing Session entry race:
+`requestAnimationFrame` deferred composer selection indefinitely in a hidden
+tab while the legacy composer was already interactive. Its follow-up could
+not receive historical images. A focused correction resolves local recovery
+in a cancellable microtask and mounts neither composer before that decision.
+Background-tab and SSR regression tests cover the failure. Real follow-up
+acceptance remains pending until this correction is deployed.
