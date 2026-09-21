@@ -123,6 +123,32 @@ message echo, a second message queued while the first ran, sequential completion
 and draft recovery after reload. This proves the merged queue release; this
 legacy-draft patch still requires its own merge and resident revision readback.
 
+## Follow-up: admission must preserve the live composer (2026-09-21)
+
+Resident verification of `56ab027d` confirmed immediate echo, then exposed a
+second interruption: admission used `router.replace`, which unmounted the
+composer while the canonical Session page awaited server reads. Under a real
+detail/auth query timeout, continued typing lost its target. The model reply
+was persisted and eventually readable, but input continuity failed.
+
+Admission now updates the canonical URL through Next's supported native History
+API and keeps the same queue controller, DOM input, focus, selection and draft.
+The admitted conversation shows its own header, while reload still resolves the
+canonical Session. Link navigation intent, programmatic composer navigation and
+browser history traversal prevent a late admission from replacing a pending
+destination. A deferred
+admission regression types a second draft before the receipt, models the old
+route fallback, and proves focus/caret preservation plus a second admission to
+the same Session. This avoids blocking input on route reads; it does not claim
+to fix the separate transient PostgreSQL query timeout.
+
+Review follow-up: admission handoff runs once and removes the shared Home
+pointer only when it still belongs to this Session. Another tab can create a
+new Home before or after that receipt without losing draft recovery. Deletion
+and the brand Home link explicitly reset the retained Home controller.
+Regressions cover both tab timings, pending path and query-only Link transitions
+whose URL has not committed, and sending with a fresh Session after deletion.
+
 ## Open risks
 
 - Live preview is per-process; multi-process deployments show durable state but

@@ -105,8 +105,8 @@ export function useConversation(options: Options) {
       }
     } finally {
       sender.current = false;
-      // Home-to-Session navigation unmounts this controller. Hand it off only
-      // after serial admissions settle so it cannot abort the next send.
+      // Notify the parent only after serial admissions and mutations settle.
+      // The live composer must remain mounted when its canonical URL changes.
       if (didAdmit && !controller?.signal.aborted) { pendingHandoff.current = id; handoffWhenSettled(); }
     }
   }
