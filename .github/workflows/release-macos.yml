@@ -97,7 +97,7 @@ jobs:
           current="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
           [[ "$current" == "$RELEASE_SHA" ]] || { echo 'Main moved; the next CI run will publish.'; exit 1; }
           notes="$RUNNER_TEMP/macos-release-notes.md"
-          printf 'Native relationship workspace for clients, partners, collaboration, and recruiting.\n\nRequires macOS 14+. Universal Apple silicon + Intel.\n\nRevision: `%s`\n\n' "$RELEASE_SHA" > "$notes"
+          printf 'Native relationship workspace for clients, partners, collaboration, and recruiting.\n\nRequires macOS 14+. Universal Apple silicon + Intel.\n\nRevision: %s\n\n' "$RELEASE_SHA" > "$notes"
           flags=(--latest=false)
           if [[ "$MACOS_RELEASE_MODE" == preview ]]; then
             printf '**Preview: ad-hoc signed, NOT Apple-notarized. Gatekeeper may block this download.**\n\n' >> "$notes"

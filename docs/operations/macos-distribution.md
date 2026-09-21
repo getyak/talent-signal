@@ -23,8 +23,12 @@ visible with retry; the app never bypasses TLS validation.
 
 Preview packages are ad-hoc signed and **not Apple-notarized**. Gatekeeper may
 block downloaded previews. Do not disable Gatekeeper or strip quarantine.
-Ordinary external distribution requires a signed, notarized release. Building
-from the tagged source is an alternative for preview evaluation.
+Ordinary external distribution requires a signed, notarized release. For a
+preview you have independently verified and trust, Apple provides a per-app
+**System Settings → Privacy & Security → Open Anyway** decision after the first
+blocked launch. The device owner must make that decision themselves; the app
+never changes security settings. See [Apple’s opening guidance](https://support.apple.com/102445).
+Building from the tagged source is another option for preview evaluation.
 
 ## Update and rollback
 
