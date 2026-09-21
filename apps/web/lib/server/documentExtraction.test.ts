@@ -1,8 +1,39 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import { extractDocument } from "./documentExtraction";
 
 describe("bounded document extraction", () => {
+  it("recovers orphaned DOCX fields while retaining text, warnings and parser provenance", async () => {
+    const bytes = await readFile(new URL(
+      "../../test/fixtures/synthetic-malformed-fields.docx",
+      import.meta.url,
+    ));
+    const file = new File([new Uint8Array(bytes)], "synthetic.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    const result = await extractDocument(
+      file,
+      "web-resource:33333333-3333-4333-8333-333333333333",
+    );
+
+    expect(result.fragments.map((fragment) => fragment.text)).toEqual([
+      "Synthetic document for parser recovery.",
+      "https://example.test/portfolio",
+    ]);
+    expect(result.fragments[0]).toMatchObject({
+      parser: { name: "mammoth-raw-text", version: "1.12.3" },
+      review_status: "proposed",
+      attribution: { actor_kind: "document_author", status: "proposed" },
+    });
+    expect(result.links).toEqual(["https://example.test/portfolio"]);
+    expect(result.parser_warnings).toHaveLength(2);
+    expect(result.parser_warnings.every((warning) =>
+      warning.includes("without corresponding start character"),
+    )).toBe(true);
+  });
+
   it("keeps plain-text paragraphs addressable without inventing pages", async () => {
     const file = new File(
       [

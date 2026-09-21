@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 import type { EvidenceFragmentInput } from "@talent-signal/contracts";
 import mammoth from "mammoth";
+import mammothPackage from "mammoth/package.json";
 import { PDFParse } from "pdf-parse";
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
@@ -198,7 +199,7 @@ export async function extractDocument(
     fragments = values.map((text, sequence) => ({
       ...fragmentBase(clientResourceId, sequence, text, {
         name: "mammoth-raw-text",
-        version: "1.12.0",
+        version: mammothPackage.version,
       }),
       kind: "document_text",
       locator: {
