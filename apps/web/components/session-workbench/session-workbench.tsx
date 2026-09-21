@@ -99,14 +99,25 @@ type DetailResponse = {
 };
 
 export function SessionWorkbench(props: Props) {
+  const eligible = props.initialDetail.scope_kind === "unresolved_intent" && props.chatSessionVersion && props.sessionVersion;
+  if (!eligible) return <LegacySessionWorkbench {...props}/>;
+  return <SessionComposerMode key={`${props.storageScope}:${props.initialDetail.session_id}:${props.chatSessionVersion}:${props.sessionVersion}`} {...props}/>;
+}
+
+function SessionComposerMode(props: Props) {
   const [legacy, setLegacy] = useState<boolean | null>(null);
   useEffect(() => {
-    const pending = readPendingSessionDraft(props.storageScope, props.initialDetail.session_id);
-    const frame = requestAnimationFrame(() => setLegacy(Boolean(pending)));
-    return () => cancelAnimationFrame(frame);
+    let mounted = true;
+    // Background tabs may never receive an animation frame. Resolve storage
+    // before mounting either composer so the legacy path cannot send or save
+    // during the hydration window and create its own recovery marker.
+    void Promise.resolve().then(() => {
+      if (mounted) setLegacy(Boolean(readPendingSessionDraft(props.storageScope, props.initialDetail.session_id)));
+    });
+    return () => { mounted = false; };
   }, [props.storageScope, props.initialDetail.session_id]);
-  if (legacy === null) return <LegacySessionWorkbench {...props}/>;
-  if (!legacy && props.initialDetail.scope_kind === "unresolved_intent" && props.chatSessionVersion && props.sessionVersion) return <QueuedConversation key={`${props.storageScope}:${props.initialDetail.session_id}:${props.chatSessionVersion}`} initialDetail={props.initialDetail} scope={props.storageScope} chatBinding={props.chatSessionVersion} detailBinding={props.sessionVersion} meetingLinks={props.meetingLinks} meetingReadFailed={props.meetingReadFailed}/>;
+  if (legacy === null) return <section aria-label="正在加载对话"><h1>{props.initialDetail.title}</h1><p role="status">正在加载对话…</p></section>;
+  if (!legacy) return <QueuedConversation initialDetail={props.initialDetail} scope={props.storageScope} chatBinding={props.chatSessionVersion!} detailBinding={props.sessionVersion!} meetingLinks={props.meetingLinks} meetingReadFailed={props.meetingReadFailed}/>;
   return <LegacySessionWorkbench {...props}/>;
 }
 

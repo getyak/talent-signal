@@ -59,7 +59,7 @@ function detail(overrides: Partial<SessionDetail> = {}): SessionDetail {
     person_label: "",
     relationship_context_id: null,
     revision: 2,
-    scope_kind: "unresolved_intent",
+    scope_kind: "relationship",
     session_id: SESSION_ID,
     state: "active",
     title: "与陈曦沟通的准备",
@@ -124,9 +124,10 @@ describe("Session workbench conversation canvas", () => {
     expect(identityReview).not.toContain('aria-label="发送"');
   });
 
-  it("offers the guarded send only for an active unbound-intent Session", () => {
-    const unbound = render();
-    expect(unbound).toContain('aria-label="发送"');
+  it("waits for client recovery selection before exposing an unbound composer", () => {
+    const unbound = render({ scope_kind: "unresolved_intent" });
+    expect(unbound).toContain("正在加载对话");
+    expect(unbound).not.toContain("<textarea");
 
     const deleted = render({ state: "deleted" });
     expect(deleted).not.toContain('aria-label="发送"');
