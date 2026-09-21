@@ -64,8 +64,8 @@ and incomplete coverage explicit.
 2. **Complete:** backend activity/schedule/review lifecycle with real PostgreSQL tests.
 3. **Complete:** shared Web/macOS views, editor/recovery and native file handoff.
 4. **Complete:** browser/native acceptance and independent review of interaction refinements.
-5. **Active:** PR #218 created; pass exact-head CI, merge, deploy required backend/Web,
-   read back the served revision and required behavior, then close GET-24.
+5. **Complete:** PR #218 merged, backend/Web migration and live acceptance passed,
+   the local macOS app was updated, and Linear Done was read back after reload.
 
 ## Completion evidence
 
@@ -93,55 +93,44 @@ All task fixtures and test services must use separately owned disposable state.
 
 ## Current delivery checkpoint (September 21)
 
-This checkpoint supersedes deployment and PR status in the historical progress
-below. PR218 is ready/open. The first fully green head `9624f106` could not merge
-because main advanced and the active ruleset requires a current base. At the
-next head `20ea8d75`, Web1058 tests, backend619 tests, fourteen separate real-PG
-time integration cases, macOS and Security passed. The iOS release smoke failed
-Apple accessibilityAudit Code=-56 at the pre-confirmation AX5 dark heading,
-including one same-runner simulator restart. The independent reviewer found no
-application assertion or contrast failure and recommended one fresh hosted
-runner on the final combined head without weakening the audit. Both Vercel
-previews failed deployment quota; those statuses are not counted as passing.
+This checkpoint supersedes the historical preparation and open-PR states below.
+PR [#218](https://github.com/getyak/talent-signal/pull/218) merged at
+`8106cbbfb3d72ccab900917c0f7d745e475b3ace`, with exactly the reviewed c854 tree
+`35a1ac4a9b7ac4c9c885a52551ece4f755691de2`. Final PR CI35551185713 and
+Security35551185681 passed, including the original iOS accessibility assertions.
+Merged main CI35553772012 and Security35553771968 subsequently passed too.
+The user explicitly approved this PR's Vercel quota failures before merge;
+those failures are not represented as passing previews.
 
-Main `541c3e5e` adds a separately reviewed, ephemeral private-conversation route
-and workspace shell. It is now integrated without conflicts. Its runtime owner
-holds the sole deployment window until returning exact revision, migration and
-provider receipts. PR223's normal-conversation draft fix merged as `56ab027d` and is also
-integrated, with a coordinated main hold during native CI. Independent backend
-and frontend reviews found no new P0/P1/P2 across Time/private-route, shared-shell
-and normal-conversation draft boundaries. Integrated focused tests passed135
-backend and65 Web cases; docs and migration policy passed.
+The resident backend and Web were built and activated from merged8106. Web
+build `lJ26u-puPwuHvq_CeW0E4` was read back. All79 migration checksums match
+source and all prior78 rows, including applied timestamps, remain unchanged.
+The full deployment passed Opik write/read/deletion, voice no-speech, real
+Relationship Ask, Apple keys and HTTPS authentication. Web restart and backend
+keeper recovery configuration passed, with all existing Serve routes preserved.
 
-The resident currently has78 migrations. The GET24 upgrade rehearsal proved
-79 entries, immutable checksums and repeat-apply timestamps on real PostgreSQL;
-its owned test stack and volume have been removed. Prepared20ea backend/Web
-artifacts are inactive and will be superseded by a clean final merged release.
-After final-head gates and merge, deploy the combined backend/Web, read every
-resident migration checksum, and run the reviewed synthetic authenticated Time
-lifecycle, ICS and live-provider range review. Its temporary identity receipt
-contains no credentials and is removed only after verified scoped cleanup.
-No GET24 production activation or Linear completion is claimed. Linear was
-read back In Progress earlier; current browser-control failure prevents another
-readback until the surface recovers.
+A real synthetic-account HTTPS probe passed authentication, protected Time,
+schedule create/read/idempotency, activity projection, reviewed ICS, a live
+provider range review with exact sources and unconfirmed/no-effect authority,
+completion validation, stale revision rejection and deletion redaction/readback.
+Exact fixture cleanup was verified. Earlier failed probe assumptions were
+corrected without weakening application authorization; their fixture cleanup
+also succeeded.
 
-### Final admission-fix baseline
+The installed native macOS app was updated from the reviewed c854 Release
+(same source tree as8106). Signature and binary hash were verified; a previous
+application backup remains. Its Time menu/protected route passed readback. The
+existing user session had expired and now presents login. Prior isolated native
+acceptance proves calendar save/cancel; system Calendar import remains an
+explicit user decision. No notarization or TestFlight upload is claimed.
 
-Real resident acceptance of the ordinary-conversation queue found that first
-admission unmounted the composer and could lose continued typing. PR225 fixes
-this with native History synchronization while retaining the live controller.
-Its independent review closed cross-tab draft, delete/reset and pending-route
-findings. The Time-specific reviewer verified pending/committed Time navigation
-and popstate cannot be overwritten by late admission, with Time drafts and
-receipts unchanged. The four-file fix merged as `8995e528`; all its applicable
-GitHub and both Vercel checks passed. This branch now incorporates that baseline.
-The other delivery owners agreed to no further main changes during GET24's
-final check/merge cycle. The preceding GET24 heada1e2 passed Web1102, backend669,
-real-PGTime14/14, macOS and Security; its in-progress iOS result is not substituted
-for the new final head. Prepared a1e2 images remain inactive. Resident78 migration
-rows were independently rechecked against final source with all old timestamps
-unchanged. Combined release, live Time acceptance and Linear closeout remain
-pending final-head gates and merge.
+Linear was set to Done at2026-09-21T02:48:04Z after acceptance. Page reload
+confirmed Done, the state-change activity and the linked delivery comment.
+Formal deployment, migration, live acceptance, restart and installation receipts
+are retained in the accepted design's implementation-evidence/migration-merge
+folder. Subsequent dependency maintenance merged and was deployed as718e25d9;
+its separately verified release and retained rollback are recorded in the
+[maintenance closeout](2026-09-21-dependency-maintenance.md).
 
 ## Progress (historical evidence)
 
