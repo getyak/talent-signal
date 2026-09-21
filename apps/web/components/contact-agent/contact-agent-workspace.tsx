@@ -40,6 +40,7 @@ import { workspaceSessionFetch } from "@/components/workspace-session-request";
 import {
   ACCEPTED_IMAGE_TYPES,
   AdmissionGuard,
+  MAX_ATTACHMENT_BYTES,
   SelectionGate,
   dataTransferHasFileEntries,
   imageFilesFromClipboard,
@@ -51,6 +52,7 @@ import {
   ContactProfileReview,
   ReviewedContactProfile,
 } from "./contact-profile-review";
+import { SourceImageViewer } from "./source-image-viewer";
 import styles from "./contact-agent.module.css";
 
 type Task = ScreenshotContactTaskResponse;
@@ -64,7 +66,7 @@ type Recent = Pick<
   Task,
   "task_id" | "status" | "contact" | "summary" | "created_at" | "revision" | "source"
 >;
-type ComposerMode = "image" | "text";
+export type ComposerMode = "image" | "text";
 type HistoryFilter = "all" | "attention";
 type HistoryStatus = "loading" | "ready" | "error";
 type CandidateSelection = { person_id: string; relationship_context_id: string };
@@ -557,14 +559,11 @@ function TaskEvidenceCard({
           <summary>原始图片 · {item.source_images.length}</summary>
           <div className={styles.sourceImages}>
             {item.source_images.map((source) => (
-              <a
+              <SourceImageViewer
                 key={source.image_index}
-                href={`/api/contact-agent/tasks/${item.task_id}/images/${source.image_index}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                查看图片 {source.image_index + 1}
-              </a>
+                imageIndex={source.image_index}
+                taskId={item.task_id}
+              />
             ))}
           </div>
         </details>
@@ -581,13 +580,12 @@ function TaskEvidenceCard({
                 <small>
                   {item.source_images?.[message.source_image_index ?? -1] ? (
                     <>
-                      <a
-                        href={`/api/contact-agent/tasks/${item.task_id}/images/${message.source_image_index}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        图片 {(message.source_image_index ?? 0) + 1}
-                      </a>{" "}
+                      <SourceImageViewer
+                        compact
+                        imageIndex={message.source_image_index ?? 0}
+                        label={`图片 ${(message.source_image_index ?? 0) + 1}`}
+                        taskId={item.task_id}
+                      />{" "}
                       ·{" "}
                     </>
                   ) : null}
@@ -654,11 +652,50 @@ function TaskEvidenceCard({
   );
 }
 
+/**
+ * The live intake draft a dialog host keeps across close/reopen.
+ *
+ * `imageAttempt`/`textAttempt` are the exact durable request bodies once a
+ * submission has been admitted. A failed or unknown outcome keeps them so a
+ * retry reuses the same idempotency key instead of creating a second source;
+ * `unresolved` locks further edits and new identities until the human retries
+ * or explicitly discards that intent.
+ */
+export type SourceDraftSnapshot = {
+  files: File[];
+  objective: string;
+  research: boolean;
+  text: string;
+  inputMode: ComposerMode;
+  taskID: string | null;
+  /** True only while the admission POST is in flight; not task execution. */
+  submitting: boolean;
+  unresolved: boolean;
+  imageAttempt: ScreenshotContactTaskRequest | null;
+  textAttempt: TextContactTaskRequest | null;
+};
+
 type WorkspaceProps = {
   personID?: string;
   contextID?: string;
   embedded?: boolean;
   initialTaskID?: string;
+  /** `dialog` drops the page chrome, history and guide for a modal host. */
+  presentation?: "page" | "dialog";
+  /** Files handed in from the conversation; validated and seeded once. */
+  initialFiles?: readonly File[];
+  initialObjective?: string;
+  initialResearch?: boolean;
+  initialText?: string;
+  initialInputMode?: ComposerMode;
+  /** A preserved uncertain admission the host restored for an exact retry. */
+  initialImageAttempt?: ScreenshotContactTaskRequest | null;
+  initialTextAttempt?: TextContactTaskRequest | null;
+  initialError?: string | null;
+  /** Reports the live draft so a modal host can retain it across close. */
+  onDraftChange?: (snapshot: SourceDraftSnapshot) => void;
+  /** Synchronous admission signal so a modal host can block a racing close. */
+  onAdmissionChange?: (submitting: boolean) => void;
 };
 
 export function ContactAgentWorkspace(props: WorkspaceProps) {
@@ -667,23 +704,44 @@ export function ContactAgentWorkspace(props: WorkspaceProps) {
   return <CaptureWorkspace key={JSON.stringify([props.personID, props.contextID])} {...props} />;
 }
 
-function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID }: WorkspaceProps) {
-  const [text, setText] = useState("");
-  const [inputMode, setInputMode] = useState<ComposerMode>("image");
+function CaptureWorkspace({
+  personID,
+  contextID,
+  embedded = false,
+  initialTaskID,
+  presentation = "page",
+  initialFiles,
+  initialObjective,
+  initialResearch,
+  initialText,
+  initialInputMode,
+  initialImageAttempt,
+  initialTextAttempt,
+  initialError,
+  onDraftChange,
+  onAdmissionChange,
+}: WorkspaceProps) {
+  const [text, setText] = useState(initialText ?? "");
+  const [inputMode, setInputMode] = useState<ComposerMode>(
+    initialInputMode ?? "image",
+  );
   const [filter, setFilter] = useState<HistoryFilter>("all");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [objective, setObjective] = useState("");
-  const [research, setResearch] = useState(false);
+  const [objective, setObjective] = useState(initialObjective ?? "");
+  const [research, setResearch] = useState(initialResearch ?? false);
   const [task, setTask] = useState<Task | null>(null);
   const [recent, setRecent] = useState<Recent[]>([]);
   const [profileTasks, setProfileTasks] = useState<Task[]>([]);
   const [revision, setRevision] = useState<number | null>(null);
   const [historyStatus, setHistoryStatus] = useState<HistoryStatus>("loading");
   const [historyError, setHistoryError] = useState("");
-  const [composerError, setComposerError] = useState("");
+  const [composerError, setComposerError] = useState(initialError ?? "");
   const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [unresolved, setUnresolved] = useState(
+    Boolean(initialImageAttempt || initialTextAttempt),
+  );
   const [name, setName] = useState("");
   const [archiveName, setArchiveName] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -694,19 +752,37 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
   );
 
   const previewURLs = useRef(new Set<string>());
-  const textAttempt = useRef<TextContactTaskRequest | null>(null);
-  const imageAttempt = useRef<ScreenshotContactTaskRequest | null>(null);
+  const textAttempt = useRef<TextContactTaskRequest | null>(
+    initialTextAttempt ?? null,
+  );
+  const imageAttempt = useRef<ScreenshotContactTaskRequest | null>(
+    initialImageAttempt ?? null,
+  );
   const recordsToken = useRef(0);
   const dragDepth = useRef(0);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [admission] = useState(() => new AdmissionGuard());
   const [selection] = useState(() => new SelectionGate());
+  const alive = useRef(true);
+  const seededFiles = useRef(false);
+
+  const dialogMode = presentation === "dialog";
+
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const urls = previewURLs.current;
     return () => {
       urls.forEach((url) => URL.revokeObjectURL(url));
       urls.clear();
+      // React Strict Mode replays setup after cleanup. Recreate seeded URLs
+      // on that replay instead of keeping attachments whose URLs were revoked.
+      seededFiles.current = false;
     };
   }, []);
 
@@ -759,7 +835,8 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
   useEffect(() => () => { selection.cancel(); }, [selection]);
 
   useEffect(() => {
-    if (!initialTaskID) return;
+    // Skip a redundant readback when this exact task was just submitted here.
+    if (!initialTaskID || task?.task_id === initialTaskID) return;
     let valid = true;
     const token = selection.begin();
     request<Task>(`tasks/${initialTaskID}`)
@@ -775,10 +852,12 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
     return () => {
       valid = false;
     };
-  }, [initialTaskID, selection]);
+  }, [initialTaskID, selection, task?.task_id]);
 
   const taskID = task?.task_id;
   const status = task?.status;
+  const editingLocked = busy || unresolved;
+  const attachmentsLocked = editingLocked || status === "running";
   useEffect(() => {
     if (!taskID || status !== "running") return;
     let valid = true;
@@ -848,15 +927,88 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
       setComposerError(result.error);
       return;
     }
-    const added = result.accepted.map((file) => {
+    setAttachments((current) => [...current, ...toAttachments(result.accepted)]);
+    imageAttempt.current = null;
+    setComposerError("");
+  }
+
+  function toAttachments(
+    files: readonly File[],
+  ): Attachment[] {
+    return files.map((file) => {
       const url = URL.createObjectURL(file);
       previewURLs.current.add(url);
       return { id: crypto.randomUUID(), file, url };
     });
-    setAttachments((current) => [...current, ...added]);
-    imageAttempt.current = null;
-    setComposerError("");
   }
+
+  /**
+   * Seed the batch the conversation host already validated against its
+   * retained set. Count and total bytes were checked transactionally by the
+   * host, so only per-file MIME/size is rechecked here; re-running the batch
+   * guard against the combined list would wrongly drop files the host kept.
+   */
+  function seedFiles(files: readonly File[]) {
+    if (!files.length) return;
+    const supported = ACCEPTED_IMAGE_TYPES as readonly string[];
+    const invalid = files.some(
+      (file) =>
+        !supported.includes(file.type) ||
+        file.size <= 0 ||
+        file.size > MAX_ATTACHMENT_BYTES,
+    );
+    if (invalid) {
+      setComposerError("请选择 10 MB 以内的 PNG、JPEG 或 WebP 截图。");
+      return;
+    }
+    // Do not clear the preserved attempt or the host's seed error here: on
+    // reopen this exact batch is the identity of that attempt, so wiping it
+    // would force a duplicate submission.
+    setAttachments(toAttachments(files));
+  }
+
+  // Seed the files handed in by the conversation exactly once per open. The
+  // dialog host remounts this component for each open, so a later prop identity
+  // change from the draft readback must not duplicate the same batch.
+  useEffect(() => {
+    if (seededFiles.current) return;
+    seededFiles.current = true;
+    if (initialFiles && initialFiles.length > 0) {
+      // The dialog remounts this component for every open, so this is a one-time
+      // prop→state seed for the handed-in conversation images. It is not a
+      // derived-state loop and never opens the file picker.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      seedFiles(Array.from(initialFiles));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Report the live draft so a modal host can retain it across close/reopen.
+  useEffect(() => {
+    if (!onDraftChange) return;
+    onDraftChange({
+      files: attachments.map((attachment) => attachment.file),
+      objective,
+      research,
+      text,
+      inputMode,
+      taskID: task?.task_id ?? null,
+      submitting: busy,
+      unresolved,
+      imageAttempt: imageAttempt.current,
+      textAttempt: textAttempt.current,
+    });
+  }, [
+    attachments,
+    objective,
+    research,
+    text,
+    inputMode,
+    task?.task_id,
+    busy,
+    unresolved,
+    onDraftChange,
+  ]);
 
   function handleFileInput(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -914,8 +1066,15 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
   }
 
   function selectMode(mode: ComposerMode) {
-    if (busy || admission.pending || mode === inputMode) return;
+    if (editingLocked || admission.pending || mode === inputMode) return;
     setInputMode(mode);
+    setComposerError("");
+  }
+
+  function discardUnresolvedAttempt() {
+    imageAttempt.current = null;
+    textAttempt.current = null;
+    setUnresolved(false);
     setComposerError("");
   }
 
@@ -951,6 +1110,8 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
     if (!hasDraft) return;
     // Synchronous ref gate: a rapid second activation cannot admit twice.
     if (!admission.tryEnter()) return;
+    // Tell the modal host synchronously so a close in the same tick is blocked.
+    onAdmissionChange?.(true);
     selection.cancel();
     setBusy(true);
     setComposerError("");
@@ -976,7 +1137,9 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
             : {}),
         }));
         textAttempt.current = body;
+        if (!alive.current) return;
         const result = await request<Task>("tasks", body);
+        if (!alive.current) return;
         setTask(result);
         textAttempt.current = null;
         setText("");
@@ -984,6 +1147,10 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
         const images = await Promise.all(
           attachments.map((attachment) => imageInput(attachment.file)),
         );
+        // Encoding is async. If the account scope unmounted while it ran, the
+        // DOM workspace scope may already belong to the next account; fail
+        // closed before any POST can read it.
+        if (!alive.current) return;
         const body = reuseOrCreateAttempt(imageAttempt.current, () => {
           const image = images[0]!;
           return {
@@ -1005,19 +1172,27 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
         });
         imageAttempt.current = body;
         const result = await request<Task>("tasks", body);
+        if (!alive.current) return;
         setTask(result);
         imageAttempt.current = null;
         clearAttachments();
       }
+      if (!alive.current) return;
+      setUnresolved(false);
       setComposerOpen(false);
       await loadRecords();
     } catch (error) {
       // Keep the attempt so an unknown failure retries with the same
-      // idempotency key and payload.
-      setComposerError((error as Error).message);
+      // idempotency key and payload, and lock further edits/new identities
+      // until the human retries or explicitly discards it.
+      if (alive.current) {
+        setComposerError((error as Error).message);
+        if (imageAttempt.current || textAttempt.current) setUnresolved(true);
+      }
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
       admission.leave();
+      onAdmissionChange?.(false);
     }
   }
 
@@ -1045,6 +1220,7 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
         body.image = await imageInput(attachments[0].file);
       }
       setTask(await request<Task>(`tasks/${item.task_id}/resume`, body));
+      if (!alive.current) return;
       setName("");
     } catch (error) {
       setActionError((error as Error).message);
@@ -1164,16 +1340,16 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
   const shown = task ? [task] : profileTasks;
   const hasRecords =
     allScopedRecent.length > 0 || profileTasks.length > 0 || Boolean(task);
-  const showSidebar = hasRecords;
-  const showEmpty = historyStatus === "ready" && !hasRecords;
+  const showSidebar = !dialogMode && hasRecords;
+  const showEmpty = !dialogMode && historyStatus === "ready" && !hasRecords;
   const personName =
     archiveName ??
     profileTasks[0]?.contact?.display_name ??
     task?.contact?.display_name;
-  const attachmentsLocked = busy || status === "running";
-  const composerCollapsible = !showEmpty && Boolean(personID || task);
+  const composerCollapsible =
+    !dialogMode && !showEmpty && Boolean(personID || task);
   const composerExpanded = composerCollapsible ? composerOpen : true;
-  const Layout = "main";
+  const Layout = dialogMode ? "div" : "main";
 
   const composer = (
     <details
@@ -1193,7 +1369,7 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
               type="button"
               aria-pressed={inputMode === "image"}
               onClick={() => selectMode("image")}
-              disabled={busy}
+              disabled={editingLocked}
             >
               <Images aria-hidden /> 截图
             </button>
@@ -1201,7 +1377,7 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
               type="button"
               aria-pressed={inputMode === "text"}
               onClick={() => selectMode("text")}
-              disabled={busy}
+              disabled={editingLocked}
             >
               <TextT aria-hidden /> 文字
             </button>
@@ -1286,7 +1462,7 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
                 setComposerError("");
               }}
               placeholder="粘贴对话原文、人物介绍或网页片段…"
-              disabled={busy}
+              disabled={editingLocked}
             />
             <span className={styles.characterCount}>{text.length} / 50000</span>
           </label>
@@ -1309,7 +1485,7 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
               placeholder="例如：记下这次沟通，查找公开职业资料，帮我想清楚下一步。"
               rows={3}
               maxLength={4000}
-              disabled={busy}
+              disabled={editingLocked}
             />
           </label>
         </details>
@@ -1329,7 +1505,7 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
                 textAttempt.current = null;
                 imageAttempt.current = null;
               }}
-              disabled={busy}
+              disabled={editingLocked}
             />
             <span>
               允许搜索公开职业资料
@@ -1358,6 +1534,20 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
             <ArrowUpRight aria-hidden /> {busy ? "正在提交…" : "保存并整理"}
           </button>
         </div>
+        {unresolved ? (
+          <div className={styles.pendingAttempt} role="status">
+            <p>
+              上一次提交的结果未确认。为避免重复保存，请先重试同一次提交，或放弃它后再修改。
+            </p>
+            <button
+              type="button"
+              onClick={discardUnresolvedAttempt}
+              disabled={busy}
+            >
+              放弃这次未确认的提交
+            </button>
+          </div>
+        ) : null}
       </section>
     </details>
   );
@@ -1407,8 +1597,10 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
   }
 
   return (
-    <div className={`${styles.page} ${embedded ? styles.embedded : ""}`}>
-      {!embedded ? (
+    <div
+      className={`${styles.page} ${embedded ? styles.embedded : ""} ${dialogMode ? styles.dialog : ""}`}
+    >
+      {!embedded && !dialogMode ? (
         <header className={styles.header}>
           <Link href="/contact-agent" className={styles.brand}>
             Talent Signal <span>关系工作台</span>
@@ -1419,34 +1611,36 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
 
       <Layout
         className={`${styles.layout} ${!showSidebar ? styles.emptyLayout : ""}`}
-        id="main-content"
+        id={dialogMode ? undefined : "main-content"}
       >
-        <header className={styles.intro}>
-          <div className={styles.titleBlock}>
-            {personID ? <p className={styles.eyebrow}>联系人档案</p> : null}
-            <h1>{personID ? (personName ?? "联系人") : "来源"}</h1>
-            <p>截图、文字与网页，整理成可追溯的人物线索。</p>
-          </div>
-          {task ? (
-            <button
-              type="button"
-              className={styles.newSource}
-              onClick={startNewSource}
-              disabled={busy}
-            >
-              <Plus aria-hidden /> 添加来源
-            </button>
-          ) : null}
-          {personID && revision && !archiveID ? (
-            <button
-              type="button"
-              className={styles.textButton}
-              onClick={() => setArchiveOpen(true)}
-            >
-              归档联系人
-            </button>
-          ) : null}
-        </header>
+        {!dialogMode ? (
+          <header className={styles.intro}>
+            <div className={styles.titleBlock}>
+              {personID ? <p className={styles.eyebrow}>联系人档案</p> : null}
+              <h1>{personID ? (personName ?? "联系人") : "来源"}</h1>
+              <p>截图、文字与网页，整理成可追溯的人物线索。</p>
+            </div>
+            {task ? (
+              <button
+                type="button"
+                className={styles.newSource}
+                onClick={startNewSource}
+                disabled={busy}
+              >
+                <Plus aria-hidden /> 添加来源
+              </button>
+            ) : null}
+            {personID && revision && !archiveID ? (
+              <button
+                type="button"
+                className={styles.textButton}
+                onClick={() => setArchiveOpen(true)}
+              >
+                归档联系人
+              </button>
+            ) : null}
+          </header>
+        ) : null}
 
         {showSidebar ? (
           <aside className={styles.sidebar} aria-label="来源记录">
@@ -1486,7 +1680,9 @@ function CaptureWorkspace({ personID, contextID, embedded = false, initialTaskID
         ) : null}
 
         <div className={styles.content}>
-          {archiveID ? (
+          {dialogMode ? (
+            composer
+          ) : archiveID ? (
             <div className={styles.card}>
               <p>联系人已归档，资料已从当前工作区隐藏。</p>
               <button type="button" onClick={() => void restore()} disabled={busy}>

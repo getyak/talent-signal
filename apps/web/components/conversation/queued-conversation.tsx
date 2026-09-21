@@ -3,11 +3,17 @@
 import { ArrowDown, ArrowUp, Check, PencilSimple, Stop, Trash, X } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { conversationHome } from "@/lib/conversation-local";
 import type { LegacyConversationRecovery } from "@/lib/conversation-legacy";
-import { isNewConversationId, newConversationCaptureHref } from "@/lib/new-conversation";
 import { WORKSPACE_NEW_CONVERSATION_EVENT } from "@/lib/workspace-navigation";
+import type { SourceDraftSnapshot } from "../contact-agent/contact-agent-workspace";
+import {
+  EMPTY_SOURCE_DRAFT,
+  appendValidatedFiles,
+  sameSourceDraft,
+  type SourceDraft,
+} from "./conversation-source-draft";
 import { ConversationResponse } from "../conversation-response";
 import { ComposerAddMenu } from "../new-conversation-add-menu";
 import { WorkspaceComposer } from "../workspace-composer";
@@ -17,7 +23,14 @@ import { LegacyRecoveryNotice } from "./legacy-recovery-notice";
 import { useConversation } from "./use-conversation";
 import styles from "./queued-conversation.module.css";
 
-const CapturePanel = dynamic(() => import("../relationship-workspace/screenshot-capture-panel").then(module => module.CapturePanel), { loading: () => <p role="status">正在打开截图导入…</p> });
+const ConversationSourceDialog = dynamic(
+  () =>
+    import("./conversation-source-dialog").then(
+      (module) => module.ConversationSourceDialog,
+    ),
+  { loading: () => <p role="status">正在打开来源整理…</p> },
+);
+
 const stages: Record<string, string> = { queued: "等待开始", preparing: "正在准备回复", thinking: "正在处理", contact_lookup: "正在查找相关人物", contact_read: "正在阅读相关记录", calendar_draft: "正在整理日程草稿", answer: "正在回复", responding: "正在回复", persisting: "正在保存回复", running: "正在处理" };
 function Identity() { return <div className={styles.identity}><span className={styles.mark} aria-hidden="true" />Talent Signal</div>; }
 
@@ -63,8 +76,14 @@ export function QueuedConversation(props: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [capture, setCapture] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [sourceDraft, setSourceDraft] = useState<SourceDraft>(EMPTY_SOURCE_DRAFT);
+  const sourceDraftRef = useRef(sourceDraft);
+  useEffect(() => {
+    sourceDraftRef.current = sourceDraft;
+  }, [sourceDraft]);
+  const [sourceError, setSourceError] = useState<string | null>(null);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [sourceReturnFocus, setSourceReturnFocus] = useState<HTMLElement | null>(null);
   const [away, setAway] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const viewport = useRef<HTMLDivElement>(null); const content = useRef<HTMLDivElement>(null); const follows = useRef(true); const userScroll = useRef(false);
@@ -93,6 +112,60 @@ export function QueuedConversation(props: Props) {
   function latest() { userScroll.current = false; follows.current = true; setAway(false); viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }
   function send() { if (chat.submit()) { userScroll.current = false; follows.current = true; setAway(false); } }
   function navigate(href: string) { navigating.current = true; router.push(href); }
+  function openSource(files: File[] = []) {
+    setSourceReturnFocus(
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null,
+    );
+    if (files.length) {
+      const retained = sourceDraftRef.current;
+      if (retained.unresolved || retained.imageAttempt || retained.textAttempt) {
+        setSourceError("上次保存结果尚未确认。请先重试或放弃原草稿，再添加新图片。");
+        setSourceOpen(true);
+        return;
+      }
+      // The host is the single transactional validator: it checks the new
+      // batch against the retained set before merging, refusing overflow
+      // without dropping any of the retained files.
+      const appended = appendValidatedFiles(sourceDraftRef.current.files, files);
+      setSourceError(appended.error);
+      if (!appended.error) {
+        setSourceDraft((draft) => ({
+          ...draft,
+          files: [...draft.files, ...files],
+        }));
+      }
+    } else {
+      setSourceError(null);
+    }
+    setSourceOpen(true);
+  }
+
+  const applySourceDraft = useCallback((snapshot: SourceDraftSnapshot) => {
+    setSourceDraft((previous) => {
+      const next: SourceDraft = {
+        files: snapshot.files,
+        objective: snapshot.objective,
+        research: snapshot.research,
+        text: snapshot.text,
+        inputMode: snapshot.inputMode,
+        // Preserve the saved task identity while its readback is in flight;
+        // the child reports null before the GET resolves.
+        taskID: snapshot.taskID ?? previous.taskID,
+        submitting: snapshot.submitting,
+        unresolved: snapshot.unresolved,
+        imageAttempt: snapshot.imageAttempt,
+        textAttempt: snapshot.textAttempt,
+      };
+      return sameSourceDraft(previous, next) ? previous : next;
+    });
+  }, []);
+
+  function discardSourceDraft() {
+    setSourceDraft(EMPTY_SOURCE_DRAFT);
+    setSourceError(null);
+  }
   async function remove() {
     if (await chat.remove()) {
       window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT));
@@ -123,15 +196,32 @@ export function QueuedConversation(props: Props) {
       {queued.length > 0 && <section className={styles.queue} aria-label="待处理消息"><div className={styles.queueHeading}><span>{paused ? "已暂停" : "接下来"}<small>{queued.length}</small></span>{paused && <button disabled={chat.mutating || Boolean(active) || queued.some(entry => entry.status !== "queued")} onClick={() => void chat.mutate({kind:"continue"})}>继续处理<ArrowUp size={13}/></button>}</div>
         <ol>{queued.map((entry, index) => <li key={entry.queue_entry_id}>{editing === entry.queue_entry_id ? <form className={styles.edit} onSubmit={event => { event.preventDefault(); void applyEdit(entry.queue_entry_id); }}><label htmlFor={`edit-${entry.queue_entry_id}`}>编辑待处理消息</label><textarea autoFocus id={`edit-${entry.queue_entry_id}`} value={editValue} maxLength={1000} onChange={event => setEditValue(event.target.value)}/><div><button type="button" onClick={() => setEditing(null)}>取消</button><button type="submit" disabled={!editValue.trim() || chat.mutating}>保存</button></div></form> : <><span className={styles.number}>{index + 1}</span><span className={styles.queueText}>{entry.objective}{["failed", "interrupted"].includes(entry.status) && <small>上次未完成，请重试或移除</small>}</span><div className={styles.queueActions}>{entry.status === "queued" ? <button aria-label={`编辑第 ${index + 1} 条待处理消息`} disabled={chat.mutating} onClick={() => { setEditing(entry.queue_entry_id); setEditValue(entry.objective); }}><PencilSimple size={16}/></button> : <button disabled={chat.mutating} onClick={async () => { if (await chat.mutate({kind:"retry",queue_entry_id:entry.queue_entry_id})) await chat.mutate({kind:"continue"}); }}>重试</button>}<button aria-label={`移除第 ${index + 1} 条待处理消息`} disabled={chat.mutating} onClick={() => void chat.mutate({kind:"withdraw",queue_entry_id:entry.queue_entry_id})}><X size={16}/></button></div></>}</li>)}</ol>
       </section>}
-      {(chat.error || notice || chat.draftConflict || chat.unavailable) && <div className={styles.notice} role="status">{chat.unavailable ? "这段对话已结束或登录状态发生变化，请重新打开工作台。" : chat.draftConflict ? <>另一处也修改了草稿，当前输入已保留。<button onClick={() => void chat.keepDraft()}>保留当前草稿</button></> : chat.error || notice}</div>}
+      {(chat.error || chat.draftConflict || chat.unavailable) && <div className={styles.notice} role="status">{chat.unavailable ? "这段对话已结束或登录状态发生变化，请重新打开工作台。" : chat.draftConflict ? <>另一处也修改了草稿，当前输入已保留。<button onClick={() => void chat.keepDraft()}>保留当前草稿</button></> : chat.error}</div>}
       <div className={styles.composer}>
-        <WorkspaceComposer id="queued-conversation-composer" label="消息" value={chat.draft} maxLength={1000} variant="home" rows={2} placeholder={active ? "继续补充，会按顺序处理…" : paused ? "继续输入，消息会加入暂停的队列…" : "有什么想一起理清的？"} canSubmit={canSend} disabled={!chat.ready || chat.unavailable} binding={props.detailBinding} onValueChange={chat.changeDraft} onSubmit={send} onNavigate={navigate} onCapture={() => setCapture(true)}
-          footerStart={<ComposerAddMenu binding={props.detailBinding} onCapture={() => setCapture(true)} onNavigate={navigate}/>}
+        <WorkspaceComposer id="queued-conversation-composer" label="消息" value={chat.draft} maxLength={1000} variant="home" rows={2} placeholder={active ? "继续补充，会按顺序处理…" : paused ? "继续输入，消息会加入暂停的队列…" : "有什么想一起理清的？"} canSubmit={canSend} disabled={!chat.ready || chat.unavailable} binding={props.detailBinding} onValueChange={chat.changeDraft} onSubmit={send} onNavigate={navigate} onFiles={openSource} onCapture={() => openSource()}
+          footerStart={<ComposerAddMenu binding={props.detailBinding} onCapture={() => openSource()} onNavigate={navigate}/>}
           footerEnd={<div className={styles.sendActions}>{active && <button type="button" className={styles.stop} aria-label="停止当前回复" title="停止当前回复，保留后续队列" disabled={chat.mutating || active.cancel_requested} onClick={() => void chat.mutate({kind:"stop",run_id:active.run_id!})}><Stop size={16} weight="fill"/><span>停止</span></button>}<button type="button" className={styles.send} aria-label={active || queued.length || paused ? "加入队列" : "发送消息"} title={active || paused ? "加入队列" : "发送"} disabled={!canSend} onClick={send}><ArrowUp size={21} weight="bold"/></button></div>}/>
       </div>
       {!hasContent && <div className={styles.starters} aria-label="开始一个话题">{["你可以帮我做什么？", "梳理今天需要跟进的人"].map(text => <button key={text} onClick={() => { chat.changeDraft(text); document.getElementById("queued-conversation-composer")?.focus(); }}>{text}<ArrowUp size={13} aria-hidden="true"/></button>)}</div>}
       <div className={styles.footer}><span role="status" aria-live="polite" aria-atomic="true">{status || ""}</span><span>Enter 发送 · Shift+Enter 换行</span></div>
     </div>
-    {capture && <CapturePanel onClose={() => setCapture(false)} onCommitted={workspace => { if (isNewConversationId(workspace.subject.id) && isNewConversationId(workspace.assignment.id)) window.location.assign(newConversationCaptureHref(workspace.subject.id,workspace.assignment.id)); else setNotice("已保存，请从人物页面查看。"); }}/>}
+    {sourceOpen ? (
+      <ConversationSourceDialog
+        initialError={sourceError}
+        initialFiles={sourceDraft.files}
+        initialImageAttempt={sourceDraft.imageAttempt}
+        initialInputMode={sourceDraft.inputMode}
+        initialObjective={sourceDraft.objective}
+        initialResearch={sourceDraft.research}
+        initialTaskID={sourceDraft.taskID}
+        initialText={sourceDraft.text}
+        initialTextAttempt={sourceDraft.textAttempt}
+        onDiscardDraft={discardSourceDraft}
+        onDraftChange={applySourceDraft}
+        onRequestClose={() => setSourceOpen(false)}
+        open={sourceOpen}
+        returnFocusTo={sourceReturnFocus}
+      />
+    ) : null}
   </section>;
 }
