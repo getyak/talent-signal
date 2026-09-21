@@ -8,6 +8,7 @@ import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerConversationQueueRoutes } from "./modules/conversationQueueRoutes.js";
 import { ConversationQueueRunner, type ConversationQueueProviderSelector } from "./modules/conversationQueueRunner.js";
 import { registerMeetingDraftRoutes } from "./modules/meetingDraftRoutes.js";
+import { registerTimeWorkspaceRoutes } from "./modules/timeWorkspaceRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerMcpExtensionRoutes } from "./modules/mcpRoutes.js";
 import { registerScreenshotContactRoutes } from "./modules/screenshotContactRoutes.js";
@@ -773,6 +774,7 @@ export async function buildApp(
   registerAgentSessionRoutes(app, pool, authenticate);
   registerConversationQueueRoutes(app, pool, authenticate);
   registerMeetingDraftRoutes(app, pool, authenticate);
+  registerTimeWorkspaceRoutes(app, pool, authenticate, remoteChatProvider);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
   registerAgentPreferenceRoutes(app, pool, authenticate, remoteChatProvider?.providerId === "claude-agent-sdk");

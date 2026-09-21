@@ -1,4 +1,5 @@
 import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } from "./productRunSchemas.js";
+import type { TimeScope, TimeActivityListResponse, TimeScheduleMutationRequest, TimeScheduleDeleteRequest, TimeScheduleResponse, TimeReviewRequest, TimeReviewResponse } from "./timeWorkspaceSchemas.js";
 import type { AccountSettings, AccountMutation, AccountOnboarding, AccountOnboardingMutation, AccountOnboardingPreview, AccountOnboardingPreviewRequest } from "./accountSchemas.js";
 import type {
   McpClientGrantCreateRequest,
@@ -1214,6 +1215,30 @@ export class TalentSignalClient {
 
   sync(after = 0): Promise<SyncResponse> {
     return this.request(`/v1/sync?after=${after}`, { method: "GET" });
+  }
+
+  listTimeActivities(scope: TimeScope, after?: string): Promise<TimeActivityListResponse> {
+    const query = new URLSearchParams({ from: scope.from, to: scope.to, time_zone: scope.time_zone });
+    if (scope.person_id) query.set("person_id", scope.person_id);
+    if (scope.kind) query.set("kind", scope.kind);
+    if (after) query.set("after", after);
+    return this.request(`/v1/time/activities?${query}`, { method: "GET" });
+  }
+
+  getTimeSchedule(id: string): Promise<TimeScheduleResponse> {
+    return this.request(`/v1/time/schedules/${encodeURIComponent(id)}`, { method: "GET" });
+  }
+
+  putTimeSchedule(id: string, input: TimeScheduleMutationRequest): Promise<TimeScheduleResponse> {
+    return this.request(`/v1/time/schedules/${encodeURIComponent(id)}`, { method: "PUT", body: input });
+  }
+
+  deleteTimeSchedule(id: string, input: TimeScheduleDeleteRequest): Promise<TimeScheduleResponse> {
+    return this.request(`/v1/time/schedules/${encodeURIComponent(id)}`, { method: "DELETE", body: input });
+  }
+
+  reviewTimeRange(input: TimeReviewRequest): Promise<TimeReviewResponse> {
+    return this.request("/v1/time/review", { method: "POST", body: input });
   }
 
   private async request<T>(

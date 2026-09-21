@@ -1,5 +1,6 @@
 "use client";
 
+import { clearTimeWorkspaceStorage } from "@/lib/time-workspace-storage";
 import {
   ArrowCounterClockwise,
   ArrowLeft,
@@ -254,6 +255,7 @@ export function WorkspaceApp({
   const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
 
   function clearPendingLocalIntents() {
+    clearTimeWorkspaceStorage();
     clearAllPendingMeetingDraftIntents();
     clearAllPendingSessionDrafts();
   }

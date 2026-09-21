@@ -289,6 +289,41 @@ describe("authority schema", () => {
     expect(sql).toContain("(Z|[+-][0-9]{2}:[0-9]{2})$");
   });
 
+  it("keeps the time workspace source-derived and schedules non-executing", async () => {
+    const sql = await readFile(
+      new URL("./074_time_workspace.sql", import.meta.url),
+      "utf8",
+    );
+    for (const table of [
+      "time_schedules",
+      "time_schedule_operations",
+      "time_activity_snapshots",
+      "time_activity_snapshot_items",
+    ]) {
+      expect(sql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(sql).toContain("time_activity_content");
+    expect(sql).toContain("time_session_person_binding");
+    expect(sql).toContain("external_effect = 'none'");
+    expect(sql).toContain("last_operation_id uuid NOT NULL");
+    expect(sql).toContain("status <> 'deleted' OR (");
+    expect(sql).toContain("meeting_draft_source_available");
+    expect(sql).toContain("pg_input_is_valid(turn.value->>'createdAt', 'timestamptz')");
+    expect(sql).toContain("jsonb_array_elements");
+    for (const table of [
+      "time_schedules",
+      "time_schedule_operations",
+      "time_activity_snapshots",
+      "time_activity_snapshot_items",
+    ]) {
+      expect(sql).toContain(`('${table}','account')`);
+      expect(sql).toContain(`BEFORE INSERT OR UPDATE ON ${table}`);
+    }
+    expect(sql).not.toContain("access_token");
+    expect(sql).not.toContain("candidate_score");
+    expect(sql).not.toContain("CREATE TABLE calendar_events");
+  });
+
   it("uses composite account-scoped relationships", async () => {
     const sql = await readFile(
       new URL("./001_authority.sql", import.meta.url),
