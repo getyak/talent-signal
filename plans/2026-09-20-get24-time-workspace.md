@@ -91,7 +91,41 @@ Storage audit: 130 GiB available, simulator pool intact; one pre-existing Docker
 project is outside the resident allowlist. Do not clean another task's stack.
 All task fixtures and test services must use separately owned disposable state.
 
-## Progress
+## Current delivery checkpoint (September 21)
+
+This checkpoint supersedes deployment and PR status in the historical progress
+below. PR218 is ready/open. The first fully green head `9624f106` could not merge
+because main advanced and the active ruleset requires a current base. At the
+next head `20ea8d75`, Web1058 tests, backend619 tests, fourteen separate real-PG
+time integration cases, macOS and Security passed. The iOS release smoke failed
+Apple accessibilityAudit Code=-56 at the pre-confirmation AX5 dark heading,
+including one same-runner simulator restart. The independent reviewer found no
+application assertion or contrast failure and recommended one fresh hosted
+runner on the final combined head without weakening the audit. Both Vercel
+previews failed deployment quota; those statuses are not counted as passing.
+
+Main `541c3e5e` adds a separately reviewed, ephemeral private-conversation route
+and workspace shell. It is now integrated without conflicts. Its runtime owner
+holds the sole deployment window until returning exact revision, migration and
+provider receipts. PR223's normal-conversation draft fix merged as `56ab027d` and is also
+integrated, with a coordinated main hold during native CI. Independent backend
+and frontend reviews found no new P0/P1/P2 across Time/private-route, shared-shell
+and normal-conversation draft boundaries. Integrated focused tests passed135
+backend and65 Web cases; docs and migration policy passed.
+
+The resident currently has78 migrations. The GET24 upgrade rehearsal proved
+79 entries, immutable checksums and repeat-apply timestamps on real PostgreSQL;
+its owned test stack and volume have been removed. Prepared20ea backend/Web
+artifacts are inactive and will be superseded by a clean final merged release.
+After final-head gates and merge, deploy the combined backend/Web, read every
+resident migration checksum, and run the reviewed synthetic authenticated Time
+lifecycle, ICS and live-provider range review. Its temporary identity receipt
+contains no credentials and is removed only after verified scoped cleanup.
+No GET24 production activation or Linear completion is claimed. Linear was
+read back In Progress earlier; current browser-control failure prevents another
+readback until the surface recovers.
+
+## Progress (historical evidence)
 
 - Baseline fetched and dedicated worktree created; dependencies installed.
 - Approved design and current shared desktop architecture inspected.
