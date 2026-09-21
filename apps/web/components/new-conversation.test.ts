@@ -152,7 +152,6 @@ describe("authenticated home with a legacy conversation-home record", () => {
     expect(document.querySelectorAll("textarea")).toHaveLength(1);
     expect(document.querySelector("#queued-conversation-composer")).not.toBeNull();
     expect(document.querySelector("#new-conversation-objective")).toBeNull();
-    expect(document.body.textContent).not.toContain("今天想推进什么？");
 
     // The old blocking send is never repeated, and its exact record is intact.
     expect(fetcher).not.toHaveBeenCalled();
@@ -490,8 +489,7 @@ describe("authenticated home with a legacy conversation-home record", () => {
       createElement(WorkspaceNewConversation, READY),
     );
     expect(html).toContain("queued-conversation-composer");
-    expect(html).toContain("从一段对话，找到下一步。");
+    expect(html).toContain("今天想推进什么？");
     expect(html).not.toContain("new-conversation-objective");
-    expect(html).not.toContain("今天想推进什么？");
   });
 });
