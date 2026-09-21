@@ -152,7 +152,7 @@ export function RelationshipContactHeader({
             ) : (
               <span>
                 <ShieldCheck aria-hidden="true" size={14} />
-                身份由招聘顾问关联
+                身份由你关联
               </span>
             )}
           </div>
@@ -239,7 +239,7 @@ export function RelationshipContactHeader({
                     <dd>
                       <strong>{point.display_hint}</strong>
                       <span>
-                        {point.source_display_name ?? "招聘顾问确认"} ·{" "}
+                        {point.source_display_name ?? "由你确认"} ·{" "}
                         {reviewDate(point.valid_until)}
                       </span>
                     </dd>

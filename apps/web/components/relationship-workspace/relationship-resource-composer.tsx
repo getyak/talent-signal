@@ -267,7 +267,7 @@ export function RelationshipResourceComposer({
                   status: "proposed" as const,
                   label: identityNewContextLabel.trim(),
                   purpose:
-                    "将受治理来源更正到招聘顾问选择的关系背景",
+                    "将受治理来源更正到你选择的关系背景",
                 },
           }
         : {
@@ -314,7 +314,7 @@ export function RelationshipResourceComposer({
               relationshipContextId,
             reason: identityCorrectionReason.trim(),
             binding_basis:
-              "招聘顾问已检查此受治理来源，并明确选择更正后的人物与关系背景。",
+              "你已检查此受治理来源，并明确选择更正后的人物与关系背景。",
             target,
           }),
         },
@@ -607,8 +607,8 @@ export function RelationshipResourceComposer({
             decision,
             reason:
               decision === "reviewed"
-                ? "招聘顾问已将提取结果与可见来源进行比较。"
-                : "招聘顾问认为提取结果不可靠并予以驳回。",
+                ? "你已将提取结果与可见来源进行比较。"
+                : "你认为提取结果不可靠并予以驳回。",
           }),
         },
       );
@@ -803,7 +803,7 @@ export function RelationshipResourceComposer({
       resetSourceAuthorizationDecision();
       const externalEffectFollowUp =
         payload.external_effects_requiring_follow_up > 0
-          ? ` 仍有 ${payload.external_effects_requiring_follow_up} 项外部效果需要招聘顾问跟进；不会把已经完成的事项表述为已撤销。`
+          ? ` 仍有 ${payload.external_effects_requiring_follow_up} 项外部效果需要你跟进；不会把已经完成的事项表述为已撤销。`
           : "";
       const authorizationMessage =
         payload.decision === "revoke"
@@ -1131,7 +1131,7 @@ export function RelationshipResourceComposer({
                   setValue(event.target.value);
                   resetRequest();
                 }}
-                placeholder="你希望未来的自己记住什么？这始终是招聘顾问撰写的备注，不是候选人陈述。"
+                placeholder="你希望未来的自己记住什么？这始终是你撰写的备注，不是对方陈述。"
                 rows={3}
                 value={value}
               />
@@ -1390,8 +1390,8 @@ export function RelationshipResourceComposer({
                   ? "撤销访问会隐藏依据、撤回依赖事实与待处理行动，并根据剩余已授权来源重建 Wiki。受治理来源不会被删除，因此之后可以恢复访问。"
                   : selectedResource.resource
                         .source_authorization_state === "expired"
-                    ? "续期授权会重新显示受治理依据，但所有来源衍生声明都会回到招聘顾问审阅。此前事实、批准和行动保持撤回。"
-                    : "恢复访问会重新显示受治理依据，但所有来源衍生声明都会回到招聘顾问审阅。此前事实、批准和行动保持撤回。"}
+                    ? "续期授权会重新显示受治理依据，但所有来源衍生声明都需重新由你审阅。此前事实、批准和行动保持撤回。"
+                    : "恢复访问会重新显示受治理依据，但所有来源衍生声明都需重新由你审阅。此前事实、批准和行动保持撤回。"}
               </p>
               <label className="context-identity-correction__reason">
                 <span>为何更改此授权？</span>
@@ -1407,7 +1407,7 @@ export function RelationshipResourceComposer({
                     selectedResource.resource
                       .source_authorization_state === "authorized"
                       ? "例如：候选人撤回了使用此对话的许可。"
-                      : "例如：招聘顾问确认已就此用途续期许可。"
+                      : "例如：你确认已就此用途续期许可。"
                   }
                   rows={3}
                   value={sourceAuthorizationReason}
@@ -1939,7 +1939,7 @@ export function RelationshipResourceComposer({
                             {claim.review_status === "confirmed"
                               ? "已为此关系确认"
                               : claim.review_status === "dismissed"
-                                ? "招聘顾问已驳回"
+                                ? "你已驳回"
                                 : claim.temporal_relation === "supersedes"
                                   ? "替换当前值前请审阅"
                                   : claim.temporal_relation === "reinforces"

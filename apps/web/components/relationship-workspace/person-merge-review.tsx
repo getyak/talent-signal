@@ -518,7 +518,7 @@ export function PersonMergeReview({
               </ul>
             </article>
             <article>
-              <span>招聘顾问的原始决定</span>
+              <span>你的原始决定</span>
               <strong>
                 合并于 {formatPersonMergeDate(reversalPreview.decided_at)}
               </strong>
@@ -555,7 +555,7 @@ export function PersonMergeReview({
                   setReversalReason(event.target.value);
                   reversalRequestRef.current = null;
                 }}
-                placeholder="记录招聘顾问观察到的更正依据。"
+                placeholder="记录你观察到的更正依据。"
                 rows={3}
                 value={reversalReason}
               />
@@ -728,7 +728,7 @@ export function PersonMergeReview({
                       setReason(event.target.value);
                       mergeRequestRef.current = null;
                     }}
-                    placeholder="记录招聘顾问观察到的身份依据。"
+                    placeholder="记录你观察到的身份依据。"
                     rows={3}
                     value={reason}
                   />

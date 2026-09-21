@@ -4,7 +4,7 @@
 
 # Talent Signal
 
-**Evidence-first relationship intelligence for independent recruiters.**
+**Evidence-first relationship intelligence for people managing professional relationships.**
 
 Capture a meaningful conversation. Review exactly what changed. Decide the
 next action. Carry verified context forward.
@@ -36,26 +36,36 @@ candidate data · understanding never grants execution authority</sub>
 
 ---
 
-## Never lose a strong candidate between conversations
+## Download for macOS
 
-Independent recruiters build momentum through details that rarely fit neatly
-inside an ATS: a changed priority, an unspoken dependency, a promised follow-up,
+[Download and setup guide](docs/operations/macos-distribution.md) ·
+[macOS releases](https://github.com/getyak/talent-signal/releases?q=macos-)
+
+The native workspace supports Apple silicon and Intel Macs running macOS 14 or
+later. Connect it to your existing HTTPS workspace and sign in with your own
+account. Private workspaces still require their authorized network access.
+Preview downloads are explicitly marked when not signed and notarized.
+
+## Keep the context that moves relationships forward
+
+People managing professional relationships build momentum through details that rarely fit neatly
+inside a contact record: a changed priority, an unspoken dependency, a promised follow-up,
 or the exact reason timing matters.
 
-Talent Signal turns recruiter-controlled conversation evidence into:
+Talent Signal turns user-controlled conversation evidence into:
 
 - reviewable facts, ambiguity, and change;
 - one current relationship dependency;
 - one smallest useful next step—or an intentional `no_action`;
 - durable context that remains traceable to its source.
 
-It is not an ATS replacement, a generic CRM, a candidate-ranking engine, or an
-autonomous recruiter. It exists to reduce context reconstruction without
+It preserves relationship context and human judgment without autonomous
+outreach or person-ranking. It exists to reduce context reconstruction without
 replacing relationship judgment.
 
 > [!IMPORTANT]
 > Talent Signal is an early product foundation and governed reference
-> implementation. It is not yet a production candidate-data system. The
+> implementation. It is not yet a production relationship-data system. The
 > repository demonstrates the product language, review states, safety
 > boundaries, and a cross-platform evidence-to-action loop using synthetic
 > fixtures.
@@ -119,7 +129,7 @@ at full resolution.</sub>
 intentional capture
 → inspectable evidence
 → proposed understanding
-→ recruiter confirmation
+→ user confirmation
 → one approved action or no_action
 → observed outcome
 → relationship continuity
@@ -134,7 +144,7 @@ The editable source lives in
 ### Capture in flow
 
 Start from an intentional screenshot, share sheet, paste, or upload—where the
-recruiter already works. Every surface enters one governed capture inbox.
+user already works. Every surface enters one governed capture inbox.
 
 ### Separate evidence from interpretation
 
@@ -199,7 +209,7 @@ not the same.
 | --- | --- | --- |
 | Governed continuity workflow | Implemented | Capture, exact evidence, model or fixture proposal, independent fact decision, confirmed temporal state, action proposal, exact approval, effect attempt, destination observation, and outcome remain separate, idempotent records. |
 | Context and memory | Implemented | A gold relationship Wiki snapshot is compiled from governed state; each Chat task pins a bounded Context Manifest with inclusion reasons and evidence dependencies. |
-| Bounded public research | Implemented as a specialized worker | One recruiter-approved domain and page budget can be retrieved with SSRF controls, leases, partial results, retry, restart recovery, provenance, freshness, and deletion lineage. |
+| Bounded public research | Implemented as a specialized worker | One user-approved domain and page budget can be retrieved with SSRF controls, leases, partial results, retry, restart recovery, provenance, freshness, and deletion lineage. |
 | Relationship Agent history | Implemented as a derived view | Durable domain audit events are projected into person-and-relationship operation receipts and unresolved-effect follow-ups. This is not a Run event store. |
 | External-effect boundary | Implemented as a local deterministic simulation | Current facts, exact preview digest, short-lived human approval, capability grant, idempotent attempt, readback, reconciliation, and explicit `unknown` are enforced. No production connector is implied. |
 | Open-ended Agent runner | Designed only | Versioned Agent Definitions, immutable Tasks and Runs, append-only typed Run events, reducer, checkpoints, first-class artifacts, general budgets, cancellation, stop reasons, and a capability registry are still missing. |
@@ -211,7 +221,7 @@ The executable core currently follows this path:
 capture
 → exact evidence
 → proposal
-→ recruiter fact decision
+→ user fact decision
 → confirmed temporal state
 → gold Wiki snapshot + Context Manifest
 → action proposal
@@ -381,7 +391,7 @@ Contributions are most valuable when they improve one complete
 evidence-to-outcome slice:
 
 - evidence correctness and ambiguity handling;
-- recruiter correction and control;
+- user correction and control;
 - safe action preview, approval, observation, and recovery;
 - relationship continuity across Web and iOS;
 - privacy, deletion, accessibility, and deterministic verification.
@@ -405,7 +415,7 @@ candidate conversations, credentials, certificates, or production records.
 
 <div align="center">
 
-**Signals, not scores. Evidence, not theater. Momentum, with the recruiter in control.**
+**Signals, not scores. Evidence, not theater. Momentum, with the user in control.**
 
 [Star Talent Signal](https://github.com/getyak/talent-signal) ·
 [Open an issue](https://github.com/getyak/talent-signal/issues/new/choose) ·

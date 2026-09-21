@@ -1,17 +1,17 @@
 # Product principles
 
 > Status: durable product judgment
-> Scope: high-value, relationship-led independent and boutique recruiting
+> Scope: evidence-first relationships across client work, partnerships, and collaboration
 
 ## Why this product exists
 
-Executive search is not the transfer of resumes. It is the reduction of
-uncertainty around a consequential mutual commitment.
+Meaningful relationships depend on remembered context, clear commitments,
+and the resolution of uncertainty before a consequential decision.
 
 The work unfolds through private conversations, changing constraints, partial
 trust, and decisions that expire. Important truth is often known by the
-recruiter but absent from the formal system. The product exists to preserve
-that truth, make change legible, and help the recruiter act before momentum is
+user but absent from the formal system. The product exists to preserve
+that truth, make change legible, and help the user act before momentum is
 lost.
 
 ## Foundational truths
@@ -30,20 +30,20 @@ without silently promoting it into confirmed state.
 
 ### Momentum is dependency resolution
 
-Momentum is not message frequency or recruiter activity. It is whether the
+Momentum is not message frequency or user activity. It is whether the
 next unresolved dependency is becoming clearer before its decision window
 closes.
 
 ### Trust is part of the product
 
-The recruiter carries context and consequence between candidate and client.
+The user carries context and consequence between people and shared outcomes.
 Automation that weakens consent, judgment, or recoverability destroys the
 asset it claims to optimize.
 
 ### AI is most valuable as continuity
 
 The durable value of AI is not producing more summaries. It is helping the
-recruiter remember what changed, distinguish fact from interpretation, and
+user remember what changed, distinguish fact from interpretation, and
 choose one timely next step.
 
 ## Product consequences
@@ -61,14 +61,14 @@ choose one timely next step.
 
 The machine may compile, retrieve, compare, propose, remind, and verify.
 
-The recruiter remains responsible for:
+The user remains responsible for:
 
 - the meaning of an ambiguous relationship signal;
 - whether a consequential action should happen;
 - how trust and timing should shape communication;
 - whether a tentative pattern deserves to become practice.
 
-The system should increase the recruiter's agency, not make their judgment less
+The system should increase the user's agency, not make their judgment less
 visible.
 
 ## What we optimize
@@ -84,14 +84,14 @@ Primary outcomes are:
 - greater user confidence that the system remains under their control.
 
 We do not optimize message volume, automatic outreach, time spent in the
-product, or a universal candidate score.
+product, or a universal person score.
 
 ## Strategic boundary
 
-Begin with candidate momentum because it is narrow, consequential, and
-measurable. Preserve a shared relationship foundation so the same person may
-later appear through client, founder, referrer, or domain-expert lenses without
-creating conflicting identities.
+Use one shared relationship foundation so the same person can be a client,
+partner, collaborator, candidate, referrer, or expert across different goals.
+Keep specialized criteria and claims scoped to their actual context without
+creating conflicting identities or assuming a recruiting role by default.
 
 Do not expand into a general CRM or ATS until the core continuity loop has
 earned trust.
@@ -100,7 +100,7 @@ earned trust.
 
 Revisit these principles if evidence shows that:
 
-- intentional capture cannot fit the recruiter's real workflow;
+- intentional capture cannot fit the user's real workflow;
 - users do not correct or trust evidence-backed proposals;
 - resolving one dependency does not improve meaningful outcomes;
 - the product creates more administrative work than continuity;

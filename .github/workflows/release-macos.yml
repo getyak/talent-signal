@@ -1,0 +1,118 @@
+name: Release macOS
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: release-macos
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.policy.outputs.sha }}
+      release: ${{ steps.policy.outputs.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Policy is always loaded from trusted main, never from an event-provided ref.
+          ref: main
+          persist-credentials: false
+      - id: policy
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { decide } = require(`${process.env.GITHUB_WORKSPACE}/scripts/macos/release-policy.cjs`);
+            await decide({ github, context, core });
+
+  package:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: macos-26
+    environment: macos-release
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      MACOS_RELEASE_MODE: ${{ vars.MACOS_RELEASE_MODE || 'preview' }}
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+      RELEASE_TAG: macos-${{ github.run_id }}-${{ github.run_attempt }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Verify release policy and native app
+        run: |
+          node --test scripts/macos/release-policy.test.cjs
+          node scripts/check-brand-assets.mjs
+          scripts/macos/check.sh
+      - name: Require signing identity configuration
+        if: env.MACOS_RELEASE_MODE == 'signed' && vars.INFISICAL_MACOS_IDENTITY_ID == ''
+        run: |
+          echo '::error::INFISICAL_MACOS_IDENTITY_ID is required for signed distribution'
+          exit 1
+      - name: Load scoped signing credentials
+        if: env.MACOS_RELEASE_MODE == 'signed'
+        uses: Infisical/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1.0.17
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_MACOS_IDENTITY_ID }}
+          oidc-audience: infisical://talent-signal/macos-release
+          project-slug: talent-signal-8p1-x
+          env-slug: staging
+          secret-path: /release
+          export-type: env
+      - name: Configure ephemeral signing keychain
+        if: env.MACOS_RELEASE_MODE == 'signed'
+        run: scripts/macos/signing-keychain.sh
+      - name: Package Universal app
+        run: |
+          # Start above the existing native build 7; reruns keep the same build number.
+          export MACOS_BUILD_NUMBER="$((GITHUB_RUN_NUMBER + 7))"
+          export MACOS_OUTPUT_DIR="$RUNNER_TEMP/macos-distribution"
+          printf 'MACOS_OUTPUT_DIR=%s\nMACOS_BUILD_NUMBER=%s\n' "$MACOS_OUTPUT_DIR" "$MACOS_BUILD_NUMBER" >> "$GITHUB_ENV"
+          scripts/macos/package.sh
+      - name: Publish verified downloads
+        run: |
+          set -euo pipefail
+          # Avoid labeling a superseded build as the current release.
+          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          [[ "$current" == "$RELEASE_SHA" ]] || { echo 'Main moved; the next CI run will publish.'; exit 1; }
+          notes="$RUNNER_TEMP/macos-release-notes.md"
+          printf 'Native relationship workspace for clients, partners, collaboration, and recruiting.\n\nRequires macOS 14+. Universal Apple silicon + Intel.\n\nRevision: %s\n\n' "$RELEASE_SHA" > "$notes"
+          flags=(--latest=false)
+          if [[ "$MACOS_RELEASE_MODE" == preview ]]; then
+            printf '**Preview: ad-hoc signed, NOT Apple-notarized. Gatekeeper may block this download.**\n\n' >> "$notes"
+            flags+=(--prerelease)
+          else
+            printf 'Developer ID signed, notarized, and stapled.\n\n' >> "$notes"
+          fi
+          printf 'Download the DMG and verify it using the SHA256SUMS file. Drag Talent Signal to Applications, then enter your HTTPS workspace origin and sign in. Private Tailscale workspaces require authorized network access. No server or credentials are included.\n\n[Installation and update guide](https://github.com/getyak/talent-signal/blob/%s/docs/operations/macos-distribution.md)\n' "$RELEASE_SHA" >> "$notes"
+          gh release create "$RELEASE_TAG" "$MACOS_OUTPUT_DIR"/*.dmg "$MACOS_OUTPUT_DIR"/*.zip "$MACOS_OUTPUT_DIR"/*-SHA256SUMS.txt \
+            --target "$RELEASE_SHA" --title "Talent Signal for macOS · $MACOS_RELEASE_MODE · $MACOS_BUILD_NUMBER" \
+            --notes-file "$notes" "${flags[@]}"
+      - name: Remove ephemeral credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/talent-signal-macos.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/macos-certificate.p12" "$RUNNER_TEMP/macos-notary.p8"

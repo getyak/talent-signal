@@ -1,8 +1,8 @@
 # Talent Signal
 
-Build quiet, evidence-first relationship intelligence for independent
-recruiters. Optimize for trustworthy momentum, not feature volume or agent
-theater.
+Build quiet, evidence-first relationship intelligence for client work,
+partnerships, collaboration, and recruiting. Optimize for trustworthy momentum,
+not feature volume or agent theater.
 
 ## Start with context
 

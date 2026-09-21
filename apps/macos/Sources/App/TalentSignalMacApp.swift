@@ -66,8 +66,12 @@ struct TalentSignalMacApp: App {
         .defaultSize(width: 560, height: 640)
         .windowResizability(.contentSize)
 
-        MenuBarExtra("Talent Signal", systemImage: "circle.dotted") {
+        MenuBarExtra {
             WorkspaceMenuBar()
+        } label: {
+            TSBrandMark(size: 22, monochrome: true)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Talent Signal")
         }
         .menuBarExtraStyle(.menu)
     }

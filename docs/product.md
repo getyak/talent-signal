@@ -3,7 +3,8 @@
 ## Audience and job
 
 Talent Signal is an evidence-first relationship CRM for context, trust, and
-shared outcomes. Recruiting is the first wedge, not the permanent boundary.
+shared outcomes across client work, partnerships, consulting, collaboration, and recruiting.
+Recruiting is one context, not the default identity of the product or its user.
 
 A person represented in the CRM does not need a Talent Signal account or a
 reciprocal platform relationship for an authorized user to preserve governed
@@ -17,7 +18,6 @@ conversation, the product helps the user answer:
 > what is the smallest safe action that keeps the relationship moving?
 
 ## Promise
-
 Never lose the context, commitment, or right moment that keeps a relationship
 moving.
 
@@ -25,14 +25,13 @@ The product reduces reconstruction and missed timing. It does not replace the
 user's relationship judgment.
 
 ## Product loop
-
 ![Talent Signal product architecture](talent-signal-product-architecture.png)
 
 The loop is:
 
-1. capture one meaningful source from the recruiter's current surface;
+1. capture one meaningful source from the user's current surface;
 2. separate explicit evidence from ambiguity and interpretation;
-3. let the recruiter correct and confirm what changed;
+3. let the user correct and confirm what changed;
 4. propose one smallest useful next step;
 5. require a separate decision before consequential action;
 6. observe the result and carry confirmed context forward.
@@ -50,7 +49,8 @@ identity, context, source state, and authority—not unsupported autonomy; its S
 
 The product is organized around a `Pursuit`: a concrete outcome with a time
 horizon that requires people, organizations, evidence, criteria, and action.
-The first complete Pursuit is a recruiting or executive-search mandate.
+A Pursuit may be a client engagement, partnership, shared project, or recruiting mandate.
+Domain-specific criteria stay scoped to that outcome; a person need not be a candidate.
 
 People remain stable identities across the product, while roles, criteria,
 claims, gaps, and actions are scoped to a Pursuit. A person may be a candidate
@@ -59,15 +59,15 @@ without becoming several unrelated identities. Cards, lists, timelines,
 graphs, Today, Pursuit rooms, and living person pages are views of the same
 governed state, not competing records.
 
-Today, Sessions, People, and Meetings are the primary mobile retrieval surfaces. A Session groups recruiter-initiated Agent tasks around a continuing objective;
+Today, Sessions, People, and Meetings are the primary mobile retrieval surfaces. A Session groups user-initiated Agent tasks around a continuing objective;
 it may begin without a relationship and bind one only when the Agent resolves
-an exact account-scoped Person and context or the recruiter chooses one.
+an exact account-scoped Person and context or the user chooses one.
 This lets a recent conversation resume without making contact selection a
-required field on every message. Its title is a human retrieval label for recognizing that continuing objective weeks later: one concrete, single-line phrase in the recruiter's language, never a generic reply label or a summary of only the latest answer. The first completed answer may refine the local objective-derived label; retries and later turns do not silently rename the Session.
+required field on every message. Its title is a human retrieval label for recognizing that continuing objective weeks later: one concrete, single-line phrase in the user's language, never a generic reply label or a summary of only the latest answer. The first completed answer may refine the local objective-derived label; retries and later turns do not silently rename the Session.
 It is a projection, not a second record: Pursuit, evidence, Proposal, reviewed
 state, Action, and Receipt continue to own goals, provenance, decisions, and
 effects. Evidence remains one step from a consequential claim but does not
-become a top-level library that asks the recruiter to browse sources before
+become a top-level library that asks the user to browse sources before
 understanding the goal. Pursuits remain directly reachable from Today, a
 Session, a person, and review context rather than consuming a higher-frequency
 mobile retrieval position.
@@ -88,7 +88,7 @@ rather than invented work.
 
 When Today leads with a review-ready Proposal, its primary transition lands on
 and moves focus to the exact human decision gate in the Pursuit room. The
-recruiter should not have to rediscover the highlighted decision after opening
+user should not have to rediscover the highlighted decision after opening
 its governed object. Action- and gap-led items continue to open the Pursuit
 overview because the room, not a Proposal, owns their current context. A
 review-ready item does not also expose another Agent-run input: the pending
@@ -97,7 +97,7 @@ human decision is already the next step.
 Evidence-backed is a live authority statement, not permanent copy. When a
 source is deleted or loses authorization, the affected role, gap, Proposal,
 and Today item visibly become partial or unavailable. An explicitly
-recruiter-authored note remains attributable to that recruiter and says that
+user-authored note remains attributable to that user and says that
 evidence is not required; it is never relabeled as source-supported. A Proposal
 whose source authority is gone stays available only as superseded history and
 cannot be confirmed.
@@ -109,7 +109,7 @@ silently rewritten or presented as currently source-supported.
 
 Chat is the primary intent surface for ordinary desktop work, not another
 record. It stays beside the selected Pursuit and affected person so the
-recruiter can ask, navigate, compile, or stage a change while the governed
+user can ask, navigate, compile, or stage a change while the governed
 object remains visible. On mobile, the same tasks appear in manageable Sessions
 because recent intent is retrieved more often than the full contact directory.
 Structured review still happens on the affected object, and Chat or Session
@@ -121,11 +121,11 @@ readback; a generic person page or an opaque evidence count is not a citation.
 Mobile Sessions and their conversation drafts resume within the same signed-in account across devices. Follow-ups, screenshot results, contact drafts, and saving receipts remain in the originating Session. Prior dialogue provides conversational context without becoming evidence. Restored answers are visibly stale, hide their citations, and require a new Ask before source authority is claimed again. A submitted question remains recoverable until validated recording succeeds, and retry reuses the same task intent instead of creating duplicate work. A Session can be shared only after an explicit preview: the default is a compact static context card, while a readable conversation copy requires a separate scope choice. Both omit sources, pending decisions, action targets, and execution authority; that export classification survives persistence and legacy restored answers without a classification remain unavailable. The readable copy is bounded, and every exported message is fully visible in the scrollable review surface. Identity-review Sessions use generic context and cannot export a full conversation. System sharing sends a copy and never claims that access or permissions changed. A Session may also be forked into a separate conversation; a fork carries readable context without inheriting pending decisions or execution authority. Feedback is reversible message metadata. Web also offers a separate [private conversation](reference/private-conversation.md) with no saved history or Memory.
 
 On mobile, voice is a direct path to an editable Agent-input draft. The global composer accepts a normal tap for text and touch-and-hold for voice; the Session composer shows best-effort on-device provisional words inside the same ribbon.
-Releasing stops capture and requests one provider-final transcript, but never submits it: the exact final words remain editable until the recruiter taps `Send`. Sliding up keeps capture hands-free and sliding left cancels.
-First use explains the temporary audio processor and deletion boundary, and existing typed text is never replaced by a voice gesture. Voice input does not make a recruiter recollection source evidence or grant downstream confirmation or action authority.
+Releasing stops capture and requests one provider-final transcript, but never submits it: the exact final words remain editable until the user taps `Send`. Sliding up keeps capture hands-free and sliding left cancels.
+First use explains the temporary audio processor and deletion boundary, and existing typed text is never replaced by a voice gesture. Voice input does not make a user recollection source evidence or grant downstream confirmation or action authority.
 After an admitted Ask starts, a content-free Live Activity may carry only opaque workspace, Session, and activity identifiers plus lifecycle state. It opens the exact protected Session for `Review` or retry and never exposes the question, transcript, person, relationship, answer, or evidence.
 
-When no relationship is selected, the recruiter sends normally. The Agent may
+When no relationship is selected, the user sends normally. The Agent may
 answer from the submitted text, search the authenticated contact index with one
 message-grounded clue, ask one clarification over minimal candidate labels, or
 resolve exactly one Person and relationship context. Search never returns
@@ -147,7 +147,7 @@ explicit calendar date and timezone stay in source review instead of appearing
 as confirmed current state.
 
 An exact citation can enter a scoped source review from the Agent response. A
-recruiter can dispute it with a reason; the source is rejected canonically, its
+user can dispute it with a reason; the source is rejected canonically, its
 dependent knowledge is invalidated, and the current Agent turn becomes stale.
 The conversation keeps a visible review state and offers a same-intent retry if
 the outcome is unknown. A mistaken dispute can be corrected only through a new,
@@ -171,7 +171,7 @@ Selected contact files follow the same rule: on-device staging exposes malformed
 Relationship Ask also accepts a screenshot as a purpose-bound task attachment.
 After Send, an admitted Agent may autonomously choose bounded public-profile
 search tools from visible name, handle, URL, or platform clues—without asking
-the recruiter to select a relationship, platform, tool, or candidate first.
+the user to select a relationship, platform, tool, or candidate first.
 For a single unscoped PNG/JPEG/WebP, the image is processed for that Run without
 being uploaded into relationship media or retained by the backend. Its possible
 matches, biographies, and public links appear as an explicitly unconfirmed
@@ -182,10 +182,10 @@ photo-only image ends in `no_action`.
 
 An unconfirmed public result may offer `Review contact`, but never `Create`
 directly. Review shows platform, handle, biography, match basis, and source
-link together; lets the recruiter edit a short People-card headline; then
+link together; lets the user edit a short People-card headline; then
 reuses the normal identity lookup and exact create-or-attach decision. A source
 avatar remains link-only unless its provider supplies an explicit display
-license or the profile owner has consented; public visibility and recruiter
+license or the profile owner has consented; public visibility and user
 confirmation alone grant neither right. Only the final contact confirmation
 may store selected card fields. The resulting public-source headline remains
 attributable to the reviewed URL and disappears from People when its governed
@@ -209,13 +209,13 @@ retry cannot mint a second operation. Completion is revisioned and idempotent,
 returns a matching canonical Receipt and readback, and has no external effects.
 It never implies that an email, meeting, ATS, CRM, or notification write occurred.
 
-The recruiter gets one contact entry without receiving one flattened context.
+The user gets one contact entry without receiving one flattened context.
 Every material item remains scoped to the relationship, assignment, purpose,
 and time in which it is valid. Context-specific evidence must not leak merely
 because identity is shared.
 
 A contact identifier is not timeless identity. Current confirmed clues help
-the recruiter find an existing person; expired clues are labeled historical
+the user find an existing person; expired clues are labeled historical
 and can only suggest whom to review. When a fresh contact card, screenshot, or
 shared source contains an expired clue, the product stages an identity review
 instead of silently binding or creating another person. Choosing an existing
@@ -229,24 +229,24 @@ inline beside the living person page rather than opening a generic search
 result or silently choosing the first card. The current owner appears first
 because of visible source-linked authority, while the historical owner remains
 available for comparison with its relationship controls disabled. No person is
-preselected. The recruiter may choose the current relationship, remove the
+preselected. The user may choose the current relationship, remove the
 clue, or preserve the source as an unresolved identity review; creating another
 person stays unavailable while the conflict is active. The selected operation
 then changes visibly from identity review to source attachment before any
 state is committed.
 
 Normal capture uses a plain-language default review date without asking the
-recruiter to configure policy. An exceptional custom date requires a visible
+user to configure policy. An exceptional custom date requires a visible
 reason, appears in durable Agent history, and remains attributable to the
 policy version active when it was chosen. Later policy learning can change new
 confirmation without silently extending an old clue.
 
-When the recruiter discovers two entries for the same person, the product
+When the user discovers two entries for the same person, the product
 repairs identity on the living person page rather than silently deduplicating a
 directory. The review names the page that stays stable, shows every
 relationship context and governed source that would move, exposes material
 label, fact, and masked-identifier differences, and blocks on unresolved
-identity or external effects. A current preview, recorded recruiter basis, and
+identity or external effects. A current preview, recorded user basis, and
 explicit confirmation are required. The result retains old-link continuity,
 recompiles affected knowledge, produces an audit receipt, and remains
 reversible while no new dependent evidence makes an automatic split unsafe.
@@ -285,21 +285,21 @@ The default unit of attention is not a score. It is a current dependency:
 
 `no_action` is a valid and often valuable result.
 
-## Initial wedge and expansion
+## Shared foundation and specific contexts
 
-Begin with an independent recruiter managing several high-value searches. The
-first complete experience should take one recruiter-controlled post-call signal
-through recoverable capture, Pursuit and identity review, evidence-backed
-claims and an explicit gap, one safe action, and a verified internal result.
+Start from one meaningful conversation in a client engagement, partnership,
+shared project, or recruiting mandate. Carry it through recoverable capture,
+Pursuit and identity review, evidence-backed claims, one reviewable next action,
+and an observed outcome.
 
-The broader direction is a general relationship CRM. Expansion reuses Person
-identity, contextual relationships, Pursuits, Memory, provenance, Proposals,
-Actions, and Receipts rather than flattening work into recruiter fields or a
-sales table. Other contexts must earn their own evidence and interaction.
+Each context reuses Person identity, contextual relationships, Pursuits,
+Memory, provenance, Proposals, Actions, and Receipts. Specialized workflows
+must earn their own evidence and interaction; broader positioning does not
+claim that every industry workflow or integration is already implemented.
 
 ## Non-goals
 
-- a general autonomous recruiter;
+- a general autonomous user;
 - a generic conversation summarizer;
 - automatic candidate ranking or rejection;
 - a full ATS or an ungoverned configurable field warehouse;
@@ -312,8 +312,8 @@ sales table. Other contexts must earn their own evidence and interaction.
 
 Success means a relationship owner can act with less reconstruction and greater
 confidence while the people involved experience more relevant, timely, and
-human communication. The initial recruiting wedge must continue to meet that
-bar for recruiters and candidates as the CRM broadens.
+human communication. The same standard applies to clients, partners,
+collaborators, candidates, and the people maintaining those relationships.
 
 See [Principles](principles.md), [Capture to action](capture-to-action.md), and
 [Design system](design-system.md).

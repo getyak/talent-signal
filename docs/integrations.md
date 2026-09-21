@@ -167,14 +167,14 @@ accounts or cookies, contact details, background checks, protected/sensitive
 traits, candidate scoring or ranking, and acceptance prediction. Binding a
 result to a Talent Signal Person remains a separate human identity decision.
 That decision starts from a visible review card, never from provider output
-alone. The client may propose a short card headline, but the recruiter can edit
+alone. The client may propose a short card headline, but the user can edit
 or omit it and must still choose an exact existing Person or explicitly create
 a new one. Provider biography text remains review-only and is not copied into
 the confirmed Person projection. Public-source avatars remain link-only for
 TikHub because its terms
 do not grant Talent Signal display or storage rights and source-platform terms
 still apply. A future avatar write requires a provider display license or
-profile-owner consent, not recruiter confirmation alone. The backend accepts a
+profile-owner consent, not user confirmation alone. The backend accepts a
 reviewed card only on a governed contact record whose HTTPS profile URL and
 content hash exactly match the same provider result. The durable projection
 retains its confirming user, source resource, retrieval time, and revision,
@@ -207,7 +207,7 @@ work. They do not receive direct domain or external-write authority.
 
 Before adding an integration, ask:
 
-- Which recurring recruiter outcome does it improve?
+- Which recurring user outcome does it improve?
 - What new data becomes accessible?
 - Where does authorization occur?
 - What can it change?

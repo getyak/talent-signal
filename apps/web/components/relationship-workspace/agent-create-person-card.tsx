@@ -259,8 +259,8 @@ export function AgentCreatePersonCard({
           type: "note",
           title:
             target.mode === "new_person"
-              ? "招聘顾问提供的首条背景"
-              : "智能助理附加的招聘顾问背景",
+              ? "你提供的首条背景"
+              : "智能助理附加的、由你提供的背景",
           value: firstNote.trim(),
           }),
         },
@@ -376,7 +376,7 @@ export function AgentCreatePersonCard({
           contact_name: name.trim(),
           relationship_context_label: contextLabel.trim(),
           type: "note",
-          title: "等待确认身份的招聘顾问来源",
+          title: "你提供的、等待确认身份的来源",
           value: firstNote.trim(),
           }),
         },
@@ -544,7 +544,7 @@ export function AgentCreatePersonCard({
         ) : lookupState === "loading" ? (
           <p>
             <CircleNotch aria-hidden="true" className="spin" size={13} />
-            仅在此招聘顾问账号内查找。
+            仅在你的账号内查找。
           </p>
         ) : lookupState === "error" ? (
           <div className="context-agent-identity-error">
@@ -862,7 +862,7 @@ export function AgentCreatePersonCard({
               setFirstNote(event.target.value);
               requestIdRef.current = null;
             }}
-            placeholder="粘贴由招聘顾问提供、可说明为何创建此关系的备注。"
+            placeholder="粘贴由你提供、可说明为何创建此关系的备注。"
             rows={3}
             value={firstNote}
           />

@@ -489,7 +489,7 @@ export function RelationshipNextMove({
                               setReversalReason(event.target.value);
                               reversalApprovalRequestRef.current = null;
                             }}
-                            placeholder="记录招聘顾问观察到的原因。"
+                            placeholder="记录你观察到的原因。"
                             rows={3}
                             value={reversalReason}
                           />
