@@ -19,6 +19,10 @@ export const REQUIRED_SYSTEM_MIGRATIONS = [
   "073_account_onboarding",
   "074_time_workspace",
   "075_conversation_message_images",
+  "076_memory_review",
+  "077_memory_review_corrections",
+  "078_memory_review_hardening",
+  "079_memory_source_authority",
 ] as const;
 
 function elapsedMilliseconds(startedAt: number): number {

@@ -208,6 +208,9 @@ export async function executeUnscopedChatTask(input: {
     : "disabled";
   let block: ChatResponseBlock;
   let agentEvent: UnscopedChatTaskResponse["agent_event"] = null;
+  let memoryProposalRef:
+    | { proposal_id: string; revision: number }
+    | null = null;
   if (input.provider) {
     try {
       await assertCurrent?.();
@@ -220,6 +223,7 @@ export async function executeUnscopedChatTask(input: {
           database: input.database,
           auth: input.auth,
           objective: effectiveObjective,
+          sourceText: input.request.objective,
           provider: input.provider,
           sessionID: input.request.session_id ?? null,
           sessionTitleRequested,
@@ -240,6 +244,7 @@ export async function executeUnscopedChatTask(input: {
         block = execution.providerResult.calendarDraft ? { ...execution.block, calendar_draft: execution.providerResult.calendarDraft,
           status: "needs_review", requires_user_decision: true } : execution.block;
         agentEvent = execution.event;
+        memoryProposalRef = execution.memoryProposal;
         agentProviderResult = {
           providerID: input.provider.id,
           model: input.provider.model,
@@ -324,6 +329,7 @@ export async function executeUnscopedChatTask(input: {
       disposition: block.kind === "clarification" ? "clarify" : "answer",
       blocks: [sessionConversation.sources?.length ? markSessionContextAnswer(block, input.request.objective) : block],
       agent_event: agentEvent,
+      ...(memoryProposalRef ? { memory_proposal: memoryProposalRef } : {}),
       external_effects: [],
       ...(firstTurnTitle ? { session_title: firstTurnTitle } : {}),
       created_at: (input.createdAt ?? new Date()).toISOString(),

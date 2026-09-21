@@ -13,11 +13,16 @@ import {
   SearchPublicProfilesInputSchema,
   StageProposalInputSchema,
 } from "./schemas.js";
+import {
+  MEMORY_REVIEW_TOOL_DESCRIPTION,
+  MemoryReviewToolInputSchema,
+} from "./memorySchemas.js";
 import type { AgentToolName } from "./types.js";
 
 export type AgentCapabilityClass =
   | "scoped_read"
   | "contact_workspace"
+  | "memory_review"
   | "public_discovery"
   | "public_fetch"
   | "public_profile_discovery"
@@ -177,6 +182,17 @@ export const AGENT_TOOL_CATALOG: Readonly<
     readOnly: false,
     openWorld: false,
     capabilityClass: "contact_workspace",
+    consequence: "durable_candidate",
+    approval: "human_review_before_apply",
+    reversibility: "discardable",
+    idempotency: "content_fingerprint",
+  },
+  memory_review: {
+    description: MEMORY_REVIEW_TOOL_DESCRIPTION,
+    schema: MemoryReviewToolInputSchema,
+    readOnly: false,
+    openWorld: false,
+    capabilityClass: "memory_review",
     consequence: "durable_candidate",
     approval: "human_review_before_apply",
     reversibility: "discardable",

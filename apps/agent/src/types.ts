@@ -20,6 +20,7 @@ export const PERSON_RESEARCH_AGENT_TOOL_NAMES = [
 
 export const WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES = [
   "contact_workspace",
+  "memory_review",
 ] as const;
 
 export const ALL_AGENT_TOOL_NAMES = [

@@ -7,6 +7,12 @@ import { ClaudeHarnessFailure, ClaudeHarnessInterruption, runClaudeHarness, type
 import { claudeHarnessConfiguration, type ClaudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import { boundedConversationHistory, type RemoteChatAnswerProviding, type RemoteChatAnswerRequest, type RemoteChatAnswerResult } from "./chatAnswerProvider.js";
 import { ContactWorkspaceInputSchema } from "./schemas.js";
+import {
+  MEMORY_REVIEW_TOOL_DESCRIPTION,
+  MemoryReviewInputSchema,
+  MemoryReviewToolInputSchema,
+  memoryLocatorAdmissionError,
+} from "./memorySchemas.js";
 import { AGENT_TOOL_CATALOG, contactWorkspaceOperationTools } from "./toolCatalog.js";
 import { AGENT_BUDGET_CEILING as DEFAULT_AGENT_BUDGET } from "./runtimePolicy.js";
 import { JSON_OUTPUT_PROTOCOL as CONVERSATION_JSON_PROTOCOL } from "./prompts/assistant-conversation.js";
@@ -138,6 +144,59 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       },
     });
     const imageGuards = new Map<string, () => Promise<void>>();
+    let memoryProposal: RemoteChatAnswerResult["memoryProposal"];
+    if (request.memoryReview) {
+      const hooks = request.memoryReview;
+      tools.push({
+        name: "memory_review",
+        description: MEMORY_REVIEW_TOOL_DESCRIPTION,
+        schema: MemoryReviewToolInputSchema,
+        readOnly: false,
+        alwaysLoad: true,
+        execute: async (input) => {
+          const parsedMemory = MemoryReviewInputSchema.safeParse(input);
+          if (!parsedMemory.success) {
+            return { content: [{ type: "text", text: JSON.stringify({ error: "TOOL_INPUT_INVALID" }) }], isError: true };
+          }
+          const review = parsedMemory.data;
+          if (review.operation === "recall") {
+            const recalled = await hooks.recall();
+            return { content: [{ type: "text", text: JSON.stringify({
+              authority: "accepted_relationship_memory_not_execution_permission",
+              items: recalled.items,
+            }) }] };
+          }
+          const locatorError = memoryLocatorAdmissionError(
+            review.items,
+            images.map((_image, index) => `image-${index}`),
+          );
+          if (locatorError) {
+            return { content: [{ type: "text", text: JSON.stringify({ error: "MEMORY_SOURCE_NOT_ADMITTED" }) }], isError: true };
+          }
+          const staged = await hooks.stage({
+            contact_decision: review.contact_decision,
+            person_display_label: review.person_display_label ?? null,
+            items: review.items,
+          });
+          if (!staged) {
+            return { content: [{ type: "text", text: JSON.stringify({ status: "no_material_change" }) }] };
+          }
+          memoryProposal = {
+            proposal_id: staged.proposal_id,
+            proposal_revision: staged.proposal_revision,
+            item_count: staged.item_count,
+            default_selected_count: staged.default_selected_count,
+          };
+          return { content: [{ type: "text", text: JSON.stringify({
+            status: "needs_review",
+            proposal_id: staged.proposal_id,
+            proposal_revision: staged.proposal_revision,
+            item_count: staged.item_count,
+            default_selected_count: staged.default_selected_count,
+          }) }] };
+        },
+      });
+    }
     const abort = new AbortController();
     const external = request.signal;
     if (external) {
@@ -176,6 +235,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       ...(sessionTitleRequested ? { session_title: parsedOutput.title } : {}),
       ...(calendar.draft() ? { calendarDraft: calendar.draft()! } : {}),
       citation_ids: citations, provider_id: this.providerId, model: this.model, provider_request_id: result.sessionID,
+      ...(memoryProposal ? { memoryProposal } : {}),
       input_tokens: result.inputTokens, output_tokens: result.outputTokens, usage_reported: true,
       reported_model: result.reportedModels.length === 1 ? result.reportedModels[0]! : null, remote_requests_started: null,
       prompt_revision: prompt.revision, prompt_snapshot: snapshot };
@@ -244,7 +304,9 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
             if (data?.operation === "read" && data.person?.id && data.relationship_context?.id) receipt = {
               outcome: "use_contact", person_id: data.person.id, relationship_context_id: data.relationship_context.id,
             };
-            if (result.candidateFingerprint) receipt = { outcome: "contact_change_proposal", candidate_fingerprint: result.candidateFingerprint };
+            // A Memory proposal reference travels outside the contact event and
+            // must never masquerade as a contact-change fingerprint.
+            if (name === "contact_workspace" && result.candidateFingerprint) receipt = { outcome: "contact_change_proposal", candidate_fingerprint: result.candidateFingerprint };
           }
           return { content: [{ type: "text", text: JSON.stringify(result) }], isError: !result.ok };
         } }));

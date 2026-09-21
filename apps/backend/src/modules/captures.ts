@@ -28,6 +28,7 @@ import {
   resolveSourceRetentionPolicy,
   validateSourceRetentionPayload,
 } from "./sourceRetention.js";
+import { invalidateMemoriesForCaptureIds } from "./memoryReview.js";
 
 interface CaptureRow {
   id: string;
@@ -1914,14 +1915,9 @@ export async function deleteCapture(
       [auth.accountId, governedCaptureIds],
     );
     const sourceDeletedAt = new Date();
-    for (const governedCaptureId of governedCaptureIds) {
-      await markSourceDeleted(
-        client,
-        auth,
-        governedCaptureId,
-        sourceDeletedAt,
-      );
-    }
+    for (const governedCaptureId of governedCaptureIds)
+      await markSourceDeleted(client, auth, governedCaptureId, sourceDeletedAt);
+    await invalidateMemoriesForCaptureIds(client, auth.accountId, governedCaptureIds, "source_deleted");
     const assignmentIds = [
       ...new Set(
         governedCaptures.rows.flatMap((row) =>

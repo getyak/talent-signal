@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 
 import {
   ContactWorkspaceInputSchema,
+  MemoryReviewInputSchema,
   WORKSPACE_CONVERSATION_SYSTEM_PROMPT,
+  memoryLocatorAdmissionError,
   resolveProductPrompt, promptReference, type PromptSnapshot,
   DEFAULT_AGENT_BUDGET,
   AGENT_BUDGET_CEILING,
@@ -15,16 +17,27 @@ import {
   type AgentToolResult,
   type AgentVisibleProgressStage,
   type ConversationMessage,
+  type MemoryReviewInput,
   type RuntimeObservationContext,
 } from "@talent-signal/agent";
 import type {
   ChatResponseBlock,
+  MemoryProposalStageRequest,
+  MemorySourceLocator,
+  MemorySurface,
   WorkspaceConversationAgentEvent,
 } from "@talent-signal/contracts";
 
 import type { DatabaseClient } from "../database/pool.js";
 import type { AuthContext } from "./auth.js";
 import { getRelationshipScope, searchPeople } from "./people.js";
+import { sha256 } from "../lib/hash.js";
+import {
+  recallMemories,
+  stageMemoryProposal,
+  type MemorySourceAuthority,
+} from "./memoryReview.js";
+import type { MemoryImageManifestEntry } from "./memoryReviewStore.js";
 
 const WORKSPACE_CONVERSATION_TIMEOUT_MS = 35_000;
 
@@ -44,6 +57,54 @@ export interface WorkspaceContactLookup {
     person: { id: string; displayLabel: string; directoryRevision: number };
     relationship: { id: string; displayLabel: string };
   }>;
+}
+
+export interface WorkspaceMemoryRecall {
+  id: string;
+  scope: string;
+  display_text: string;
+  version: number;
+  statement_kind: string;
+  evidence_retained: boolean;
+}
+
+export interface WorkspaceMemoryStagedProposal {
+  proposalID: string;
+  proposalRevision: number;
+  itemCount: number;
+  defaultSelectedCount: number;
+  scopeCounts: { self: number; person: number; relationship: number };
+  contactStatus: "resolved" | "ambiguous" | "pending";
+  personID: string | null;
+  personDisplayLabel: string | null;
+}
+
+type WorkspaceMemoryProposeInput = Extract<
+  MemoryReviewInput,
+  { operation: "propose" }
+>;
+export type WorkspaceMemoryProposalCandidate =
+  WorkspaceMemoryProposeInput["items"][number];
+
+/** Host-owned typed Memory recall/stage. Models never accept memory directly. */
+export interface WorkspaceMemoryLookup {
+  recall(input: {
+    personID: string | null;
+    contextID: string | null;
+  }): Promise<{ items: WorkspaceMemoryRecall[] }>;
+  stage(input: {
+    surface: MemorySurface;
+    personID: string | null;
+    contextID: string | null;
+    contactDecision: "existing" | "new" | "none";
+    newContact: {
+      display_label: string;
+      relationship_context: string;
+      source_locator: MemorySourceLocator | null;
+    } | null;
+    sourceMessageID: string;
+    items: readonly WorkspaceMemoryProposalCandidate[];
+  }): Promise<WorkspaceMemoryStagedProposal | null>;
 }
 
 function scopeKey(personID: string, contextID: string): string {
@@ -84,11 +145,39 @@ function uniquelyGroundedScope(
 export interface WorkspaceConversationAgentExecution {
   block: ChatResponseBlock;
   event: WorkspaceConversationAgentEvent | null;
+  /** Independent optional review reference; never the sole agent event. */
+  memoryProposal: { proposal_id: string; revision: number } | null;
   providerResult: AgentProviderResult;
 }
 
 function normalized(value: string): string {
   return value.normalize("NFKC").trim().toLocaleLowerCase();
+}
+
+function memoryRef(
+  staged: WorkspaceMemoryStagedProposal | null,
+): { proposal_id: string; revision: number } | null {
+  return staged
+    ? { proposal_id: staged.proposalID, revision: staged.proposalRevision }
+    : null;
+}
+
+function workspaceImageManifest(
+  parts: readonly import("@talent-signal/agent").AgentProviderInputPart[],
+): MemoryImageManifestEntry[] {
+  const entries: MemoryImageManifestEntry[] = [];
+  for (const part of parts) {
+    if (part.kind !== "image") continue;
+    const match = part.artifactID.match(/^conversation-image-[0-9a-f-]{36}-(\d+)-(.+)$/u);
+    if (match) {
+      entries.push({
+        index: Number(match[1]),
+        attachmentId: match[2]!,
+        contentHash: part.contentHash,
+      });
+    }
+  }
+  return entries.sort((left, right) => left.index - right.index);
 }
 
 function isGroundedExcerpt(excerpt: string, objective: string): boolean {
@@ -169,9 +258,13 @@ function block(
 
 export async function executeWorkspaceConversationAgentCore(input: {
   objective: string;
+  /** Raw user source text. For an images-only message this is empty; the
+   * objective may carry a host instruction that must not become provenance. */
+  sourceText?: string;
   provider: AgentProvider;
   workspaceID: string;
   contacts: WorkspaceContactLookup;
+  memory?: WorkspaceMemoryLookup;
   sessionID?: string | null;
   messageID?: string;
   sessionTitleRequested?: boolean;
@@ -195,7 +288,11 @@ export async function executeWorkspaceConversationAgentCore(input: {
   const runState: {
     readScope: { personID: string; contextID: string } | null;
     proposal: WorkspaceConversationAgentEvent | null;
-  } = { readScope: null, proposal: null };
+    memoryProposal: WorkspaceMemoryStagedProposal | null;
+  } = { readScope: null, proposal: null, memoryProposal: null };
+  const admittedArtifactIds = (input.inputParts ?? []).map(
+    (part) => part.artifactID,
+  );
   let toolCallCount = 0;
   // SDK startup and tool turns share the same admitted wall-clock ceiling as
   // scoped Chat. Keep the legacy HTTP adapter's tighter existing deadline.
@@ -230,11 +327,197 @@ export async function executeWorkspaceConversationAgentCore(input: {
         "This turn reached its contact Tool call limit.",
       );
     }
+    if (name === "memory_review") {
+      const parsedMemory = MemoryReviewInputSchema.safeParse(rawInput);
+      if (!parsedMemory.success) {
+        return toolFailure(
+          name,
+          "TOOL_INPUT_INVALID",
+          "The Memory review request did not match its typed contract.",
+        );
+      }
+      if (!input.memory) {
+        return toolFailure(
+          name,
+          "MEMORY_UNAVAILABLE",
+          "Memory review is not available in this Run.",
+        );
+      }
+      const request = parsedMemory.data;
+      if (request.operation === "recall") {
+        const personID = request.person_id ?? null;
+        const contextID = request.relationship_context_id ?? null;
+        if (personID && !searchResults.has(personID)) {
+          return toolFailure(
+            name,
+            "MEMORY_RECALL_NOT_AUTHORIZED",
+            "Recall the current user's own memory, or only a contact found in this Run.",
+          );
+        }
+        if (personID && contextID) {
+          const result = searchResults.get(personID);
+          if (!result?.contexts.some((context) => context.id === contextID)) {
+            return toolFailure(
+              name,
+              "MEMORY_RECALL_NOT_AUTHORIZED",
+              "Recall requires an exact same-Run relationship context.",
+            );
+          }
+        }
+        let recalled: Awaited<ReturnType<WorkspaceMemoryLookup["recall"]>>;
+        try {
+          recalled = await input.memory.recall({ personID, contextID });
+        } catch {
+          return toolFailure(
+            name,
+            "MEMORY_UNAVAILABLE",
+            "Memory recall is temporarily unavailable; answer without it.",
+          );
+        }
+        return {
+          ok: true,
+          callID: randomUUID(),
+          name,
+          data: {
+            operation: "recall",
+            data_boundary:
+              "Accepted, currently authorized Memory only. Private self memory is not returned for another person's scope.",
+            items: recalled.items,
+          },
+        };
+      }
+
+      if (runState.memoryProposal) {
+        return toolFailure(
+          name,
+          "MEMORY_PROPOSAL_ALREADY_STAGED",
+          "Only one Memory proposal may be staged per turn.",
+        );
+      }
+      const locatorError = memoryLocatorAdmissionError(
+        request.items,
+        admittedArtifactIds,
+      );
+      if (locatorError) {
+        return toolFailure(
+          name,
+          "MEMORY_SOURCE_NOT_ADMITTED",
+          "Every image region must reference an artifact admitted to this Run.",
+        );
+      }
+      for (const item of request.items) {
+        if (
+          item.source_locator.kind === "message"
+          && !isGroundedExcerpt(item.source_excerpt, input.sourceText ?? input.objective)
+        ) {
+          return toolFailure(
+            name,
+            "MEMORY_SOURCE_UNGROUNDED",
+            "A message excerpt must be copied from the current user message.",
+          );
+        }
+        if (item.subject_id && !searchResults.has(item.subject_id)) {
+          return toolFailure(
+            name,
+            "MEMORY_SCOPE_NOT_AUTHORIZED",
+            "A Memory item may only depend on a contact found in this Run.",
+          );
+        }
+        if (
+          item.subject_id
+          && item.relationship_context_id
+          && !searchResults
+            .get(item.subject_id)
+            ?.contexts.some((context) => context.id === item.relationship_context_id)
+        ) {
+          return toolFailure(
+            name,
+            "MEMORY_SCOPE_NOT_AUTHORIZED",
+            "A Memory item may only depend on a same-Run relationship context.",
+          );
+        }
+      }
+      const personID = request.person_id ?? null;
+      if (personID && !searchResults.has(personID)) {
+        return toolFailure(
+          name,
+          "MEMORY_SCOPE_NOT_AUTHORIZED",
+          "The Memory target contact was not found in this Run.",
+        );
+      }
+      const contextID = request.relationship_context_id ?? null;
+      if (
+        personID
+        && contextID
+        && !searchResults
+          .get(personID)
+          ?.contexts.some((context) => context.id === contextID)
+      ) {
+        return toolFailure(
+          name,
+          "MEMORY_SCOPE_NOT_AUTHORIZED",
+          "The Memory target relationship context was not found in this Run.",
+        );
+      }
+      const target = personID ? searchResults.get(personID)! : null;
+      const newContact =
+        request.contact_decision === "new"
+          ? {
+              display_label:
+                request.person_display_label ?? target?.displayLabel ?? "",
+              relationship_context: "",
+              source_locator: (request.new_contact_source_locator ?? null) as MemorySourceLocator | null,
+            }
+          : null;
+      let staged: Awaited<ReturnType<WorkspaceMemoryLookup["stage"]>>;
+      try {
+        staged = await input.memory.stage({
+          surface: "chat",
+          personID,
+          contextID,
+          contactDecision: request.contact_decision,
+          newContact,
+          sourceMessageID,
+          items: request.items,
+        });
+      } catch {
+        // An optional Memory suggestion must never destroy the helpful answer.
+        return toolFailure(
+          name,
+          "MEMORY_UNAVAILABLE",
+          "The Memory suggestion is temporarily unavailable; continue answering.",
+        );
+      }
+      if (!staged) {
+        return toolFailure(
+          name,
+          "MEMORY_NO_MATERIAL_CHANGE",
+          "There is no new, non-duplicate, grounded change to stage.",
+        );
+      }
+      runState.memoryProposal = staged;
+      return {
+        ok: true,
+        callID: randomUUID(),
+        name,
+        candidateFingerprint: staged.proposalID,
+        data: {
+          operation: "propose",
+          status: "needs_review",
+          proposal_id: staged.proposalID,
+          proposal_revision: staged.proposalRevision,
+          item_count: staged.itemCount,
+          default_selected_count: staged.defaultSelectedCount,
+          scope_counts: staged.scopeCounts,
+          consequence: "No Memory or contact changed; a human review card was staged.",
+        },
+      };
+    }
     if (name !== "contact_workspace") {
       return toolFailure(
         name,
         "TOOL_NOT_ALLOWED",
-        "Only contact_workspace is available in this Run.",
+        "Only contact_workspace and memory_review are available in this Run.",
       );
     }
     const parsed = ContactWorkspaceInputSchema.safeParse(rawInput);
@@ -533,18 +816,36 @@ export async function executeWorkspaceConversationAgentCore(input: {
       providerResult.sessionTitle = output.session_title;
     }
     if (
-      (runState.proposal && output.outcome !== "contact_change_proposal") ||
-      (runState.readScope && output.outcome !== "use_contact") ||
-      (searchResults.size > 0 && output.outcome === "reply")
+      runState.proposal && output.outcome !== "contact_change_proposal"
     ) {
       throw new Error(
         "The Agent terminal output did not preserve the contact Tool boundary.",
       );
     }
     if (output.outcome === "reply") {
+      // An authorized search/read/recall/stage may still end in a helpful
+      // answer. When a contact was uniquely read, its provenance travels as
+      // the existing resolved-contact event rather than being dropped.
+      const resolvedPerson = runState.readScope
+        ? searchResults.get(runState.readScope.personID)
+        : undefined;
+      const resolvedContext = resolvedPerson?.contexts.find(
+        (context) => context.id === runState.readScope!.contextID,
+      );
       return {
         block: block("answer", output.title, output.body, false),
-        event: null,
+        event:
+          runState.readScope && resolvedPerson && resolvedContext
+            ? {
+                kind: "resolved_contact_context",
+                person_id: runState.readScope.personID,
+                person_display_label: resolvedPerson.displayLabel,
+                relationship_context_id: resolvedContext.id,
+                relationship_context_display_label: resolvedContext.displayLabel,
+                tool_summary: `Contact search · ${resolvedPerson.displayLabel} · ${resolvedContext.displayLabel}`,
+              }
+            : null,
+        memoryProposal: memoryRef(runState.memoryProposal),
         providerResult,
       };
     }
@@ -576,6 +877,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
               tool_summary: `Contact search · ${candidates.length} possible relationship${candidates.length === 1 ? "" : "s"}`,
             }
           : null,
+        memoryProposal: memoryRef(runState.memoryProposal),
         providerResult,
       };
     }
@@ -613,6 +915,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
           relationship_context_display_label: context.displayLabel,
           tool_summary: `Contact search · ${person.displayLabel} · ${context.displayLabel}`,
         },
+        memoryProposal: memoryRef(runState.memoryProposal),
         providerResult,
       };
     }
@@ -635,6 +938,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
         true,
       ),
       event: runState.proposal,
+      memoryProposal: memoryRef(runState.memoryProposal),
       providerResult,
     };
   } finally {
@@ -647,6 +951,7 @@ export async function executeWorkspaceConversationAgent(input: {
   database: DatabaseClient;
   auth: AuthContext;
   objective: string;
+  sourceText?: string;
   provider: AgentProvider;
   sessionID?: string | null;
   messageID?: string;
@@ -702,11 +1007,121 @@ export async function executeWorkspaceConversationAgent(input: {
       };
     },
   };
+  const memory: WorkspaceMemoryLookup = {
+    recall: async ({ personID, contextID }) => {
+      const recalled = await recallMemories(input.database, input.auth, {
+        surface: "chat",
+        person_id: personID,
+        relationship_context_id: contextID,
+      });
+      return {
+        items: recalled.items.map((item) => ({
+          id: item.id,
+          scope: item.scope,
+          display_text: item.display_text,
+          version: item.version,
+          statement_kind: item.statement_kind,
+          evidence_retained: item.evidence_retained,
+        })),
+      };
+    },
+    stage: async ({
+      personID,
+      contextID,
+      contactDecision,
+      newContact,
+      sourceMessageID,
+      items,
+    }) => {
+      const authority: MemorySourceAuthority = {
+        text: input.sourceText ?? input.objective,
+        artifacts: [
+          ...(input.inputParts ?? []).map((part) => ({
+            artifactId: part.artifactID,
+            kind: part.kind,
+            sessionId: input.sessionID ?? null,
+            messageId: sourceMessageID,
+            captureId: null,
+            sourceResourceId: null,
+            evidenceFragmentId: null,
+            contentHash: part.contentHash,
+            captureVersion: null,
+          })),
+          {
+            artifactId: `${input.sessionID ?? "workspace"}:message:${sourceMessageID}`,
+            kind: "text" as const,
+            sessionId: input.sessionID ?? null,
+            messageId: sourceMessageID,
+            captureId: null,
+            sourceResourceId: null,
+            evidenceFragmentId: null,
+            contentHash: null,
+            captureVersion: null,
+          },
+        ],
+        sessionId: input.sessionID ?? null,
+        messageId: sourceMessageID,
+        sourceTaskId: input.runID ?? null,
+        captureIds: [],
+        messageTextHash: sha256(input.sourceText ?? input.objective),
+        imageManifest: workspaceImageManifest(input.inputParts ?? []),
+        captureVersion: null,
+        captureSubjectId: null,
+        captureContextId: null,
+      };
+      const isolated = typeof (input.database as { release?: unknown }).release === "function";
+      if (isolated) await input.database.query("SAVEPOINT memory_review_stage");
+      let staged: Awaited<ReturnType<typeof stageMemoryProposal>>;
+      try {
+        staged = await stageMemoryProposal(
+          input.database,
+          input.auth,
+          {
+            idempotency_key: randomUUID(),
+            surface: "chat",
+            session_id: input.sessionID ?? null,
+            source_task_id: input.runID ?? null,
+            source_message_id: sourceMessageID,
+            person_id: personID,
+            relationship_context_id: contextID,
+            contact_decision: contactDecision,
+            new_contact: newContact,
+            proposer: {
+              kind: "agent",
+              name: "workspace-conversation",
+              version: "1",
+            },
+            items: [...items] as MemoryProposalStageRequest["items"],
+          },
+          authority,
+        );
+        if (isolated) await input.database.query("RELEASE SAVEPOINT memory_review_stage");
+      } catch {
+        if (isolated) {
+          await input.database.query("ROLLBACK TO SAVEPOINT memory_review_stage");
+        }
+        return null;
+      }
+      if (!staged) return null;
+      return {
+        proposalID: staged.proposal.proposal_id,
+        proposalRevision: staged.proposal.revision,
+        itemCount: staged.proposal.item_count,
+        defaultSelectedCount: staged.proposal.default_selected_count,
+        scopeCounts: staged.scopeCounts,
+        contactStatus: staged.proposal.contact_status,
+        personID: staged.proposal.person_id ?? null,
+        personDisplayLabel: staged.proposal.person_display_label ?? null,
+      };
+    },
+  };
   return executeWorkspaceConversationAgentCore({
     objective: input.objective,
+    ...(input.sourceText === undefined ? {} : { sourceText: input.sourceText }),
     provider: input.provider,
     workspaceID: input.auth.accountId,
     contacts,
+    memory,
     ...(input.runID ? { runID: input.runID } : {}),
     ...(input.observation ? { observation: input.observation } : {}),
     ...(input.continuation ? { continuation: input.continuation } : {}),

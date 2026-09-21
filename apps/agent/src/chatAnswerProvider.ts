@@ -59,6 +59,7 @@ export interface RemoteChatAnswerRequest {
   context_blocks: RemoteChatContextBlock[];
   allowed_citation_ids: string[];
   images?: RemoteChatImageInput[];
+  memoryReview?: import("./memorySchemas.js").RemoteChatMemoryReviewHooks;
 }
 
 export interface RemoteChatImageInput {
@@ -86,6 +87,7 @@ export interface RemoteChatAnswerResult {
   remote_requests_started?: number | null;
   prompt_revision?: string;
   prompt_snapshot?: PromptSnapshot;
+  memoryProposal?: import("./memorySchemas.js").RemoteChatMemoryProposalReference;
 }
 
 export interface AgentRunConfigurationEvidence {

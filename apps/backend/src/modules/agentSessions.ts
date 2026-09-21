@@ -25,6 +25,7 @@ import {
 } from "./agentSessionSources.js";
 import { sweepHarnessSessions } from "./harnessSessions.js";
 import { sweepConversationQueue } from "./conversationQueueSweep.js";
+import { invalidateMemoriesForSessionIds } from "./memoryReviewRecall.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 if (!FormatRegistry.Has("uuid"))
@@ -1067,6 +1068,12 @@ export async function mutateAgentSession(
           result.revision,
         ],
       );
+      if (deleted) {
+        // An explicit Session deletion revokes dependent accepted Memory now.
+        // The natural retention sweep does not call this path, so a purged
+        // Session image does not erase independently retained evidence.
+        await invalidateMemoriesForSessionIds(client, auth.accountId, [id]);
+      }
       return record(result);
     });
   for (let attempt = 0; ; attempt++) {

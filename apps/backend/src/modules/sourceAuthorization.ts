@@ -15,6 +15,7 @@ import {
   completeIdempotency,
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
+import { invalidateMemoriesForCaptureIds } from "./memoryReviewRecall.js";
 import { compileRelationshipWiki } from "./wiki.js";
 
 interface SourceAuthorizationRow {
@@ -579,6 +580,21 @@ async function transitionCaptureSourceAuthorization(
          AND id = ANY($2::uuid[])`,
       [auth.accountId, captureIds, decidedAt],
     );
+    if (request.decision === "revoke") {
+      // Only an explicit human revoke permanently invalidates accepted Memory.
+      // Natural authorization expiry ("expire") keeps the independently
+      // retained minimal evidence available, matching the retention contract.
+      // The tombstone is epoch-scoped to the revoked capture version, so a
+      // later restore can stage fresh evidence while the old accepted epoch
+      // stays gone.
+      await invalidateMemoriesForCaptureIds(
+        client,
+        auth.accountId,
+        captureIds,
+        "source_revoked",
+        new Map(lineage.rows.map((capture) => [capture.id, capture.version])),
+      );
+    }
     if (request.decision === "restore") {
       await client.query(
         `UPDATE evidence_fragments

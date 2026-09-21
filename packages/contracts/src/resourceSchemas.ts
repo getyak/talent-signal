@@ -1580,6 +1580,15 @@ export const RunArtifactSchema = Type.Object({
   content_hash: Type.String({pattern:"^[a-f0-9]{64}$"}), expires_at: Timestamp,
 },{additionalProperties:false});
 
+/** Optional review reference. Never the sole agent event; old clients ignore it. */
+export const MemoryProposalReferenceSchema = Type.Object(
+  {
+    proposal_id: Id,
+    revision: Type.Integer({ minimum: 1 }),
+  },
+  { $id: "MemoryProposalReference", additionalProperties: false },
+);
+
 export const ChatTaskResponseSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
@@ -1599,6 +1608,7 @@ export const ChatTaskResponseSchema = Type.Object(
     }),
     artifacts: Type.Optional(Type.Array(RunArtifactSchema,{maxItems:3})),
     media: Type.Optional(Type.Array(ChatMediaAssetSchema, { maxItems: 10 })),
+    memory_proposal: Type.Optional(MemoryProposalReferenceSchema),
     telemetry: Type.Optional(TelemetryContextSchema),
     session_title: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
     created_at: Timestamp,
@@ -1819,6 +1829,7 @@ export const UnscopedChatTaskResponseSchema = Type.Object(
     agent_event: Type.Optional(
       Type.Union([WorkspaceConversationAgentEventSchema, Type.Null()]),
     ),
+    memory_proposal: Type.Optional(MemoryProposalReferenceSchema),
     external_effects: Type.Tuple([]),
     session_title: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
     created_at: Timestamp,

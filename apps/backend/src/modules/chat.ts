@@ -6,7 +6,7 @@ import { loadAgentResponsePreference } from "./agentPreferences.js";
 import { createHarnessContinuationFactory } from "./harnessSessions.js";
 import { captureProductStep } from "@talent-signal/agent";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import type {
   ChatCitation,
@@ -58,6 +58,11 @@ import { loadSnapshot } from "./wiki.js";
 import { recordFeedbackExecution } from "./feedbackExecutions.js";
 import { productObservationContext } from "./runtimeObservationSources.js";
 import { lockChatCompletionSources } from "./chatCompletionSources.js";
+import {
+  recallMemories,
+  stageMemoryProposal,
+  type MemorySourceAuthority,
+} from "./memoryReview.js"; import type { MemoryProposalStageRequest } from "@talent-signal/contracts";
 
 const CHAT_POLICY_VERSION = "chat-context.v3";
 
@@ -1075,6 +1080,113 @@ export async function createChatTask(
           context_blocks: selectedBlocks.map(remoteContextBlock),
           allowed_citation_ids: evidenceFragmentIds,
           images,
+          memoryReview: {
+            recall: async () => {
+              try {
+                const recalled = await recallMemories(client, auth, {
+                  surface: "relationship",
+                  person_id: request.person_id,
+                  relationship_context_id: request.relationship_context_id,
+                });
+                return {
+                  items: recalled.items.map((item) => ({
+                    id: item.id,
+                    scope: item.scope,
+                    statement_kind: item.statement_kind,
+                    display_text: item.display_text,
+                    speaker: item.speaker ?? null,
+                    reporter: item.reporter ?? null,
+                    valid_time: item.valid_time ?? null,
+                    time_status: item.time_status,
+                  })),
+                };
+              } catch {
+                return { items: [] };
+              }
+            },
+            stage: async ({ items }) => {
+              const nonSelf = items.filter((item) => item.scope !== "self");
+              if (nonSelf.length === 0) return null;
+              // The optional Memory proposal is isolated in a savepoint so a
+              // suggestion failure never destroys the completed helpful answer.
+              await client.query("SAVEPOINT memory_review_stage");
+              try {
+                const imageArtifacts = media.map((item, index) => ({
+                  artifactId: `image-${index}`,
+                  sourceArtifactId: item.id,
+                  kind: "image" as const,
+                  sessionId: request.session_id ?? null,
+                  messageId: request.message_id ?? null,
+                  captureId: null,
+                  sourceResourceId: null,
+                  evidenceFragmentId: null,
+                  contentHash: null,
+                  captureVersion: null,
+                }));
+                const authority: MemorySourceAuthority = {
+                  text: request.objective,
+                  artifacts: [
+                    ...imageArtifacts,
+                    {
+                      artifactId: `${request.session_id ?? "relationship"}:message:${request.message_id ?? ""}`,
+                      kind: "text" as const,
+                      sessionId: request.session_id ?? null,
+                      messageId: request.message_id ?? null,
+                      captureId: null,
+                      sourceResourceId: null,
+                      evidenceFragmentId: null,
+                      contentHash: null,
+                      captureVersion: null,
+                    },
+                  ],
+                  sessionId: request.session_id ?? null,
+                  messageId: request.message_id ?? null,
+                  sourceTaskId: taskId,
+                  captureIds: [],
+                  messageTextHash: createHash("sha256")
+                    .update(request.objective)
+                    .digest("hex"),
+                  imageManifest: [],
+                  captureVersion: null,
+                  captureSubjectId: null,
+                  captureContextId: null,
+                };
+                const staged = await stageMemoryProposal(
+                  client,
+                  auth,
+                  {
+                    idempotency_key: randomUUID(),
+                    surface: "relationship",
+                    session_id: request.session_id ?? null,
+                    source_task_id: taskId,
+                    source_message_id: request.message_id ?? null,
+                    person_id: request.person_id,
+                    relationship_context_id: request.relationship_context_id,
+                    contact_decision: "existing",
+                    identity_authority: "human_selection",
+                    proposer: {
+                      kind: "agent",
+                      name: "relationship-ask",
+                      version: "1",
+                    },
+                    items: nonSelf as MemoryProposalStageRequest["items"],
+                  },
+                  authority,
+                );
+                await client.query("RELEASE SAVEPOINT memory_review_stage");
+                if (!staged) return null;
+                return {
+                  proposal_id: staged.proposal.proposal_id,
+                  proposal_revision: staged.proposal.revision,
+                  item_count: staged.proposal.item_count,
+                  default_selected_count: staged.proposal.default_selected_count,
+                };
+              } catch {
+                await client.query("ROLLBACK TO SAVEPOINT memory_review_stage");
+                return null;
+              }
+            },
+          },
           observation: await productObservationContext(client, auth, taskId,
             mediaIds.length ? "relationship_image" : "relationship_text", {
               sessionID: request.session_id, personID: request.person_id, contextID: request.relationship_context_id,
@@ -1179,6 +1291,14 @@ export async function createChatTask(
       blocks,
       ...(remoteChatStatus==="completed" && runFiles?.receipts().length ? {artifacts:runFiles.receipts()} : {}),
       media,
+      ...(remoteChatResult?.memoryProposal
+        ? {
+            memory_proposal: {
+              proposal_id: remoteChatResult.memoryProposal.proposal_id,
+              revision: remoteChatResult.memoryProposal.proposal_revision,
+            },
+          }
+        : {}),
       ...(request.telemetry ? { telemetry: request.telemetry } : {}),
       ...(sessionTitle ? { session_title: sessionTitle } : {}),
       created_at: createdAt.toISOString(),

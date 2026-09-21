@@ -6,7 +6,11 @@ import type { DatabaseClient } from "../database/pool.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthContext } from "./auth.js";
-import { executeWorkspaceConversationAgent, executeWorkspaceConversationAgentCore } from "./workspaceConversationAgent.js";
+import {
+  executeWorkspaceConversationAgent,
+  executeWorkspaceConversationAgentCore,
+  type WorkspaceMemoryLookup,
+} from "./workspaceConversationAgent.js";
 
 const auth: AuthContext = {
   accountId: "11111111-1111-4111-8111-111111111111",
@@ -552,26 +556,31 @@ describe("workspace conversation Agent", () => {
   it("does not let a generic reply silently use searched contact data", async () => {
     const query = vi.fn().mockResolvedValueOnce({ rows: [personRow()] });
 
-    await expect(
-      executeWorkspaceConversationAgent({
-        database: { query } as unknown as DatabaseClient,
-        auth,
-        objective: "Tell me about Maya Chen",
-        provider: new ScriptedAgentProvider(
-          [
-            {
-              tool: "contact_workspace",
-              input: { operation: "search", query: "Maya Chen", maximum_results: 4 },
-            },
-          ],
+    const execution = await executeWorkspaceConversationAgent({
+      database: { query } as unknown as DatabaseClient,
+      auth,
+      objective: "Tell me about Maya Chen",
+      provider: new ScriptedAgentProvider(
+        [
           {
-            outcome: "reply",
-            title: "Maya Chen",
-            body: "A reply based on the hidden search result.",
+            tool: "contact_workspace",
+            input: { operation: "search", query: "Maya Chen", maximum_results: 4 },
           },
-        ),
-      }),
-    ).rejects.toThrow("did not preserve the contact Tool boundary");
+        ],
+        {
+          outcome: "reply",
+          title: "Maya Chen",
+          body: "A reply based on the hidden search result.",
+        },
+      ),
+    });
+    // A helpful answer is allowed, but it must not surface the searched contact
+    // as resolved provenance without an explicit read.
+    expect(execution.event).toBeNull();
+    expect(execution.block).toMatchObject({
+      kind: "answer",
+      body: "A reply based on the hidden search result.",
+    });
   });
 });
 
@@ -726,5 +735,108 @@ describe("conversation-only context and proactive contact drafts", () => {
       conversationHistory: history, contacts: { search: vi.fn(), read: vi.fn() },
       provider: { ...scripted, run },
     });
+  });
+
+  it("returns an optional memory reference without occupying the agent event", async () => {
+    const stagedProposal = {
+      proposalID: "66666666-6666-4666-8666-666666666666",
+      proposalRevision: 1,
+      itemCount: 2,
+      defaultSelectedCount: 1,
+      scopeCounts: { self: 2, person: 0, relationship: 0 },
+      contactStatus: "pending" as const,
+      personID: null,
+      personDisplayLabel: null,
+    };
+    const memory: WorkspaceMemoryLookup = {
+      recall: vi.fn(async () => ({ items: [] })),
+      stage: vi.fn(async () => stagedProposal),
+    };
+    const provider = new ScriptedAgentProvider(
+      [
+        {
+          tool: "memory_review",
+          input: {
+            operation: "propose",
+            contact_decision: "none",
+            items: [
+              {
+                scope: "self",
+                operation: "add",
+                statement_kind: "fact",
+                display_text: "I prefer conclusions first",
+                time_status: "known",
+                sensitivity: "normal",
+                source_excerpt: "先给结论",
+                source_locator: { kind: "message", session_id: null, message_id: null },
+                reason: "useful later",
+              },
+            ],
+          },
+        },
+      ],
+      { outcome: "reply", title: "记住了", body: "这里是回答。" },
+    );
+    const execution = await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "先给结论",
+      contacts: { search: vi.fn(), read: vi.fn() },
+      memory,
+      provider,
+    });
+    expect(execution.event).toBeNull();
+    expect(execution.memoryProposal).toEqual({
+      proposal_id: stagedProposal.proposalID,
+      revision: 1,
+    });
+    expect(execution.block).toMatchObject({
+      kind: "answer",
+      body: "这里是回答。",
+    });
+  });
+
+  it("keeps the helpful answer when the optional memory stage fails", async () => {
+    const memory: WorkspaceMemoryLookup = {
+      recall: vi.fn(async () => ({ items: [] })),
+      stage: vi.fn(async () => {
+        throw new Error("MEMORY_UNAVAILABLE");
+      }),
+    };
+    const provider = new ScriptedAgentProvider(
+      [
+        {
+          tool: "memory_review",
+          input: {
+            operation: "propose",
+            contact_decision: "none",
+            items: [
+              {
+                scope: "self",
+                operation: "add",
+                statement_kind: "fact",
+                display_text: "I prefer conclusions first",
+                time_status: "known",
+                sensitivity: "normal",
+                source_excerpt: "先给结论",
+                source_locator: { kind: "message", session_id: null, message_id: null },
+                reason: "useful later",
+              },
+            ],
+          },
+        },
+      ],
+      { outcome: "reply", title: "记住了", body: "这里是回答。" },
+    );
+    const run = vi.spyOn(provider, "run");
+    const execution = await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "先给结论",
+      contacts: { search: vi.fn(), read: vi.fn() },
+      memory,
+      provider,
+    });
+    expect(run).toHaveBeenCalledOnce();
+    expect(execution.memoryProposal).toBeNull();
+    expect(execution.block).toMatchObject({ kind: "answer", body: "这里是回答。" });
   });
 });

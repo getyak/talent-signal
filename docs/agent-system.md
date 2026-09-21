@@ -187,9 +187,9 @@ Source memory preserves captures; episodic memory preserves event order;
 semantic memory represents current understanding. Procedural and operational
 memory describe reusable action and task methods without granting authority.
 
-New model output enters as a proposal or hypothesis. Confirmed facts and
-verified outcomes may update active relationship memory. Repeated corrections
-or outcomes may propose a playbook, but learning remains reviewable.
+New model output enters as a proposal. Accepted facts, source statements, and
+user opinion stay distinct across the self, person, and relationship scopes.
+Repeated corrections may propose a playbook, but learning remains reviewable.
 
 The Agent Wiki is a versioned semantic compilation over governed state. It is a
 first-class shared memory product and the primary way people and Agents recover

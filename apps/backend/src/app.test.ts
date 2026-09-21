@@ -76,6 +76,10 @@ describe("readiness rate limiting", () => {
         { version: "073_account_onboarding" },
         { version: "074_time_workspace" },
         { version: "075_conversation_message_images" },
+        { version: "076_memory_review" },
+        { version: "077_memory_review_corrections" },
+        { version: "078_memory_review_hardening" },
+        { version: "079_memory_source_authority" },
       ],
     });
     const app = await buildApp({
@@ -119,6 +123,10 @@ describe("readiness rate limiting", () => {
           "073_account_onboarding",
           "074_time_workspace",
           "075_conversation_message_images",
+          "076_memory_review",
+          "077_memory_review_corrections",
+          "078_memory_review_hardening",
+          "079_memory_source_authority",
         ]
           .filter(version => version !== missing).map(version => ({ version })),
       });
