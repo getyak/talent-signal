@@ -15,7 +15,8 @@ import {
 import { WorkspaceRecentSessions } from "@/components/workspace-recent-sessions";
 import { WorkspaceGlobalSearchDialog } from "@/components/workspace-search";
 import { WorkspaceSidebarPeople } from "@/components/workspace-sidebar-people";
-import { WorkspaceRouteHeader } from "@/components/workspace-route-header";
+import { WorkspacePrivacyEntry, WorkspaceRouteHeader } from "@/components/workspace-route-header";
+import { WorkspacePrivacyBoundary } from "@/components/workspace-privacy-boundary";
 import styles from "@/components/workspace-shell.module.css";
 import {
   readBackendSessionClaims,
@@ -146,75 +147,78 @@ export default async function WorkspaceLayout({
 
 
   return (
-    <div lang="zh-CN" className={`ts-workspace-theme quiet-workspace ${styles.shell}`}>
-      {pendingBinding ? (
-        <MeetingDraftSessionBoundary sessionVersion={pendingBinding} />
-      ) : null}
-      <SessionDraftSessionBoundary storageScope={pendingSessionDraftScope} />
-      <WorkspaceDirectoryScope binding={pendingBinding} />
-      <aside aria-label="Talent Signal 工作台" className={styles.sidebar}>
-        <WorkspaceShellNav binding={pendingBinding} />
-        <div className={styles.sidebarScroll}>
-          {pendingBinding ? (
-            <WorkspaceRecentSessions key={pendingBinding} binding={pendingBinding} />
-          ) : null}
-          <WorkspaceSidebarPeople binding={pendingBinding} />
-        </div>
-        <div className={styles.account}>
-          {fixtureWorkspace ? (
-            <span className={styles.environmentBadge} title="合成测试工作台——仅含评测数据，不是真实招聘记录">合成测试空间</span>
-          ) : null}
-          <AccountControls
-            accountName={accountName}
-            fixtureWorkspace={fixtureWorkspace}
-            workspaceName={workspaceName}
-          />
-        </div>
-      </aside>
-
-      <div className={styles.workspace}>
-        <header className={styles.mobileHeader}>
-          <Link
-            aria-label="Talent Signal 工作台"
-            className={styles.brand}
-            href="/workspace"
-          >
-            <span aria-hidden="true" className={styles.brandMark} />
-            <span className={styles.brandName}>Talent Signal</span>
-          </Link>
-          <div className={styles.mobileAccount}>
-            <WorkspaceGlobalSearchDialog binding={pendingBinding} />
-            <WorkspaceMobileSourcesLink />
+    <WorkspacePrivacyBoundary privateContent={children}>
+      <div lang="zh-CN" className={`ts-workspace-theme quiet-workspace ${styles.shell}`}>
+        {pendingBinding ? (
+          <MeetingDraftSessionBoundary sessionVersion={pendingBinding} />
+        ) : null}
+        <SessionDraftSessionBoundary storageScope={pendingSessionDraftScope} />
+        <WorkspaceDirectoryScope binding={pendingBinding} />
+        <aside aria-label="Talent Signal 工作台" className={styles.sidebar}>
+          <WorkspaceShellNav binding={pendingBinding} />
+          <div className={styles.sidebarScroll}>
+            {pendingBinding ? (
+              <WorkspaceRecentSessions key={pendingBinding} binding={pendingBinding} />
+            ) : null}
+            <WorkspaceSidebarPeople binding={pendingBinding} />
+          </div>
+          <div className={styles.account}>
+            {fixtureWorkspace ? (
+              <span className={styles.environmentBadge} title="合成测试工作台——仅含评测数据，不是真实招聘记录">合成测试空间</span>
+            ) : null}
             <AccountControls
               accountName={accountName}
               fixtureWorkspace={fixtureWorkspace}
               workspaceName={workspaceName}
             />
           </div>
-        </header>
-        <WorkspaceRouteHeader />
-        {/* Lab loads independently after hydration; it must not hold up product HTML. */}
-        <TalentSignalLabShell initialManifest={null}>
-          <div
-            className={styles.stage}
-            id="workspace-content"
-            data-workspace-scope={scope}
-            key={scope}
-          >
-            <SystemHealthProvider>
-              {testName && (
-                <div className={accountStyles.banner} role="status">
-                  <span>测试空间 · {testName}</span>
-                  <form action={leaveTestWorkspace}>
-                    <button type="submit">返回我的空间</button>
-                  </form>
-                </div>
-              )}
-              {children}
-            </SystemHealthProvider>
-          </div>
-        </TalentSignalLabShell>
+        </aside>
+
+        <div className={styles.workspace}>
+          <header className={styles.mobileHeader}>
+            <Link
+              aria-label="Talent Signal 工作台"
+              className={styles.brand}
+              href="/workspace"
+            >
+              <span aria-hidden="true" className={styles.brandMark} />
+              <span className={styles.brandName}>Talent Signal</span>
+            </Link>
+            <div className={styles.mobileAccount}>
+              <WorkspaceGlobalSearchDialog binding={pendingBinding} />
+              <WorkspaceMobileSourcesLink />
+              <WorkspacePrivacyEntry mobile />
+              <AccountControls
+                accountName={accountName}
+                fixtureWorkspace={fixtureWorkspace}
+                workspaceName={workspaceName}
+              />
+            </div>
+          </header>
+          <WorkspaceRouteHeader />
+          {/* Lab loads independently after hydration; it must not hold up product HTML. */}
+          <TalentSignalLabShell initialManifest={null}>
+            <div
+              className={styles.stage}
+              id="workspace-content"
+              data-workspace-scope={scope}
+              key={scope}
+            >
+              <SystemHealthProvider>
+                {testName && (
+                  <div className={accountStyles.banner} role="status">
+                    <span>测试空间 · {testName}</span>
+                    <form action={leaveTestWorkspace}>
+                      <button type="submit">返回我的空间</button>
+                    </form>
+                  </div>
+                )}
+                {children}
+              </SystemHealthProvider>
+            </div>
+          </TalentSignalLabShell>
+        </div>
       </div>
-    </div>
+    </WorkspacePrivacyBoundary>
   );
 }

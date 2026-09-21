@@ -1,3 +1,4 @@
+import { requestLoggerOptions } from "./lib/requestLogger.js";
 import {RunArtifactSchema} from "@talent-signal/contracts";
 import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessRunFiles.js";
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
@@ -264,6 +265,12 @@ import {
   type RemoteChatAnswerProviding,
 } from "./modules/chatAnswerProvider.js";
 import {
+  createEnvironmentPrivateConversationProvider,
+  isPrivateConversationRequest,
+  registerPrivateConversationRoutes,
+  type PrivateConversationProvider,
+} from "./modules/privateConversation.js";
+import {
   CHAT_MEDIA_MAX_BYTES,
   createChatMediaAsset,
   deleteChatMediaAsset,
@@ -476,6 +483,7 @@ export interface AppDependencies {
   voiceTranscriber?: VoiceTranscriptionServing;
   chatMediaStorage?: ChatMediaStorage;
   remoteChatProvider?: RemoteChatAnswerProviding | null;
+  privateConversationProvider?: PrivateConversationProvider | null;
   labProviders?: Map<string, RemoteChatAnswerProviding>;
   labJobWorkerEnabled?: boolean;
   /** Disable background queue execution only for an explicitly isolated host/test. */
@@ -496,6 +504,9 @@ export async function buildApp(
   const remoteChatProvider = dependencies.remoteChatProvider === undefined
     ? createEnvironmentChatAnswerProvider()
     : dependencies.remoteChatProvider;
+  const privateConversationProvider = dependencies.privateConversationProvider === undefined
+    ? createEnvironmentPrivateConversationProvider()
+    : dependencies.privateConversationProvider;
   const deploymentExposure = captureDeploymentExposure();
   assertCandidateDeploymentExposure(deploymentExposure, remoteChatProvider?.loadedTaskConfiguration);
   const personResearchProvider =
@@ -511,36 +522,7 @@ export async function buildApp(
     ...(config.tls
       ? { https: { cert: config.tls.certificatePem, key: config.tls.privateKeyPem } }
       : {}),
-    logger: {
-      level: process.env.LOG_LEVEL ?? "info",
-      redact: {
-        paths: [
-          "req.headers.authorization",
-          "req.body.payload",
-          "body.payload",
-          "req.body.password",
-          "req.body.access_token",
-          "req.body.audio_base64",
-          "req.body.content_parts[*].content_text",
-          "req.body.content_parts[*].content_base64",
-          "req.body.image.data_base64",
-          "req.body.expected_behavior",
-          "req.body.review_note",
-          "headers.authorization",
-          "body.password",
-          "body.access_token",
-          "body.audio_base64",
-          "body.content_parts[*].content_text",
-          "body.content_parts[*].content_base64",
-          "body.image.data_base64",
-          "body.expected_behavior",
-          "body.review_note",
-          "access_token",
-          "password_scrypt",
-        ],
-        censor: "[redacted]",
-      },
-    },
+    logger: requestLoggerOptions(),
     requestIdHeader: "x-request-id",
     genReqId: () => randomUUID(),
     bodyLimit: 2 * 1024 * 1024,
@@ -553,6 +535,9 @@ export async function buildApp(
     });
   });
   app.addHook("onResponse", async (request, reply) => {
+    // The private transport keeps no product-run or observation footprint; its
+    // hijacked stream never triggers the reconciliation sweep.
+    if (isPrivateConversationRequest(request)) return;
     if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && reply.statusCode < 400) {
       await sweepRuntimeObservationSources(pool).catch(() => {
         request.log.error({ code: "RUNTIME_OBSERVATION_SOURCE_RECONCILIATION_PENDING" }, "Private observation source reconciliation will retry.");
@@ -791,6 +776,7 @@ export async function buildApp(
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
   registerAgentPreferenceRoutes(app, pool, authenticate, remoteChatProvider?.providerId === "claude-agent-sdk");
+  registerPrivateConversationRoutes(app, authenticate, privateConversationProvider);
   registerMcpExtensionRoutes(app, pool, authenticate, {
     allowedOrigins: [],
     deploymentWorkspaceIds: deploymentExposure?.workspaceIds,

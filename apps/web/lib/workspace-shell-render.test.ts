@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-const { auth, claims } = vi.hoisted(() => ({
+const { auth, claims, route } = vi.hoisted(() => ({
+  route: { pathname: "/workspace" },
   auth: vi.fn(),
   claims: vi.fn(),
 }));
@@ -29,7 +30,7 @@ vi.mock("@/components/talent-signal-lab/lab-shell", () => ({
 // The canvas is a client surface; a bare react-dom/server render still needs
 // the router context Next provides in the app.
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/workspace",
+  usePathname: () => route.pathname,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -47,7 +48,7 @@ function liveClaims() {
 }
 
 describe("quiet workspace shell render", () => {
-  afterEach(() => vi.clearAllMocks());
+  afterEach(() => { vi.clearAllMocks(); route.pathname = "/workspace"; });
 
   it("renders the reference chrome: brand, primary nav, real account footer", async () => {
     auth.mockResolvedValue({ user: { name: "Synthetic Recruiter" } });
@@ -104,6 +105,19 @@ describe("quiet workspace shell render", () => {
     expect(html).not.toContain("未关联人物");
     expect(html).not.toContain("选择人物");
     expect(html).toContain("new-conversation-objective");
+  });
+
+  it("renders only the private surface without history, account names or Lab chrome", async () => {
+    route.pathname = "/workspace/private";
+    auth.mockResolvedValue({ user: { name: "Synthetic Recruiter" } });
+    claims.mockResolvedValue(liveClaims());
+    const html = renderToStaticMarkup(await WorkspaceLayout({ children: createElement("main", null, "private room") }));
+    expect(html).toContain("private room");
+    expect(html).not.toContain("工作台导航");
+    expect(html).not.toContain("Synthetic Recruiter");
+    expect(html).not.toContain("Alpha 寻访测试");
+    expect(html).not.toContain("最近对话");
+    expect(html).not.toContain("workspace-content");
   });
 
   it("keeps the unauthenticated boundary free of product chrome", async () => {
