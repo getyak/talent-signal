@@ -125,6 +125,24 @@ No GET24 production activation or Linear completion is claimed. Linear was
 read back In Progress earlier; current browser-control failure prevents another
 readback until the surface recovers.
 
+### Final admission-fix baseline
+
+Real resident acceptance of the ordinary-conversation queue found that first
+admission unmounted the composer and could lose continued typing. PR225 fixes
+this with native History synchronization while retaining the live controller.
+Its independent review closed cross-tab draft, delete/reset and pending-route
+findings. The Time-specific reviewer verified pending/committed Time navigation
+and popstate cannot be overwritten by late admission, with Time drafts and
+receipts unchanged. The four-file fix merged as `8995e528`; all its applicable
+GitHub and both Vercel checks passed. This branch now incorporates that baseline.
+The other delivery owners agreed to no further main changes during GET24's
+final check/merge cycle. The preceding GET24 heada1e2 passed Web1102, backend669,
+real-PGTime14/14, macOS and Security; its in-progress iOS result is not substituted
+for the new final head. Prepared a1e2 images remain inactive. Resident78 migration
+rows were independently rechecked against final source with all old timestamps
+unchanged. Combined release, live Time acceptance and Linear closeout remain
+pending final-head gates and merge.
+
 ## Progress (historical evidence)
 
 - Baseline fetched and dedicated worktree created; dependencies installed.
