@@ -49,7 +49,6 @@ jobs:
       id-token: write
     env:
       MACOS_RELEASE_MODE: ${{ vars.MACOS_RELEASE_MODE || 'preview' }}
-      MACOS_BUILD_NUMBER: ${{ github.run_number }}
       RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
       RELEASE_TAG: macos-${{ github.run_id }}-${{ github.run_attempt }}
       GH_TOKEN: ${{ github.token }}
@@ -86,8 +85,11 @@ jobs:
         run: scripts/macos/signing-keychain.sh
       - name: Package Universal app
         run: |
-          echo "MACOS_OUTPUT_DIR=$RUNNER_TEMP/macos-distribution" >> "$GITHUB_ENV"
-          MACOS_OUTPUT_DIR="$RUNNER_TEMP/macos-distribution" scripts/macos/package.sh
+          # Start above the existing native build 7; reruns keep the same build number.
+          export MACOS_BUILD_NUMBER="$((GITHUB_RUN_NUMBER + 7))"
+          export MACOS_OUTPUT_DIR="$RUNNER_TEMP/macos-distribution"
+          printf 'MACOS_OUTPUT_DIR=%s\nMACOS_BUILD_NUMBER=%s\n' "$MACOS_OUTPUT_DIR" "$MACOS_BUILD_NUMBER" >> "$GITHUB_ENV"
+          scripts/macos/package.sh
       - name: Publish verified downloads
         run: |
           set -euo pipefail
