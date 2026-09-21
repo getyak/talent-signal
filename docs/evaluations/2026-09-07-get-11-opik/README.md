@@ -77,10 +77,10 @@ The original synthetic proofs used no paid model request, business action,
 deployment or production prompt promotion. The later baseline deployment
 included synthetic provider health probes and is separately recorded in the
 delivery receipt; those probes do not establish candidate quality or exposure.
-GET-12 still requires currency and monetary limits per run/month, plus target
-environment and workspace exposure scope. Those missing parameters do not
-prevent the delivered implementation and isolated proof, and are not filled
-with invented defaults.
+At this verification date, GET-12 still lacked currency, monetary limits and
+target audience. The later [GET-12 parameter receipt](../2026-09-21-get-12/README.md)
+supersedes that input blocker with the owner's explicit authorization. It does
+not turn this earlier isolated proof into a funded experiment or release.
 
 Relationship-text quality is the first supported comparison scope. Synthetic
 provider checks cannot certify screenshot recognition, all Agent tasks,

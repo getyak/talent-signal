@@ -12,7 +12,20 @@ export interface OptimizationBudgetResources {
   candidateCount: number;
 }
 
-export interface OptimizationBudgetLimits extends OptimizationBudgetResources {
+/**
+ * The operator authorized unlimited money for this ceiling. It is an explicit
+ * written value, never inferred from a missing, null, zero, NaN or infinite
+ * amount: a finite integer micro amount and this literal are the only inputs.
+ */
+export type OptimizationBudgetMonetaryLimit = number | "unlimited";
+
+/**
+ * Limits stay finite for every measured dimension. Only money accepts the
+ * explicit "unlimited" authorization, which skips the monetary ceiling while
+ * accounting, overflow checks and all other dimensions remain enforced.
+ */
+export interface OptimizationBudgetLimits extends Omit<OptimizationBudgetResources, "amountMicros"> {
+  amountMicros: OptimizationBudgetMonetaryLimit;
   concurrency: number;
 }
 
@@ -94,6 +107,10 @@ export class OptimizationBudgetError extends Error {
 }
 
 const dimensions = ["amountMicros", "calls", "tokens", "elapsedMs", "candidateCount"] as const;
+/** Money is the only dimension that may be "unlimited"; the rest never are. */
+const measuredDimensions = ["calls", "tokens", "elapsedMs", "candidateCount"] as const;
+const monetary = (value: unknown): value is OptimizationBudgetMonetaryLimit =>
+  value === "unlimited" || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
 const zero = (): OptimizationBudgetResources => ({ amountMicros: 0, calls: 0, tokens: 0, elapsedMs: 0, candidateCount: 0 });
 const clone = <T>(value: T): T => structuredClone(value);
 function fail(code: string): never { throw new OptimizationBudgetError(code); }
@@ -110,14 +127,23 @@ function exactKeys(value: object, required: readonly string[], optional: readonl
   if (!value || typeof value !== "object" || Array.isArray(value) || required.some((key) => !Object.hasOwn(value, key)) || Object.keys(value).some((key) => !required.includes(key) && !optional.includes(key))) fail("invalid_fields");
 }
 
-function resources(value: OptimizationBudgetResources, isLimit = false): void {
+function resources(value: OptimizationBudgetResources): void {
   if (!value || dimensions.some((key) => !Number.isSafeInteger(value[key]) || value[key] < 0)) fail("invalid_resources");
-  exactKeys(value, isLimit ? [...dimensions, "concurrency"] : dimensions);
+  exactKeys(value, dimensions);
 }
 
 function limits(value: OptimizationBudgetLimits): void {
-  resources(value, true);
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("invalid_resources");
+  exactKeys(value, [...dimensions, "concurrency"]);
+  if (!monetary(value.amountMicros)) fail("invalid_resources");
+  if (measuredDimensions.some((key) => !Number.isSafeInteger(value[key]) || value[key] < 0)) fail("invalid_resources");
   if (!Number.isSafeInteger(value.concurrency) || value.concurrency < 1) fail("invalid_concurrency");
+}
+
+/** A finite run money ceiling can never exceed a finite monthly money ceiling. */
+function monthlyAdmitsRun(run: OptimizationBudgetLimits, monthly: OptimizationBudgetLimits): void {
+  if (run.amountMicros === "unlimited" ? monthly.amountMicros !== "unlimited" : monthly.amountMicros !== "unlimited" && run.amountMicros > monthly.amountMicros) fail("run_exceeds_monthly_amountMicros");
+  for (const key of measuredDimensions) if (run[key] > monthly[key]) fail(`run_exceeds_monthly_${key}`);
 }
 
 function plus(a: OptimizationBudgetResources, b: OptimizationBudgetResources): OptimizationBudgetResources {
@@ -129,8 +155,9 @@ function plus(a: OptimizationBudgetResources, b: OptimizationBudgetResources): O
   return result;
 }
 
-function within(usage: OptimizationBudgetResources, ceiling: OptimizationBudgetResources, prefix: string): void {
-  for (const key of dimensions) if (usage[key] > ceiling[key]) fail(`${prefix}_${key}`);
+function within(usage: OptimizationBudgetResources, ceiling: OptimizationBudgetLimits, prefix: string): void {
+  if (ceiling.amountMicros !== "unlimited" && usage.amountMicros > ceiling.amountMicros) fail(`${prefix}_amountMicros`);
+  for (const key of measuredDimensions) if (usage[key] > ceiling[key]) fail(`${prefix}_${key}`);
 }
 
 function usage(run: OptimizationBudgetRun): OptimizationBudgetResources {
@@ -207,7 +234,8 @@ export class FileOptimizationBudgetLedger {
   }
 
   private permit(permit: OptimizationBudgetPermit | undefined, state: BudgetState, now: Date): OptimizationBudgetPermit {
-    if (!permit || !permit.currency || !permit.runLimits?.amountMicros || !permit.monthlyLimits?.amountMicros) fail("unconfigured");
+    if (!permit || !permit.currency || permit.runLimits?.amountMicros === undefined || permit.runLimits?.amountMicros === null
+      || permit.monthlyLimits?.amountMicros === undefined || permit.monthlyLimits?.amountMicros === null) fail("unconfigured");
     exactKeys(permit, ["permitId", "budgetScopeId", "status", "issuedAt", "expiresAt", "currency", "runLimits", "monthlyLimits", "finalValidationReserve"]);
     identifier(permit.permitId);
     identifier(permit.budgetScopeId);
@@ -219,7 +247,7 @@ export class FileOptimizationBudgetLedger {
     limits(permit.runLimits);
     limits(permit.monthlyLimits);
     resources(permit.finalValidationReserve);
-    within(permit.runLimits, permit.monthlyLimits, "run_exceeds_monthly");
+    monthlyAdmitsRun(permit.runLimits, permit.monthlyLimits);
     within(permit.finalValidationReserve, permit.runLimits, "final_reserve_exceeds_run");
     if (permit.finalValidationReserve.calls < 1 || permit.finalValidationReserve.amountMicros < 1 || permit.finalValidationReserve.tokens < 1 || permit.finalValidationReserve.elapsedMs < 1) fail("final_validation_budget_required");
     return permit;

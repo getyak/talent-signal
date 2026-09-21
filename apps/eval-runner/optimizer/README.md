@@ -51,6 +51,40 @@ optimizer. Every run and final verifier for that scope shares `budget.sqlite`;
 changing a run ID does not reset monthly usage. File references must be local
 basenames; controller JSON reads reject symlinks and oversized files.
 
+A monetary permit states `currency` plus `runLimits`, `monthlyLimits`, and a
+finite numeric `finalValidationReserve`. Each limit's `amountMicros` is either
+a non-negative safe integer number of micro-units in that currency or the
+exact JSON string `"unlimited"`:
+
+The following is a permit fragment with illustrative resource bounds, not an
+active permit or default experiment sizing. Set resource limits and the final
+reserve for the frozen study before execution.
+
+```json
+{
+  "currency": "CNY",
+  "runLimits":     { "amountMicros": "unlimited", "calls": 30, "tokens": 2000000, "elapsedMs": 600000, "candidateCount": 3, "concurrency": 2 },
+  "monthlyLimits": { "amountMicros": "unlimited", "calls": 30, "tokens": 2000000, "elapsedMs": 600000, "candidateCount": 3, "concurrency": 2 },
+  "finalValidationReserve": { "amountMicros": 1000000, "calls": 2, "tokens": 100000, "elapsedMs": 60000, "candidateCount": 0 }
+}
+```
+
+The [GET-12 parameter receipt](../../../docs/evaluations/2026-09-21-get-12/README.md)
+owns the dated authorization and execution handoff. `"unlimited"` is
+the only accepted spelling and the only way to authorize no monetary ceiling.
+It is never inferred from an omitted, `null`, zero, `NaN`, `Infinity`, numeric
+string, or otherwise malformed amount, and it is rejected anywhere measured
+spend is expected: usage, reservation upper bounds, and the final-validation
+reserve must stay finite integer micro amounts. The two money ceilings are
+independent: a finite run amount under an unlimited month is valid, while an
+unlimited run amount under a finite monthly money ceiling is rejected so a
+single run can never escape a month budget. An unlimited ceiling skips only
+the money check; `calls`, `tokens`, `elapsedMs`, `candidateCount`,
+`concurrency`, the required per-operation upper bound, the final-validation
+reserve, overflow detection, pricing, revocation/expiry, and unknown-outcome
+accounting remain enforced. Existing numeric permits and their stored ledger
+digests are unchanged.
+
 `bindings.json` fixes `baselineDigest`, `datasetDigest`, `evaluatorVersion`,
 and `optimizerVersion`. The baseline digest is the canonical digest of
 `optimizationConfiguration(model, baseline, examples)`. The dataset digest is
