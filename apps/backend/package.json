@@ -48,7 +48,7 @@
     "@sinclair/typebox": "^0.34.41",
     "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
-    "fastify": "^5.12.3",
+    "fastify": "^5.12.5",
     "htmlparser2": "^12.0.0",
     "jose": "6.2.12",
     "pg": "^8.23.0",

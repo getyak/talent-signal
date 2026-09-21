@@ -19,7 +19,7 @@
     "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
     "@talent-signal/workspace-ui": "workspace:*",
-    "mammoth": "^1.12.2",
+    "mammoth": "^1.12.3",
     "motion": "13.2.0",
     "next": "16.3.4",
     "next-auth": "5.0.0-beta.32",
