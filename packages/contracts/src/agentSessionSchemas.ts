@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import { CONTRACT_VERSION } from "./constants.js";
+import { ConversationImageManifestSchema } from "./conversationQueueSchemas.js";
 
 const obj = { additionalProperties: false } as const;
 const id = Type.String({ format: "uuid" });
@@ -199,6 +200,9 @@ export const AgentSessionPayloadSchema = Type.Object(
           id,
           objective: text(12000),
           response,
+          images: Type.Optional(
+            Type.Array(ConversationImageManifestSchema, { maxItems: 10 }),
+          ),
           createdAt: stamp,
           feedback: Type.Optional(
             Type.Union([

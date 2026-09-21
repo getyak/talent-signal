@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { registerReadinessRoutes } from "./readinessRoutes.js";
 import { REQUIRED_SYSTEM_MIGRATIONS } from "./systemHealth.js";
 
-describe.each(["072_mcp_extensions", "073_conversation_queue", "073_account_onboarding", "074_time_workspace"])("schema readiness: %s", (required) => {
+describe.each(["072_mcp_extensions", "073_conversation_queue", "073_account_onboarding", "074_time_workspace", "075_conversation_message_images"])("schema readiness: %s", (required) => {
   it.each([false, true])("requires migration when applied=%s", async (applied) => {
     const migrations = REQUIRED_SYSTEM_MIGRATIONS.filter((version) => version !== required);
     const query = vi.fn().mockResolvedValue({

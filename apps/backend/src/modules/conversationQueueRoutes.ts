@@ -23,6 +23,7 @@ import {
   mutateConversationQueueEntry,
   readConversationQueueSnapshot,
 } from "./conversationQueue.js";
+import { readConversationMessageImage } from "./conversationMessageImages.js";
 import {
   readConversationQueuePreview,
   subscribeConversationQueueLive,
@@ -93,6 +94,7 @@ export function registerConversationQueueRoutes(
     "/v1/agent-sessions/:id/conversation-queue",
     {
       ...common,
+      bodyLimit: 40_100_000,
       schema: {
         ...common.schema,
         params,
@@ -137,6 +139,44 @@ export function registerConversationQueueRoutes(
     },
     async (request) =>
       readConversationQueueSnapshot(pool, request.auth, request.params.id),
+  );
+
+  app.get<{ Params: { id: string; messageId: string; index: number } }>(
+    "/v1/agent-sessions/:id/conversation-images/:messageId/:index",
+    {
+      ...common,
+      schema: {
+        ...common.schema,
+        params: Type.Object({
+          id: Type.String({ format: "uuid" }),
+          messageId: Type.String({ format: "uuid" }),
+          index: Type.Integer({ minimum: 0, maximum: 9 }),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const image = await readConversationMessageImage(
+        pool,
+        request.auth,
+        request.params.id,
+        request.params.messageId,
+        request.params.index,
+      );
+      if (!image) {
+        return reply.status(404).send({
+          error: {
+            code: "CONVERSATION_IMAGE_NOT_FOUND",
+            message: "This conversation image is no longer available.",
+            request_id: request.id,
+          },
+        });
+      }
+      return reply
+        .header("cache-control", "private, no-store")
+        .header("x-content-type-options", "nosniff")
+        .type(image.media_type)
+        .send(image.content);
+    },
   );
 
   app.post<{ Params: { id: string }; Body: ConversationQueueMutationRequest }>(

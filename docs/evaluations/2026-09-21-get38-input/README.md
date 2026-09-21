@@ -1,5 +1,10 @@
 # GET-38 image input verification
 
+Historical evidence only: this source-intake implementation shipped in PR
+#231 (`224cd374`), then was rejected by the user because image messages belong
+directly in the conversation. The checks below do not establish GET-38
+acceptance. See the [inline chat correction plan](../../../plans/2026-09-21-get-38-inline-chat-images.md).
+
 ## Request and baseline
 
 The authenticated GET-38 issue requests repair of image sending, drag-and-drop,
@@ -77,5 +82,7 @@ closed before route collection; no application-code repair was needed.
 
 ## Delivery
 
-Pending current-head checks, merge, and issue readback. No native iOS build or
-TestFlight release is part of this Web change.
+[PR #231](https://github.com/getyak/talent-signal/pull/231) merged as `224cd374`
+after its applicable checks passed, and the resident Web release was activated.
+The user's later correction invalidated this implementation as GET-38
+acceptance. No native iOS build or TestFlight release was part of this change.

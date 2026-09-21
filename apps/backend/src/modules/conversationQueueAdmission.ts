@@ -17,6 +17,11 @@ import { claimIdempotency, completeIdempotency } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
 import { assertSessionForChat } from "./agentSessionSources.js";
 import {
+  conversationImageManifestHash,
+  persistConversationMessageImages,
+  validateConversationImageUploads,
+} from "./conversationMessageImages.js";
+import {
   allocateConversationQueueSequence,
   asNumber,
   bumpConversationQueueState,
@@ -62,6 +67,19 @@ export async function admitConversationQueueEntry(
 ): Promise<{ response: ConversationQueueAdmitResponse; replayed: boolean }> {
   const outcome = await inTransaction(pool, async (client) => {
     const expiresAt = await assertSessionForChat(client, auth, request.session_id);
+    const uploads = request.images ?? [];
+    const objective = request.objective.trim();
+    if (!objective && uploads.length === 0) {
+      throw new ApiError(
+        422,
+        "CONVERSATION_QUEUE_OBJECTIVE_REQUIRED",
+        "Send text or at least one image.",
+      );
+    }
+    const manifests = validateConversationImageUploads(uploads);
+    const imagesHash = manifests.length
+      ? conversationImageManifestHash(manifests)
+      : null;
     const idempotency = await claimIdempotency(
       client,
       { accountId: auth.accountId, actorUserId: auth.userId },
@@ -72,6 +90,9 @@ export async function admitConversationQueueEntry(
         message_id: request.message_id,
         objective: request.objective,
         time_zone: request.time_zone ?? null,
+        // Only extend the hashed identity for a real image batch so a
+        // pre-deployment text-only receipt keeps its original hash.
+        ...(imagesHash ? { images_hash: imagesHash } : {}),
       },
     );
     if (idempotency.replay) {
@@ -95,7 +116,8 @@ export async function admitConversationQueueEntry(
     if (existing) {
       if (
         existing.idempotency_key !== request.idempotency_key ||
-        existing.objective !== request.objective
+        existing.objective !== request.objective ||
+        (existing.images_hash ?? null) !== imagesHash
       ) {
         throw new ApiError(
           409,
@@ -133,8 +155,8 @@ export async function admitConversationQueueEntry(
       await client.query<ConversationQueueEntryRow>(
         `INSERT INTO conversation_queue_entries(
            account_id,session_id,id,message_id,created_by_user_id,auth_session_id,sequence,status,content_state,
-           objective,time_zone,idempotency_key,revision,expires_at
-         ) VALUES($1,$2,$3,$4,$5,$6,$7,'queued','retained',$8,$9,$10,1,$11)
+           objective,time_zone,idempotency_key,revision,expires_at,images_hash
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,'queued','retained',$8,$9,$10,1,$11,$12)
          RETURNING *`,
         [
           auth.accountId,
@@ -148,9 +170,19 @@ export async function admitConversationQueueEntry(
           request.time_zone ?? null,
           request.idempotency_key,
           expiresAt,
+          imagesHash,
         ],
       )
     ).rows[0]!;
+    if (uploads.length > 0) {
+      await persistConversationMessageImages(client, auth, {
+        sessionId: request.session_id,
+        messageId: request.message_id,
+        queueEntryId: entry.id,
+        expiresAt,
+        uploads,
+      });
+    }
     const response = admitReceipt(entry, { revision });
     await completeIdempotency(client, idempotency, 202, response);
     return { response, replayed: false };

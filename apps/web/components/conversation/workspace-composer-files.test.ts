@@ -145,7 +145,7 @@ describe("composer image intake", () => {
       composerRoot().dispatchEvent(dragEnter);
     });
     expect(composerRoot().dataset.dragging).toBe("true");
-    expect(document.body.textContent).toContain("松开后保存并整理图片");
+    expect(document.body.textContent).toContain("松开后添加图片");
 
     const drop = nativeEvent(
       "drop",

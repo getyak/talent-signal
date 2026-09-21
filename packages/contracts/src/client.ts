@@ -1195,6 +1195,19 @@ export class TalentSignalClient {
     });
   }
 
+  /** Authenticated original-image readback for one inline conversation message. */
+  openConversationMessageImage(
+    sessionId: string,
+    messageId: string,
+    index: number,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    return this.rawRequest(
+      `/v1/agent-sessions/${encodeURIComponent(sessionId)}/conversation-images/${encodeURIComponent(messageId)}/${index}`,
+      { method: "GET", headers: { accept: "image/*" }, ...(signal ? { signal } : {}) },
+    );
+  }
+
   listMeetingDrafts(after?: string, scope: MeetingDraftListScope = "all"): Promise<MeetingDraftListResponse> {
     const query = new URLSearchParams({ scope });
     if (after) query.set("after", after);

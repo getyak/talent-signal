@@ -1,4 +1,5 @@
 import { clearConversationLocal, pruneConversationLocal } from "../../lib/conversation-local";
+import { clearConversationImageStore, sweepConversationImageStore } from "../../lib/conversation-image-lifecycle";
 import type { SaveRequestBody, SessionDetail } from "./session-detail-state";
 
 const PREFIX = "talent-signal:session-draft-pending:v1:";
@@ -360,6 +361,7 @@ export function prunePendingSessionDrafts(
   target = storage(),
   now = Date.now(),
 ): void {
+  sweepConversationImageStore(storageScope);
   if (!target) return;
   pruneConversationLocal(storageScope, target);
   try {
@@ -385,6 +387,7 @@ export function prunePendingSessionDrafts(
 }
 
 export function clearAllPendingSessionDrafts(target = storage()): void {
+  clearConversationImageStore();
   if (!target) return;
   clearConversationLocal(undefined, undefined, target);
   try {

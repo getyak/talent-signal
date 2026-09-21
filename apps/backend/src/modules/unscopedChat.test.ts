@@ -151,4 +151,57 @@ describe("unscoped Agent conversation", () => {
       requires_user_decision: false,
     });
   });
+
+  it("forwards user-sent images to the unscoped remote chat fallback", async () => {
+    vi.mocked(readAgentSessionConversation).mockResolvedValueOnce({ hasRecordedTurns: false, messages: [] });
+    const data = new Uint8Array([1, 2, 3, 4]);
+    const answer = vi.fn(async () => ({ kind: "answer" as const, title: "图片", body: "I can see it.",
+      citation_ids: [], provider_id: "zhipu-chat-completions" as const, model: "glm-5.3",
+      provider_request_id: null, input_tokens: 0, output_tokens: 0 }));
+    await executeUnscopedChatTask({
+      request,
+      provider: { providerId: "zhipu-chat-completions", model: "glm-5.3", supportsImageInput: false, answer },
+      images: [{ messageId: "10000000-0000-4000-8000-000000000001", attachmentId: "attachment-1", fileName: "shot.png", mediaType: "image/png", byteSize: data.length, contentHash: "a".repeat(64), data }],
+    });
+    expect(answer).toHaveBeenCalledWith(expect.objectContaining({
+      images: [{ file_name: "shot.png", media_type: "image/png", data }],
+    }));
+  });
+
+  it("forwards user-sent images as provider inputParts on the workspace agent path", async () => {
+    vi.mocked(readAgentSessionConversation).mockResolvedValueOnce({ hasRecordedTurns: true, messages: [] });
+    const data = new Uint8Array([9, 8, 7]);
+    const database = { query: vi.fn(async (sql: string) => ({ rows: sql.includes("FROM agent_sessions")
+      ? [{ expires_at: new Date(Date.now() + 86_400_000) }] : [] })) } as unknown as DatabaseClient;
+    const run = vi.fn(async () => ({ structuredOutput: { outcome: "reply", title: "图片", body: "Looking at it." },
+      inputTokens: 1, outputTokens: 1, estimatedUsd: 0, turns: 1, permissionDenials: [] }));
+    const execution = await executeUnscopedChatTask({
+      request: { ...request, session_id: "session", message_id: "current", objective: "" },
+      database,
+      auth,
+      provider: { providerId: "zhipu-chat-completions", id: "zhipu-chat-completions", model: "synthetic", supportsImageInput: true,
+        answer: vi.fn(), run } as never,
+      images: [{ messageId: "10000000-0000-4000-8000-000000000002", attachmentId: "10000000-0000-4000-8000-000000000001", fileName: "shot.png", mediaType: "image/png",
+        byteSize: data.length, contentHash: "b".repeat(64), data }],
+    });
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      inputParts: [expect.objectContaining({ kind: "image", artifactID: "conversation-image-10000000-0000-4000-8000-000000000002-0-10000000-0000-4000-8000-000000000001",
+        mimeType: "image/png", byteSize: data.length, dataBase64: Buffer.from(data).toString("base64") })],
+    }), expect.any(Function), expect.anything());
+    expect(execution.body.disposition).toBe("answer");
+  });
+
+  it("does not silently drop images when the provider rejects image processing", async () => {
+    vi.mocked(readAgentSessionConversation).mockResolvedValueOnce({ hasRecordedTurns: false, messages: [] });
+    const data = new Uint8Array([1]);
+    const answer = vi.fn(async () => { throw new Error("Remote Chat image processing is not admitted."); });
+    const execution = await executeUnscopedChatTask({
+      request,
+      provider: { providerId: "zhipu-chat-completions", model: "glm-5.3", supportsImageInput: false, answer },
+      images: [{ messageId: "10000000-0000-4000-8000-000000000003", attachmentId: "a", fileName: "shot.png", mediaType: "image/png", byteSize: 1, contentHash: "c".repeat(64), data }],
+    });
+    expect(answer).toHaveBeenCalled();
+    expect(execution.remoteStatus).toBe("fallback");
+    expect(execution.body.blocks[0]?.body).toContain("这次处理未完成");
+  });
 });

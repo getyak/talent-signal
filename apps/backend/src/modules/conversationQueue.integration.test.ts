@@ -1,6 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
-import type { AgentProviderRequest, AgentProviderResult } from "@talent-signal/agent";
+import { CONTRACT_VERSION } from "@talent-signal/contracts";
+
+import type { AgentProviderInputPart, AgentProviderRequest, AgentProviderResult } from "@talent-signal/agent";
 import { Pool } from "pg";
 import Fastify from "fastify";
 import { afterAll, describe, expect, it, vi } from "vitest";
@@ -18,10 +20,13 @@ import {
   sweepConversationQueue,
 } from "./conversationQueue.js";
 import { ConversationQueueRunner } from "./conversationQueueRunner.js";
+import { readConversationMessageImage } from "./conversationMessageImages.js";
 import { registerConversationQueueRoutes } from "./conversationQueueRoutes.js";
 import { ApiError } from "../lib/apiError.js";
 import { subscribeConversationQueueLive, type ConversationQueueLivePreview } from "./conversationQueueLive.js";
 import { getAgentSession } from "./agentSessions.js";
+import { mutateAgentSession } from "./agentSessions.js";
+import { digestValue } from "../lib/hash.js";
 import type { AuthContext } from "./auth.js";
 
 const databaseURL = process.env.CONTACT_AGENT_TEST_DATABASE_URL;
@@ -143,6 +148,7 @@ class ScriptedConversationProvider implements RemoteChatAnswerProviding {
   onBeforeReturn: (() => Promise<void>) | null = null;
   failWith: Error | null = null;
   lastSignal: AbortSignal | null = null;
+  lastInputParts: readonly AgentProviderInputPart[] = [];
 
   async answer(_request: RemoteChatAnswerRequest): Promise<RemoteChatAnswerResult> {
     throw new Error("The governed agent path is required for this synthetic provider.");
@@ -154,6 +160,7 @@ class ScriptedConversationProvider implements RemoteChatAnswerProviding {
     signal: AbortSignal,
   ): Promise<AgentProviderResult> {
     this.calls.push(request.objective);
+    this.lastInputParts = request.inputParts ?? [];
     this.active += 1;
     this.maxActive = Math.max(this.maxActive, this.active);
     this.lastSignal = signal;
@@ -1146,4 +1153,279 @@ suite("durable conversation queue", () => {
     }
   }, 20000);
 
+});
+
+function pngBytes(fill = 1, size = 64): Buffer {
+  const bytes = Buffer.alloc(size, fill);
+  bytes.set([137, 80, 78, 71, 13, 10, 26, 10], 0);
+  return bytes;
+}
+function pngUpload(bytes: Buffer, attachmentID = randomUUID()) {
+  return {
+    attachment_id: attachmentID,
+    file_name: "inline.png",
+    media_type: "image/png" as const,
+    byte_size: bytes.length,
+    content_hash: createHash("sha256").update(bytes).digest("hex"),
+    data_base64: bytes.toString("base64"),
+  };
+}
+
+suite("conversation message images", () => {
+  it("admits images-only inline, delivers exact pixels, and retains only a manifest", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const runner = await startRunner(provider);
+    try {
+      const bytes = pngBytes(3);
+      const attachmentID = randomUUID();
+      const message = randomUUID();
+      const admitted = await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: randomUUID(),
+        objective: "", images: [pngUpload(bytes, attachmentID)],
+      });
+      expect(admitted.response.status).toBe("queued");
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "completed");
+
+      const manifest = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      // Completed entries are scrubbed from the active snapshot but the bytes stay.
+      expect(manifest.active).toBeNull();
+      const readback = await readConversationMessageImage(pool!, seeded.auth, seeded.sessionId, message, 0);
+      expect(readback?.media_type).toBe("image/png");
+      expect(readback?.content.equals(bytes)).toBe(true);
+
+      const imageParts = provider.lastInputParts.filter(part => part.kind === "image");
+      expect(imageParts).toHaveLength(1);
+      expect(imageParts[0]).toMatchObject({ kind: "image", mimeType: "image/png", byteSize: bytes.length,
+        contentHash: createHash("sha256").update(bytes).digest("hex"), dataBase64: bytes.toString("base64") });
+
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      const turn = session.payload?.turns[0]!;
+      expect(turn.objective).toBe("");
+      expect(turn.images).toEqual([{ attachment_id: attachmentID, file_name: "inline.png", media_type: "image/png",
+        byte_size: bytes.length, content_hash: imageParts[0]!.contentHash }]);
+      expect(JSON.stringify(turn)).not.toContain("data_base64");
+      expect(JSON.stringify(turn)).not.toContain(bytes.toString("base64"));
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("rejects empty text without images and conflicting bytes or order for one message", async () => {
+    const seeded = await seedSession();
+    try {
+      await expect(admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: randomUUID(), idempotency_key: randomUUID(), objective: "",
+      })).rejects.toMatchObject({ code: "CONVERSATION_QUEUE_OBJECTIVE_REQUIRED" });
+
+      const message = randomUUID();
+      const idempotency = randomUUID();
+      const first = pngUpload(pngBytes(4));
+      const admitted = await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: idempotency, objective: "mixed", images: [first],
+      });
+      const replay = await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: idempotency, objective: "mixed", images: [first],
+      });
+      expect(replay.replayed).toBe(true);
+      expect(replay.response.queue_entry_id).toBe(admitted.response.queue_entry_id);
+
+      await expect(admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: randomUUID(), objective: "mixed", images: [pngUpload(pngBytes(5))],
+      })).rejects.toMatchObject({ code: "CONVERSATION_QUEUE_MESSAGE_CONFLICT" });
+
+      const count = await pool!.query<{ count: string }>("SELECT count(*) AS count FROM conversation_message_images WHERE account_id=$1 AND message_id=$2", [seeded.accountId, message]);
+      expect(Number(count.rows[0]!.count)).toBe(1);
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("rejects signature, hash, and per-image size errors before any admission", async () => {
+    const seeded = await seedSession();
+    try {
+      const bytes = pngBytes();
+      const cases = [
+        { ...pngUpload(bytes), content_hash: "a".repeat(64) },
+        { ...pngUpload(bytes), data_base64: `${bytes.toString("base64")}\n` },
+        { ...pngUpload(bytes), media_type: "image/jpeg" as const },
+        { ...pngUpload(bytes), byte_size: bytes.length + 1 },
+        { ...pngUpload(bytes), byte_size: 10_000_001 },
+      ];
+      for (const image of cases) {
+        await expect(admitConversationQueueEntry(pool!, seeded.auth, {
+          session_id: seeded.sessionId, message_id: randomUUID(), idempotency_key: randomUUID(), objective: "", images: [image],
+        })).rejects.toMatchObject({ statusCode: 422 });
+      }
+      const entries = await pool!.query<{ count: string }>("SELECT count(*) AS count FROM conversation_queue_entries WHERE account_id=$1", [seeded.accountId]);
+      expect(Number(entries.rows[0]!.count)).toBe(0);
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("scopes image readback to the owning account and cascades on withdraw", async () => {
+    const seeded = await seedSession();
+    const other = await seedSession();
+    try {
+      const message = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: randomUUID(), objective: "scoped", images: [pngUpload(pngBytes(6))],
+      });
+      expect(await readConversationMessageImage(pool!, seeded.auth, seeded.sessionId, message, 0)).not.toBeNull();
+      expect(await readConversationMessageImage(pool!, other.auth, seeded.sessionId, message, 0)).toBeNull();
+      expect(await readConversationMessageImage(pool!, seeded.auth, seeded.sessionId, message, 1)).toBeNull();
+
+      const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      const withdraw = await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "withdraw", queue_entry_id: snapshot.queued[0]!.queue_entry_id, expected_revision: snapshot.revision, idempotency_key: randomUUID(),
+      });
+      expect(withdraw.applied.kind).toBe("withdraw");
+      const remaining = await pool!.query<{ count: string }>("SELECT count(*) AS count FROM conversation_message_images WHERE account_id=$1 AND message_id=$2", [seeded.accountId, message]);
+      expect(Number(remaining.rows[0]!.count)).toBe(0);
+      expect(await readConversationMessageImage(pool!, seeded.auth, seeded.sessionId, message, 0)).toBeNull();
+    } finally {
+      await removeProofAccount(other.accountId);
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+});
+
+suite("conversation image compatibility and followups", () => {
+  it("replays a pre-deployment text-only receipt without changing its hash", async () => {
+    const seeded = await seedSession();
+    try {
+      const message = randomUUID();
+      const key = randomUUID();
+      const objective = "旧客户端文本重试";
+      const oldHash = digestValue({ session_id: seeded.sessionId, message_id: message, objective, time_zone: null });
+      const receipt = { contract_version: CONTRACT_VERSION, session_id: seeded.sessionId, message_id: message,
+        queue_entry_id: randomUUID(), run_id: null, status: "queued", sequence: 1, revision: 1, snapshot_revision: 1,
+        accepted_at: new Date().toISOString() };
+      await pool!.query(
+        `INSERT INTO idempotency_records(id,account_id,actor_user_id,operation_scope,idempotency_key,request_hash,status,response_status,response_body,completed_at)
+         VALUES($1,$2,$3,'conversation_queue_admit',$4,$5,'completed',202,$6::jsonb,now())`,
+        [randomUUID(), seeded.accountId, seeded.userId, key, oldHash, JSON.stringify(receipt)],
+      );
+      const replay = await admitConversationQueueEntry(pool!, seeded.auth, { session_id: seeded.sessionId, message_id: message, idempotency_key: key, objective });
+      expect(replay.replayed).toBe(true);
+      expect(replay.response.queue_entry_id).toBe(receipt.queue_entry_id);
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("conflicts a reordered image manifest for the same message identity", async () => {
+    const seeded = await seedSession();
+    try {
+      const message = randomUUID();
+      const first = pngUpload(pngBytes(1));
+      const second = pngUpload(pngBytes(2));
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: randomUUID(), objective: "order", images: [first, second],
+      });
+      await expect(admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: randomUUID(), objective: "order", images: [second, first],
+      })).rejects.toMatchObject({ code: "CONVERSATION_QUEUE_MESSAGE_CONFLICT" });
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("lets a text-only followup inspect the earlier image from the same owned Session", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const runner = await startRunner(provider);
+    try {
+      const bytes = pngBytes(8, 48);
+      const message = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: randomUUID(), objective: "look at this", images: [pngUpload(bytes)],
+      });
+      await waitFor(() => provider.calls.length === 1);
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: randomUUID(), idempotency_key: randomUUID(), objective: "what did you see?",
+      });
+      await waitFor(() => provider.calls.length === 2);
+      const images = provider.lastInputParts.filter(part => part.kind === "image");
+      expect(images).toHaveLength(1);
+      expect(images[0]).toMatchObject({
+        artifactID: expect.stringContaining(message),
+        contentHash: createHash("sha256").update(bytes).digest("hex"),
+        dataBase64: bytes.toString("base64"),
+      });
+      // The followup's own turn must not claim the earlier message's manifest.
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      const followup = session.payload?.turns.find(turn => turn.objective === "what did you see?");
+      expect(followup?.images).toBeUndefined();
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("denies image readback after Session expiry and cascades on Session delete", async () => {
+    const seeded = await seedSession();
+    const other = await seedSession();
+    try {
+      const message = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: randomUUID(), objective: "expiry", images: [pngUpload(pngBytes(9))],
+      });
+      await pool!.query("UPDATE agent_sessions SET expires_at=now()-interval '1 second' WHERE account_id=$1 AND id=$2", [seeded.accountId, seeded.sessionId]);
+      expect(await readConversationMessageImage(pool!, seeded.auth, seeded.sessionId, message, 0)).toBeNull();
+
+      const second = randomUUID();
+      await admitConversationQueueEntry(pool!, other.auth, {
+        session_id: other.sessionId, message_id: second, idempotency_key: randomUUID(), objective: "purge", images: [pngUpload(pngBytes(10))],
+      });
+      await pool!.query("DELETE FROM agent_sessions WHERE account_id=$1 AND id=$2", [other.accountId, other.sessionId]);
+      const remaining = await pool!.query<{ count: string }>(
+        "SELECT count(*) AS count FROM conversation_message_images WHERE account_id=$1 AND session_id=$2",
+        [other.accountId, other.sessionId],
+      );
+      expect(Number(remaining.rows[0]!.count)).toBe(0);
+    } finally {
+      await removeProofAccount(other.accountId);
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("preserves server-owned turn images on a legacy PUT and refuses a forged manifest", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const runner = await startRunner(provider);
+    try {
+      const message = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        session_id: seeded.sessionId, message_id: message, idempotency_key: randomUUID(), objective: "legacy", images: [pngUpload(pngBytes(11))],
+      });
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "completed");
+      const before = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      const original = structuredClone(before.payload!);
+      expect(original.turns[0]?.images).toHaveLength(1);
+
+      const legacy = structuredClone(original) as unknown as { turns: Array<Record<string, unknown>>; composerDraft?: string; updatedAt: string };
+      delete legacy.turns[0]!.images;
+      legacy.composerDraft = "edited draft";
+      legacy.updatedAt = new Date().toISOString();
+      await mutateAgentSession(pool!, seeded.auth, seeded.sessionId, {
+        expected_revision: before.revision, idempotency_key: randomUUID(), payload: legacy as never,
+      });
+      const after = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(after.payload?.turns[0]?.images).toEqual(original.turns[0]?.images);
+      expect(after.payload?.composerDraft).toBe("edited draft");
+
+      const forged = structuredClone(original) as unknown as { turns: Array<{ images: Array<{ content_hash: string }> }>; updatedAt: string };
+      forged.turns[0]!.images[0]!.content_hash = "f".repeat(64);
+      forged.updatedAt = new Date().toISOString();
+      await expect(mutateAgentSession(pool!, seeded.auth, seeded.sessionId, {
+        expected_revision: after.revision, idempotency_key: randomUUID(), payload: forged as never,
+      })).rejects.toMatchObject({ code: "AGENT_SESSION_IMAGE_MANIFEST_CHANGED" });
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
 });

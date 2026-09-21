@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   CONTRACT_VERSION,
+  type ConversationImageManifest,
   type ConversationQueueEntry,
   type ConversationQueueEntryStatus,
   type ConversationQueueSnapshot,
@@ -12,6 +13,7 @@ import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import type { AuthContext } from "./auth.js";
 import { assertSessionForChat } from "./agentSessionSources.js";
+import { readConversationMessageImageManifests } from "./conversationMessageImages.js";
 import { publishConversationQueueChanged } from "./conversationQueueLive.js";
 
 export const CONVERSATION_QUEUE_MAX_ENTRIES = 50;
@@ -47,6 +49,7 @@ export interface ConversationQueueEntryRow {
   stage: string | null;
   cancel_requested: boolean;
   failure_code: string | null;
+  images_hash: string | null;
   result: unknown;
   result_recorded_at: Date | null;
   lineage_recorded_at: Date | null;
@@ -107,20 +110,17 @@ export function asNumber(value: string | number): number {
   return typeof value === "number" ? value : Number(value);
 }
 
-function toEntry(row: ConversationQueueEntryRow): ConversationQueueEntry {
-  if (!row.objective) {
-    throw new ApiError(
-      500,
-      "CONVERSATION_QUEUE_STATE_INVALID",
-      "The queue entry is not displayable.",
-    );
-  }
+function toEntry(
+  row: ConversationQueueEntryRow,
+  images: ConversationImageManifest[] | undefined,
+): ConversationQueueEntry {
   return {
     queue_entry_id: row.id,
     message_id: row.message_id,
     sequence: asNumber(row.sequence),
     status: row.status,
-    objective: row.objective,
+    objective: row.objective ?? "",
+    ...(images && images.length > 0 ? { images } : {}),
     created_at: iso(row.created_at),
     updated_at: iso(row.updated_at),
     revision: row.revision,
@@ -240,7 +240,12 @@ export async function readConversationQueueSnapshot(
       [auth.accountId, sessionId, ACTIVE_STATUSES],
     )
   ).rows;
-  const entries = rows.map(toEntry);
+  const manifests = await readConversationMessageImageManifests(
+    client,
+    auth.accountId,
+    rows.map((row) => row.id),
+  );
+  const entries = rows.map((row) => toEntry(row, manifests.get(row.id)));
   return {
     contract_version: CONTRACT_VERSION,
     session_id: sessionId,
@@ -294,7 +299,7 @@ export async function claimNextConversationQueueEntry(
         [input.accountId, input.sessionId],
       )
     ).rows[0];
-    if (!next || !next.objective) return null;
+    if (!next || next.objective === null) return null;
     const runId = randomUUID();
     const generation = next.lease_generation + 1;
     const updated = (
@@ -315,7 +320,7 @@ export async function claimNextConversationQueueEntry(
         ],
       )
     ).rows[0];
-    if (!updated || !updated.objective) return null;
+    if (!updated || updated.objective === null) return null;
     await bumpConversationQueueState(client, input.accountId, input.sessionId);
     return {
       accountId: updated.account_id,
@@ -324,7 +329,7 @@ export async function claimNextConversationQueueEntry(
       entryId: updated.id,
       messageId: updated.message_id,
       runId,
-      objective: updated.objective,
+      objective: updated.objective ?? "",
       timeZone: updated.time_zone,
       createdByUserId: updated.created_by_user_id,
       sequence: asNumber(updated.sequence),
@@ -534,7 +539,7 @@ export async function reclaimStaleConversationQueueEntry(
         [input.accountId, input.entryId, input.workerId, CONVERSATION_QUEUE_LEASE_MS],
       )
     ).rows[0];
-    if (!updated || !updated.objective || !updated.run_id || !updated.lease_owner) return null;
+    if (!updated || updated.objective === null || !updated.run_id || !updated.lease_owner) return null;
     await bumpConversationQueueState(client, input.accountId, input.sessionId);
     return {
       accountId: updated.account_id,

@@ -348,3 +348,43 @@ describe("Claude natural chat product adapter", () => {
     expect(JSON.stringify(stages)).not.toContain("陈夏");
   });
 });
+
+describe("inline user message images", () => {
+  const bytes = Buffer.from([137, 80, 78, 71, 1, 2, 3, 4]);
+  const contentHash = createHash("sha256").update(bytes).digest("hex");
+  const request = {
+    runID: "synthetic", objective: "", systemPrompt: "Synthetic",
+    scopeSummary: { kind: "workspace_conversation" as const, workspaceID: "account", sessionID: "session",
+      currentPersonID: null, currentRelationshipContextID: null },
+    toolManifest: [] as const,
+    budget: { maxTurns: 6, maxToolCalls: 6, maxDurationMs: 30_000, maxTaskTokens: 32_000, maxEstimatedUsd: 1 },
+    inputParts: [{ kind: "image" as const, artifactID: "conversation-image-10000000-0000-4000-8000-000000000001",
+      mimeType: "image/png" as const, byteSize: bytes.length, contentHash, dataBase64: bytes.toString("base64") }],
+  };
+
+  it("passes admitted bytes to the SDK with provenance and no continuation", async () => {
+    let sawImages: ClaudeHarnessRequest["images"];
+    const execute = vi.fn(async (_configuration: unknown, harnessRequest: ClaudeHarnessRequest) => {
+      sawImages = harnessRequest.images;
+      expect(harnessRequest.continuation).toBeUndefined();
+      expect(JSON.parse(harnessRequest.context!).input_images).toEqual([
+        expect.objectContaining({ artifact_id: request.inputParts[0]!.artifactID, content_hash: contentHash }),
+      ]);
+      return outcome;
+    });
+    const provider = new ClaudeChatProvider(configuration, execute as never, true);
+    await provider.run(
+      { ...request, continuation: (() => { throw new Error("continuation must not be used with images"); }) as never },
+      async () => ({ ok: true, callID: "noop", name: "noop" }),
+      new AbortController().signal,
+    );
+    expect(sawImages).toHaveLength(1);
+    expect(sawImages?.[0]).toMatchObject({ kind: "image", mimeType: "image/png", contentHash, dataBase64: bytes.toString("base64") });
+  });
+
+  it("rejects user images when image input is not admitted by configuration", async () => {
+    const provider = new ClaudeChatProvider(configuration, vi.fn(async () => outcome) as never, false);
+    await expect(provider.run(request, async () => ({ ok: true, callID: "noop", name: "noop" }), new AbortController().signal))
+      .rejects.toThrow("CLAUDE_CHAT_IMAGE_NOT_ADMITTED");
+  });
+});

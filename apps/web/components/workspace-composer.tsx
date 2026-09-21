@@ -458,7 +458,7 @@ export function WorkspaceComposer({
     >
       {dragging && fileIntake ? (
         <div className={styles.dropHint} role="status">
-          松开后保存并整理图片
+          松开后添加图片，随消息一起发送
         </div>
       ) : null}
       {menuOpen && trigger ? (

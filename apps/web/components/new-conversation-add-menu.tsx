@@ -21,10 +21,13 @@ import styles from "./new-conversation.module.css";
 export function ComposerAddMenu({
   binding,
   onCapture,
+  onAttachImages,
   onNavigate,
 }: {
   binding: string | null;
-  onCapture: () => void;
+  onCapture?: () => void;
+  /** Direct inline image attach; preferred over the source-intake capture flow. */
+  onAttachImages?: () => void;
   onNavigate: (href: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -123,14 +126,15 @@ export function ComposerAddMenu({
             className={styles.addAction}
             onClick={() => {
               close();
-              onCapture();
+              if (onAttachImages) onAttachImages();
+              else onCapture?.();
             }}
             type="button"
           >
             <FileImage aria-hidden="true" size={17} weight="duotone" />
             <span>
-              <strong>保存并整理图片</strong>
-              <small>拖入或粘贴截图，另存为来源</small>
+              <strong>{onAttachImages ? "添加图片" : "保存并整理图片"}</strong>
+              <small>{onAttachImages ? "选择图片，随消息一起发送" : "拖入或粘贴截图，另存为来源"}</small>
             </span>
           </button>
           <div className={styles.addDivider} />
@@ -191,7 +195,9 @@ export function ComposerAddMenu({
           </div>
           <button className={styles.addAction} type="button" onClick={() => { close(); onNavigate("/workspace/people"); }}>查看全部人物 <ArrowRight aria-hidden="true" size={14} /></button>
           <p className={styles.addNote}>
-            图片会保存为来源，不会作为对话消息发送。打开人物页面也不会发出这条消息；未发送的内容会留在本机，可随时恢复。
+            {onAttachImages
+              ? "图片会随这条消息一起发送，不会另存为来源。打开的对话不会发出这条消息；未发送的内容会留在本机，可随时恢复。"
+              : "图片会保存为来源，不会作为对话消息发送。打开人物页面也不会发出这条消息；未发送的内容会留在本机，可随时恢复。"}
           </p>
         </div>
       ) : null}

@@ -178,6 +178,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
   conversationHistory?: readonly ConversationMessage[];
   promptSnapshot?: PromptSnapshot;
   runID?: string;
+  inputParts?: readonly import("@talent-signal/agent").AgentProviderInputPart[];
   observation?: RuntimeObservationContext;
   continuation?: import("@talent-signal/agent").HarnessContinuationFactory;
   assertCurrent?: () => Promise<void>;
@@ -511,6 +512,9 @@ export async function executeWorkspaceConversationAgentCore(input: {
         toolManifest: Object.freeze([
           ...WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES,
         ]),
+        ...(input.inputParts && input.inputParts.length > 0
+          ? { inputParts: input.inputParts }
+          : {}),
         budget: {
           ...DEFAULT_AGENT_BUDGET,
           maxTurns: Math.min(DEFAULT_AGENT_BUDGET.maxTurns, 6),
@@ -649,6 +653,7 @@ export async function executeWorkspaceConversationAgent(input: {
   sessionTitleRequested?: boolean;
   conversationHistory?: readonly ConversationMessage[];
   runID?: string;
+  inputParts?: readonly import("@talent-signal/agent").AgentProviderInputPart[];
   observation?: RuntimeObservationContext;
   continuation?: import("@talent-signal/agent").HarnessContinuationFactory;
   assertCurrent?: () => Promise<void>;
@@ -711,6 +716,9 @@ export async function executeWorkspaceConversationAgent(input: {
     ...(input.onVisibleText ? { onVisibleText: input.onVisibleText } : {}),
     ...(input.onProgress ? { onProgress: input.onProgress } : {}),
     ...(input.signal ? { signal: input.signal } : {}),
+    ...(input.inputParts && input.inputParts.length > 0
+      ? { inputParts: input.inputParts }
+      : {}),
     ...(input.messageID === undefined ? {} : { messageID: input.messageID }),
     ...(input.sessionTitleRequested === undefined ? {} : { sessionTitleRequested: input.sessionTitleRequested }),
     ...(input.conversationHistory === undefined ? {} : { conversationHistory: input.conversationHistory }),

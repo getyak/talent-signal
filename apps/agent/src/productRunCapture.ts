@@ -23,7 +23,7 @@ export interface ProductRunEventOptions {
 }
 
 /** Diagnostic copies never duplicate original image bytes or provider error prose. */
-function diagnosticContent(value: unknown): unknown {
+export function diagnosticContent(value: unknown): unknown {
   if (value === undefined) return undefined;
   try { return JSON.parse(JSON.stringify(value, function(key, item) {
     const original = this?.[key];
