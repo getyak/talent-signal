@@ -319,3 +319,31 @@ describe("voice transcription route", () => {
     });
   });
 });
+
+// The private boundary uses the real application hooks and authentication. Any
+// additional query (Session, observation reconciliation, Lab, etc.) fails here.
+describe("private conversation persistence boundary", () => {
+  it("runs only authentication SQL and never sends transient text to the pool", async () => {
+    const query = vi.fn(async (sql: string) => {
+      expect(sql).toContain("FROM sessions");
+      expect(sql).toContain("sessions.token_hash = $1");
+      expect(sql.trimStart()).toMatch(/^SELECT/u);
+      return { rows: [{ account_id: "30000000-0000-4000-8000-000000000001",
+        account_slug: "fixture-alpha", user_id: "40000000-0000-4000-8000-000000000001",
+        user_email: "synthetic@example.test", user_kind: "simulated_human",
+        session_id: "50000000-0000-4000-8000-000000000001" }] };
+    });
+    const app = await buildApp({ config, pool: { query } as unknown as Pool,
+      privateConversationProvider: { providerId: "claude", model: "synthetic", async *stream() { yield "synthetic answer"; } },
+    });
+    apps.push(app);
+    const response = await app.inject({ method: "POST", url: "/v1/private-conversation",
+      headers: { authorization: "Bearer synthetic-session" },
+      payload: { messages: [{ role: "user", content: "private-boundary-canary" }] },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('"type":"done"');
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(query.mock.calls)).not.toContain("private-boundary-canary");
+  });
+});
