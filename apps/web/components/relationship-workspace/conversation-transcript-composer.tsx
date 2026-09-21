@@ -138,7 +138,7 @@ export function ConversationTranscriptComposer({
               invalidateAnalysis();
             }}
             placeholder={
-              "候选人：9 月 15 日有时间\n招聘顾问：我会确认面试时间。"
+              "对方：9 月 15 日有时间\n我：我会确认会面时间。"
             }
             rows={6}
             value={value}
@@ -163,13 +163,13 @@ export function ConversationTranscriptComposer({
                 {speaker === "unknown"
                   ? "不确定"
                   : speaker === "candidate"
-                    ? "候选人"
-                    : "招聘顾问"}
+                    ? "对方"
+                    : "你"}
               </button>
             ))}
           </div>
           <small>
-            只有在文件仅包含候选人发言时，才选择“候选人”。Talent Signal 绝不会根据措辞或消息顺序猜测说话人。
+            只有在文件仅包含对方发言时，才选择“对方”。Talent Signal 绝不会根据措辞或消息顺序猜测说话人。
           </small>
         </fieldset>
         <button
@@ -220,8 +220,8 @@ export function ConversationTranscriptComposer({
                   }
                   value={message.speaker}
                 >
-                  <option value="candidate">候选人</option>
-                  <option value="recruiter">招聘顾问</option>
+                  <option value="candidate">对方</option>
+                  <option value="recruiter">你</option>
                   <option value="unknown">不确定</option>
                 </select>
                 <p>{message.text}</p>
@@ -239,7 +239,7 @@ export function ConversationTranscriptComposer({
             <span>
               我已审阅上方的说话人标签
               <small>
-                说话人未知的消息只作为背景，不能创建候选人事实。每项事实仍需单独审阅。
+                说话人未知的消息只作为背景，不能创建对方事实。每项事实仍需单独审阅。
               </small>
             </span>
           </label>

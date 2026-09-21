@@ -84,6 +84,12 @@ struct WorkspaceDesktopSettings: View {
                     }
                 }.buttonStyle(.plain)
             }
+            Section("Talent Signal") {
+                Text("保留关系背景，跟进承诺，推进合作。")
+                    .foregroundStyle(.secondary)
+                Link("下载与安装帮助", destination: URL(string: "https://github.com/getyak/talent-signal/blob/main/docs/operations/macos-distribution.md")!)
+                Link("查看 macOS 新版本", destination: URL(string: "https://github.com/getyak/talent-signal/releases?q=macos-")!)
+            }
             Section("键盘快捷键") {
                 shortcut("新对话", "⌘ N")
                 shortcut("搜索人物与对话", "⌘ K")
@@ -93,7 +99,7 @@ struct WorkspaceDesktopSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 540)
+        .frame(width: 480, height: 670)
         .background(WorkspaceWindowBehavior(floating: floating))
     }
 

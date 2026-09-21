@@ -3,16 +3,16 @@ set -euo pipefail
 
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MAC_APP_DIR="$REPOSITORY_ROOT/apps/macos"
-DERIVED_DATA="$(mktemp -d "${TMPDIR:-/tmp}/talent-signal-macos.XXXXXX")"
+DERIVED_DATA="${MACOS_DERIVED_DATA:-$(mktemp -d "${TMPDIR:-/tmp}/talent-signal-macos.XXXXXX")}"
 
 cleanup() {
-  rm -rf "$DERIVED_DATA"
+  if [[ -z "${MACOS_DERIVED_DATA:-}" ]]; then rm -rf "$DERIVED_DATA"; fi
 }
 trap cleanup EXIT
 
 "$REPOSITORY_ROOT/scripts/macos/generate.sh"
 
-node --test "$REPOSITORY_ROOT/scripts/macos/summarize-companion-trials.test.mjs"
+node --test "$REPOSITORY_ROOT/scripts/macos/summarize-companion-trials.test.mjs" "$REPOSITORY_ROOT/scripts/macos/release-policy.test.cjs"
 
 xcodebuild \
   -quiet \

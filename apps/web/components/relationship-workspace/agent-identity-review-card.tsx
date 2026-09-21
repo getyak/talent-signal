@@ -122,7 +122,7 @@ export function AgentIdentityReviewCard({
                         status: "proposed",
                         label: newContextLabel.trim(),
                         purpose:
-                          "身份审阅后由招聘顾问定义的关系情境",
+                          "身份审阅后由你定义的关系情境",
                       }
                     : {
                         status: "existing",

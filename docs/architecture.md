@@ -96,7 +96,7 @@ The iOS image remains device-owned while local recognition produces a draft. Int
 
 Photos selection and App Shortcuts converge on a durable capture queue. Staging allocates a stable Agent Session identifier immediately; foreground processing creates or resumes that protected Session, runs on-device recognition, and may use bounded internal tools or save reversible proposals. Interruption preserves the local image, draft, response recovery, and identifiers so retry does not duplicate the Session or request.
 
-The capture surface appears while processing is active or blocked. Zero or multiple plausible identities, historical identity clues, zero or multiple relationship contexts, tool failure, and consequential external writes return to the recruiter. One current confirmed clue that resolves to one person and one existing relationship context may attach the source without another tap. Extracted text, speaker attribution, and facts remain proposed, and unresolved identity cannot feed confirmed relationship state.
+The capture surface appears while processing is active or blocked. Zero or multiple plausible identities, historical identity clues, zero or multiple relationship contexts, tool failure, and consequential external writes return to the user. One current confirmed clue that resolves to one person and one existing relationship context may attach the source without another tap. Extracted text, speaker attribution, and facts remain proposed, and unresolved identity cannot feed confirmed relationship state.
 
 Relationship Ask accepts ordered images with or without a selected relationship.
 The backend owns scoped originals, extraction checkpoints, provenance, and recovery.
@@ -229,7 +229,7 @@ Authorization loss cannot reverse an effect that already reached an external
 system. Relationship projections therefore preserve each affected action,
 destination, attempt, observation, and outcome as a separate follow-up record.
 Verified completion stays completed; an unobserved result stays unknown. The
-projection may rank unresolved delivery first, but it only asks the recruiter
+projection may rank unresolved delivery first, but it only asks the user
 to decide the follow-up and carries no execution authority.
 
 ### Views are derived
@@ -286,7 +286,7 @@ Recovery is part of the ordinary product, not an operational exception.
 
 ![Talent Signal product architecture](talent-signal-product-architecture.png)
 
-The product view shows how capture, Agent drafting, recruiter confirmation, and
+The product view shows how capture, Agent drafting, user confirmation, and
 relationship continuity fit together. The editable source is
 [`talent-signal-product-architecture.excalidraw`](talent-signal-product-architecture.excalidraw).
 

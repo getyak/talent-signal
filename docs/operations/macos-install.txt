@@ -1,0 +1,24 @@
+Talent Signal — relationship workspace
+
+Requires macOS 14 or later. Supports Apple silicon and Intel.
+
+1. Drag Talent Signal.app to Applications, then open it.
+2. Enter your workspace's HTTPS origin (scheme + hostname + optional port,
+   without /workspace or other paths). Obtain it from your workspace owner.
+3. Sign in with your own account. A private Tailscale workspace requires an
+   authorized device on the same Tailnet and Tailscale connected first.
+
+The download includes no server, account, credentials, or private workspace
+address. Installing it does not grant access to anyone else's data.
+Use the network button in the workspace toolbar to change the server.
+Settings > Talent Signal links to release downloads and installation help.
+To update, quit the app and replace it in Applications; app preferences and
+workspace accounts are retained. Keep the prior download to roll back.
+
+Preview packages are explicitly labeled preview. They are ad-hoc signed and
+not notarized by Apple; Gatekeeper may block them. Do not disable Gatekeeper or
+remove quarantine to make a package look trusted. Use a signed release for
+ordinary distribution, or build the preview yourself from its tagged source.
+
+Downloads and full instructions:
+https://github.com/getyak/talent-signal/blob/main/docs/operations/macos-distribution.md

@@ -138,7 +138,7 @@ export default async function WorkspaceLayout({
       </>
     );
   }
-  const accountName = currentDisplayName ?? session.user.name ?? session.user.email ?? "招聘顾问";
+  const accountName = currentDisplayName ?? session.user.name ?? session.user.email ?? "工作区成员";
   const fixtureFallback =
     !backendAccount && process.env.TALENT_SIGNAL_INTEGRATION_MODE === "true";
   const fixtureWorkspace =

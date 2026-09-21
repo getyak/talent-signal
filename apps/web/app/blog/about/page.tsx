@@ -48,7 +48,7 @@ export default function EditorialMethodPage() {
             <p className="eyebrow">编辑方法</p>
             <h1>信任始于结论如何形成。</h1>
             <p>
-              Talent Signal 编辑团队把产品研究转化为面向独立招聘顾问与精品猎头团队的实践指南。
+              Talent Signal 编辑团队把产品研究转化为面向维护客户、伙伴与协作关系的人的实践指南。
             </p>
           </header>
 
@@ -62,7 +62,7 @@ export default function EditorialMethodPage() {
             <section id="how-we-research">
               <h2>我们如何研究</h2>
               <p>
-                我们从招聘顾问的问题出发，检查现有产品证据，并以一手文档支持外部事实。产品判断、示例与外部事实始终彼此分离。
+                我们从关系协作中的实际问题出发，检查现有产品证据，并以一手文档支持外部事实。产品判断、示例与外部事实始终彼此分离。
               </p>
             </section>
             <section id="ai-assistance">

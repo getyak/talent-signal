@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Make Talent Signal legible to design-conscious independent recruiters and
-boutique search teams. The web surface should feel more specific, calm, and
+Make Talent Signal legible to people maintaining relationships with clients,
+partners, collaborators, and candidates. The web surface should feel more specific, calm, and
 trustworthy than broad productivity software.
 
 ## Positioning
@@ -16,13 +16,13 @@ Demonstrate one defensible loop:
 4. decide independently whether to act;
 5. carry verified context forward.
 
-Do not sell feature volume or autonomous recruiting.
+Do not sell feature volume or autonomous outreach.
 
 ## Information architecture
 
 - a concise promise and visual explanation of the evidence-to-action loop;
 - the guarantees around evidence, correction, approval, and deletion;
-- an interactive candidate brief that changes when evidence changes;
+- an interactive relationship brief that changes when evidence changes;
 - the method: capture, confirm, advance, and observe;
 - product principles and privacy boundaries;
 - a live path through loading, success, empty, ambiguity, failure, edit,
@@ -59,7 +59,7 @@ The page should make clear that:
 For the authenticated workspace, the strongest identity proof is an inline
 two-owner case: Chat and Agent controls remain beside the living person page;
 the current source-linked owner is actionable; the expired owner remains
-visible but disabled; no person is preselected; and the recruiter can preserve
+visible but disabled; no person is preselected; and the user can preserve
 the new source for later identity review without creating a duplicate.
 
 ## Quality boundary

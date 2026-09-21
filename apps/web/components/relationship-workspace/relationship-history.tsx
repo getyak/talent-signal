@@ -150,7 +150,7 @@ export function RelationshipExternalEffectReview({
               </dl>
               <footer>
                 <ShieldCheck aria-hidden="true" size={14} />
-                没有新的招聘顾问决定，系统不会联系此人或改变目标位置。
+                未经你另行确认，系统不会联系此人或改变目标位置。
               </footer>
             </article>
           );
@@ -226,7 +226,7 @@ export function RelationshipHistoryTimeline({
                 <span>{operation.status.replaceAll("_", " ")}</span>
                 <span>
                   {operation.actor_kind === "recruiter"
-                    ? "招聘顾问决定"
+                    ? "你的决定"
                     : "系统投影"}
                 </span>
                 {operation.references.knowledge_snapshot_id ? (

@@ -35,7 +35,7 @@ export function RelationshipSourceLineage({
           <i aria-hidden="true">02</i>
           <span>身份锚点</span>
           <strong>{workspace.subject.display_label}</strong>
-          <small>由招聘顾问关联，不根据面孔猜测</small>
+          <small>由你关联，不根据面孔猜测</small>
         </li>
         <li>
           <i aria-hidden="true">03</i>
@@ -55,7 +55,7 @@ export function RelationshipSourceLineage({
         </li>
       </ol>
       <p className="context-lineage__note">
-        聊天小头像只是来源背景，并非已核验肖像。在招聘顾问添加已确认照片前，本页使用中性的姓名首字标记。
+        聊天小头像只是来源背景，并非已核验肖像。在你添加已确认照片前，本页使用中性的姓名首字标记。
       </p>
     </section>
   );

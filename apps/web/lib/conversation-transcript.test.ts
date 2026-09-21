@@ -27,6 +27,12 @@ describe("conversation transcript review", () => {
     });
   });
 
+  it("recognizes general relationship labels without changing stored speaker identifiers", () => {
+    const analysis = parseConversationTranscript("对方：周三可以一起讨论方案。\n我：我会确认具体时间。");
+    expect(analysis.messages.map(({ speaker }) => speaker)).toEqual(["candidate", "recruiter"]);
+    expect(analysis.unknown_count).toBe(0);
+  });
+
   it("never infers an unlabeled speaker from wording or position", () => {
     const analysis = parseConversationTranscript(
       "I can start next month.\nCan you share your notice period?",

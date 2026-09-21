@@ -90,6 +90,17 @@ for (const file of iosAppIcons) {
   );
 }
 
+const macIconRoot = "apps/macos/Resources/Assets.xcassets/AppIcon.appiconset";
+const macIcons = JSON.parse(await readFile(path.join(repositoryRoot, macIconRoot, "Contents.json"), "utf8"));
+assert.equal(macIcons.images.length, 10, "macOS must include all standard icon sizes");
+for (const item of macIcons.images) {
+  assert.equal(item.idiom, "mac");
+  const size = Number.parseInt(item.size, 10) * Number.parseInt(item.scale, 10);
+  const file = `${macIconRoot}/${item.filename}`;
+  const buffer = await readFile(path.join(repositoryRoot, file));
+  assert.deepEqual(pngDimensions(buffer, file), { width: size, height: size });
+}
+
 const extensionIcons = [
   ["apps/browser-extension/load-unpacked/icons/icon-16.png", 16],
   ["apps/browser-extension/load-unpacked/icons/icon-32.png", 32],
