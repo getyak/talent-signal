@@ -79,6 +79,7 @@
     "072_mcp_extensions",
     "073_conversation_queue",
     "073_account_onboarding",
-    "074_time_workspace"
+    "074_time_workspace",
+    "075_conversation_message_images"
   ]
 }

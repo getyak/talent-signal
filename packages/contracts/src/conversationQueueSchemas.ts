@@ -26,13 +26,66 @@ export type ConversationQueueEntryStatus = Static<
   typeof ConversationQueueEntryStatusSchema
 >;
 
+/**
+ * Ordered inline conversation image manifest.
+ *
+ * Array position is the immutable order. `attachment_id` is stable across a
+ * client timeout retry, and `content_hash` pins the exact bytes so a changed
+ * byte sequence can never reuse the same receipt identity. No raw bytes appear
+ * here; bytes live only in the dedicated image store and the authenticated
+ * readback path.
+ */
+export const ConversationImageManifestSchema = Type.Object(
+  {
+    attachment_id: id,
+    file_name: Type.String({ minLength: 1, maxLength: 200 }),
+    media_type: Type.Union([
+      Type.Literal("image/png"),
+      Type.Literal("image/jpeg"),
+      Type.Literal("image/webp"),
+    ]),
+    byte_size: Type.Integer({ minimum: 1, maximum: 10_000_000 }),
+    content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+  },
+  obj,
+);
+
+export type ConversationImageManifest = Static<
+  typeof ConversationImageManifestSchema
+>;
+
+/** One admitted image as sent by the client; base64 is transport only. */
+export const ConversationImageUploadSchema = Type.Object(
+  {
+    attachment_id: id,
+    file_name: Type.String({ minLength: 1, maxLength: 200 }),
+    media_type: Type.Union([
+      Type.Literal("image/png"),
+      Type.Literal("image/jpeg"),
+      Type.Literal("image/webp"),
+    ]),
+    byte_size: Type.Integer({ minimum: 1, maximum: 10_000_000 }),
+    content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+    data_base64: Type.String({ minLength: 1, maxLength: 13_400_000 }),
+  },
+  obj,
+);
+
+export type ConversationImageUpload = Static<
+  typeof ConversationImageUploadSchema
+>;
+
 export const ConversationQueueEntrySchema = Type.Object(
   {
     queue_entry_id: id,
     message_id: id,
     sequence: Type.Integer({ minimum: 1 }),
     status: ConversationQueueEntryStatusSchema,
-    objective: Type.String({ minLength: 1, maxLength: 1_000 }),
+    // Empty only for an images-only message; the client renders a placeholder.
+    objective: Type.String({ maxLength: 1_000 }),
+    images: Type.Optional(
+      Type.Array(ConversationImageManifestSchema, { maxItems: 10 }),
+    ),
     created_at: stamp,
     updated_at: stamp,
     revision: Type.Integer({ minimum: 1 }),
@@ -85,8 +138,12 @@ export const ConversationQueueAdmitRequestSchema = Type.Object(
     idempotency_key: Type.String({ minLength: 1, maxLength: 128 }),
     session_id: id,
     message_id: id,
-    objective: Type.String({ minLength: 1, maxLength: 1_000 }),
+    // Empty is only admissible together with at least one image.
+    objective: Type.String({ maxLength: 1_000 }),
     time_zone: Type.Optional(bounded(100)),
+    images: Type.Optional(
+      Type.Array(ConversationImageUploadSchema, { maxItems: 10 }),
+    ),
   },
   obj,
 );

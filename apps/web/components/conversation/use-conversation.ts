@@ -1,11 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ConversationQueueMutationRequest, ConversationQueuePreview, ConversationQueueSnapshot } from "@talent-signal/contracts";
+import type {
+  ConversationImageManifest,
+  ConversationImageUpload,
+  ConversationQueueMutationRequest,
+  ConversationQueuePreview,
+  ConversationQueueSnapshot,
+} from "@talent-signal/contracts";
 import type { SessionDetail } from "../session-workbench/session-detail-state";
 import { workspaceSessionFetch } from "../workspace-session-request";
+import { validateAttachmentBatch } from "../contact-agent/capture-intake";
 import { acceptConversationPreview, acceptConversationSnapshot, ConversationFrames } from "@/lib/conversation-stream";
 import { clearConversationLocal, conversationExpiry, readConversationDraft, readConversationMessages, removeConversationMessage, writeConversationDraft, writeConversationMessage, type LocalMessage } from "@/lib/conversation-local";
+import {
+  base64FromBlob,
+  loadConversationImages,
+  persistConversationImages,
+  removeConversationImages,
+  sha256Hex,
+  type DurableConversationImage,
+} from "@/lib/conversation-image-store";
+import { clearConversationImageStore } from "@/lib/conversation-image-lifecycle";
 
 type Options = { id: string | null; scope: string; chatBinding: string; detailBinding: string; initial?: SessionDetail; onAdmitted?: (id: string) => void };
 class RequestError extends Error { constructor(message: string, readonly status: number, readonly code?: string) { super(message); } }
@@ -14,11 +30,21 @@ const sleep = (ms: number, signal: AbortSignal) => new Promise<void>(resolve => 
   const timer = setTimeout(finish, ms); signal.addEventListener("abort", finish, { once: true });
 });
 
+export type ConversationAttachment = {
+  id: string;
+  file: File;
+  url: string;
+  manifest: ConversationImageManifest;
+};
+
 export function useConversation(options: Options) {
   const { id, scope, chatBinding, detailBinding, initial } = options;
   const [detail, setDetail] = useState(initial ?? null);
   const [draft, setDraft] = useState(initial?.composer_draft ?? "");
   const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [attachments, setAttachments] = useState<ConversationAttachment[]>([]);
+  const [preparing, setPreparing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [snapshot, setSnapshot] = useState<ConversationQueueSnapshot | null>(null);
   const [preview, setPreview] = useState<ConversationQueuePreview | null>(null);
   const [connection, setConnection] = useState<"connecting" | "live" | "reconnecting">("connecting");
@@ -29,20 +55,28 @@ export function useConversation(options: Options) {
   const [draftConflict, setDraftConflict] = useState(false);
   const [mutating, setMutating] = useState(false);
   const local = useRef(messages); const draftRef = useRef(draft); const detailRef = useRef(detail);
+  const attachmentsRef = useRef<ConversationAttachment[]>([]);
   const snapshotRef = useRef(snapshot); const lifecycle = useRef<AbortController | null>(null);
   const sender = useRef(false); const saving = useRef(false); const lastSaved = useRef(initial?.composer_draft ?? "");
   const mutationBusy = useRef(false); const pendingHandoff = useRef<string | null>(null);
   const writer = useRef(""); const draftStamp = useRef(""); const loaded = useRef(false);
+  const submitLock = useRef(false); const preparingRef = useRef(false); const prepareGeneration = useRef(0);
+  const pendingPreparations = useRef(0);
+  const prepareChain = useRef<Promise<void>>(Promise.resolve());
   const admitted = useRef(options.onAdmitted);
   useEffect(() => { admitted.current = options.onAdmitted; }, [options.onAdmitted]);
   const expiry = () => conversationExpiry(detailRef.current?.expires_at);
   const queueUrl = `/api/workspace-sessions/${id}/conversation-queue`;
+  // The mounted lifecycle controller is the single identity for this
+  // account/session/binding. Every awaited step rechecks it before committing.
+  const stillCurrent = useCallback((controller: AbortController | null) =>
+    controller !== null && lifecycle.current === controller && !controller.signal.aborted, []);
 
   const storeMessages = useCallback((next: LocalMessage[]) => { local.current = next; setMessages(next); }, []);
   const reconcile = useCallback((server: ConversationQueueSnapshot | null, history: SessionDetail | null) => {
     if (!id) return;
     const known = new Set([...(server?.queued ?? []).map(item => item.message_id), ...(server?.active ? [server.active.message_id] : []), ...(history?.turns ?? []).map(turn => turn.id)]);
-    const remaining = local.current.filter(message => { if (!known.has(message.id)) return true; removeConversationMessage(scope, id, message.id); return false; });
+    const remaining = local.current.filter(message => { if (!known.has(message.id)) return true; removeConversationMessage(scope, id, message.id); void removeConversationImages(scope, id, message.id); return false; });
     if (remaining.length !== local.current.length) storeMessages(remaining);
   }, [id, scope, storeMessages]);
 
@@ -58,16 +92,24 @@ export function useConversation(options: Options) {
   function applyDetail(next: SessionDetail) {
     if (next.session_id !== id || (detailRef.current && next.revision < detailRef.current.revision)) return;
     detailRef.current = next; setDetail(next); reconcile(snapshotRef.current, next);
-    if (next.state !== "active") { clearConversationLocal(scope, id!); storeMessages([]); setPreview(null); setUnavailable(true); }
+    if (next.state !== "active") { clearConversationLocal(scope, id!); clearConversationImageStore(scope, id!); storeMessages([]); setPreview(null); setUnavailable(true); }
   }
   async function refreshDetail() {
     if (!id) return;
     const response = await request(`/api/workspace-sessions/${id}`, {}, detailBinding);
     const body = await response.json(); if (body.detail && !lifecycle.current?.signal.aborted) applyDetail(body.detail);
   }
+  function setAttachmentState(next: ConversationAttachment[]) {
+    attachmentsRef.current = next;
+    setAttachments(next);
+  }
+  function clearAttachments() {
+    for (const attachment of attachmentsRef.current) URL.revokeObjectURL(attachment.url);
+    setAttachmentState([]);
+  }
   function refuse(error: unknown) {
     if (error instanceof RequestError && (error.status === 401 || error.status === 403 || error.status === 410 || error.code === "session_stale")) {
-      setUnavailable(true); setPreview(null); setDetail(null); setDraft(""); storeMessages([]); if (id) clearConversationLocal(scope, id);
+      setUnavailable(true); setPreview(null); setDetail(null); setDraft(""); storeMessages([]); clearAttachments(); if (id) { clearConversationLocal(scope, id); clearConversationImageStore(scope, id); }
     }
   }
   function updateMessage(id: string, update: Partial<LocalMessage>) {
@@ -85,21 +127,32 @@ export function useConversation(options: Options) {
     let didAdmit = false;
     try {
       for (;;) {
-        if (!controller || controller.signal.aborted) break;
+        if (!controller || controller.signal.aborted || lifecycle.current !== controller) break;
         const message = local.current.find(item => item.delivery !== "accepted");
         if (!message || message.delivery !== "pending") break;
-        updateMessage(message.id, { delivery: "sending", error: undefined });
+        const uploads = await uploadsFor(message);
+        if (!controller || controller.signal.aborted || lifecycle.current !== controller) break;
+        if (message.images?.length && !uploads) {
+          const uncertain = message.receiptUncertain !== false;
+          updateMessage(message.id, { delivery: uncertain ? "unknown" : "rejected", error: uncertain ? "本机图片暂时无法读取，送达结果仍未确认。恢复连接后请核对。" : "本机图片数据已丢失，无法重发。请移除这条消息后重新选择图片。" });
+          break;
+        }
+        updateMessage(message.id, { delivery: "sending", receiptUncertain: true, error: undefined });
         try {
-          const response = await request(queueUrl, { method: "POST", body: JSON.stringify({ session_id: id, message_id: message.id, idempotency_key: `web-queue:${message.id}`, objective: message.objective, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone }) });
+          const response = await request(queueUrl, { method: "POST", body: JSON.stringify({ session_id: id, message_id: message.id, idempotency_key: `web-queue:${message.id}`, objective: message.objective, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...(uploads && uploads.length ? { images: uploads } : {}) }) });
           await response.json();
-          if (controller.signal.aborted) break;
+          if (!controller || controller.signal.aborted || lifecycle.current !== controller) break;
+          // Accepted only means the server committed the same message identity.
+          // Keep the local preview until canonical history reconciles it, so the
+          // only thumbnail is never deleted before the server one exists.
           updateMessage(message.id, { delivery: "accepted" }); setServerExists(true); didAdmit = true;
         } catch (caught) {
           // No response is not a rejected message. Its immutable identity stays in the outbox.
-          if (controller.signal.aborted) break;
-          const definitive = caught instanceof RequestError && caught.status >= 400 && caught.status < 500 && caught.status !== 408;
-          updateMessage(message.id, { delivery: definitive ? "rejected" : "unknown", error: definitive ? caught.message : "送达结果尚未确认，可核对并重试。" });
-          if (!controller.signal.aborted) refuse(caught);
+          if (!controller || controller.signal.aborted || lifecycle.current !== controller) break;
+          const definitive = message.receiptUncertain === false && caught instanceof RequestError && caught.status >= 400 && caught.status < 500 && caught.status !== 408;
+          updateMessage(message.id, { delivery: definitive ? "rejected" : "unknown", receiptUncertain: !definitive, error: definitive ? caught.message : "送达结果尚未确认，可核对并重试。" });
+          if (!controller || controller.signal.aborted) break;
+          refuse(caught);
           break;
         }
       }
@@ -107,8 +160,29 @@ export function useConversation(options: Options) {
       sender.current = false;
       // Notify the parent only after serial admissions and mutations settle.
       // The live composer must remain mounted when its canonical URL changes.
-      if (didAdmit && !controller?.signal.aborted) { pendingHandoff.current = id; handoffWhenSettled(); }
+      if (didAdmit && controller && !controller.signal.aborted && lifecycle.current === controller) { pendingHandoff.current = id; handoffWhenSettled(); }
     }
+  }
+
+  async function uploadsFor(message: LocalMessage): Promise<ConversationImageUpload[] | null> {
+    if (!message.images?.length || !id) return [];
+    const stored = await loadConversationImages(scope, id, message.id);
+    if (stored.length !== message.images.length) return null;
+    const ordered = [...stored].sort((a, b) => a.position - b.position);
+    const uploads: ConversationImageUpload[] = [];
+    for (const [index, record] of ordered.entries()) {
+      const manifest = message.images[index];
+      if (!manifest || record.attachment_id !== manifest.attachment_id || record.content_hash !== manifest.content_hash || record.byte_size !== manifest.byte_size) return null;
+      uploads.push({
+        attachment_id: manifest.attachment_id,
+        file_name: manifest.file_name,
+        media_type: manifest.media_type,
+        byte_size: manifest.byte_size,
+        content_hash: manifest.content_hash,
+        data_base64: await base64FromBlob(record.blob),
+      });
+    }
+    return uploads;
   }
 
   useEffect(() => {
@@ -133,7 +207,7 @@ export function useConversation(options: Options) {
       storeMessages([...own.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
     }
     window.addEventListener("storage", changed);
-    return () => { loaded.current = false; controller.abort(); window.removeEventListener("storage", changed); };
+    return () => { loaded.current = false; controller.abort(); prepareGeneration.current += 1; pendingPreparations.current = 0; preparingRef.current = false; clearAttachments(); window.removeEventListener("storage", changed); };
     // The binding identifies this entire mounted conversation. Never migrate live state between accounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, scope, chatBinding, detailBinding]);
@@ -196,27 +270,125 @@ export function useConversation(options: Options) {
     if (!writeConversationDraft(scope, id, { value, updatedAt, expiresAt: expiry(), writer: writer.current })) setError("本机草稿存储不可用，请保留此页。发送前需要恢复存储。");
     else draftStamp.current = updatedAt;
   }
-  function submit() {
-    const objective = draftRef.current.trim();
-    if (!ready || !id || unavailable || !objective || objective.length > 1000 || local.current.length + (snapshotRef.current?.queued.length ?? 0) + (snapshotRef.current?.active ? 1 : 0) >= 50) return false;
-    const lastCreated = local.current.at(-1)?.createdAt;
-    const message: LocalMessage = { id: crypto.randomUUID(), objective, createdAt: new Date(Math.max(Date.now(), lastCreated ? Date.parse(lastCreated) + 1 : 0)).toISOString(), delivery: "pending", expiresAt: expiry() };
-    if (!writeConversationMessage(scope, id, message)) { setError("无法保存发送状态，内容仍在输入框中。请恢复浏览器存储后重试。"); return false; }
-    const stamp = new Date().toISOString();
-    if (!writeConversationDraft(scope, id, { value: "", updatedAt: stamp, expiresAt: expiry(), writer: writer.current })) { removeConversationMessage(scope, id, message.id); setError("草稿无法安全更新，内容已保留。请恢复浏览器存储后重试。"); return false; }
-    draftStamp.current = stamp; draftRef.current = ""; setDraft(""); storeMessages([...local.current, message]); setError(""); return true;
+
+  function addFiles(files: File[]): Promise<void> {
+    if (!files.length) return Promise.resolve();
+    const generation = prepareGeneration.current;
+    const controller = lifecycle.current;
+    if (!id || unavailable || !controller || controller.signal.aborted) return Promise.resolve();
+    pendingPreparations.current += 1;
+    preparingRef.current = true; setPreparing(true);
+    prepareChain.current = prepareChain.current
+      .then(() => prepareFiles(files, generation, controller))
+      .catch(() => undefined)
+      .finally(() => {
+        if (generation !== prepareGeneration.current || !stillCurrent(controller)) return;
+        pendingPreparations.current -= 1;
+        preparingRef.current = pendingPreparations.current > 0;
+        setPreparing(preparingRef.current);
+      });
+    return prepareChain.current;
   }
+  async function prepareFiles(files: File[], generation: number, controller: AbortController): Promise<void> {
+    if (generation !== prepareGeneration.current || !stillCurrent(controller)) return;
+    const current = attachmentsRef.current;
+    const result = validateAttachmentBatch(current.map(attachment => attachment.file), files);
+    if (!result.ok) { if (generation === prepareGeneration.current) setError(result.error); return; }
+    if (generation !== prepareGeneration.current || !stillCurrent(controller)) return;
+    const added: ConversationAttachment[] = [];
+    try {
+      for (const file of result.accepted) {
+        const contentHash = await sha256Hex(await file.arrayBuffer());
+        if (generation !== prepareGeneration.current || !stillCurrent(controller)) return;
+        if (!/^[a-f0-9]{64}$/u.test(contentHash)) throw new Error("HASH");
+        added.push({
+          id: crypto.randomUUID(),
+          file,
+          url: URL.createObjectURL(file),
+          manifest: {
+            attachment_id: crypto.randomUUID(),
+            file_name: file.name.slice(0, 200) || "image",
+            media_type: file.type as ConversationImageManifest["media_type"],
+            byte_size: file.size,
+            content_hash: contentHash,
+          },
+        });
+      }
+      if (generation !== prepareGeneration.current || !stillCurrent(controller)) return;
+      // Revalidate the committed batch as the single transaction: a concurrent
+      // removal or a stale preparation may never push the set over its limits.
+      const latest = attachmentsRef.current;
+      const recheck = validateAttachmentBatch(latest.map(attachment => attachment.file), added.map(attachment => attachment.file));
+      if (!recheck.ok) { setError(recheck.error); return; }
+      setAttachmentState([...latest, ...added]);
+    } catch {
+      if (generation === prepareGeneration.current) setError("图片无法读取，未添加。请重试或换一张图片。");
+    } finally {
+      const committed = new Set(attachmentsRef.current.map(attachment => attachment.url));
+      for (const attachment of added) if (!committed.has(attachment.url)) URL.revokeObjectURL(attachment.url);
+    }
+  }
+  function removeAttachment(attachmentId: string) {
+    const target = attachmentsRef.current.find(attachment => attachment.id === attachmentId);
+    if (target) URL.revokeObjectURL(target.url);
+    setAttachmentState(attachmentsRef.current.filter(attachment => attachment.id !== attachmentId));
+  }
+
+  async function submit(): Promise<boolean> {
+    if (submitLock.current) return false;
+    const objective = draftRef.current.trim();
+    const capturedDraftValue = draftRef.current;
+    const capturedAttachments = attachmentsRef.current.slice();
+    if (!ready || !id || unavailable || preparingRef.current || (!objective && capturedAttachments.length === 0) || capturedDraftValue.length > 1000 || local.current.length + (snapshotRef.current?.queued.length ?? 0) + (snapshotRef.current?.active ? 1 : 0) >= 50) return false;
+    const controller = lifecycle.current;
+    if (!controller) return false;
+    // Single-flight from before the first await: a second Enter cannot create
+    // a second message while the durable put or admission is still in flight.
+    submitLock.current = true; setSubmitting(true); setError("");
+    try {
+      const messageId = crypto.randomUUID();
+      const manifests = capturedAttachments.map(attachment => attachment.manifest);
+      if (capturedAttachments.length > 0) {
+        const durable = await persistConversationImages(scope, id, messageId, capturedAttachments.map((attachment, position): DurableConversationImage => ({ ...attachment.manifest, position, blob: attachment.file, expiresAt: expiry() })));
+        if (!stillCurrent(controller)) { await removeConversationImages(scope, id, messageId); return false; }
+        if (!durable) { setError("图片无法安全保存在本机，草稿和图片仍在输入框中。请恢复存储后重试。"); return false; }
+      }
+      const lastCreated = local.current.at(-1)?.createdAt;
+      const message: LocalMessage = { id: messageId, objective, ...(manifests.length > 0 ? { images: manifests } : {}), createdAt: new Date(Math.max(Date.now(), lastCreated ? Date.parse(lastCreated) + 1 : 0)).toISOString(), delivery: "pending", receiptUncertain: false, expiresAt: expiry() };
+      if (!writeConversationMessage(scope, id, message)) { await removeConversationImages(scope, id, messageId); setError("无法保存发送状态，内容仍在输入框中。请恢复浏览器存储后重试。"); return false; }
+      if (!stillCurrent(controller)) { removeConversationMessage(scope, id, messageId); await removeConversationImages(scope, id, messageId); return false; }
+      // Only clear the exact captured draft. Text typed while the put awaited
+      // is newer intent and must survive.
+      if (draftRef.current === capturedDraftValue) {
+        const stamp = new Date().toISOString();
+        if (writeConversationDraft(scope, id, { value: "", updatedAt: stamp, expiresAt: expiry(), writer: writer.current })) {
+          draftStamp.current = stamp; draftRef.current = ""; setDraft("");
+        }
+      }
+      // Remove only the captured thumbnails; images added during the put stay.
+      const capturedIds = new Set(capturedAttachments.map(attachment => attachment.id));
+      const remaining = attachmentsRef.current.filter(attachment => !capturedIds.has(attachment.id));
+      for (const attachment of capturedAttachments) if (!remaining.some(candidate => candidate.id === attachment.id)) URL.revokeObjectURL(attachment.url);
+      setAttachmentState(remaining);
+      storeMessages([...local.current, message]); setError(""); return true;
+    } finally {
+      submitLock.current = false;
+      setSubmitting(false);
+    }
+  }
+
   async function retryDelivery(message: LocalMessage) {
     // First reconcile a lost receipt. Only an explicit retry can repeat its stable admission.
     try { const response = await request(queueUrl); const next = await response.json() as ConversationQueueSnapshot; snapshotRef.current = next; setSnapshot(next); await refreshDetail(); reconcile(next, detailRef.current); }
     catch (caught) { if (caught instanceof RequestError && caught.status !== 404) { refuse(caught); if ([401, 403, 410].includes(caught.status)) return; } }
-    if (local.current.some(item => item.id === message.id)) updateMessage(message.id, { delivery: "pending", error: undefined });
+    if (local.current.some(item => item.id === message.id)) updateMessage(message.id, { delivery: "pending", receiptUncertain: message.receiptUncertain ?? message.delivery === "unknown", error: undefined });
   }
   function discardRejectedDelivery(messageId: string) {
     if (!id || !local.current.some(message => message.id === messageId && message.delivery === "rejected")) return;
     // An unknown receipt must be reconciled; only a definitive rejection can
     // be removed locally without risking an invisible accepted intention.
     removeConversationMessage(scope, id, messageId);
+    void removeConversationImages(scope, id, messageId);
     storeMessages(local.current.filter(message => message.id !== messageId));
   }
   async function mutate(input: Omit<ConversationQueueMutationRequest, "expected_revision" | "idempotency_key"> & { objective?: string; queue_entry_id?: string; run_id?: string }) {
@@ -270,5 +442,5 @@ export function useConversation(options: Options) {
     try { const response = await request(`/api/workspace-sessions/${id}`, { method: "DELETE", body: JSON.stringify({ expected_revision: detailRef.current.revision, idempotency_key: crypto.randomUUID() }) }, detailBinding); const body = await response.json(); applyDetail(body.detail); return true; }
     catch (caught) { setError(caught instanceof Error ? caught.message : "删除尚未确认，请重试。"); await refreshDetail().catch(() => {}); return false; }
   }
-  return { detail, draft, messages, snapshot, preview, connection, error, ready, unavailable, draftConflict, mutating, changeDraft, submit, retryDelivery, discardRejectedDelivery, mutate, keepDraft, remove, refreshDetail };
+  return { detail, draft, messages, attachments, preparing, submitting, snapshot, preview, connection, error, ready, unavailable, draftConflict, mutating, addFiles, removeAttachment, changeDraft, submit, retryDelivery, discardRejectedDelivery, mutate, keepDraft, remove, refreshDetail };
 }

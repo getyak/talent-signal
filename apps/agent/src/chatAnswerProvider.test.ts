@@ -113,3 +113,131 @@ describe("structured Session title transport", () => {
     expect(result.title).toBe("Reply");
   });
 });
+
+describe("inline user message images in unscoped conversation", () => {
+  const data = new Uint8Array([137, 80, 78, 71, 1, 2, 3, 4]);
+  function visionFetcher() {
+    return vi.fn<typeof fetch>(async () => Response.json({
+      id: "vision-1",
+      model: "glm-5.3-flash",
+      choices: [{ message: { content: JSON.stringify({ kind: "answer", title: "Reply", body: "I can see the image.", citation_ids: [] }) } }],
+    }));
+  }
+
+  it("sends unscoped user images through the vision model without relationship context", async () => {
+    const fetcher = visionFetcher();
+    const result = await new ZhipuChatAnswerProvider({
+      apiKey: "synthetic-only", model: "glm-5.3", visionModel: "glm-5.3-flash", observer: null, fetcher,
+    }).answer({
+      objective: "What is in this picture?", mode: "unscoped_conversation",
+      prompt_snapshot: bundledPrompt("assistant/conversation"),
+      context_blocks: [], allowed_citation_ids: [],
+      images: [{ file_name: "shot.png", media_type: "image/png", data }],
+    });
+    expect(result.body).toBe("I can see the image.");
+    expect(result.model).toBe("glm-5.3-flash");
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+    expect(body.model).toBe("glm-5.3-flash");
+    expect(JSON.stringify(body.messages[1].content)).toContain("data:image/png;base64,");
+    expect(JSON.stringify(body.messages[1].content)).toContain("What is in this picture?");
+  });
+
+  it("still rejects relationship context on an unscoped request", async () => {
+    await expect(new ZhipuChatAnswerProvider({
+      apiKey: "synthetic-only", model: "glm-5.3", visionModel: "glm-5.3-flash", observer: null, fetcher: visionFetcher(),
+    }).answer({
+      objective: "Unsafe", mode: "unscoped_conversation",
+      prompt_snapshot: bundledPrompt("assistant/conversation"),
+      context_blocks: [{ block_id: "x", block_key: "x", type: "identity_context", status: "confirmed", headline: "x", summary: "x", items: [], evidence_fragment_ids: [] }],
+      allowed_citation_ids: [],
+      images: [{ file_name: "shot.png", media_type: "image/png", data }],
+    })).rejects.toThrow("cannot receive relationship context");
+  });
+
+  it("passes agent inputParts images to the vision model in an unscoped run", async () => {
+    const fetcher = visionFetcher();
+    const provider = new ZhipuChatAnswerProvider({ apiKey: "synthetic-only", model: "glm-5.3", visionModel: "glm-5.3-flash", observer: null, fetcher });
+    const result = await provider.run({
+      runID: "synthetic-images", objective: "", systemPrompt: "Stay in scope.",
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "w", sessionID: "s", currentPersonID: null, currentRelationshipContextID: null },
+      toolManifest: [], budget: { maxTurns: 1, maxToolCalls: 1, maxDurationMs: 10_000, maxTaskTokens: 4_000, maxEstimatedUsd: 1 },
+      inputParts: [{ kind: "image", artifactID: "conversation-image-1", mimeType: "image/png", byteSize: data.length,
+        contentHash: "0".repeat(64), dataBase64: Buffer.from(data).toString("base64") }],
+    }, async () => ({ ok: true, callID: "noop", name: "noop" }), new AbortController().signal);
+    expect(result.turns).toBe(1);
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+    expect(body.model).toBe("glm-5.3-flash");
+    expect(JSON.stringify(body.messages[1].content)).toContain("conversation-image-1");
+  });
+});
+
+describe("observation redaction for inline images", () => {
+  const data = new Uint8Array([137, 80, 78, 71, 1, 2, 3, 4]);
+  const dataURL = `data:image/png;base64,${Buffer.from(data).toString("base64")}`;
+  function capturingObserver(captured: unknown[]) {
+    return {
+      addCredential: () => {},
+      start: (_context: unknown, input: unknown) => {
+        captured.push(input);
+        return {
+          step: async (_name: string, _kind: string, input2: unknown, execute: () => Promise<unknown>) => {
+            captured.push(input2);
+            return execute();
+          },
+        };
+      },
+      complete: async () => {},
+    };
+  }
+  function visionFetcher(response: () => Response) {
+    return vi.fn<typeof fetch>(async () => response());
+  }
+  const observation = { run_id: "run", workspace_id: "w", authorization_scope: "workspace_conversation" };
+
+  it("keeps original bytes out of answer-mode observations while the fetch receives them", async () => {
+    const captured: unknown[] = [];
+    const fetcher = visionFetcher(() => Response.json({ id: "v", model: "glm-5.3-flash",
+      choices: [{ message: { content: JSON.stringify({ kind: "answer", title: "Reply", body: "ok", citation_ids: [] }) } }] }));
+    await new ZhipuChatAnswerProvider({ apiKey: "synthetic-only", model: "glm-5.3", visionModel: "glm-5.3-flash",
+      observer: capturingObserver(captured) as never, fetcher }).answer({
+      objective: "look", mode: "unscoped_conversation", observation,
+      prompt_snapshot: bundledPrompt("assistant/conversation"), context_blocks: [], allowed_citation_ids: [],
+      images: [{ file_name: "shot.png", media_type: "image/png", data }],
+    });
+    const serialized = JSON.stringify(captured);
+    expect(serialized).not.toContain(Buffer.from(data).toString("base64"));
+    expect(serialized).not.toContain("data:image/png;base64");
+    expect(String(fetcher.mock.calls[0]?.[1]?.body)).toContain(dataURL);
+  });
+
+  it("redacts answer-mode observations on the provider error path", async () => {
+    const captured: unknown[] = [];
+    const fetcher = visionFetcher(() => new Response("nope", { status: 500 }));
+    await expect(new ZhipuChatAnswerProvider({ apiKey: "synthetic-only", model: "glm-5.3", visionModel: "glm-5.3-flash",
+      observer: capturingObserver(captured) as never, fetcher }).answer({
+      objective: "look", mode: "unscoped_conversation", observation,
+      prompt_snapshot: bundledPrompt("assistant/conversation"), context_blocks: [], allowed_citation_ids: [],
+      images: [{ file_name: "shot.png", media_type: "image/png", data }],
+    })).rejects.toThrow();
+    const serialized = JSON.stringify(captured);
+    expect(serialized).not.toContain(Buffer.from(data).toString("base64"));
+    expect(serialized).not.toContain("data:image/png;base64");
+  });
+
+  it("redacts workspace-run observations for agent inputParts", async () => {
+    const captured: unknown[] = [];
+    const fetcher = visionFetcher(() => Response.json({ id: "v", model: "glm-5.3-flash",
+      choices: [{ message: { content: JSON.stringify({ outcome: "reply", title: "Reply", body: "ok" }) } }] }));
+    await new ZhipuChatAnswerProvider({ apiKey: "synthetic-only", model: "glm-5.3", visionModel: "glm-5.3-flash",
+      observer: capturingObserver(captured) as never, fetcher }).run({
+      runID: "run", objective: "look", systemPrompt: "Stay in scope.",
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "w", sessionID: "s", currentPersonID: null, currentRelationshipContextID: null },
+      toolManifest: [], observation, budget: { maxTurns: 1, maxToolCalls: 1, maxDurationMs: 10_000, maxTaskTokens: 4_000, maxEstimatedUsd: 1 },
+      inputParts: [{ kind: "image", artifactID: "conversation-image-1", mimeType: "image/png", byteSize: data.length,
+        contentHash: "0".repeat(64), dataBase64: Buffer.from(data).toString("base64") }],
+    }, async () => ({ ok: true, callID: "noop", name: "noop" }), new AbortController().signal);
+    const serialized = JSON.stringify(captured);
+    expect(serialized).not.toContain(Buffer.from(data).toString("base64"));
+    expect(serialized).not.toContain("data:image/png;base64");
+  });
+});

@@ -1,7 +1,7 @@
 import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
 import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
 import { loadAgentResponsePreference } from "./agentPreferences.js";
-import type { RuntimeObservationContext } from "@talent-signal/agent";
+import type { AgentProviderInputPart, RuntimeObservationContext } from "@talent-signal/agent";
 import type { HarnessContinuationFactory } from "@talent-signal/agent";
 import { createHarnessContinuationFactory } from "./harnessSessions.js";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
@@ -44,6 +44,22 @@ export interface UnscopedChatTaskMutationResult {
   replayed: boolean;
   status: number;
 }
+
+export interface UnscopedChatImage {
+  /** Originating immutable message id; carried into provider provenance. */
+  messageId: string;
+  imageIndex?: number;
+  attachmentId: string;
+  fileName: string;
+  mediaType: "image/png" | "image/jpeg" | "image/webp";
+  byteSize: number;
+  contentHash: string;
+  data: Uint8Array;
+}
+
+/** Host instruction used only when the user sent images with no text. */
+export const IMAGE_ONLY_OBJECTIVE_INSTRUCTION =
+  "The user sent one or more images without any accompanying text. Inspect the images and respond helpfully. Do not claim the user wrote text that is not present.";
 
 export interface UnscopedChatExecution {
   body: UnscopedChatTaskResponse;
@@ -114,6 +130,10 @@ export async function executeUnscopedChatTask(input: {
   onProgress?: (stage: import("@talent-signal/agent").AgentVisibleProgressStage) => void;
   /** External stop, composed with the governor's own abort. */
   signal?: AbortSignal;
+  /** User-sent inline images for this message; untrusted conversation input. */
+  images?: readonly UnscopedChatImage[];
+  /** Honest host note about images omitted by the bounded image budget. */
+  imageContextNote?: string;
 }): Promise<UnscopedChatExecution> {
   const taskID = randomUUID();
   const calendarContext = calendarDraftContextForRequest(taskID, input.request.time_zone, input.referenceTime ?? input.createdAt ?? new Date());
@@ -151,6 +171,38 @@ export async function executeUnscopedChatTask(input: {
   let providerResult: RemoteChatAnswerResult | null = null;
   let proposedSessionTitle: string | null = null;
   let agentProviderResult: UnscopedChatExecution["agentProviderResult"] = null;
+  const userImages = input.images ?? [];
+  // An images-only message keeps an empty visible objective while the model
+  // receives a nonempty host instruction. The stored objective stays truly
+  // empty; only the provider-facing copy carries this explanation.
+  const effectiveObjective = input.request.objective.trim()
+    ? input.request.objective
+    : userImages.length > 0
+      ? IMAGE_ONLY_OBJECTIVE_INSTRUCTION
+      : input.request.objective;
+  const agentInputParts: AgentProviderInputPart[] = userImages.map((image) => ({
+    kind: "image" as const,
+    artifactID: `conversation-image-${image.messageId}-${image.imageIndex ?? 0}-${image.attachmentId}`,
+    mimeType: image.mediaType,
+    byteSize: image.byteSize,
+    contentHash: image.contentHash,
+    dataBase64: Buffer.from(image.data).toString("base64"),
+  }));
+  if (input.imageContextNote) {
+    agentInputParts.push({
+      kind: "text" as const,
+      artifactID: "conversation-image-context-note",
+      mimeType: "text/plain",
+      byteSize: Buffer.byteLength(input.imageContextNote, "utf8"),
+      contentHash: createHash("sha256").update(input.imageContextNote).digest("hex"),
+      text: input.imageContextNote,
+    });
+  }
+  const remoteImages = userImages.map((image) => ({
+    file_name: image.fileName,
+    media_type: image.mediaType,
+    data: image.data,
+  }));
   let remoteStatus: UnscopedChatExecution["remoteStatus"] = input.provider
     ? "fallback"
     : "disabled";
@@ -167,7 +219,7 @@ export async function executeUnscopedChatTask(input: {
         const execution = await executeWorkspaceConversationAgent({
           database: input.database,
           auth: input.auth,
-          objective: input.request.objective,
+          objective: effectiveObjective,
           provider: input.provider,
           sessionID: input.request.session_id ?? null,
           sessionTitleRequested,
@@ -181,6 +233,7 @@ export async function executeUnscopedChatTask(input: {
           ...(input.onVisibleText ? { onVisibleText: input.onVisibleText } : {}),
           ...(input.onProgress ? { onProgress: input.onProgress } : {}),
           ...(input.signal ? { signal: input.signal } : {}),
+          ...(agentInputParts.length > 0 ? { inputParts: agentInputParts } : {}),
           recordSourcePerson: personID => { sourcePeople.add(personID); },
           ...(observation ? { observation: { ...observation, authorization_scope: "workspace_conversation" } } : {}),
         });
@@ -204,12 +257,12 @@ export async function executeUnscopedChatTask(input: {
           ...(assertCurrent ? { assertCurrent } : {}),
           ...(responsePreference ? { responsePreference } : {}),
           ...(calendarContext ? { calendarContext } : {}),
-          objective: input.request.objective,
+          objective: effectiveObjective,
           session_title_requested: sessionTitleRequested,
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           context_blocks: [],
           allowed_citation_ids: [],
-          images: [],
+          images: remoteImages,
           ...(observation ? { observation } : {}),
           ...(input.signal ? { signal: input.signal } : {}),
         }));
@@ -231,12 +284,12 @@ export async function executeUnscopedChatTask(input: {
       } else try {
         providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
           mode: "unscoped_conversation",
-          objective: input.request.objective,
+          objective: effectiveObjective,
           session_title_requested: sessionTitleRequested,
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           context_blocks: [],
           allowed_citation_ids: [],
-          images: [],
+          images: remoteImages,
           ...(observation ? { observation } : {}),
           ...(input.signal ? { signal: input.signal } : {}),
         }));

@@ -105,7 +105,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
   async answer(request: RemoteChatAnswerRequest): Promise<RemoteChatAnswerResult> {
     if (!request.objective.trim()) throw new Error("CLAUDE_CHAT_OBJECTIVE_REQUIRED");
     if (request.reference_time !== undefined && !Number.isFinite(Date.parse(request.reference_time))) throw new Error("CLAUDE_CHAT_REFERENCE_TIME_INVALID");
-    if (request.mode === "unscoped_conversation" && (request.context_blocks.length || request.allowed_citation_ids.length || request.images?.length)) {
+    if (request.mode === "unscoped_conversation" && (request.context_blocks.length || request.allowed_citation_ids.length)) {
       throw new Error("CLAUDE_CHAT_UNSCOPED_CONTEXT_DENIED");
     }
     if (request.images?.length && !this.supportsImageInput) throw new Error("CLAUDE_CHAT_IMAGE_NOT_ADMITTED");
@@ -207,6 +207,10 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
   private async runInternal(request: AgentProviderRequest, invokeTool: Parameters<AgentProvider["run"]>[1], signal: AbortSignal,
     preset: ChatPromptPreset, observed?: (receipt: ClaudeHarnessResult) => void): Promise<AgentProviderResult> {
     if (request.scopeSummary.kind !== "workspace_conversation") throw new Error("CLAUDE_CHAT_SCOPE_UNSUPPORTED");
+    const userImages = (request.inputParts ?? []).filter(part => part.kind === "image");
+    const userImageNotes = (request.inputParts ?? []).filter(part => part.kind === "text")
+      .map(part => ({ artifact_id: part.artifactID, text: part.text }));
+    if (userImages.length > 0 && !this.supportsImageInput) throw new Error("CLAUDE_CHAT_IMAGE_NOT_ADMITTED");
     let receipt: Record<string, unknown> | null = null;
     const sessionTitleRequested = request.sessionTitleRequested === true;
     const calendar = calendarDraftCapability(request.calendarContext, request.objective);
@@ -254,11 +258,14 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     const supplied = request.observation;
     const trusted = supplied?.run_id === request.runID && supplied.workspace_id === request.scopeSummary.workspaceID
       && supplied.authorization_scope === "workspace_conversation" ? supplied : undefined;
-    const outcome = await this.execute(this.configuration, { ...(request.continuation ? { continuation: request.continuation } : {}), ...(trusted ? { observation: trusted } : {}), objective: request.objective,
+    const outcome = await this.execute(this.configuration, { ...((request.continuation && userImages.length === 0) ? { continuation: request.continuation } : {}), ...(trusted ? { observation: trusted } : {}), objective: request.objective,
       ...(onText ? { onText } : {}),
+      ...(userImages.length > 0 ? { images: userImages } : {}),
       systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions].filter(Boolean).join("\n\n"), tools,
       context: JSON.stringify({ calendar_clock: calendar.clock, scope: request.scopeSummary, conversation: boundedConversationHistory(request.conversationHistory),
         session_title_requested: sessionTitleRequested,
+        input_images: userImages.map(part => ({ artifact_id: part.artifactID, mime_type: part.mimeType, byte_size: part.byteSize, content_hash: part.contentHash })),
+        input_notes: userImageNotes,
         response_preference_available: Boolean(request.responsePreference) }),
       effort: "medium", budget: request.budget, assertCurrent: async () => { signal.throwIfAborted(); await request.assertCurrent?.(); },
     }, signal);

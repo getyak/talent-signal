@@ -1,38 +1,28 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Check, PencilSimple, Stop, Trash, X } from "@phosphor-icons/react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { conversationHome } from "@/lib/conversation-local";
 import type { LegacyConversationRecovery } from "@/lib/conversation-legacy";
 import { WORKSPACE_NEW_CONVERSATION_EVENT } from "@/lib/workspace-navigation";
-import type { SourceDraftSnapshot } from "../contact-agent/contact-agent-workspace";
-import {
-  EMPTY_SOURCE_DRAFT,
-  appendValidatedFiles,
-  sameSourceDraft,
-  type SourceDraft,
-} from "./conversation-source-draft";
+import type { ConversationImageManifest } from "@talent-signal/contracts";
 import { ConversationResponse } from "../conversation-response";
 import { ComposerAddMenu } from "../new-conversation-add-menu";
 import { WorkspaceComposer } from "../workspace-composer";
 import type { SessionDetail } from "../session-workbench/session-detail-state";
 import { conversationNearBottom, sessionBlockTitle, sessionTurnBlocks } from "../session-workbench/session-presentation";
 import { LegacyRecoveryNotice } from "./legacy-recovery-notice";
+import { ConversationImageStrip } from "./conversation-images";
 import { useConversation } from "./use-conversation";
 import styles from "./queued-conversation.module.css";
 
-const ConversationSourceDialog = dynamic(
-  () =>
-    import("./conversation-source-dialog").then(
-      (module) => module.ConversationSourceDialog,
-    ),
-  { loading: () => <p role="status">正在打开来源整理…</p> },
-);
-
 const stages: Record<string, string> = { queued: "等待开始", preparing: "正在准备回复", thinking: "正在处理", contact_lookup: "正在查找相关人物", contact_read: "正在阅读相关记录", calendar_draft: "正在整理日程草稿", answer: "正在回复", responding: "正在回复", persisting: "正在保存回复", running: "正在处理" };
 function Identity() { return <div className={styles.identity}><span className={styles.mark} aria-hidden="true" />Talent Signal</div>; }
+function displayText(objective: string, images: readonly ConversationImageManifest[] | undefined): string {
+  if (objective.trim()) return objective;
+  return images?.length ? "（图片）" : objective;
+}
 
 type Props = { initialDetail?: SessionDetail; scope: string; chatBinding: string; detailBinding: string; meetingLinks?: Array<{id: string; title: string}>; meetingReadFailed?: boolean; legacyRecovery?: LegacyConversationRecovery | null };
 export function QueuedConversation(props: Props) {
@@ -41,6 +31,7 @@ export function QueuedConversation(props: Props) {
   const [admitted, setAdmitted] = useState(Boolean(props.initialDetail));
   const handedOff = useRef(Boolean(props.initialDetail));
   const navigating = useRef(false);
+  const filePicker = useRef<HTMLInputElement>(null);
   useEffect(() => {
     // A Next Link can be pending while the old pathname is still visible.
     const leaving = () => { navigating.current = true; };
@@ -76,21 +67,14 @@ export function QueuedConversation(props: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [sourceDraft, setSourceDraft] = useState<SourceDraft>(EMPTY_SOURCE_DRAFT);
-  const sourceDraftRef = useRef(sourceDraft);
-  useEffect(() => {
-    sourceDraftRef.current = sourceDraft;
-  }, [sourceDraft]);
-  const [sourceError, setSourceError] = useState<string | null>(null);
-  const [sourceOpen, setSourceOpen] = useState(false);
-  const [sourceReturnFocus, setSourceReturnFocus] = useState<HTMLElement | null>(null);
   const [away, setAway] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const viewport = useRef<HTMLDivElement>(null); const content = useRef<HTMLDivElement>(null); const follows = useRef(true); const userScroll = useRef(false);
   const active = chat.snapshot?.active;
   const queued = chat.snapshot?.queued ?? [];
   const turns = chat.detail?.turns ?? [];
-  const canSend = chat.ready && !chat.unavailable && Boolean(chat.draft.trim()) && chat.draft.trim().length <= 1000 && queued.length + chat.messages.length + (active ? 1 : 0) < 50;
+  const imageCount = chat.attachments.length;
+  const canSend = chat.ready && !chat.unavailable && !chat.preparing && !chat.submitting && Boolean(chat.draft.trim() || imageCount) && chat.draft.trim().length <= 1000 && queued.length + chat.messages.length + (active ? 1 : 0) < 50;
   const activeVisible = active && !turns.some(turn => turn.id === active.message_id);
   const forming = chat.preview?.run_id === active?.run_id ? chat.preview : null;
   const paused = chat.snapshot?.paused ?? false;
@@ -110,62 +94,13 @@ export function QueuedConversation(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.ready]);
   function latest() { userScroll.current = false; follows.current = true; setAway(false); viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }
-  function send() { if (chat.submit()) { userScroll.current = false; follows.current = true; setAway(false); } }
+  async function send() { if (await chat.submit()) { userScroll.current = false; follows.current = true; setAway(false); } }
   function navigate(href: string) { navigating.current = true; router.push(href); }
-  function openSource(files: File[] = []) {
-    setSourceReturnFocus(
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null,
-    );
-    if (files.length) {
-      const retained = sourceDraftRef.current;
-      if (retained.unresolved || retained.imageAttempt || retained.textAttempt) {
-        setSourceError("上次保存结果尚未确认。请先重试或放弃原草稿，再添加新图片。");
-        setSourceOpen(true);
-        return;
-      }
-      // The host is the single transactional validator: it checks the new
-      // batch against the retained set before merging, refusing overflow
-      // without dropping any of the retained files.
-      const appended = appendValidatedFiles(sourceDraftRef.current.files, files);
-      setSourceError(appended.error);
-      if (!appended.error) {
-        setSourceDraft((draft) => ({
-          ...draft,
-          files: [...draft.files, ...files],
-        }));
-      }
-    } else {
-      setSourceError(null);
-    }
-    setSourceOpen(true);
-  }
-
-  const applySourceDraft = useCallback((snapshot: SourceDraftSnapshot) => {
-    setSourceDraft((previous) => {
-      const next: SourceDraft = {
-        files: snapshot.files,
-        objective: snapshot.objective,
-        research: snapshot.research,
-        text: snapshot.text,
-        inputMode: snapshot.inputMode,
-        // Preserve the saved task identity while its readback is in flight;
-        // the child reports null before the GET resolves.
-        taskID: snapshot.taskID ?? previous.taskID,
-        submitting: snapshot.submitting,
-        unresolved: snapshot.unresolved,
-        imageAttempt: snapshot.imageAttempt,
-        textAttempt: snapshot.textAttempt,
-      };
-      return sameSourceDraft(previous, next) ? previous : next;
-    });
-  }, []);
-
-  function discardSourceDraft() {
-    setSourceDraft(EMPTY_SOURCE_DRAFT);
-    setSourceError(null);
-  }
+  function pickFiles() { filePicker.current?.click(); }
+  const onPicked = useCallback((files: FileList | null) => {
+    const selected = Array.from(files ?? []);
+    if (selected.length) void chat.addFiles(selected);
+  }, [chat]);
   async function remove() {
     if (await chat.remove()) {
       window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT));
@@ -185,43 +120,36 @@ export function QueuedConversation(props: Props) {
     <div className={styles.transcript} ref={viewport} role="region" aria-label="对话记录" tabIndex={0} onWheel={() => { userScroll.current = true; }} onTouchStart={() => { userScroll.current = true; }} onPointerDown={() => { userScroll.current = true; }} onKeyDown={event => { if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown"].includes(event.key)) userScroll.current = true; }} onScroll={() => { if (viewport.current && userScroll.current) { follows.current = conversationNearBottom(viewport.current); setAway(!follows.current); } }}>
       <div className={styles.content} ref={content}>
         {!hasContent && <div className={styles.welcome}><span className={styles.welcomeMark} aria-hidden="true"/><h2>今天想推进什么？</h2></div>}
-        {turns.map(turn => <article className={styles.turn} key={turn.id}><div className={styles.userRow}><div className={styles.userMessage}>{turn.objective}</div></div><div className={styles.answer}><Identity/>{sessionTurnBlocks(turn.response).map((block, index) => <div key={index}>{sessionBlockTitle(block.title) && <h3>{sessionBlockTitle(block.title)}</h3>}<ConversationResponse>{block.body}</ConversationResponse></div>)}</div></article>)}
-        {activeVisible && <article className={styles.turn} key={active.message_id}><div className={styles.userRow}><div className={styles.userMessage}>{active.objective}</div></div><div className={styles.answer}><Identity/>{forming?.text ? <div className={styles.forming}><ConversationResponse>{forming.text}</ConversationResponse><span className={styles.cursor} aria-hidden="true"/></div> : <div className={styles.waiting}><span className={styles.pulse} aria-hidden="true"/>{status}</div>}<div className={styles.runMeta}>{forming?.text ? status : ""}{seconds >= 8 && <span>{seconds} 秒{seconds >= 20 ? " · 可以继续补充，我会按顺序处理" : ""}</span>}</div></div></article>}
-        {chat.messages.map(message => <article className={styles.localTurn} key={message.id}><div className={styles.userRow}><div className={styles.userMessage}>{message.objective}</div></div><div className={styles.delivery}>{message.delivery === "accepted" ? <><Check size={12}/>已送达</> : message.delivery === "unknown" || message.delivery === "rejected" ? <>{message.error || "送达结果尚未确认，请核对后重试。"}<button onClick={() => void chat.retryDelivery(message)}>核对并重试</button>{message.delivery === "rejected" && <button onClick={() => chat.discardRejectedDelivery(message.id)}>移除</button>}</> : message.delivery === "pending" ? "等待送达" : "正在送达…"}</div></article>)}
+        {turns.map(turn => <article className={styles.turn} key={turn.id}><div className={styles.userRow}><div className={styles.userMessage}>{displayText(turn.objective, turn.images)}{turn.images?.length ? <ConversationImageStrip binding={props.chatBinding} images={turn.images} local={false} messageId={turn.id} scope={props.scope} sessionId={chat.detail?.session_id ?? id ?? ""}/> : null}</div></div><div className={styles.answer}><Identity/>{sessionTurnBlocks(turn.response).map((block, index) => <div key={index}>{sessionBlockTitle(block.title) && <h3>{sessionBlockTitle(block.title)}</h3>}<ConversationResponse>{block.body}</ConversationResponse></div>)}</div></article>)}
+        {activeVisible && <article className={styles.turn} key={active.message_id}><div className={styles.userRow}><div className={styles.userMessage}>{displayText(active.objective, active.images)}{active.images?.length ? <ConversationImageStrip binding={props.chatBinding} images={active.images} local={false} messageId={active.message_id} scope={props.scope} sessionId={id ?? ""}/> : null}</div></div><div className={styles.answer}><Identity/>{forming?.text ? <div className={styles.forming}><ConversationResponse>{forming.text}</ConversationResponse><span className={styles.cursor} aria-hidden="true"/></div> : <div className={styles.waiting}><span className={styles.pulse} aria-hidden="true"/>{status}</div>}<div className={styles.runMeta}>{forming?.text ? status : ""}{seconds >= 8 && <span>{seconds} 秒{seconds >= 20 ? " · 可以继续补充，我会按顺序处理" : ""}</span>}</div></div></article>}
+        {chat.messages.map(message => <article className={styles.localTurn} key={message.id}><div className={styles.userRow}><div className={styles.userMessage}>{displayText(message.objective, message.images)}{message.images?.length ? <ConversationImageStrip binding={props.chatBinding} images={message.images} local messageId={message.id} scope={props.scope} sessionId={id ?? ""}/> : null}</div></div><div className={styles.delivery}>{message.delivery === "accepted" ? <><Check size={12}/>已送达</> : message.delivery === "unknown" || message.delivery === "rejected" ? <>{message.error || "送达结果尚未确认，请核对后重试。"}<button onClick={() => void chat.retryDelivery(message)}>核对并重试</button>{message.delivery === "rejected" && <button onClick={() => chat.discardRejectedDelivery(message.id)}>移除</button>}</> : message.delivery === "pending" ? "等待送达" : "正在送达…"}</div></article>)}
       </div>
     </div>
     <div className={styles.dock}>
       {away && <button className={styles.latest} onClick={latest}><ArrowDown size={15}/>回到最新</button>}
       {props.legacyRecovery && <LegacyRecoveryNotice key={props.legacyRecovery.sessionId} recovery={props.legacyRecovery}/>}
       {queued.length > 0 && <section className={styles.queue} aria-label="待处理消息"><div className={styles.queueHeading}><span>{paused ? "已暂停" : "接下来"}<small>{queued.length}</small></span>{paused && <button disabled={chat.mutating || Boolean(active) || queued.some(entry => entry.status !== "queued")} onClick={() => void chat.mutate({kind:"continue"})}>继续处理<ArrowUp size={13}/></button>}</div>
-        <ol>{queued.map((entry, index) => <li key={entry.queue_entry_id}>{editing === entry.queue_entry_id ? <form className={styles.edit} onSubmit={event => { event.preventDefault(); void applyEdit(entry.queue_entry_id); }}><label htmlFor={`edit-${entry.queue_entry_id}`}>编辑待处理消息</label><textarea autoFocus id={`edit-${entry.queue_entry_id}`} value={editValue} maxLength={1000} onChange={event => setEditValue(event.target.value)}/><div><button type="button" onClick={() => setEditing(null)}>取消</button><button type="submit" disabled={!editValue.trim() || chat.mutating}>保存</button></div></form> : <><span className={styles.number}>{index + 1}</span><span className={styles.queueText}>{entry.objective}{["failed", "interrupted"].includes(entry.status) && <small>上次未完成，请重试或移除</small>}</span><div className={styles.queueActions}>{entry.status === "queued" ? <button aria-label={`编辑第 ${index + 1} 条待处理消息`} disabled={chat.mutating} onClick={() => { setEditing(entry.queue_entry_id); setEditValue(entry.objective); }}><PencilSimple size={16}/></button> : <button disabled={chat.mutating} onClick={async () => { if (await chat.mutate({kind:"retry",queue_entry_id:entry.queue_entry_id})) await chat.mutate({kind:"continue"}); }}>重试</button>}<button aria-label={`移除第 ${index + 1} 条待处理消息`} disabled={chat.mutating} onClick={() => void chat.mutate({kind:"withdraw",queue_entry_id:entry.queue_entry_id})}><X size={16}/></button></div></>}</li>)}</ol>
+        <ol>{queued.map((entry, index) => <li key={entry.queue_entry_id}>{editing === entry.queue_entry_id ? <form className={styles.edit} onSubmit={event => { event.preventDefault(); void applyEdit(entry.queue_entry_id); }}><label htmlFor={`edit-${entry.queue_entry_id}`}>编辑待处理消息</label><textarea autoFocus id={`edit-${entry.queue_entry_id}`} value={editValue} maxLength={1000} onChange={event => setEditValue(event.target.value)}/><div><button type="button" onClick={() => setEditing(null)}>取消</button><button type="submit" disabled={!editValue.trim() || chat.mutating}>保存</button></div></form> : <><span className={styles.number}>{index + 1}</span><span className={styles.queueText}>{displayText(entry.objective, entry.images)}{entry.images?.length ? <ConversationImageStrip binding={props.chatBinding} compact images={entry.images} local={false} messageId={entry.message_id} scope={props.scope} sessionId={id ?? ""}/> : null}{["failed", "interrupted"].includes(entry.status) && <small>上次未完成，请重试或移除</small>}</span><div className={styles.queueActions}>{entry.status === "queued" && entry.objective.trim() ? <button aria-label={`编辑第 ${index + 1} 条待处理消息`} disabled={chat.mutating} onClick={() => { setEditing(entry.queue_entry_id); setEditValue(entry.objective); }}><PencilSimple size={16}/></button> : entry.status === "queued" ? null : <button disabled={chat.mutating} onClick={async () => { if (await chat.mutate({kind:"retry",queue_entry_id:entry.queue_entry_id})) await chat.mutate({kind:"continue"}); }}>重试</button>}<button aria-label={`移除第 ${index + 1} 条待处理消息`} disabled={chat.mutating} onClick={() => void chat.mutate({kind:"withdraw",queue_entry_id:entry.queue_entry_id})}><X size={16}/></button></div></>}</li>)}</ol>
       </section>}
       {(chat.error || chat.draftConflict || chat.unavailable) && <div className={styles.notice} role="status">{chat.unavailable ? "这段对话已结束或登录状态发生变化，请重新打开工作台。" : chat.draftConflict ? <>另一处也修改了草稿，当前输入已保留。<button onClick={() => void chat.keepDraft()}>保留当前草稿</button></> : chat.error}</div>}
+      {imageCount > 0 && <div className={styles.composerImages} aria-label="要发送的图片">
+        {chat.attachments.map((attachment, index) => <span className={styles.composerImage} key={attachment.id}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img alt={attachment.manifest.file_name} src={attachment.url} />
+          <button aria-label={`移除第 ${index + 1} 张图片`} className={styles.composerImageRemove} disabled={!chat.ready || chat.unavailable} onClick={() => chat.removeAttachment(attachment.id)} type="button"><X size={12} weight="bold"/></button>
+        </span>)}
+      </div>}
+      {imageCount >= 10 && <p className={styles.composerImageHint} role="status">已达到每条消息 10 张图片的上限。</p>}
+      {chat.preparing && <p className={styles.composerImageHint} role="status">正在准备图片…</p>}
+      {chat.submitting && <p className={styles.composerImageHint} role="status">正在发送…</p>}
       <div className={styles.composer}>
-        <WorkspaceComposer id="queued-conversation-composer" label="消息" value={chat.draft} maxLength={1000} variant="home" rows={2} placeholder={active ? "继续补充，会按顺序处理…" : paused ? "继续输入，消息会加入暂停的队列…" : "有什么想一起理清的？"} canSubmit={canSend} disabled={!chat.ready || chat.unavailable} binding={props.detailBinding} onValueChange={chat.changeDraft} onSubmit={send} onNavigate={navigate} onFiles={openSource} onCapture={() => openSource()}
-          footerStart={<ComposerAddMenu binding={props.detailBinding} onCapture={() => openSource()} onNavigate={navigate}/>}
-          footerEnd={<div className={styles.sendActions}>{active && <button type="button" className={styles.stop} aria-label="停止当前回复" title="停止当前回复，保留后续队列" disabled={chat.mutating || active.cancel_requested} onClick={() => void chat.mutate({kind:"stop",run_id:active.run_id!})}><Stop size={16} weight="fill"/><span>停止</span></button>}<button type="button" className={styles.send} aria-label={active || queued.length || paused ? "加入队列" : "发送消息"} title={active || paused ? "加入队列" : "发送"} disabled={!canSend} onClick={send}><ArrowUp size={21} weight="bold"/></button></div>}/>
+        <input accept="image/png,image/jpeg,image/webp" aria-hidden="true" hidden multiple onChange={event => { onPicked(event.target.files); event.target.value = ""; }} ref={filePicker} tabIndex={-1} type="file" />
+        <WorkspaceComposer id="queued-conversation-composer" label="消息" value={chat.draft} maxLength={1000} variant="home" rows={2} placeholder={active ? "继续补充，会按顺序处理…" : paused ? "继续输入，消息会加入暂停的队列…" : imageCount ? "可加一句话说明，或直接发送图片…" : "有什么想一起理清的？"} canSubmit={canSend} disabled={!chat.ready || chat.unavailable} binding={props.detailBinding} onValueChange={chat.changeDraft} onSubmit={() => void send()} onNavigate={navigate} onFiles={files => void chat.addFiles(files)}
+          footerStart={<ComposerAddMenu binding={props.detailBinding} onAttachImages={pickFiles} onNavigate={navigate}/>}
+          footerEnd={<div className={styles.sendActions}>{active && <button type="button" className={styles.stop} aria-label="停止当前回复" title="停止当前回复，保留后续队列" disabled={chat.mutating || active.cancel_requested} onClick={() => void chat.mutate({kind:"stop",run_id:active.run_id!})}><Stop size={16} weight="fill"/><span>停止</span></button>}<button type="button" className={styles.send} aria-label={active || queued.length || paused ? "加入队列" : "发送消息"} title={active || paused ? "加入队列" : "发送"} disabled={!canSend} onClick={() => void send()}><ArrowUp size={21} weight="bold"/></button></div>}/>
       </div>
       {!hasContent && <div className={styles.starters} aria-label="开始一个话题">{["你可以帮我做什么？", "梳理今天需要跟进的人"].map(text => <button key={text} onClick={() => { chat.changeDraft(text); document.getElementById("queued-conversation-composer")?.focus(); }}>{text}<ArrowUp size={13} aria-hidden="true"/></button>)}</div>}
       <div className={styles.footer}><span role="status" aria-live="polite" aria-atomic="true">{status || ""}</span><span>Enter 发送 · Shift+Enter 换行</span></div>
     </div>
-    {sourceOpen ? (
-      <ConversationSourceDialog
-        initialError={sourceError}
-        initialFiles={sourceDraft.files}
-        initialImageAttempt={sourceDraft.imageAttempt}
-        initialInputMode={sourceDraft.inputMode}
-        initialObjective={sourceDraft.objective}
-        initialResearch={sourceDraft.research}
-        initialTaskID={sourceDraft.taskID}
-        initialText={sourceDraft.text}
-        initialTextAttempt={sourceDraft.textAttempt}
-        onDiscardDraft={discardSourceDraft}
-        onDraftChange={applySourceDraft}
-        onRequestClose={() => setSourceOpen(false)}
-        open={sourceOpen}
-        returnFocusTo={sourceReturnFocus}
-      />
-    ) : null}
   </section>;
 }

@@ -7,6 +7,9 @@ import { workspaceSessionTitle } from "./workspaceChat";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
+// 30,000,000 binary bytes encode to 40,000,000 base64 characters; this bound
+// adds a small JSON envelope without permitting an unbounded buffer anywhere.
+const MAX_ADMIT_BODY_BYTES = 40_100_000;
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers });
 
 /** Every observation and mutation remains bound to the rendered login, including SSE. */
@@ -29,15 +32,20 @@ export async function conversationQueueRoute(request: Request, id: string, actio
       return new Response(upstream.body, { headers: { ...headers, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store, no-transform", "X-Accel-Buffering": "no" } });
     }
     let body: unknown;
+    const declared = Number(request.headers.get("content-length") ?? "");
+    if (Number.isFinite(declared) && declared > MAX_ADMIT_BODY_BYTES) {
+      return json({ message: "每次发送的图片总计不能超过 30 MB。" }, 413);
+    }
     try { body = await request.json(); } catch { return json({ message: "请求格式无效。" }, 400); }
     if (action === "mutate") return json(await client.mutateConversationQueue(id, body as ConversationQueueMutationRequest, deadline));
     const input = body as ConversationQueueAdmitRequest;
-    if (!input || input.session_id !== id || !uuid.test(input.message_id ?? "") || typeof input.objective !== "string" || !input.objective.trim() || input.objective.length > 1000) return json({ message: "消息须在 1–1000 字之间。" }, 400);
+    const images = Array.isArray(input?.images) ? input.images : [];
+    if (!input || input.session_id !== id || !uuid.test(input.message_id ?? "") || typeof input.objective !== "string" || input.objective.length > 1000 || (!input.objective.trim() && images.length === 0) || images.length > 10) return json({ message: "请发送 1–1000 字的消息，或最多 10 张图片。" }, 400);
     try { await client.getAgentSession(id, deadline); }
     catch (error) {
       if (!(error instanceof TalentSignalHttpError) || error.status !== 404) throw error;
       try { await client.saveAgentSession(id, { expected_revision: 0, idempotency_key: id, payload: {
-        id, scopeKind: "unresolved_intent", personDisplayLabel: "", contextDisplayLabel: "", title: workspaceSessionTitle(input.objective),
+        id, scopeKind: "unresolved_intent", personDisplayLabel: "", contextDisplayLabel: "", title: input.objective.trim() ? workspaceSessionTitle(input.objective) : "图片",
         turns: [], updatedAt: new Date().toISOString(), isUnread: false,
       } }, deadline); }
       catch (creationError) {
@@ -52,5 +60,39 @@ export async function conversationQueueRoute(request: Request, id: string, actio
     if (error instanceof BackendSessionExpiredError) return json({ code: "backend_session_expired", message: "请重新登录。" }, 401);
     if (error instanceof TalentSignalHttpError) return json({ code: error.code, message: error.message }, error.status);
     return json({ code: "queue_unavailable", message: "连接暂时中断，消息仍保留。" }, 503);
+  }
+}
+
+/**
+ * Original inline-image readback proxy.
+ *
+ * The bytes never reach an unscoped `<img src>` URL: the browser fetches this
+ * same-origin route with the captured Session binding, and the route rechecks
+ * the current login before forwarding to the backend. The backend revalidates
+ * queue ownership and Session lifecycle and returns no-store/nosniff bytes.
+ */
+export async function conversationImageRoute(request: Request, id: string, messageId: string, indexValue: string) {
+  try {
+    if (!uuid.test(id) || !uuid.test(messageId)) return json({ message: "图片标识无效。" }, 400);
+    const index = Number.parseInt(indexValue, 10);
+    if (!Number.isInteger(index) || index < 0 || index > 9 || String(index) !== indexValue) {
+      return json({ message: "图片位置无效。" }, 400);
+    }
+    const claims = await readBackendSessionClaims();
+    if (!claims || backendSessionIsExpired(claims.backendExpiresAt)) return json({ code: "backend_session_expired", message: "请重新登录。" }, 401);
+    if (request.headers.get("x-workspace-session") !== contactHandoffSessionVersion(claims)) return json({ code: "session_stale", message: "登录已改变，请重新打开对话。" }, 409);
+    const client = new TalentSignalClient(backendAuthBaseUrl(), claims.backendAccessToken);
+    const upstream = await client.openConversationMessageImage(id, messageId, index, AbortSignal.any([request.signal, AbortSignal.timeout(15_000)]));
+    return new Response(upstream.body, {
+      status: 200,
+      headers: {
+        ...headers,
+        "Content-Type": upstream.headers.get("content-type") ?? "application/octet-stream",
+      },
+    });
+  } catch (error) {
+    if (error instanceof BackendSessionExpiredError) return json({ code: "backend_session_expired", message: "请重新登录。" }, 401);
+    if (error instanceof TalentSignalHttpError) return json({ code: error.code, message: error.message }, error.status);
+    return json({ code: "image_unavailable", message: "图片暂时无法读取。" }, 503);
   }
 }

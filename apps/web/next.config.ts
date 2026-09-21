@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
   distDir: process.env.TALENT_SIGNAL_NEXT_DIST_DIR || ".next",
   allowedDevOrigins: ["127.0.0.1"],
   experimental: {
+    // Inline conversation images arrive as base64 JSON: 30,000,000 binary
+    // bytes encode to 40,000,000 characters. This proxy budget keeps that
+    // bounded (the route still rejects over-limit declarations with 413)
+    // instead of silently truncating a valid batch at the 10 MB default.
+    // https://nextjs.org/docs/app/api-reference/config/next-config-js/proxyClientMaxBodySize
+    proxyClientMaxBodySize: 41_000_000,
     // https://nextjs.org/docs/app/api-reference/config/next-config-js/optimizePackageImports
     optimizePackageImports: ["@phosphor-icons/react", "@phosphor-icons/react/dist/ssr"],
     // Next.js needs the TypeScript 6 API while the workspace CLI uses native TypeScript 7.

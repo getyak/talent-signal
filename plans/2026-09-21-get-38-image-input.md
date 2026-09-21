@@ -1,5 +1,9 @@
 # GET-38: Conversation image intake
 
+Superseded: the user rejected the source-intake modal on 2026-09-21. PR #231
+merged as `224cd374`, but its outcome is not acceptance of GET-38. Continue in
+[the inline chat correction plan](2026-09-21-get-38-inline-chat-images.md).
+
 ## Outcome and scope
 
 Make image intake reachable from the ordinary conversation: file selection,
@@ -30,7 +34,7 @@ appears broken; support image dragging, elegant display, and storage.
 1. [x] Read issue, establish baseline, inspect intake boundaries.
 2. [x] Implement and test composer handoff, previews, and protected recovery.
 3. [x] Independently review; verify real browser flow with synthetic images.
-4. [ ] Pass latest-head CI, merge, read back, and update Linear after acceptance.
+4. [x] Pass latest-head CI, merge, read back, and update Linear for this historical implementation.
 
 ## Completion evidence
 
@@ -47,9 +51,11 @@ verification. Native iOS testing is outside this Web-only change.
 Pi task `20260921-133523-d73df7e1` passed local verification. The parent added
 Strict Mode preview recovery and closed the review's confirmation-close and
 unknown-attempt file-append gaps. Independent final review passed with no
-unresolved P0/P1/P2; 114 affected tests pass. Linear is In Progress.
+unresolved P0/P1/P2; 114 affected tests passed for this historical scope.
 Existing backend storage passed an isolated synthetic save/original-image
 readback, and the real UI passed the labeled local fixture; see the
 [verification record](../docs/evaluations/2026-09-21-get38-input/README.md).
-Final build, latest-head CI, merge, resident release and Linear completion
-remain pending.
+PR #231 merged as `224cd374` and was activated in the resident Web release.
+Linear reached Done before the user's correction. That delivery does not meet
+the clarified inline-message requirement; the correction plan owns remaining
+implementation, verification, and issue-state readback.

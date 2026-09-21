@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import { createVisibleTextFilter, type AgentVisibleProgressStage } from "@talent-signal/agent";
+import type { ConversationImageManifest } from "@talent-signal/contracts";
 import type { Pool } from "pg";
 
 import type { AuthContext } from "./auth.js";
 import type { RemoteChatAnswerProviding } from "./chatAnswerProvider.js";
+import { readConversationRunImages } from "./conversationMessageImages.js";
 import { executeUnscopedChatTask } from "./unscopedChat.js";
 import {
   CONVERSATION_QUEUE_MAX_CONCURRENT_RUNS,
@@ -86,6 +88,7 @@ class RunAbort extends Error {
 
 function serializedResult(
   execution: Awaited<ReturnType<typeof executeUnscopedChatTask>>,
+  images: ConversationImageManifest[],
 ): ConversationQueueExecutionResult {
   return {
     body: execution.body,
@@ -93,6 +96,7 @@ function serializedResult(
     previousTaskIDs: execution.previousTaskIDs,
     conversationSources: execution.conversationSources ?? [],
     remoteStatus: execution.remoteStatus,
+    images,
     audit: {
       providerID:
         execution.agentProviderResult?.providerID ??
@@ -341,6 +345,7 @@ export class ConversationQueueRunner {
         messageId: claimed.messageId,
         objective: claimed.objective,
         acceptedAt: claimed.acceptedAt,
+        images: result.images ?? [],
         result,
       });
       const finalized = await finalizeConversationQueueEntry(this.options.pool, {
@@ -464,6 +469,7 @@ export class ConversationQueueRunner {
     const run: ActiveRun = { fence, controller, promise: Promise.resolve() };
     this.active.set(claimed.runId, run);
     const promise = (async () => {
+      let entryImages: Awaited<ReturnType<typeof readConversationRunImages>>["images"] = [];
       try {
         const selection = this.options.selectProvider
           ? await this.options.selectProvider(this.options.pool, {
@@ -475,6 +481,15 @@ export class ConversationQueueRunner {
           await this.finalizeRetained(fence, "MODEL_PROVIDER_UNAVAILABLE");
           return;
         }
+        const runImageContext = await readConversationRunImages(
+          this.options.pool,
+          claimed.accountId,
+          claimed.sessionId,
+          claimed.entryId,
+        );
+        entryImages = runImageContext.images.filter(
+          (image) => image.messageId === claimed.messageId,
+        );
         const execution = await executeUnscopedChatTask({
           request: {
             idempotency_key: `conversation-queue:${claimed.entryId}`,
@@ -483,6 +498,21 @@ export class ConversationQueueRunner {
             objective: claimed.objective,
             ...(claimed.timeZone ? { time_zone: claimed.timeZone } : {}),
           },
+          images: runImageContext.images.map((image) => ({
+            messageId: image.messageId,
+            imageIndex: image.imageIndex,
+            attachmentId: image.manifest.attachment_id,
+            fileName: image.manifest.file_name,
+            mediaType: image.manifest.media_type,
+            byteSize: image.manifest.byte_size,
+            contentHash: image.manifest.content_hash,
+            data: image.data,
+          })),
+          ...(runImageContext.omitted > 0
+            ? {
+                imageContextNote: `This conversation has ${runImageContext.omitted} earlier image(s) from previous messages that do not fit this turn's bounded image budget (at most 10 images / 30 MB total). Do not claim to have seen those omitted images; say they are unavailable if asked about them.`,
+              }
+            : {}),
           provider: selection.provider,
           database: this.options.pool,
           probePool: this.options.pool,
@@ -517,7 +547,7 @@ export class ConversationQueueRunner {
         if (controller.signal.aborted) {
           const reason = (controller.signal.reason as RunAbort | undefined)?.code ?? "ABORTED";
           if (reason === "USER_CANCELLED") {
-            await this.finalizeCancelled(auth, claimed, fence, previewText);
+            await this.finalizeCancelled(auth, claimed, fence, previewText, entryImages.map((image) => image.manifest));
           } else {
             await this.finalizeRetained(fence, reason === "RUNNER_SHUTDOWN" ? "RUNNER_SHUTDOWN" : reason === "LEASE_LOST" ? "LEASE_LOST" : "SOURCE_REVOKED");
           }
@@ -527,7 +557,10 @@ export class ConversationQueueRunner {
           await this.finalizeRetained(fence, "MODEL_RUN_FAILED");
           return;
         }
-        const result = serializedResult(execution);
+        const result = serializedResult(
+          execution,
+          entryImages.map((image) => image.manifest),
+        );
         await recordConversationQueueResult(this.options.pool, fence, result);
         await this.replayPersistence(auth, claimed, result, fence);
       } catch (error) {
@@ -541,7 +574,7 @@ export class ConversationQueueRunner {
           "conversation queue run failed",
         );
         if (reason === "USER_CANCELLED") {
-          await this.finalizeCancelled(auth, claimed, fence, previewText).catch(() => undefined);
+          await this.finalizeCancelled(auth, claimed, fence, previewText, entryImages.map((image) => image.manifest)).catch(() => undefined);
         } else if (revocationCode === "SOURCE_REVOKED" || reason === "SOURCE_REVOKED") {
           await this.finalizeRetained(fence, "SOURCE_REVOKED").catch(() => undefined);
         } else {
@@ -566,6 +599,7 @@ export class ConversationQueueRunner {
     claimed: ClaimedConversationQueueEntry,
     fence: ConversationQueueRunFence,
     partialText: string,
+    images: ConversationImageManifest[],
   ): Promise<void> {
     try {
       await persistConversationQueueCancellation(this.options.pool, auth, {
@@ -574,6 +608,7 @@ export class ConversationQueueRunner {
         messageId: claimed.messageId,
         objective: claimed.objective,
         acceptedAt: claimed.acceptedAt,
+        images,
         partialText,
         stoppedAt: new Date().toISOString(),
       });

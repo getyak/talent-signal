@@ -15,20 +15,20 @@ beforeEach(async()=>{vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);localStorage
 afterEach(async()=>{await act(async()=>root.unmount());mount.remove();vi.unstubAllGlobals();});
 it("shows an immutable outgoing message before admission, releases composer, and preserves a new draft on failure",async()=>{
  let reject!: (reason: Error)=>void;fetcher.mockImplementation(()=>new Promise((_,no)=>{reject=no;}));
- await act(async()=>{chat.changeDraft("first");});await act(async()=>{expect(chat.submit()).toBe(true);});
+ await act(async()=>{chat.changeDraft("first");});await act(async()=>{expect(await chat.submit()).toBe(true);});
  expect(chat.draft).toBe("");expect(chat.messages[0].objective).toBe("first");expect(fetcher).toHaveBeenCalledTimes(1);
  await act(async()=>{chat.changeDraft("newer unsent");reject(new Error("network"));});
  expect(chat.draft).toBe("newer unsent");expect(chat.messages[0].delivery).toBe("unknown");expect(readConversationMessages("owner",sid)[0].id).toBe(chat.messages[0].id);
 });
 it("never auto-retries an unknown delivery and reuses its identity only on explicit retry",async()=>{
- fetcher.mockRejectedValue(new Error("offline"));await act(async()=>{chat.changeDraft("first");});await act(async()=>{chat.submit();});const body=JSON.parse(fetcher.mock.calls[0][1].body);await flush();expect(fetcher).toHaveBeenCalledTimes(1);
+ fetcher.mockRejectedValue(new Error("offline"));await act(async()=>{chat.changeDraft("first");});await act(async()=>{await chat.submit();});const body=JSON.parse(fetcher.mock.calls[0][1].body);await flush();expect(fetcher).toHaveBeenCalledTimes(1);
  await act(async()=>{await chat.retryDelivery(chat.messages[0]);});await flush();const sends=fetcher.mock.calls.filter(call=>call[1]?.method==="POST");expect(sends).toHaveLength(2);expect(JSON.parse(sends[1][1].body).message_id).toBe(body.message_id);expect(JSON.parse(sends[1][1].body).idempotency_key).toBe(body.idempotency_key);
 });
 it("does not resurrect private outbox data when a late request rejects after logout",async()=>{
- let reject!:(reason:Error)=>void;fetcher.mockImplementation(()=>new Promise((_,no)=>{reject=no;}));await act(async()=>{chat.changeDraft("private");});await act(async()=>{chat.submit();});await act(async()=>root.unmount());clearConversationLocal();reject(new Error("closed"));await flush();expect(readConversationMessages("owner",sid)).toEqual([]);
+ let reject!:(reason:Error)=>void;fetcher.mockImplementation(()=>new Promise((_,no)=>{reject=no;}));await act(async()=>{chat.changeDraft("private");});await act(async()=>{await chat.submit();});await act(async()=>root.unmount());clearConversationLocal();reject(new Error("closed"));await flush();expect(readConversationMessages("owner",sid)).toEqual([]);
 });
 it("does not clear the draft or send when durable storage is denied",async()=>{
- const denied=vi.spyOn(window,"localStorage","get").mockImplementation(()=>{throw new Error("denied");});try{await act(async()=>{chat.changeDraft("keep this");});await act(async()=>{expect(chat.submit()).toBe(false);});expect(chat.draft).toBe("keep this");expect(fetcher).not.toHaveBeenCalled();}finally{denied.mockRestore();}
+ const denied=vi.spyOn(window,"localStorage","get").mockImplementation(()=>{throw new Error("denied");});try{await act(async()=>{chat.changeDraft("keep this");});await act(async()=>{expect(await chat.submit()).toBe(false);});expect(chat.draft).toBe("keep this");expect(fetcher).not.toHaveBeenCalled();}finally{denied.mockRestore();}
 });
 it("waits for rapid serial admissions before navigating from the new conversation", async () => {
   const receipts: Array<(value: Response) => void> = [];
@@ -37,7 +37,7 @@ it("waits for rapid serial admissions before navigating from the new conversatio
   }));
   for (const text of ["first", "second", "third"]) {
     await act(async () => { chat.changeDraft(text); });
-    await act(async () => { chat.submit(); });
+    await act(async () => { await chat.submit(); });
   }
   await act(async () => { chat.changeDraft("newer draft"); });
   expect(receipts).toHaveLength(1);
@@ -52,14 +52,14 @@ it("waits for rapid serial admissions before navigating from the new conversatio
 it("can remove a rejected send but preserves an unknown delivery and a newer draft", async () => {
   fetcher.mockResolvedValueOnce(Response.json({message:"Queue full"},{status:429}));
   await act(async () => { chat.changeDraft("rejected"); });
-  await act(async () => { chat.submit(); });
+  await act(async () => { await chat.submit(); });
   expect(chat.messages[0].delivery).toBe("rejected");
   const rejected = chat.messages[0].id;
   await act(async () => { chat.changeDraft("newer draft"); chat.discardRejectedDelivery(rejected); });
   expect(chat.messages).toEqual([]);
   expect(chat.draft).toBe("newer draft");
   fetcher.mockRejectedValue(new Error("unknown"));
-  await act(async () => { chat.submit(); });
+  await act(async () => { await chat.submit(); });
   const uncertain = chat.messages[0].id;
   await act(async () => { chat.discardRejectedDelivery(uncertain); });
   expect(chat.messages[0].delivery).toBe("unknown");
@@ -76,7 +76,7 @@ it("does not navigate away while Stop is settling alongside admission", async ()
   });
   for (const text of ["first", "second"]) {
     await act(async () => {chat.changeDraft(text);});
-    await act(async () => {chat.submit();});
+    await act(async () => {await chat.submit();});
   }
   await act(async () => {receipts[0](Response.json({},{status:202}));});
   await flush();

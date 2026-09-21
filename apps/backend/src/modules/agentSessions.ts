@@ -163,6 +163,56 @@ function shareClassificationComparable(block: AgentSessionDisplayBlock) {
   return copy;
 }
 
+/** The exact immutable turn identity shared by share and image preservation. */
+function sameImmutableTurn(
+  candidate: AgentSessionPayload["turns"][number],
+  turn: AgentSessionPayload["turns"][number],
+): boolean {
+  return (
+    sameID(candidate.id, turn.id) &&
+    candidate.objective === turn.objective &&
+    candidate.createdAt === turn.createdAt &&
+    sameID(candidate.response.taskID, turn.response.taskID) &&
+    sameID(
+      candidate.response.contextManifestID,
+      turn.response.contextManifestID,
+    )
+  );
+}
+
+/**
+ * Existing clients decode and re-encode a Session without the inline image
+ * manifest. The server owns that manifest: a legacy PUT that drops the field
+ * restores the stored one, while a changed or newly forged manifest for an
+ * existing immutable turn is refused instead of erasing or rewriting pixels.
+ * New turns may carry their own manifest because attachment ownership still
+ * comes from the owned queue record, never from this JSON.
+ */
+function preserveExistingTurnImages(
+  payload: AgentSessionPayload,
+  previous: AgentSessionPayload | null,
+): void {
+  if (!previous) return;
+  for (const turn of payload.turns) {
+    const before = previous.turns.find((candidate) =>
+      sameImmutableTurn(candidate, turn),
+    );
+    if (!before) continue;
+    if (turn.images === undefined) {
+      if (before.images !== undefined)
+        turn.images = structuredClone(before.images);
+      continue;
+    }
+    if (digestValue(turn.images) !== digestValue(before.images ?? [])) {
+      throw new ApiError(
+        409,
+        "AGENT_SESSION_IMAGE_MANIFEST_CHANGED",
+        "A stored turn's image manifest cannot be changed by a later save.",
+      );
+    }
+  }
+}
+
 /**
  * Old clients decode and re-encode a Session without the GET-27 share field.
  * Preserve the server's prior decision only for the exact same immutable turn
@@ -926,6 +976,7 @@ export async function mutateAgentSession(
           payload,
           existing?.payload ?? null,
         );
+        preserveExistingTurnImages(payload, existing?.payload ?? null);
         await lockAgentSessionSources(client, auth, payload);
         await validatePayload(
           client,

@@ -42,3 +42,26 @@
 .canvas[data-empty="true"] .footer { display:none; }
 
 @media(max-width:640px) { .recovery { margin:0 2px 8px; }.recoveryActions button { min-width:44px; min-height:44px; padding:8px 10px; } }
+
+/* Inline conversation images: thumbnails in history, queue and the composer. */
+.images { margin-top:9px; }
+.images[data-compact="true"] { margin-top:6px; }
+.imageList { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:7px; }
+.imageItem { flex:none; }
+.imageButton { display:block; width:96px; height:96px; padding:0; border:1px solid var(--line-soft); border-radius:11px; overflow:hidden; background:var(--surface-muted,#f3f4f0); cursor:zoom-in; }
+.imageButton img { width:100%; height:100%; object-fit:cover; display:block; }
+.imagePlaceholder { display:grid; place-items:center; width:96px; height:96px; padding:6px; box-sizing:border-box; border:1px dashed var(--line-soft); border-radius:11px; color:var(--muted); font-size:10px; text-align:center; }
+.imagePlaceholder[data-error="true"] { border-style:solid; }
+.imageBackdrop { position:fixed; inset:0; background:#000000b3; z-index:60; }
+.imageDialog { position:fixed; inset:0; z-index:61; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:44px 20px 24px; outline:0; }
+.imageDialog img { max-width:min(92vw,1100px); max-height:78vh; object-fit:contain; border-radius:10px; background:#111; }
+.imageDialogTitle { position:absolute; top:14px; left:50%; transform:translateX(-50%); margin:0; color:#fff; font-size:12px; font-weight:500; }
+.imageClose { position:absolute; top:12px; right:14px; display:grid; place-items:center; width:36px; height:36px; border-radius:50%; border:0; background:#ffffff1f; color:#fff; cursor:pointer; }
+.imageDialogMessage { color:#fff; font-size:13px; }
+.composerImages { display:flex; flex-wrap:wrap; gap:7px; margin:0 8px 8px; }
+.composerImage { position:relative; width:64px; height:64px; border-radius:10px; overflow:hidden; border:1px solid var(--line-soft); background:var(--surface-muted,#f3f4f0); }
+.composerImage img { width:100%; height:100%; object-fit:cover; display:block; }
+.composerImageRemove { position:absolute; top:2px; right:2px; display:grid; place-items:center; width:20px; height:20px; border:0; border-radius:50%; background:#000000a6; color:#fff; cursor:pointer; padding:0; }
+.composerImageHint { margin:0 8px 6px; color:var(--muted); font-size:11px; }
+@media(max-width:640px) { .imageButton,.imagePlaceholder { width:84px; height:84px; } }
+.imageRetry { margin-top:6px; border:0; background:none; color:var(--ink); text-decoration:underline; font-size:11px; padding:4px 0; cursor:pointer; }

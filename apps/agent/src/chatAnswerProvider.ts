@@ -7,6 +7,7 @@ import { AGENT_TOOL_CATALOG, agentToolJsonSchema, contactWorkspaceOperationTools
 import { RELATIONSHIP_SYSTEM_PROMPT, UNSCOPED_CONVERSATION_SYSTEM_PROMPT, WORKSPACE_OUTPUT_GUIDANCE } from "./prompts.js";
 import { resolveProductPrompt, type PromptSnapshot } from "./promptRegistry.js";
 import { applyChatPreset, chatModelReasoningEffort, loadedRelationshipTaskPrompt, loadedRelationshipTaskConfiguration } from "./relationshipTaskConfiguration.js";
+import { agentImageModel, redactObservationMedia, userImageParts, zhipuAgentUserTurn } from "./chatAnswerProviderMultimodal.js";
 import { WorkspaceConversationFinalOutputSchema } from "./schemas.js";
 import type { AgentProvider, AgentProviderRequest, AgentProviderResult, AgentToolResult, ConversationMessage } from "./types.js";
 
@@ -522,10 +523,10 @@ export class ZhipuChatAnswerProvider
   }
 
   async answer(request: RemoteChatAnswerRequest): Promise<RemoteChatAnswerResult> {
-    const observation = request.observation ? this.observer?.start(request.observation, {
+    const observation = request.observation ? this.observer?.start(request.observation, redactObservationMedia({
       ...request, images: request.images?.map((image) => ({ file_name: image.file_name,
         media_type: image.media_type, data_base64: Buffer.from(image.data).toString("base64") })),
-    }) ?? null : null;
+    })) ?? null : null;
     let output: RemoteChatAnswerResult | undefined;
     try { output = await this.answerInternal(request, observation); return output; }
     finally { await this.observer?.complete(observation, output, output ? "ok" : "error"); }
@@ -542,11 +543,10 @@ export class ZhipuChatAnswerProvider
     if (
       mode === "unscoped_conversation" &&
       (request.context_blocks.length > 0 ||
-        request.allowed_citation_ids.length > 0 ||
-        images.length > 0)
+        request.allowed_citation_ids.length > 0)
     ) {
       throw new Error(
-        "Unscoped Chat cannot receive relationship context, citations, or images.",
+        "Unscoped Chat cannot receive relationship context or citations.",
       );
     }
     if (images.length > 0 && !this.visionModel) {
@@ -682,7 +682,7 @@ export class ZhipuChatAnswerProvider
       if (!response.ok) throw new Error(`Zhipu Chat request failed with ${response.status}.`);
       return await response.json().catch(() => null) as ZhipuChatResponse | null;
     }, { provider: this.providerId, model: body.model, prompt_revision: revision });
-    return observation ? observation.step("chat.completions", "llm", body, execute,
+    return observation ? observation.step("chat.completions", "llm", redactObservationMedia(body), execute,
       { model: String(body.model), provider: this.providerId, prompt_revision: revision }, (payload): RuntimeObservationSpan["usage"] => {
         const input = payload?.usage?.prompt_tokens, output = payload?.usage?.completion_tokens;
         const reported = Number.isInteger(input) && input! >= 0 && Number.isInteger(output) && output! >= 0;
@@ -700,7 +700,7 @@ export class ZhipuChatAnswerProvider
       && supplied.authorization_scope === "workspace_conversation" ? supplied : null;
     const observation = workspaceID ? this.observer?.start(trusted ?? { run_id: request.runID,
       workspace_id: workspaceID, authorization_scope: "workspace_conversation",
-      source_session_id: request.scopeSummary.kind === "workspace_conversation" ? request.scopeSummary.sessionID : null }, request) ?? null : null;
+      source_session_id: request.scopeSummary.kind === "workspace_conversation" ? request.scopeSummary.sessionID : null }, redactObservationMedia(request)) ?? null : null;
     let output: AgentProviderResult | undefined;
     try {
       output = await this.runInternalBody(request, (name, input) => captureProductStep(name, "tool", input,
@@ -790,7 +790,7 @@ export class ZhipuChatAnswerProvider
       },
       {
         role: "user",
-        content: JSON.stringify({
+        content: zhipuAgentUserTurn(request.inputParts, {
           objective: request.objective,
           session_title_requested: request.sessionTitleRequested === true,
           previous_dialogue: conversationContext(request.conversationHistory),
@@ -798,6 +798,7 @@ export class ZhipuChatAnswerProvider
         }),
       },
     ];
+    const imageModel = agentImageModel(userImageParts(request.inputParts), this.visionModel, this.model);
     const contactOperations = request.toolManifest.includes("contact_workspace")
       ? contactWorkspaceOperationTools()
       : [];
@@ -822,19 +823,19 @@ export class ZhipuChatAnswerProvider
       if (signal.aborted) throw signal.reason;
       observed?.(null);
       const payload = await this.requestCompletion({
-          model: this.model,
+          model: imageModel,
           messages,
           tools: availableTools,
           tool_choice: "auto",
           parallel_tool_calls: false,
           thinking: { type: "enabled" },
-          ...(chatModelReasoningEffort(this.model) ? { reasoning_effort: chatModelReasoningEffort(this.model) } : {}),
+          ...(chatModelReasoningEffort(imageModel) ? { reasoning_effort: chatModelReasoningEffort(imageModel) } : {}),
           temperature: 0,
           max_tokens: 1_600,
           stream: false,
         }, AbortSignal.any([signal, AbortSignal.timeout(this.timeoutMs)]), observation,
         restrictScreenshotPrompt(configuredAgentPrompt(request.systemPrompt, preset), request.conversationHistory).revision);
-      if (!payload || payload.model !== this.model) {
+      if (!payload || payload.model !== imageModel) {
         throw new Error("Zhipu Chat Agent returned a different or missing model.");
       }
       observed?.(payload);

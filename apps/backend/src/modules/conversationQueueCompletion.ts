@@ -4,6 +4,7 @@ import {
   CONTRACT_VERSION,
   type AgentSessionPayload,
   type ChatResponseBlock,
+  type ConversationImageManifest,
   type UnscopedChatTaskResponse,
 } from "@talent-signal/contracts";
 import type { Pool } from "pg";
@@ -40,6 +41,8 @@ export interface ConversationQueueExecutionResult {
   conversationSources: AgentSessionChatSource[];
   remoteStatus: UnscopedChatExecution["remoteStatus"];
   audit: ConversationQueueAuditMetadata;
+  /** Ordered metadata-only attachment manifest; never raw bytes. */
+  images: ConversationImageManifest[];
 }
 
 function executionFromResult(
@@ -82,6 +85,7 @@ function displayBlocks(blocks: ChatResponseBlock[]) {
 type QueueTurn = {
   id: string;
   objective: string;
+  images?: ConversationImageManifest[];
   createdAt: string;
   response: {
     contractVersion: string;
@@ -99,10 +103,12 @@ function queueTurn(
   objective: string,
   acceptedAt: string,
   response: { taskID: string; disposition: string; blocks: ChatResponseBlock[]; createdAt: string },
+  images: readonly ConversationImageManifest[] = [],
 ): QueueTurn {
   return {
     id: messageId,
     objective,
+    ...(images.length > 0 ? { images: [...images] } : {}),
     createdAt: acceptedAt,
     response: {
       contractVersion: CONTRACT_VERSION,
@@ -175,6 +181,7 @@ export async function persistConversationQueueCompletion(
     messageId: string;
     objective: string;
     acceptedAt: string;
+    images: ConversationImageManifest[];
     result: ConversationQueueExecutionResult;
   },
 ): Promise<void> {
@@ -207,7 +214,7 @@ export async function persistConversationQueueCompletion(
       disposition: body.disposition,
       blocks: body.blocks,
       createdAt: body.created_at,
-    }),
+    }, input.images),
     { title: body.session_title ?? null, updatedAt: body.created_at },
   );
 }
@@ -228,6 +235,7 @@ export async function persistConversationQueueCancellation(
     messageId: string;
     objective: string;
     acceptedAt: string;
+    images: ConversationImageManifest[];
     partialText: string;
     stoppedAt: string;
   },
@@ -270,7 +278,7 @@ export async function persistConversationQueueCancellation(
       disposition: "answer",
       blocks: [block],
       createdAt: input.stoppedAt,
-    }),
+    }, input.images),
     { title: null, updatedAt: input.stoppedAt },
   );
 }
