@@ -5,12 +5,14 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { conversationHome } from "@/lib/conversation-local";
+import type { LegacyConversationRecovery } from "@/lib/conversation-legacy";
 import { isNewConversationId, newConversationCaptureHref } from "@/lib/new-conversation";
 import { ConversationResponse } from "../conversation-response";
 import { ComposerAddMenu } from "../new-conversation-add-menu";
 import { WorkspaceComposer } from "../workspace-composer";
 import type { SessionDetail } from "../session-workbench/session-detail-state";
 import { conversationNearBottom, sessionBlockTitle, sessionTurnBlocks } from "../session-workbench/session-presentation";
+import { LegacyRecoveryNotice } from "./legacy-recovery-notice";
 import { useConversation } from "./use-conversation";
 import styles from "./queued-conversation.module.css";
 
@@ -18,7 +20,7 @@ const CapturePanel = dynamic(() => import("../relationship-workspace/screenshot-
 const stages: Record<string, string> = { queued: "等待开始", preparing: "正在准备回复", thinking: "正在处理", contact_lookup: "正在查找相关人物", contact_read: "正在阅读相关记录", calendar_draft: "正在整理日程草稿", answer: "正在回复", responding: "正在回复", persisting: "正在保存回复", running: "正在处理" };
 function Identity() { return <div className={styles.identity}><span className={styles.mark} aria-hidden="true" />Talent Signal</div>; }
 
-type Props = { initialDetail?: SessionDetail; scope: string; chatBinding: string; detailBinding: string; meetingLinks?: Array<{id: string; title: string}>; meetingReadFailed?: boolean };
+type Props = { initialDetail?: SessionDetail; scope: string; chatBinding: string; detailBinding: string; meetingLinks?: Array<{id: string; title: string}>; meetingReadFailed?: boolean; legacyRecovery?: LegacyConversationRecovery | null };
 export function QueuedConversation(props: Props) {
   const router = useRouter();
   const [id, setId] = useState<string | null>(props.initialDetail?.session_id ?? null);
@@ -76,6 +78,7 @@ export function QueuedConversation(props: Props) {
     </div>
     <div className={styles.dock}>
       {away && <button className={styles.latest} onClick={latest}><ArrowDown size={15}/>回到最新</button>}
+      {props.legacyRecovery && <LegacyRecoveryNotice key={props.legacyRecovery.sessionId} recovery={props.legacyRecovery}/>}
       {queued.length > 0 && <section className={styles.queue} aria-label="待处理消息"><div className={styles.queueHeading}><span>{paused ? "已暂停" : "接下来"}<small>{queued.length}</small></span>{paused && <button disabled={chat.mutating || Boolean(active) || queued.some(entry => entry.status !== "queued")} onClick={() => void chat.mutate({kind:"continue"})}>继续处理<ArrowUp size={13}/></button>}</div>
         <ol>{queued.map((entry, index) => <li key={entry.queue_entry_id}>{editing === entry.queue_entry_id ? <form className={styles.edit} onSubmit={event => { event.preventDefault(); void applyEdit(entry.queue_entry_id); }}><label htmlFor={`edit-${entry.queue_entry_id}`}>编辑待处理消息</label><textarea autoFocus id={`edit-${entry.queue_entry_id}`} value={editValue} maxLength={1000} onChange={event => setEditValue(event.target.value)}/><div><button type="button" onClick={() => setEditing(null)}>取消</button><button type="submit" disabled={!editValue.trim() || chat.mutating}>保存</button></div></form> : <><span className={styles.number}>{index + 1}</span><span className={styles.queueText}>{entry.objective}{["failed", "interrupted"].includes(entry.status) && <small>上次未完成，请重试或移除</small>}</span><div className={styles.queueActions}>{entry.status === "queued" ? <button aria-label={`编辑第 ${index + 1} 条待处理消息`} disabled={chat.mutating} onClick={() => { setEditing(entry.queue_entry_id); setEditValue(entry.objective); }}><PencilSimple size={16}/></button> : <button disabled={chat.mutating} onClick={async () => { if (await chat.mutate({kind:"retry",queue_entry_id:entry.queue_entry_id})) await chat.mutate({kind:"continue"}); }}>重试</button>}<button aria-label={`移除第 ${index + 1} 条待处理消息`} disabled={chat.mutating} onClick={() => void chat.mutate({kind:"withdraw",queue_entry_id:entry.queue_entry_id})}><X size={16}/></button></div></>}</li>)}</ol>
       </section>}
