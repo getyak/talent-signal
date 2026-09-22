@@ -24,6 +24,7 @@ const PROMPT_PATH = resolve(REPO_ROOT, "apps/agent/src/prompts/assistant-workspa
 export const RULE_CODES = Object.freeze([
   "WRONG_COUNTERPARTY",
   "WRONG_SELF",
+  "ORIGIN_AS_PERSON_ATTRIBUTE",
   "NAME_TREATED_AS_STABLE",
   "AUTO_BOUND_NAME_ONLY",
   "NO_CONTACT_DECISION",
@@ -103,6 +104,9 @@ export function evaluateCase(caseDef, candidate) {
   }
   const items = Array.isArray(candidate.items) ? candidate.items : [];
   for (const item of items) {
+    if ((expect.relationship_only_excerpts ?? []).includes(item?.excerpt) && item?.scope !== "relationship") {
+      push(violations, "ORIGIN_AS_PERSON_ATTRIBUTE");
+    }
     if (item?.scope === "self") continue;
     if (expect.time_status && item?.time_status !== expect.time_status) {
       push(violations, "INVENTED_TIME_STATUS");

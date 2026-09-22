@@ -37,18 +37,22 @@ manual selection, two records were saved, remained saved after reload and were
 returned by scoped recall. Both retained unknown calendar time with no invented
 timestamp. Rebase candidates were unselected until explicitly checked.
 
-Focused automated checks passed: agent 45, backend unit 63, Web 63 and Eval
+Focused automated checks passed: agent 45, backend unit 76, Web 63 and Eval
 eight tests, plus 72 database integration tests on a separate migrated database. Backend build, Web typecheck and docs checks passed. The frozen
-Eval set has nine synthetic cases and 25 adversarial samples. The live-result
+Eval set has nine synthetic cases and 26 adversarial samples. The live-result
 checker verifies actual tool receipts and persisted references; it does not
-replace semantic review or measure broad model reliability.
+replace semantic review or measure broad model reliability. Frozen-trial revision
+checks now use the actual workspace/relationship prompt scope, matching runtime.
 
 ## Limits
 
-The initial reply still used an unnecessary visual descriptor, and regenerated
-source context appeared in a contact-specific group instead of exclusively in
-the relationship group. These presentation/classification limitations remain;
-the final stored sentence correctly attributes the introduction to the owner.
+A final real-model semantic recheck classified both source and add-friend
+items as relationship records, in the initial proposal and after contact
+regeneration. It preserved owner attribution and did not invent a calendar
+date. This bounded recheck used an in-memory stage, not another database/UI
+save. The response omitted avatar descriptions but still added an unnecessary
+sentence about excluding payment records. That presentation limitation remains;
+the previously saved sentence correctly attributes the introduction to the owner.
 
 Automatic public-place enrichment is not wired into the workspace tool set.
 A manually researched public place candidate is not evidence that either

@@ -78,7 +78,10 @@
         "no_duplicate": true,
         "max_reply_chars": 240,
         "forbid_generic_reply": true,
-        "directive": "Stage a name-only new-contact review; the human review card chooses existing or new."
+        "directive": "Stage a name-only new-contact review; the human review card chooses existing or new.",
+        "relationship_only_excerpts": [
+          "I am Lin from 松风9月读书群（南街）"
+        ]
       },
       "good": {
         "counterparty": "周明",
@@ -187,6 +190,22 @@
                 "valid_time": null,
                 "source_locator": "image_region",
                 "text": "对方通过松风9月读书群添加本人为好友",
+                "excerpt": "I am Lin from 松风9月读书群（南街）"
+              }
+            ]
+          }
+        },
+        {
+          "why": "the owner introduction is misclassified as a counterparty attribute",
+          "expected_violation": "ORIGIN_AS_PERSON_ATTRIBUTE",
+          "candidate": {
+            "items": [
+              {
+                "scope": "person",
+                "time_status": "unknown",
+                "valid_time": null,
+                "source_locator": "image_region",
+                "text": "用户的自我介绍提到来自松风9月读书群（南街）",
                 "excerpt": "I am Lin from 松风9月读书群（南街）"
               }
             ]

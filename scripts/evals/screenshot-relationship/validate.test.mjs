@@ -55,6 +55,7 @@ test("each adversarial counterexample trips exactly the boundary it targets", ()
   }
   for (const code of [
     "WRONG_COUNTERPARTY",
+    "ORIGIN_AS_PERSON_ATTRIBUTE",
     "AUTO_BOUND_NAME_ONLY",
     "NAME_TREATED_AS_STABLE",
     "NAME_ONLY_CANNOT_RECALL_PRIVATE",
