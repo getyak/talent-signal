@@ -11,6 +11,7 @@ cleanup() {
 trap cleanup EXIT
 
 "$REPOSITORY_ROOT/scripts/macos/generate.sh"
+python3 -m unittest discover -s "$REPOSITORY_ROOT/scripts/macos" -p '*_test.py'
 
 node --test "$REPOSITORY_ROOT/scripts/macos/summarize-companion-trials.test.mjs" "$REPOSITORY_ROOT/scripts/macos/release-policy.test.cjs"
 

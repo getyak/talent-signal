@@ -1,5 +1,7 @@
 # ADR 0016: One desktop product surface, separate native authority
 
+The display-only maintenance exception is recorded in [ADR 0017](0017-desktop-maintenance-controls.md).
+
 ## Context
 
 The existing Web, SwiftUI companion and Tauri capability workbench have different

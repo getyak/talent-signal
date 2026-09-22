@@ -51,6 +51,7 @@ jobs:
       id-token: write
     env:
       MACOS_RELEASE_MODE: ${{ vars.MACOS_RELEASE_MODE || 'preview' }}
+      MACOS_UPDATE_CHANNEL: ${{ vars.MACOS_UPDATE_CHANNEL || 'stable' }}
       RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
       RELEASE_TAG: macos-${{ github.run_id }}-${{ github.run_attempt }}
       GH_TOKEN: ${{ github.token }}
@@ -85,6 +86,12 @@ jobs:
       - name: Configure ephemeral signing keychain
         if: env.MACOS_RELEASE_MODE == 'signed'
         run: scripts/macos/signing-keychain.sh
+      - name: Prepare pinned Sparkle tools
+        if: env.MACOS_RELEASE_MODE == 'signed'
+        run: |
+          export SPARKLE_TOOLS_DIR="$RUNNER_TEMP/sparkle-tools"
+          printf 'SPARKLE_TOOLS_DIR=%s\n' "$SPARKLE_TOOLS_DIR" >> "$GITHUB_ENV"
+          scripts/macos/sparkle-tools.sh
       - name: Package Universal app
         run: |
           # Start above the existing native build 7; reruns keep the same build number.
@@ -101,6 +108,7 @@ jobs:
           notes="$RUNNER_TEMP/macos-release-notes.md"
           printf 'Native relationship workspace for clients, partners, collaboration, and recruiting.\n\nRequires macOS 14+. Universal Apple silicon + Intel.\n\nRevision: %s\n\n' "$RELEASE_SHA" > "$notes"
           flags=(--latest=false)
+          if [[ "$MACOS_UPDATE_CHANNEL" == preview && "$MACOS_RELEASE_MODE" == signed ]]; then flags+=(--prerelease); fi
           if [[ "$MACOS_RELEASE_MODE" == preview ]]; then
             printf '**Preview: ad-hoc signed, NOT Apple-notarized. Gatekeeper may block this download.**\n\n' >> "$notes"
             flags+=(--prerelease)
@@ -111,6 +119,9 @@ jobs:
           gh release create "$RELEASE_TAG" "$MACOS_OUTPUT_DIR"/*.dmg "$MACOS_OUTPUT_DIR"/*.zip "$MACOS_OUTPUT_DIR"/*-SHA256SUMS.txt \
             --target "$RELEASE_SHA" --title "Talent Signal for macOS · $MACOS_RELEASE_MODE · $MACOS_BUILD_NUMBER" \
             --notes-file "$notes" "${flags[@]}"
+      - name: Publish and verify signed update feed
+        if: env.MACOS_RELEASE_MODE == 'signed'
+        run: scripts/macos/publish-appcast.sh
       - name: Remove ephemeral credentials
         if: always()
         run: |

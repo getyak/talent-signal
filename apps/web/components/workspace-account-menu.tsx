@@ -18,6 +18,7 @@ import {
   accountWorkspaceLabel,
   type AccountIdentity,
 } from "@/lib/workspace-account";
+import { DesktopSettingsLink, DesktopUpdateButton } from "./desktop-chrome";
 import { ThemeToggle } from "./theme-toggle";
 import { clearAllPendingSessionDrafts } from "./session-workbench/session-draft-pending";
 import { clearAllPendingMeetingDraftIntents } from "@/lib/meeting-draft-pending";
@@ -97,6 +98,7 @@ export function WorkspaceAccountMenu({
   }, []);
 
   return (
+    <div className={styles.accountControls}>
     <details
       className={styles.accountMenu}
       onKeyDown={(event) => {
@@ -155,6 +157,7 @@ export function WorkspaceAccountMenu({
             <CaretRight aria-hidden="true" size={12} />
           </Link>
         ))}
+        <DesktopSettingsLink onClick={() => close()} />
         <span className={styles.accountMetaRow}>
           <Globe aria-hidden="true" size={16} />
           <span>语言</span>
@@ -176,5 +179,7 @@ export function WorkspaceAccountMenu({
         </form>
       </div>
     </details>
+    <DesktopUpdateButton />
+    </div>
   );
 }
