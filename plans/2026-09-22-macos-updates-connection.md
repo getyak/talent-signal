@@ -20,7 +20,8 @@ human action. Public releases contain no private workspace origin or secrets.
 - Existing preview build 9 has no updater. CI already produces Universal packages.
 - Local host has Xcode 26.4 and development/distribution identities, but no
   Developer ID Application identity. Formal credentials requested from owner.
-- Both Tailscale peers online; HTTPS reachability was not demonstrated.
+- Both Tailscale peers online; the final packaged app reached the remote HTTPS
+  service and displayed its login page.
 - Storage guard is unavailable on this host; use a task-owned temporary directory.
 
 ## Approach
@@ -39,7 +40,18 @@ Do not add arbitrary update feeds or weaken TLS validation.
 1. Done: implement updater, connection settings and bounded desktop chrome.
 2. Done: package signing/appcast automation and negative-path tests.
 3. Done: rendered controls, signed local upgrade and corrupted archive rejection.
-4. Active: final packaging, review and draft PR; production signing/remote service acceptance remains gated.
+4. Done: Universal preview packaging, verification evidence and
+   [draft PR #236](https://github.com/getyak/talent-signal/pull/236).
+
+## Outstanding acceptance gates
+
+- Provide the production Developer ID, notarization and durable Sparkle signing
+  credentials, then verify the signed release/feed publication from trusted main.
+- Deploy the Web account-footer changes with the normal service release before
+  expecting the quiet update control on the remote workspace. Native menu and
+  settings controls remain available with the previous Web deployment.
+- The owner must sign in to the real workspace for authenticated acceptance.
+  Reaching the login page does not establish authenticated business behavior.
 
 ## Verification
 
