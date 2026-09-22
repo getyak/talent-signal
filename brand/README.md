@@ -68,10 +68,11 @@ arbitrary: their relationship carries the meaning.
 | Web navigation and workspace | [`apps/web/components/brand-mark.tsx`](../apps/web/components/brand-mark.tsx) |
 | Web favicon | [`apps/web/app/icon.tsx`](../apps/web/app/icon.tsx) |
 | Browser extension | [`apps/browser-extension/load-unpacked/`](../apps/browser-extension/load-unpacked/) |
+| macOS application icon | [`apps/macos/Resources/Assets.xcassets/AppIcon.appiconset/`](../apps/macos/Resources/Assets.xcassets/AppIcon.appiconset/) |
 | iOS application icon | [`apps/ios/Resources/Assets.xcassets/AppIcon.appiconset/`](../apps/ios/Resources/Assets.xcassets/AppIcon.appiconset/) |
 
 Run `pnpm brand:check` after changing any canonical or runtime asset. The check
-verifies the approved paths, raster dimensions, runtime geometry, and iOS
+verifies the approved paths, raster dimensions, runtime geometry, macOS icon sizes, and iOS
 source parity.
 
 ## Do not

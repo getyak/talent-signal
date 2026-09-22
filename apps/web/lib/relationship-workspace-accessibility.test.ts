@@ -438,7 +438,7 @@ describe("relationship workspace accessibility contract", () => {
       "从审阅状态得出，绝不用于评价此人。",
     );
     expect(relationshipSourceLineage).toContain(
-      "由招聘顾问关联，不根据面孔猜测",
+      "由你关联，不根据面孔猜测",
     );
     expect(relationshipResourceSection).toContain(
       "<RelationshipResourceComposer",

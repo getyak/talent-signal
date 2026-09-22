@@ -79,6 +79,9 @@ updated.
 
 ## Operations and evaluation
 
+- [macOS download and distribution](operations/macos-distribution.md): Universal
+  packages, workspace setup, release automation, signing, and updates.
+
 - [`operations/`](operations/) contains recurring operational expectations.
 - [Production backend operations](operations/backend-production.md) defines the
   no-seed PostgreSQL, migration, API, and HTTPS deployment boundary.

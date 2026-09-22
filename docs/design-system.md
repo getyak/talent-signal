@@ -1,13 +1,13 @@
 # Design system
 
-> Quiet relational intelligence for evidence-first recruiting.
+> Quiet relational intelligence for evidence-first relationships.
 ## Design thesis
 
 Talent Signal should feel like a well-edited professional notebook with the precision of an evidence instrument.
 
 It is not an ATS dashboard, an AI command center, a sales CRM with candidate labels, or a collection of decorative cards.
 
-The design helps the recruiter move through:
+The design helps the user move through:
 
 > evidence → change → dependency → next action → outcome
 
@@ -39,7 +39,7 @@ audit interface for ordinary work.
 
 ### Change before completeness
 
-Lead with what changed since the recruiter last understood the relationship.
+Lead with what changed since the user last understood the relationship.
 Do not require a complete profile before the next useful decision can be made.
 
 ### Dependency before score
@@ -150,7 +150,7 @@ owners, use one compact comparison inside the Agent rail:
 - do not preselect a person;
 - keep historical evidence visible, but disable relationship and source
   attachment while another person is current;
-- offer `Save for identity review` as a normal outcome when the recruiter
+- offer `Save for identity review` as a normal outcome when the user
   cannot decide;
 - keep `Create new person` unavailable while a current owner conflict exists;
 - after explicit selection, change the staged operation and consequence copy
@@ -300,13 +300,13 @@ review into a chat reply.
 
 ## Review questions
 
-- Can the recruiter identify what changed within a few seconds?
+- Can the user identify what changed within a few seconds?
 - Can they inspect why the system believes it?
 - Is fact review distinct from action approval?
 - Is one current dependency more prominent than broad analysis?
 - Can the user correct, decline, recover, and delete?
 - Does the design preserve human dignity and avoid person-scoring?
-- Does the surface feel specific to trusted recruiting work?
+- Does the surface feel specific to trusted relationship work?
 
 Functional audits gate release but do not establish design quality or
 preference. For a consequential visual change, compare at least two rendered

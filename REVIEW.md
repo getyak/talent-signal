@@ -5,7 +5,7 @@ the intended user loop while preserving truth, control, and recoverability.
 
 ## Product loop
 
-- Does the change help the recruiter understand what changed and what deserves
+- Does the change help the user understand what changed and what deserves
   attention now?
 - Is the smallest useful next step visible without creating extra
   administration?

@@ -20,7 +20,7 @@ const zh = {
   explore: "探索",
   privacy: "隐私政策",
   original: "中文原文",
-  audience: "联系人 CRM · 面向独立猎头与精品寻访团队",
+  audience: "关系工作区 · 客户、伙伴与协作",
   headline: ["每次跟进，", "都接得上上次对话。"],
   promise: "保留联系人的背景，发现对话里的变化，准备恰当的下一步。",
   methodTitle: "从一句话，到下一次好好交谈。",
@@ -57,7 +57,7 @@ const zh = {
     {
       question: "这是怎样的 CRM？",
       answer:
-        "以联系人为中心，把对话、承诺与日程放回持续的关系背景中。首先服务独立猎头与精品寻访团队，也在探索更广的关系协作场景。",
+        "以联系人为中心，把对话、承诺与日程放回持续的关系背景中。服务客户合作、伙伴关系、共同项目与招聘，让重要关系持续向前。",
     },
     {
       question: "会自动发消息或安排日程吗？",
@@ -135,7 +135,7 @@ const en: Copy = {
   privacy: "Privacy policy",
   original: "Original Chinese",
   audience:
-    "Relationship CRM · For independent recruiters & boutique search teams",
+    "Relationship workspace · Clients, partners & collaboration",
   headline: ["Every follow-up,", "a conversation continued."],
   promise:
     "Keep the context, notice what changed, and prepare the right next step for each relationship.",
@@ -176,7 +176,7 @@ const en: Copy = {
     {
       question: "What kind of CRM is this?",
       answer:
-        "A person-centered CRM that keeps conversations, commitments, and meetings in their relationship context. Independent recruiters and boutique search teams are our starting point, with broader relationship collaboration being explored.",
+        "A person-centered CRM that keeps conversations, commitments, and meetings in their relationship context. For client work, partnerships, shared projects, and recruiting—keep important relationships moving.",
     },
     {
       question: "Will it send messages or schedule meetings?",

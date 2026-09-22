@@ -5,7 +5,7 @@
 Ship complete evidence-to-outcome slices, not horizontal layers of
 infrastructure or isolated AI features.
 
-Every slice should be usable by a recruiter, observable across the system, and
+Every slice should be usable by a user, observable across the system, and
 safe under ambiguity, failure, and correction.
 
 ## Current foundation
@@ -20,7 +20,7 @@ remain separate release decisions.
 
 Stateful evaluators must use a disposable workspace or retire only their own
 explicitly classified active fixtures before recreating them. Product
-projections may bound evaluator noise, but must not relabel it as recruiter
+projections may bound evaluator noise, but must not relabel it as user
 state or conceal its synthetic origin.
 
 Internal iOS Lab now joins device inspection and recovery tools with a real
@@ -82,7 +82,7 @@ UI is currently native iOS only.
 
 ### 1. Pursuit contract and governed evidence
 
-One recruiting Pursuit provides the target outcome, contextual roles, criteria,
+One concrete Pursuit provides the target outcome, contextual roles, criteria,
 gaps, actions, and revisions. One real source becomes inspectable evidence,
 correctly bound Pursuit and person context, and reviewed temporal state across
 mobile and web.

@@ -35,7 +35,7 @@ const copy = {
     ],
     closingTitle: ["世界很大。", "你的下一步，也许很近。"],
     closingText:
-      "从独立猎头与精品寻访团队出发，让每一段关系都拥有可以继续生长的背景。",
+      "从客户、伙伴到协作者，让每一段关系都拥有可以继续生长的背景。",
     access: "申请早期体验",
     working: "体验现有工作台",
     status: "跨平台自动研究与关系浮现为产品愿景；上方为可交互的合成体验。",
@@ -102,7 +102,7 @@ const copy = {
     ],
     closingTitle: ["The world is wide.", "Your next step may be close."],
     closingText:
-      "Starting with independent recruiters and boutique search teams. Building a world where every relationship can keep growing.",
+      "For clients, partners, and collaborators. A workspace where every relationship can keep growing.",
     access: "Request early access",
     working: "Try the current workspace",
     status:

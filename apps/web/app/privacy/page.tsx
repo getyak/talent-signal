@@ -20,7 +20,7 @@ export default function PrivacyPage() {
         <article className="shell prose-page__inner">
           <header>
             <p className="eyebrow">隐私原则</p>
-            <h1>候选人背景值得被审慎处理。</h1>
+            <h1>关系背景值得被审慎处理。</h1>
             <p>
               Talent Signal 围绕主动导入、明确确认和始终可查验的证据而设计。
             </p>
@@ -29,7 +29,7 @@ export default function PrivacyPage() {
           <section>
             <h2>主动输入</h2>
             <p>
-              一切从招聘顾问主动选择一张对话截图或一条笔记开始。产品并不是横跨私密沟通工具的静默监控层。
+              一切从你主动选择一张对话截图或一条笔记开始。产品并不是横跨私密沟通工具的静默监控层。
             </p>
           </section>
 
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
           <section>
             <h2>变更前确认</h2>
             <p>
-              联系人或日历变更必须经过清晰的审阅步骤；招聘顾问可以确认、编辑或驳回每项提案。
+              联系人或日历变更必须经过清晰的审阅步骤；你可以确认、编辑或驳回每项提案。
             </p>
           </section>
 

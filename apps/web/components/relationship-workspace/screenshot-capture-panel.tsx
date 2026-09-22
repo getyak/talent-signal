@@ -1025,7 +1025,7 @@ export function CapturePanel({
                   <div className="context-human-edit-note" role="status">
                     <PencilSimple aria-hidden="true" size={17} />
                     <p>
-                      <strong>招聘顾问编辑的转写</strong>
+                      <strong>你编辑的转写</strong>
                       模型衍生事实与行动已移除。此来源将以人工草拟文字进入审阅，不包含自动操作声明。
                     </p>
                   </div>
@@ -1056,7 +1056,7 @@ export function CapturePanel({
                               value={message.speaker}
                             >
                               <option value="candidate">候选人</option>
-                              <option value="recruiter">招聘顾问</option>
+                              <option value="recruiter">你</option>
                               <option value="unknown">不确定</option>
                             </select>
                           </label>

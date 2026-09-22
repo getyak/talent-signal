@@ -231,8 +231,8 @@ export function MarketingSubpage({
               <p className={styles.price}>{en ? "By request" : "申请开放"}</p>
               <p>
                 {en
-                  ? "For independent recruiters and boutique search teams."
-                  : "面向独立猎头与精品寻访团队。"}
+                  ? "For client work, partnerships, collaboration, and recruiting."
+                  : "面向客户合作、伙伴关系、协作与招聘。"}
               </p>
               <ul>
                 {(en

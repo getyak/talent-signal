@@ -35,6 +35,9 @@ export function SiteFooter() {
               </Link>
             ))}
             <Link href={relationshipDemoHref}>{c.demo}</Link>
+            <a href="https://github.com/getyak/talent-signal/blob/main/docs/operations/macos-distribution.md">
+              {locale === "en" ? "Download for macOS" : "下载 macOS 客户端"}
+            </a>
           </div>
           <div>
             <p className="footer-heading">{c.nav[2]}</p>

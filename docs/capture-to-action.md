@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Turn one recruiter-controlled conversation source into reviewed relationship
+Turn one user-controlled conversation source into reviewed relationship
 state and one smallest useful action without losing evidence, consent, or user
 control.
 
@@ -15,7 +15,7 @@ surface.
 intentional capture
 → inspectable evidence
 → proposed understanding
-→ recruiter correction and confirmation
+→ user correction and confirmation
 → current relationship state
 → one action proposal or no_action
 → independent approval
@@ -36,11 +36,11 @@ interpretation. Private sources are not collected ambiently, and imported
 content remains untrusted.
 
 The initial product may retain the complete encrypted source by default so the
-recruiter can re-review the extraction. Full-source retention is not permanent
+user can re-review the extraction. Full-source retention is not permanent
 retention: the purpose, expiry rule, shorter-retention option, and deletion
 effect remain visible.
 
-A capture may instead retain only recruiter-reviewed extracted text while the
+A capture may instead retain only user-reviewed extracted text while the
 raw source remains transient. The review surface must say which mode applies;
 an excerpt or screenshot-metadata record must never be presented as if the
 complete original were recoverable.
@@ -78,7 +78,7 @@ identity, speaker, role, assignment, or relationship enters the review queue.
 state. Proposed placement cannot widen source access or feed active
 relationship state before the required identity and context review.
 
-## Recruiter review
+## User review
 
 The user should be able to:
 
@@ -160,7 +160,7 @@ user-controlled handoff rather than pretending to automate.
 
 The loop continues after execution:
 
-- Did the recruiter complete or edit the action?
+- Did the user complete or edit the action?
 - Did the candidate or client respond?
 - Was the dependency resolved?
 - Did the assignment move?
@@ -176,7 +176,7 @@ living page. Generated views remain rebuildable.
 Fast intentional capture, background processing, time-sensitive attention, and
 device-owned effects. Image capture starts one resumable Agent Session: local
 text extraction, proposed-source intake, and bounded internal tools continue
-without foreground review. The recruiter is interrupted only for a blocking
+without foreground review. The user is interrupted only for a blocking
 identity or relationship-context ambiguity, a tool failure, or a consequential
 effect. Intentional capture authorizes the Agent to attach the source when one
 current confirmed identity clue resolves to one person and one existing
@@ -192,14 +192,14 @@ and stops for identity ambiguity. This grant does not confirm actors, dates,
 facts, or external effects. The task and citation boundary are defined in
 [Agent system](agent-system.md#authorized-screenshot-contact-filing).
 
-The recruiter-reviewed iOS capture remains a separate manual filing workflow,
+The user-reviewed iOS capture remains a separate manual filing workflow,
 but its initial draft now comes from the same private preprocessing task in
 `preprocess_only` mode. That mode archives the governed original and returns
 unconfirmed structured evidence without creating a contact, capture, or public
 research request. Each editable message retains its preprocessing message ID,
 source-image index, visible speaker label and side, and visible time text when
 the reviewed capture is saved; none of those locators confirms a real-world
-actor or timestamp. The recruiter can correct the draft before the manual save.
+actor or timestamp. The user can correct the draft before the manual save.
 Discarding or completing that reviewed capture deletes the preprocessing task
 at its exact revision before removing the local inbox source. Once the server
 accepts that deletion intent, a retry can finish a temporarily failed scrub with

@@ -34,11 +34,11 @@ const SPEAKER_LABELS: ReadonlyArray<{
 }> = [
   {
     speaker: "candidate",
-    labels: ["candidate", "候选人", "候選人"],
+    labels: ["candidate", "候选人", "候選人", "对方", "對方", "contact"],
   },
   {
     speaker: "recruiter",
-    labels: ["recruiter", "招聘者", "招聘方", "獵頭", "猎头"],
+    labels: ["recruiter", "招聘者", "招聘方", "獵頭", "猎头", "招聘顾问", "我", "me"],
   },
   {
     speaker: "unknown",
