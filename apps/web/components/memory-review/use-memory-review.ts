@@ -231,7 +231,7 @@ export function useMemoryReview(options: {
       MEMORY_REVIEW_DRAFT_STALE: "审阅已在别处更新，已按最新版本重排。",
       MEMORY_PROPOSAL_CLOSED: "这次提案已结束，无需重复保存。",
       MEMORY_CONTACT_ALREADY_EXISTS: "这个联系人已存在，请选择已有联系人。",
-      MEMORY_IDENTITY_AMBIGUOUS: "有同名联系人，请点“换个人”核对后再保存。",
+      MEMORY_IDENTITY_AMBIGUOUS: "有同名联系人，请重新选择并核对联系人后再保存。",
       MEMORY_IDENTITY_NOT_AUTHORIZED: "请先选择并确认这位联系人，再保存相关内容。",
       MEMORY_REVIEW_EXPIRED: "这次审阅已过期，请刷新后重新确认。",
       MEMORY_NO_MATERIAL_CHANGE: "没有新的可保存变化。",

@@ -30,6 +30,14 @@ describe("provider-neutral Agent capability catalog", () => {
     expect(search).toMatchObject({ type: "object", additionalProperties: false });
     expect(Object.keys(search.properties)).toEqual(["query", "maximum_results", "source_clue"]);
     expect(search.required).toEqual(["query"]);
+    expect(nativeTools[0]!.description).toContain("source_clue is REQUIRED");
+    expect(nativeTools[0]!.description).toContain("input_images artifact_id");
+    expect(nativeTools[0]!.description).not.toContain("Input contains only query");
+    expect(ContactWorkspaceInputSchema.parse({
+      operation: "search", query: "周明", source_clue: {
+        clue: "周明", source_locator: { kind: "image_region", artifact_id: "admitted-image", image_index: 0 },
+      },
+    })).toMatchObject({ source_clue: { clue: "周明", source_locator: { artifact_id: "admitted-image" } } });
     expect(ContactWorkspaceInputSchema.parse({ operation: "search", query: "nira.voss@example.com" }))
       .toEqual({ operation: "search", query: "nira.voss@example.com", maximum_results: 4 });
     expect(ContactWorkspaceInputSchema.safeParse({

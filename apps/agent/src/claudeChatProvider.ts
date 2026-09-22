@@ -26,6 +26,10 @@ import type { AgentProvider, AgentProviderRequest, AgentProviderResult, AgentToo
 
 export const CLAUDE_NATURAL_OUTPUT_GUIDANCE = "For this SDK execution, respond with natural prose, not a JSON object or a code fence. Structured data is supplied only through product tools. When context.session_title_requested is true, start the final response with exactly one metadata line in the form <session_title>concise title</session_title>, followed by a blank line and the natural prose reply. The title is for a person scanning Sessions weeks later: use the user's language, name the concrete topic or task, prefer verb plus object, keep it on one line and within 32 characters, and never use generic labels such as Reply, Answer, Hello, 回复, 回答, or 你好. Do not emit this metadata line when session_title_requested is false. Never claim a contact, memory or calendar write without a successful tool receipt. Use only tools supplied in this Run. If contact_workspace or its search/read operation tools are supplied and the user asks about a named contact, first search that name from the current message using the supplied contact search tool; a name is sufficient for a read-only lookup, even though it is not sufficient to create a contact. Read a uniquely grounded match so the product can continue in its relationship scope. A successful read completes this routing step: briefly acknowledge the found contact and stop; the product obtains relationship evidence in the scoped continuation. Do not infer missing records from the directory header or keep searching for an unavailable Memory tool. Ask for another identity clue only after the lookup is empty or ambiguous. Missing relationship Memory in an unscoped conversation is not a reason to skip this directory lookup or claim no contact access. If read_relationship_memory is supplied, it retrieves the current governed product snapshot independently of past Session dialogue. Preserve each block's status and source provenance. Cite relationship evidence through cite_evidence before answering factual relationship questions. Complete the source reads and citation selection before composing the final answer; essential conclusions must appear in that final answer, not only in tool prefaces. When asked to recall an existing fact, state it with its source status and stop; do not turn recall into unsolicited planning or offer unavailable write capabilities. For recollection, lead with what the record says, explicitly attributed to that record rather than asserted as a confirmed event. An unconfirmed source report can still answer what was recorded: do not lead with the absence of confirmed facts, repeat that caveat, expose internal status labels such as proposed, or suggest verifying the record unless a material ambiguity prevents answering. Source IDs do not belong in the prose.";
 
+/** Workspace routing has no scoped evidence-reading tools. Keep that unrelated
+ * protocol out of image Runs, whose tool round trips resend the visual context. */
+export const CLAUDE_WORKSPACE_OUTPUT_GUIDANCE = `Respond in natural prose, not JSON or a code fence. Use tools only through their function interface. If context.session_title_requested is true, begin the final reply with <session_title>concise concrete title in the user's language, within 32 characters</session_title>, then a blank line and the useful answer. Otherwise omit this metadata. Never claim a contact, memory, or calendar was saved without a successful commit receipt. A staged proposal is only ready for human review. For an authored-text question about a named contact, first search the exact current clue; a name is sufficient for a read-only lookup, but never identity confirmation or a contact write. A uniquely authorized contact read completes routing: briefly acknowledge it and stop; the host continues in that relationship scope. For a name-only screenshot, prepare the memory_review contact decision directly; a name cannot authorize private recall. Essential conclusions belong in the final answer. Omit internal IDs and tool terminology.`;
+
 /**
  * Bounded, one-line fallback label derived from the objective. Mirrors the
  * backend canonicalization budget (32 user-perceived characters) without
@@ -73,7 +77,7 @@ export function splitFirstTurnSessionTitle(text: string, objective: string): { t
   };
 }
 
-export function configuredClaudeChatPrompt(text: string, preset: ChatPromptPreset = "baseline") {
+export function configuredClaudeChatPrompt(text: string, preset: ChatPromptPreset = "baseline", scope: "relationship" | "workspace" = "relationship") {
   // Remove only the formal legacy transport clause; preserve all task/source policy.
   const protocols = [
     CONVERSATION_JSON_PROTOCOL,
@@ -82,7 +86,7 @@ export function configuredClaudeChatPrompt(text: string, preset: ChatPromptPrese
     'Return JSON {"kind":"answer"|"question_set"|"clarification","title":string,"body":string,"citation_ids":string[]}.',
   ];
   const natural = protocols.reduce((prompt, protocol) => prompt.replace(protocol, ""), text);
-  return applyChatPreset(`${natural}\n\n${CLAUDE_NATURAL_OUTPUT_GUIDANCE}`, preset);
+  return applyChatPreset(`${natural}\n\n${scope === "workspace" ? CLAUDE_WORKSPACE_OUTPUT_GUIDANCE : CLAUDE_NATURAL_OUTPUT_GUIDANCE}`, preset);
 }
 
 /** Adapts natural SDK output to the existing cross-client product response. */
@@ -250,7 +254,8 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
 
   async runWithPromptPreset(request: AgentProviderRequest, invokeTool: Parameters<AgentProvider["run"]>[1],
     signal: AbortSignal, preset: ChatPromptPreset, observed: (evidence: AgentRunConfigurationEvidence) => void): Promise<AgentProviderResult> {
-    const prompt = configuredClaudeChatPrompt(request.systemPrompt, preset);
+    const prompt = request.outputMode === "json" ? applyChatPreset(request.systemPrompt, preset)
+      : configuredClaudeChatPrompt(request.systemPrompt, preset, "workspace");
     let receipt: Omit<ClaudeHarnessResult, "text" | "structuredOutput"> | ClaudeHarnessInterruption["receipt"] | undefined;
     try {
       return await this.runInternal(request, invokeTool, signal, preset, value => { receipt = value; });
@@ -317,7 +322,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     tools.push(...responsePreferenceTool(request.responsePreference), ...calendar.tools);
     // Host-observed partial text is a forming response only. A host callback
     // exception or abort must never trigger a fallback model execution here.
-    const onText = request.onVisibleText
+    const onText = request.outputMode !== "json" && request.onVisibleText
       ? (text: string) => { try { request.onVisibleText?.(text); } catch { /* observation never gates the Run */ } }
       : undefined;
     const supplied = request.observation;
@@ -326,7 +331,8 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     const outcome = await this.execute(this.configuration, { ...((request.continuation && userImages.length === 0) ? { continuation: request.continuation } : {}), ...(trusted ? { observation: trusted } : {}), objective: request.objective,
       ...(onText ? { onText } : {}),
       ...(userImages.length > 0 ? { images: userImages } : {}),
-      systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions,
+      systemPrompt: [request.outputMode === "json" ? applyChatPreset(request.systemPrompt, preset).text
+        : configuredClaudeChatPrompt(request.systemPrompt, preset, "workspace").text, calendar.instructions,
         request.responsePreference ? RESPONSE_PREFERENCE_INSTRUCTIONS : "",
         request.selfMemoryContext ? MEMORY_CONTEXT_INSTRUCTIONS : ""].filter(Boolean).join("\n\n"), tools,
       context: JSON.stringify({ calendar_clock: calendar.clock, scope: request.scopeSummary, conversation: boundedConversationHistory(request.conversationHistory),
@@ -339,6 +345,19 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       effort: "medium", budget: request.budget, assertCurrent: async () => { signal.throwIfAborted(); await request.assertCurrent?.(); },
     }, signal);
     observed?.(outcome);
+    if (request.outputMode === "json") {
+      let structuredOutput: unknown = outcome.structuredOutput;
+      if (structuredOutput == null) {
+        try { structuredOutput = JSON.parse(outcome.text.trim().replace(/^```(?:json)?\s*/iu, "").replace(/```\s*$/u, "")); }
+        catch { throw new Error("CLAUDE_CHAT_STRUCTURED_OUTPUT_INVALID"); }
+      }
+      if (!structuredOutput || typeof structuredOutput !== "object" || Array.isArray(structuredOutput)) {
+        throw new Error("CLAUDE_CHAT_STRUCTURED_OUTPUT_INVALID");
+      }
+      return { structuredOutput, inputTokens: outcome.inputTokens, outputTokens: outcome.outputTokens,
+        estimatedUsd: outcome.estimatedUsd, turns: outcome.turns, permissionDenials: outcome.permissionDenials,
+        sessionID: outcome.sessionID, terminalReason: outcome.terminalReason };
+    }
     const parsedOutput = splitFirstTurnSessionTitle(outcome.text, request.objective);
     const body = parsedOutput.body;
     if (!receipt && !body) throw new Error("CLAUDE_CHAT_ANSWER_INVALID");

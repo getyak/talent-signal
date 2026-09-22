@@ -214,6 +214,7 @@ describe("Claude SDK frozen trials", () => {
       return receipt;
     });
     const provider = new ClaudeChatProvider(config, execute);
+    const effectivePrompt = vi.spyOn(provider, "effectivePrompt");
     const entries = taskModelCatalog([provider]);
     expect(entries.map(entry => entry.task)).toEqual(["relationship_text", "unscoped_chat"]);
     for (const entry of entries) {
@@ -224,6 +225,8 @@ describe("Claude SDK frozen trials", () => {
       expect(measurements[0]).toMatchObject({ status: "completed", requested_model: "anthropic/claude-sonnet-5",
         actual_model: "claude-sonnet-5", remote_requests_started: null, execution: "remote", input_tokens: 50 });
       expect(measurements[0]!.prompt_revision).toBe(measurements[0]!.actual_prompt_revision);
+      expect(effectivePrompt).toHaveBeenCalledWith(expect.any(String), "concise",
+        entry.task === "unscoped_chat" ? "workspace" : "relationship");
     }
   });
   it("rejects a different returned model even when the requested alias is unchanged", async () => {

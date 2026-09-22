@@ -108,7 +108,7 @@ export interface RemoteChatAnswerProviding {
   readonly supportsImageInput: boolean;
   readonly imageModel?: string | null;
   readonly supportsPromptPresets?: boolean;
-  effectivePrompt?(text: string, preset: ChatPromptPreset): { text: string; revision: string };
+  effectivePrompt?(text: string, preset: ChatPromptPreset, scope?: "relationship" | "workspace"): { text: string; revision: string };
   matchesReportedModel?(reported: string | null): boolean;
   answer(request: RemoteChatAnswerRequest): Promise<RemoteChatAnswerResult>;
   runWithPromptPreset?(

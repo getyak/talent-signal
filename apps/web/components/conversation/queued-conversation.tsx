@@ -20,9 +20,13 @@ import styles from "./queued-conversation.module.css";
 
 const stages: Record<string, string> = { queued: "等待开始", preparing: "正在准备回复", thinking: "正在处理", contact_lookup: "正在查找相关人物", contact_read: "正在阅读相关记录", calendar_draft: "正在整理日程草稿", answer: "正在回复", responding: "正在回复", persisting: "正在保存回复", running: "正在处理" };
 function Identity() { return <div className={styles.identity}><span className={styles.mark} aria-hidden="true" />Talent Signal</div>; }
-function displayText(objective: string, images: readonly ConversationImageManifest[] | undefined): string {
+export function displayText(objective: string, images: readonly ConversationImageManifest[] | undefined): string {
   if (objective.trim()) return objective;
-  return images?.length ? "（图片）" : objective;
+  // An attached image strip already renders this message; its per-image alt
+  // text plus the loading/error/retry states carry the accessible meaning, so
+  // no redundant visible "（图片）" placeholder is shown. Without an attachment
+  // the (empty) objective is returned unchanged.
+  return images?.length ? "" : objective;
 }
 
 type Props = { bootstrap?: { sessionId: string; capability: string } | null; initialDetail?: SessionDetail; scope: string; chatBinding: string; detailBinding: string; meetingLinks?: Array<{id: string; title: string}>; meetingReadFailed?: boolean; legacyRecovery?: LegacyConversationRecovery | null; entryCapability?: string | null };

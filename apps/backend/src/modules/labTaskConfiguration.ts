@@ -42,7 +42,8 @@ export function taskPromptSnapshot(entry: LabTaskModel): PromptSnapshot {
 
 export function taskPromptRevision(entry: LabTaskModel, preset: ChatPromptPreset, snapshot = taskPromptSnapshot(entry)): string {
   if (snapshot.name !== taskPromptSnapshot(entry).name || promptRevision(snapshot.text) !== snapshot.revision) throw new Error("Invalid frozen prompt snapshot.");
-  if (entry.provider.effectivePrompt) return entry.provider.effectivePrompt(snapshot.text, preset).revision;
+  if (entry.provider.effectivePrompt) return entry.provider.effectivePrompt(snapshot.text, preset,
+    entry.task === "unscoped_chat" && isAgentProvider(entry.provider) ? "workspace" : "relationship").revision;
   if (entry.task === "unscoped_chat" && isAgentProvider(entry.provider)) {
     return configuredAgentPrompt(snapshot.text, preset).revision;
   }
