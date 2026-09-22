@@ -573,6 +573,8 @@ export const MemoryRecallResponseSchema = Type.Object(
     person_id: optional(id),
     relationship_context_id: optional(id),
     items: Type.Array(MemoryRecallItemSchema, { maxItems: 100 }),
+    has_more: Type.Optional(Type.Boolean()),
+    next_cursor: Type.Optional(Type.Union([Type.String({ maxLength: 500 }), Type.Null()])),
   },
   obj,
 );

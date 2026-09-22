@@ -60,5 +60,7 @@ participant visited, worked there, or met there. The original private Eval case
 remains pending human adjudication; it is not promoted to a golden or an
 overall model-quality pass.
 
-No production release is claimed. The GET-40 prerequisite PR #235 is still a
-draft with a failing iOS smoke gate and unfinished broader model acceptance.
+The GET-40 prerequisite PR #235 has merged at `6053d69f`. The integration
+retains its grounded self-memory and service-preference context alongside
+this change's workspace/JSON output modes. Git delivery is separate from
+production deployment; this report does not claim a resident release.

@@ -3,6 +3,7 @@ export * from "./claudeHarness.js";
 export * from "./claudeHarnessConfiguration.js";
 export * from "./claudeChatProvider.js";
 export * from "./responsePreference.js";
+export * from "./memoryContext.js";
 export * from "./claudeContactProvider.js";
 export * from "./contactResearchSchemas.js";
 export * from "./contactIntakeSchemas.js";

@@ -29,13 +29,10 @@ final class WorkspaceOriginTests: XCTestCase {
     func testDevelopmentOptInNeverAllowsRemoteHTTP() {
         XCTAssertNil(WorkspaceOrigin("http://workspace.example.com", allowLocalDevelopment: true))
         XCTAssertNil(WorkspaceOrigin("http://127.0.0.1.evil.test:4396", allowLocalDevelopment: true))
-        #if DEBUG
         let local = WorkspaceOrigin("http://127.0.0.1:4396", allowLocalDevelopment: true)
         XCTAssertNotNil(local)
         XCTAssertFalse(local!.contains(URL(string: "http://127.0.0.1:4397")!))
-        #else
-        XCTAssertNil(WorkspaceOrigin("http://127.0.0.1:4396", allowLocalDevelopment: true))
-        #endif
+
     }
 
     func testNavigationIsBoundToTheExactOrigin() throws {

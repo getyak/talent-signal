@@ -4,6 +4,7 @@ import type {
   MemoryRecallItem,
   MemoryRecallResponse,
   MemorySurface,
+  MemoryScope,
 } from "@talent-signal/contracts";
 import type { PoolClient } from "pg";
 
@@ -30,6 +31,23 @@ export interface MemoryRecallRequest {
   person_id?: string | null;
   relationship_context_id?: string | null;
   limit?: number;
+  scope?: MemoryScope | undefined;
+  cursor?: string | null | undefined;
+}
+
+type RecallCursor = { scope: MemoryScope; created_at: string; id: string };
+
+function decodeCursor(value: string): RecallCursor {
+  try {
+    if (value.length > 500) throw new Error();
+    const row = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as RecallCursor;
+    if (!["self", "person", "relationship"].includes(row.scope)
+      || !/^\d{4}-\d{2}-\d{2}T/.test(row.created_at) || !Number.isFinite(Date.parse(row.created_at))
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(row.id)) throw new Error();
+    return row;
+  } catch {
+    throw new ApiError(400, "MEMORY_CURSOR_INVALID", "Read Memory using the returned continuation cursor.");
+  }
 }
 
 /**
@@ -43,6 +61,7 @@ export async function recallMemories(
   request: MemoryRecallRequest,
 ): Promise<MemoryRecallResponse> {
   const limit = boundedLimit(request.limit, 50, 100);
+  const cursor = request.cursor ? decodeCursor(request.cursor) : null;
   const personId = request.person_id ?? null;
   const contextId = request.relationship_context_id ?? null;
   const parameters: unknown[] = [auth.accountId, auth.userId];
@@ -97,14 +116,28 @@ export async function recallMemories(
       )
     )`;
   }
-  parameters.push(limit);
+  let pageClause = "";
+  if (request.scope) {
+    parameters.push(request.scope);
+    pageClause += ` AND m.scope = $${parameters.length}`;
+  }
+  if (cursor) {
+    parameters.push(cursor.scope, cursor.created_at, cursor.id);
+    const scope = `$${parameters.length - 2}`;
+    const time = `$${parameters.length - 1}::timestamptz`;
+    const id = `$${parameters.length}::uuid`;
+    pageClause += ` AND (m.scope > ${scope} OR (m.scope = ${scope} AND
+      (m.created_at < ${time} OR (m.created_at = ${time} AND m.id > ${id}))))`;
+  }
+  parameters.push(limit + 1);
   const limitParameter = `$${parameters.length}`;
-  const result = await client.query<MemoryItemRow>(
-    `SELECT m.* FROM memory_items m
+  const result = await client.query<MemoryItemRow & { cursor_time: string }>(
+    `SELECT m.*, to_char(m.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time FROM memory_items m
      WHERE m.account_id = $1
        AND $2::uuid IS NOT NULL
        AND m.status = 'active'
        AND ${scopeClause}
+       ${pageClause}
        AND (
          m.subject_id IS NULL
          OR EXISTS (
@@ -138,17 +171,27 @@ export async function recallMemories(
     parameters,
   );
   const items: MemoryRecallItem[] = [];
-  for (const row of result.rows) {
+  const rows = result.rows.slice(0, limit);
+  if (rows.length) {
     const evidence = await client.query<EvidenceRow>(
       `SELECT id, memory_item_id, capture_id, source_resource_id,
               evidence_fragment_id, source_session_id, source_message_id,
               source_artifact_id, locator, excerpt, status
        FROM memory_item_evidence
-       WHERE account_id = $1 AND memory_item_id = $2 AND status = 'active'
-       ORDER BY created_at, id`,
-      [auth.accountId, row.id],
+       WHERE account_id = $1 AND memory_item_id = ANY($2::uuid[]) AND status = 'active'
+       ORDER BY memory_item_id, created_at, id`,
+      [auth.accountId, rows.map(row => row.id)],
     );
-    items.push(serializeRecallItem(row, evidence.rows, evidence.rows.length > 0));
+    const byMemory = new Map<string, EvidenceRow[]>();
+    for (const source of evidence.rows) {
+      const sources = byMemory.get(source.memory_item_id) ?? [];
+      sources.push(source);
+      byMemory.set(source.memory_item_id, sources);
+    }
+    for (const row of rows) {
+      const sources = byMemory.get(row.id) ?? [];
+      if (sources.length) items.push(serializeRecallItem(row, sources, true));
+    }
   }
   return {
     contract_version: CONTRACT_VERSION,
@@ -156,6 +199,11 @@ export async function recallMemories(
     person_id: personId,
     relationship_context_id: contextId,
     items,
+    has_more: result.rows.length > limit,
+    next_cursor: result.rows.length > limit && rows.length
+      ? Buffer.from(JSON.stringify({
+        scope: rows.at(-1)!.scope, created_at: rows.at(-1)!.cursor_time, id: rows.at(-1)!.id,
+      })).toString("base64url") : null,
   };
 }
 

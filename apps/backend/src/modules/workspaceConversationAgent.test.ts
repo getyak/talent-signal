@@ -77,6 +77,21 @@ function personRow(options: {
 }
 
 describe("workspace conversation Agent", () => {
+  it("marks an unavailable bootstrap honestly and does not stage a write", async () => {
+    const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Hello", body: "Hello" });
+    const run = vi.spyOn(provider, "run");
+    const stage = vi.fn();
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId, objective: "Hello", provider,
+      contacts: { search: vi.fn(), read: vi.fn() },
+      memory: { recall: vi.fn().mockRejectedValue(new Error("database unavailable")), stage },
+    });
+    expect(run.mock.calls[0]![0].selfMemoryContext).toEqual({
+      kind: "private_self_memory", status: "unavailable", items: [], continuation: null,
+    });
+    expect(stage).not.toHaveBeenCalled();
+  });
+
   it.each([["claude-agent-sdk", 60_000], ["scripted", 35_000]])("admits the %s adapter's complete execution budget", async (id, duration) => {
     const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Ready", body: "Ready" });
     const run = vi.fn<AgentProvider["run"]>(async request => {
@@ -1010,7 +1025,7 @@ describe("conversation-only context and proactive contact drafts", () => {
         },
       ),
     });
-    expect(recall).not.toHaveBeenCalled();
+    expect(recall).toHaveBeenCalledExactlyOnceWith({ personID: null, contextID: null, scope: "self", limit: 100 });
     expect(results[1]).toMatchObject({ ok: false, error: { code: "MEMORY_RECALL_NOT_AUTHORIZED" } });
   });
 
@@ -1036,7 +1051,7 @@ describe("conversation-only context and proactive contact drafts", () => {
         },
       ),
     });
-    expect(recall).toHaveBeenCalledOnce();
+    expect(recall).toHaveBeenCalledTimes(2);
     expect(results[1]).toMatchObject({ ok: true });
   });
 
@@ -1072,7 +1087,7 @@ describe("conversation-only context and proactive contact drafts", () => {
         },
       ),
     });
-    expect(recall).not.toHaveBeenCalled();
+    expect(recall).toHaveBeenCalledExactlyOnceWith({ personID: null, contextID: null, scope: "self", limit: 100 });
     expect(results[2]).toMatchObject({ ok: false, error: { code: "MEMORY_RECALL_NOT_AUTHORIZED" } });
   });
 
@@ -1093,7 +1108,7 @@ describe("conversation-only context and proactive contact drafts", () => {
         },
       ),
     });
-    expect(recall).toHaveBeenCalledOnce();
+    expect(recall).toHaveBeenCalledTimes(2);
     expect(results[0]).toMatchObject({ ok: true });
   });
 
@@ -1200,7 +1215,7 @@ describe("conversation-only context and proactive contact drafts", () => {
         { tool: "contact_workspace", input: { operation: "search", query: "chenyu@example.com" } },
         { tool: "memory_review", input: { operation: "recall", person_id: personID, relationship_context_id: contextID } },
       ], results => { observed = results; return { outcome: "reply", title: "待确认", body: "账号归属已变化，请重新确认。" }; }) });
-    expect(search).toHaveBeenCalledTimes(2); expect(recall).not.toHaveBeenCalled();
+    expect(search).toHaveBeenCalledTimes(2); expect(recall).toHaveBeenCalledExactlyOnceWith({ personID: null, contextID: null, scope: "self", limit: 100 });
     expect(observed[1]).toMatchObject({ ok: false, error: { code: "MEMORY_RECALL_NOT_AUTHORIZED" } });
   });
 
@@ -1216,7 +1231,7 @@ describe("conversation-only context and proactive contact drafts", () => {
         { tool: "contact_workspace", input: { operation: "search", query: "chenyu@example.com", source_clue: { clue: "chenyu@example.com", source_locator: { kind: "image_region", artifact_id: artifactId, image_index: 0 } } } },
         { tool: "memory_review", input: { operation: "recall", person_id: personID, relationship_context_id: contextID } },
       ], results => { observed=results; return { outcome: "reply", title: "图片摘要", body: "这是本次来源。" }; }) });
-    expect(recall).toHaveBeenCalledTimes(current ? 1 : 0);
+    expect(recall).toHaveBeenCalledTimes(current ? 2 : 1);
     expect(observed[1]?.ok).toBe(current);
   });
 
@@ -1337,7 +1352,11 @@ describe("shared screenshot relationship review", () => {
     });
 
     expect(search).toHaveBeenCalledOnce();
-    expect(recall).toHaveBeenCalledOnce();
+    expect(recall.mock.calls).toEqual([
+      [{ personID: null, contextID: null, scope: "self", limit: 100 }],
+      [{ personID: null, contextID: null, scope: undefined, cursor: undefined,
+        identityClue: null, imageAuthority: null }],
+    ]);
     expect(stage).toHaveBeenCalledWith(
       expect.objectContaining({
         contactDecision: "new",

@@ -9,8 +9,11 @@ if [[ "$MODE" == signed ]]; then
   : "${MACOS_SIGNING_IDENTITY:?Developer ID Application identity required}"
   : "${MACOS_NOTARY_PROFILE:?Notary keychain profile required}"
   : "${MACOS_NOTARY_KEYCHAIN:?Notary keychain path required}"
+  : "${MACOS_SPARKLE_PUBLIC_KEY:?Sparkle public key required for signed releases}"
+  node -e 'if(Buffer.from(process.env.MACOS_SPARKLE_PUBLIC_KEY,"base64").length!==32)throw Error("Invalid Sparkle public key")'
   [[ "$MACOS_SIGNING_IDENTITY" == 'Developer ID Application:'* ]] || { echo 'Developer ID Application identity required' >&2; exit 1; }
 fi
+if [[ "$MODE" == preview ]]; then export MACOS_SPARKLE_PUBLIC_KEY=""; fi
 mkdir -p "$MACOS_OUTPUT_DIR"
 OUTPUT="$(cd "$MACOS_OUTPUT_DIR" && pwd)"
 # A run gets its own build/staging directory; existing files are never overwritten.
@@ -22,7 +25,7 @@ BUILD="${MACOS_BUILD_NUMBER:-1}"
 xcodebuild -quiet -project "$ROOT/apps/macos/TalentSignalMac.xcodeproj" \
   -scheme TalentSignalMac -configuration Release -destination 'generic/platform=macOS' \
   -derivedDataPath "$STAGING/DerivedData" ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO \
-  CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" build
+  MACOS_SPARKLE_PUBLIC_KEY="${MACOS_SPARKLE_PUBLIC_KEY:-}" CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" build
 mkdir "$STAGING/dmg"
 APP="$STAGING/dmg/Talent Signal.app"
 ditto "$STAGING/DerivedData/Build/Products/Release/TalentSignalMac.app" "$APP"
@@ -34,14 +37,14 @@ if /usr/libexec/PlistBuddy -c 'Print :TalentSignalWebOrigin' "$APP/Contents/Info
   echo 'Distribution must not embed a workspace address' >&2; exit 1
 fi
 if [[ "$MODE" == signed ]]; then
-  codesign --force --options runtime --timestamp --sign "$MACOS_SIGNING_IDENTITY" "$APP"
+  "$ROOT/scripts/macos/sign-app.sh" "$APP" "$MACOS_SIGNING_IDENTITY"
   ditto -c -k --keepParent "$APP" "$STAGING/notarize.zip"
   xcrun notarytool submit "$STAGING/notarize.zip" --keychain-profile "$MACOS_NOTARY_PROFILE" --keychain "$MACOS_NOTARY_KEYCHAIN" --wait
   xcrun stapler staple "$APP"
   xcrun stapler validate "$APP"
   spctl --assess --type execute --verbose "$APP"
 else
-  codesign --force --sign - "$APP"
+  "$ROOT/scripts/macos/sign-app.sh" "$APP" -
 fi
 codesign --verify --deep --strict "$APP"
 BASE="Talent-Signal-${VERSION}-${BUILD}-macOS-universal-${MODE}"

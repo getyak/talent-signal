@@ -46,6 +46,10 @@ import {
   type MemorySourceAuthority,
 } from "./memoryReview.js";
 import { verifyPendingSourceAuthority } from "./memorySourceVerification.js";
+import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
+import { loadAgentResponsePreference, saveAgentPreference } from "./agentPreferences.js";
+import { invalidateMemoriesForSessionIds } from "./memoryReview.js";
+import { ScriptedAgentProvider, type SelfMemoryContext } from "@talent-signal/agent";
 
 const url = process.env.CONTACT_AGENT_TEST_DATABASE_URL;
 const pool = url
@@ -449,6 +453,114 @@ function draftProposalItems() {
 }
 
 describe.skipIf(!pool)("Memory review integration", () => {
+  async function acceptSelf(auth: AuthContext, items: MemoryProposalCandidate[]) {
+    const staged = await stage(auth, { contactDecision: "none", items });
+    const opened = await open(auth, staged!.proposal.proposal_id, "chat");
+    return commit(auth, opened.review, opened.review_credential!, {
+      selected: opened.review.items.map(item => item.id), contactDecision: "none",
+    });
+  }
+
+  it("bootstraps the same accepted self and explicit service setting in fresh clients without tool calls", async () => {
+    const auth = await makeAuth("self-bootstrap");
+    await acceptSelf(auth, [candidate({ display_text: "I plan to study design next year.",
+      statement_kind: "source_statement", speaker: "me", reporter: "me",
+      time_status: "future", valid_time: "2027-01-01T00:00:00Z" })]);
+    await saveAgentPreference(pool!, auth, {
+      idempotency_key: randomUUID(), expected_revision: 0, response_style: "conclusion_first",
+    });
+    const cores: SelfMemoryContext[] = [];
+    for (const clientLabel of ["web", "mobile"]) {
+      const sessionId = randomUUID();
+      await insertSourceSession(auth, sessionId, randomUUID(), clientLabel);
+      const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Ready", body: "Ready" });
+      const run = vi.spyOn(provider, "run");
+      await executeWorkspaceConversationAgent({
+        database: pool!, auth, sessionID: sessionId, objective: "What should I work on?",
+        provider, responsePreference: (await loadAgentResponsePreference(pool!, auth))!,
+        assertCurrent: await createHarnessSourceGuard(pool!, auth, sessionId, () => undefined),
+      });
+      const request = run.mock.calls[0]![0];
+      expect(request.responsePreference).toMatchObject({ responseStyle: "conclusion_first" });
+      cores.push(request.selfMemoryContext!);
+    }
+    expect(cores[0]).toEqual(cores[1]);
+    expect(cores[0]).toMatchObject({ status: "complete", items: [{
+      display_text: "I plan to study design next year.", statement_kind: "source_statement",
+      time_status: "future", speaker: "me", version: 1, evidence_retained: true,
+    }] });
+    expect(cores[0]!.items[0]!.evidence_refs[0]).toHaveProperty("source_session_id");
+    expect(cores[0]!.items[0]!.evidence_refs[0]).not.toHaveProperty("excerpt");
+
+    const otherUserId = randomUUID();
+    await pool!.query("INSERT INTO users(id,account_id,email,display_name,kind) VALUES($1,$2,$3,'Other','simulated_human')",
+      [otherUserId, auth.accountId, otherUserId + "@synthetic.local"]);
+    const other = { ...auth, userId: otherUserId };
+    expect((await recallMemories(pool!, other, { surface: "chat", scope: "self" })).items).toEqual([]);
+    expect(await loadAgentResponsePreference(pool!, other)).toBeUndefined();
+  });
+
+  it.each(["correct", "delete_source"] as const)("rejects an answer after loaded self memory changes: %s", async change => {
+    const auth = await makeAuth("self-change");
+    const accepted = await acceptSelf(auth, [candidate({ display_text: "My current goal is design." })]);
+    const id = accepted.body.receipt.created_item_ids[0]!;
+    const assertCurrent = await createHarnessSourceGuard(pool!, auth, undefined, () => undefined);
+    const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Old", body: "Old" });
+    const originalRun = provider.run.bind(provider);
+    vi.spyOn(provider, "run").mockImplementation(async (...args) => {
+      expect(args[0].selfMemoryContext!.items.map(item => item.id)).toContain(id);
+      if (change === "correct") await mutateMemoryItem(pool!, auth, id, {
+        operation: "correct", idempotency_key: randomUUID(), expected_version: 1,
+        display_text: "My current goal is research.", reason: "User correction",
+      });
+      else {
+        const sources = await recallMemories(pool!, auth, { surface: "chat" });
+        await inTransaction(pool!, client => invalidateMemoriesForSessionIds(client, auth.accountId,
+          [sources.items[0]!.evidence_refs[0]!.source_session_id!]));
+      }
+      return originalRun(...args);
+    });
+    await expect(executeWorkspaceConversationAgent({ database: pool!, auth, objective: "Help me plan.",
+      provider, assertCurrent })).rejects.toMatchObject({ code: "HARNESS_SOURCE_CHANGED" });
+    const next = new ScriptedAgentProvider([], { outcome: "reply", title: "Current", body: "Current" });
+    const nextRun = vi.spyOn(next, "run");
+    await executeWorkspaceConversationAgent({ database: pool!, auth, objective: "Try again.", provider: next,
+      assertCurrent: await createHarnessSourceGuard(pool!, auth, undefined, () => undefined) });
+    expect(nextRun.mock.calls[0]![0].selfMemoryContext).toMatchObject({
+      status: "complete",
+      items: change === "correct" ? [expect.objectContaining({ version: 2, display_text: "My current goal is research." })] : [],
+    });
+  });
+
+  it("paginates all self memories without losing timestamp ties or revealing them on business surfaces", async () => {
+    const auth = await makeAuth("self-pages");
+    for (const start of [0, 40, 80]) await acceptSelf(auth,
+      Array.from({ length: start === 80 ? 25 : 40 }, (_, i) => candidate({ display_text: "My project note " + (start + i) })));
+    // PostgreSQL microseconds must survive the cursor, even though JS Date
+    // rounds to milliseconds. All rows deliberately share that same instant.
+    await pool!.query("UPDATE memory_items SET created_at='2026-09-22T00:00:00.123456Z' WHERE account_id=$1", [auth.accountId]);
+    const first = await recallMemories(pool!, auth, { surface: "chat", scope: "self", limit: 100 });
+    expect(first.items).toHaveLength(100);
+    expect(first.has_more).toBe(true);
+    const second = await recallMemories(pool!, auth, { surface: "chat", scope: "self", limit: 100, cursor: first.next_cursor });
+    expect(second.items).toHaveLength(5);
+    expect(second.has_more).toBe(false);
+    expect(second.next_cursor).toBeNull();
+    expect(new Set([...first.items, ...second.items].map(item => item.id)).size).toBe(105);
+    const contact = await makeContact(auth, "Business");
+    expect(await recallMemories(pool!, auth, { surface: "relationship", scope: "self",
+      person_id: contact.personId, relationship_context_id: contact.contextId }))
+      .toMatchObject({ items: [], has_more: false, next_cursor: null });
+    const foreign = await makeAuth("foreign-page");
+    expect((await recallMemories(pool!, foreign, { surface: "chat", scope: "self", cursor: first.next_cursor })).items).toEqual([]);
+    await expect(recallMemories(pool!, auth, { surface: "chat", cursor: "invalid" }))
+      .rejects.toMatchObject({ code: "MEMORY_CURSOR_INVALID" });
+    const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Ready", body: "Ready" });
+    const run = vi.spyOn(provider, "run");
+    await executeWorkspaceConversationAgent({ database: pool!, auth, objective: "Hi", provider });
+    expect(run.mock.calls[0]![0].selfMemoryContext!.status).toBe("partial");
+  });
+
   it("creates one contact and exactly seventeen scoped memories in one commit", async () => {
     const auth = await makeAuth("new-contact");
     const text = "Chen shared his design system notes";

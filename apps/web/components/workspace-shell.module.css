@@ -1177,3 +1177,21 @@
 
 .mobilePrivacyEntry { min-width:44px; min-height:44px; justify-content:center; padding:8px; }
 .mobilePrivacyEntry span { display:none; }
+
+/* Native update attention is quiet, outside the account menu's click target. */
+.accountControls { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.accountControls > .accountMenu { flex: 1; min-width: 0; }
+.desktopUpdate {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  flex: 0 0 auto; min-height: 30px; padding: 0 8px; border-radius: 7px;
+  color: var(--muted-strong); background: color-mix(in srgb, var(--ink) 5%, transparent);
+  font-size: 11px; font-weight: 550; text-decoration: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+.desktopUpdate:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.desktopUpdate:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.accountPopover kbd { margin-left: auto; font: inherit; font-size: 11px; color: var(--muted); }
+.shell:has(.sidebarState[data-collapsed="true"]) .accountControls { flex-direction: column; }
+.shell:has(.sidebarState[data-collapsed="true"]) .desktopUpdate span { display: none; }
+@media (prefers-reduced-motion: reduce) { .desktopUpdate { transition: none; } }
+@media (max-width: 760px) { .desktopUpdate { min-height: 36px; } }
