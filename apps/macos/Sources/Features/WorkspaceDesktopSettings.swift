@@ -46,67 +46,54 @@ struct WorkspaceDesktopCommands: Commands {
 struct WorkspaceDesktopSettings: View {
     @AppStorage("workspace.desktop.zoom") private var zoom = 1.0
     @AppStorage("workspace.desktop.floating") private var floating = false
-    @AppStorage("workspace.web.origin") private var origin = ""
+    @ObservedObject private var updater = DesktopUpdater.shared
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Form {
-            Section {
-                LabeledContent("内容大小") {
-                    Picker("内容大小", selection: $zoom) {
-                        Text("紧凑 · 90%").tag(0.9)
-                        Text("默认 · 100%").tag(1.0)
-                        Text("舒适 · 110%").tag(1.1)
-                        Text("大号 · 125%").tag(1.25)
-                        Text("特大 · 150%").tag(1.5)
-                    }.labelsHidden().frame(width: 155)
-                }
-                Toggle("工作区保持在其他窗口上方", isOn: $floating)
-            } header: {
-                Text("阅读与窗口")
-            } footer: {
-                Text("仅影响这台 Mac。网页中的外观偏好在工作区设置中管理。")
-            }
-            Section("工作区") {
-                LabeledContent("当前服务") {
-                    Text(WorkspaceOrigin.configured(saved: origin)?.url.host ?? "尚未连接")
-                        .foregroundStyle(.secondary).lineLimit(1)
-                        .truncationMode(.middle).textSelection(.enabled)
-                }
-                Button {
-                    WorkspaceNavigation.shared.pending = .settings
+        TabView {
+            ScrollView {
+                WorkspaceConnectionForm {
                     openWindow(id: "workspace")
-                } label: {
-                    HStack {
-                        Text("账号、外观与连接")
-                        Spacer()
-                        Image(systemName: "arrow.up.right").foregroundStyle(.secondary)
+                }
+            }.tabItem { Label("连接", systemImage: "network") }
+            Form {
+                Section {
+                    LabeledContent("当前版本", value: updater.appVersion)
+                    Text(updater.status).foregroundStyle(.secondary)
+                    Button(updater.availableVersion.map { "查看 \($0) 更新…" } ?? "检查更新…") {
+                        updater.checkForUpdates()
+                    }.disabled(!updater.isConfigured || (!updater.canCheck && updater.availableVersion == nil))
+                        .accessibilityIdentifier("updates.check")
+                }
+                Section {
+                    Toggle("自动检查更新", isOn: $updater.automaticChecks).disabled(!updater.isConfigured)
+                    Toggle("接收预览版本", isOn: $updater.includesPreview)
+                        .disabled(!updater.isConfigured || updater.sessionInProgress)
+                } footer: {
+                    Text("新版本会在头像旁轻声提醒。点击后查看说明，再决定下载和重启；不会自动中断当前工作。")
+                }
+                Section {
+                    Link("版本记录与安装帮助", destination: URL(string: "https://github.com/getyak/talent-signal/releases?q=macos-")!)
+                    if !updater.isConfigured {
+                        Text("正式签名更新尚未配置。可从版本记录下载已发布的安装包。")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
-                }.buttonStyle(.plain)
-            }
-            Section("Talent Signal") {
-                Text("保留关系背景，跟进承诺，推进合作。")
-                    .foregroundStyle(.secondary)
-                Link("下载与安装帮助", destination: URL(string: "https://github.com/getyak/talent-signal/blob/main/docs/operations/macos-distribution.md")!)
-                Link("查看 macOS 新版本", destination: URL(string: "https://github.com/getyak/talent-signal/releases?q=macos-")!)
-            }
-            Section("键盘快捷键") {
-                shortcut("新对话", "⌘ N")
-                shortcut("搜索人物与对话", "⌘ K")
-                shortcut("人物 / 日程", "⌘ 1 / ⌘ 2")
-                shortcut("返回 / 前进", "⌘ [ / ⌘ ]")
-                shortcut("本机设置", "⌘ ,")
-            }
+                }
+            }.formStyle(.grouped).tabItem { Label("更新", systemImage: "arrow.down.circle") }
+            Form {
+                Picker("内容大小", selection: $zoom) {
+                    Text("90%").tag(0.9); Text("100%").tag(1.0); Text("110%").tag(1.1)
+                    Text("125%").tag(1.25); Text("150%").tag(1.5)
+                }
+                Toggle("窗口保持在其他窗口上方", isOn: $floating)
+                LabeledContent("新对话", value: "⌘ N")
+                LabeledContent("人物 / 日程", value: "⌘ 1 / ⌘ 2")
+                LabeledContent("连接与调试", value: "⌘ ,")
+                LabeledContent("重新载入", value: "⌘ R")
+            }.formStyle(.grouped).tabItem { Label("外观", systemImage: "textformat.size") }
         }
-        .formStyle(.grouped)
-        .frame(width: 480, height: 670)
-        .background(WorkspaceWindowBehavior(floating: floating))
-    }
-
-    private func shortcut(_ title: String, _ keys: String) -> some View {
-        LabeledContent(title) {
-            Text(keys).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-        }
+        .padding(12).frame(width: 550, height: 600)
+        .task { updater.start() }
     }
 }
 

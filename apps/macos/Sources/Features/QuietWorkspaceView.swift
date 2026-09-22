@@ -2,8 +2,10 @@ import AppKit
 import SwiftUI
 import WebKit
 import UniformTypeIdentifiers
+import Combine
 
 /// The product window has no script handlers or native capability bridge.
+/// A display-only chrome snapshot and two human-activated review links are supported.
 /// Native intake remains a separate, explicitly opened window with its own scope.
 struct WorkspaceOrigin: Equatable {
     let url: URL
@@ -15,17 +17,21 @@ struct WorkspaceOrigin: Equatable {
               url.query == nil, url.fragment == nil,
               url.path.isEmpty || url.path == "/" else { return nil }
         var validScheme = url.scheme == "https"
-        #if DEBUG
-        if allowLocalDevelopment, url.scheme == "http", host == "127.0.0.1" {
+        if allowLocalDevelopment, url.scheme == "http", ["127.0.0.1", "localhost", "[::1]", "::1"].contains(host) {
             validScheme = true
         }
-        #endif
         guard validScheme else { return nil }
-        self.url = url
+        guard var canonical = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        canonical.scheme = url.scheme?.lowercased()
+        canonical.host = canonical.host?.lowercased()
+        canonical.path = ""
+        if canonical.port == (canonical.scheme == "https" ? 443 : 80) { canonical.port = nil }
+        guard let normalized = canonical.url else { return nil }
+        self.url = normalized
     }
 
-    static func configured(saved: String, environment: String? = ProcessInfo.processInfo.environment["TALENT_SIGNAL_WEB_ORIGIN"], bundled: String? = Bundle.main.object(forInfoDictionaryKey: "TalentSignalWebOrigin") as? String) -> WorkspaceOrigin? {
-        parseConfigured(saved) ?? parseConfigured(environment ?? bundled ?? "")
+    static func configured(saved: String, environment: String? = ProcessInfo.processInfo.environment["TALENT_SIGNAL_WEB_ORIGIN"], bundled: String? = Bundle.main.object(forInfoDictionaryKey: "TalentSignalWebOrigin") as? String, allowLocalDevelopment: Bool = false) -> WorkspaceOrigin? {
+        WorkspaceOrigin(saved, allowLocalDevelopment: allowLocalDevelopment) ?? WorkspaceOrigin(environment ?? bundled ?? "", allowLocalDevelopment: allowLocalDevelopment)
     }
 
     static func parseConfigured(_ value: String) -> WorkspaceOrigin? {
@@ -46,7 +52,14 @@ struct WorkspaceOrigin: Equatable {
         return contains(embedded)
     }
 
-    var entryURL: URL { url.appendingPathComponent("workspace") }
+    var entryURL: URL {
+        #if DEBUG
+        if Bundle.main.object(forInfoDictionaryKey: "TalentSignalUpdateRehearsal") as? Bool == true {
+            return url.appendingPathComponent("dev/desktop-chrome")
+        }
+        #endif
+        return url.appendingPathComponent("workspace")
+    }
 
     func contains(_ candidate: URL) -> Bool {
         candidate.scheme == url.scheme && candidate.host == url.host &&
@@ -65,19 +78,25 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     @Published var canGoBack = false
     @Published var externalURL: URL?
     @Published var downloadStatus: String?
+    var openSettings: (() -> Void)?
+    private var updateObservation: AnyCancellable?
     private var calendarDownloads = Set<ObjectIdentifier>()
     private var navigationObservation: NSKeyValueObservation?
 
     init(origin: WorkspaceOrigin) {
         self.origin = origin
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .default()
+        configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: origin.dataStoreIdentifier)
         configuration.userContentController = WKUserContentController()
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
+        webView.isInspectable = WorkspaceConnection.shared.inspectorEnabled
+        updateObservation = DesktopUpdater.shared.$availableVersion.sink { [weak self] version in
+            self?.publishDesktopChrome(version: version)
+        }
         navigationObservation = webView.observe(\.canGoBack, options: [.new]) { [weak self] _, _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -100,6 +119,18 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { decisionHandler(.cancel); return }
+        if url.scheme == "talentsignal-desktop" {
+            if let command = DesktopChromeAction.resolve(url, source: action.sourceFrame.request.url,
+                                                        origin: origin, mainFrame: action.sourceFrame.isMainFrame,
+                                                        userActivated: action.navigationType == .linkActivated) {
+                switch command {
+                case .settings: openSettings?()
+                case .updates: DesktopUpdater.shared.checkForUpdates()
+                }
+            }
+            decisionHandler(.cancel)
+            return
+        }
         if action.shouldPerformDownload, action.sourceFrame.isMainFrame,
            let source = action.sourceFrame.request.url,
            origin.allowsCalendarDownload(url, from: source) {
@@ -119,6 +150,16 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
             externalURL = url
         }
         decisionHandler(.cancel)
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if response.isForMainFrame, let http = response.response as? HTTPURLResponse,
+           http.statusCode >= 400, ![401, 403].contains(http.statusCode) {
+            loading = false
+            failure = "工作区服务暂时无法完成请求（HTTP \(http.statusCode)）。请稍后重新载入，或检查连接设置。"
+            decisionHandler(.cancel)
+        } else { decisionHandler(.allow) }
     }
 
     // WebKit's download delegate preserves normal browser isolation. No JS bridge is added.
@@ -184,6 +225,7 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         loading = false
         canGoBack = webView.canGoBack
+        publishDesktopChrome(version: DesktopUpdater.shared.availableVersion)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -197,6 +239,22 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         loading = false
         failure = "页面已暂停，请重新载入。已保存的对话仍保留在工作区。"
+    }
+
+    func publishDesktopChrome(version: String?) {
+        let state: [String: Any] = ["protocolVersion": 1, "availableVersion": version as Any? ?? NSNull()]
+        guard let bytes = try? JSONSerialization.data(withJSONObject: state),
+              let json = String(data: bytes, encoding: .utf8),
+              let originBytes = try? JSONSerialization.data(withJSONObject: origin.url.absoluteString, options: .fragmentsAllowed),
+              let originJSON = String(data: originBytes, encoding: .utf8) else { return }
+        // Main-frame display metadata only. The origin check also closes navigation races.
+        let script = "if (window.location.origin === \(originJSON)) { window.talentSignalDesktop = \(json); window.dispatchEvent(new Event('talent-signal-desktop')); }"
+        let controller = webView.configuration.userContentController
+        controller.removeAllUserScripts()
+        controller.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        if let current = webView.url, origin.contains(current) {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
     }
 
     private func recordFailure(_ error: Error) {
@@ -257,6 +315,8 @@ private struct ConnectedQuietWorkspace: View {
     @StateObject private var browser: WorkspaceBrowser
     @Environment(\.openWindow) private var openWindow
     @AppStorage("workspace.desktop.zoom") private var zoom = 1.0
+    @ObservedObject private var connection = WorkspaceConnection.shared
+    @Environment(\.openSettings) private var openSettings
     @AppStorage("workspace.desktop.floating") private var floating = false
 
     init(origin: WorkspaceOrigin) { _browser = StateObject(wrappedValue: WorkspaceBrowser(origin: origin)) }
@@ -294,7 +354,8 @@ private struct ConnectedQuietWorkspace: View {
         }
         .focusedSceneObject(browser)
         .background(WorkspaceWindowBehavior(floating: floating))
-        .onAppear { consumeDestination() }
+        .onAppear { browser.openSettings = { openSettings() }; consumeDestination() }
+        .onChange(of: connection.inspectorEnabled) { _, enabled in browser.webView.isInspectable = enabled }
         .onChange(of: navigation.pending) { _, _ in consumeDestination() }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
@@ -328,55 +389,22 @@ private struct ConnectedQuietWorkspace: View {
 }
 
 struct QuietWorkspaceView: View {
-    @AppStorage("workspace.web.origin") private var savedOrigin = ""
-    @State private var originDraft = ""
-    @State private var error: String?
-    @State private var editingOrigin = false
-
-    private var configured: WorkspaceOrigin? { WorkspaceOrigin.configured(saved: savedOrigin) }
+    @ObservedObject private var connection = WorkspaceConnection.shared
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        if let origin = configured {
+        if let origin = connection.origin {
             ConnectedQuietWorkspace(origin: origin).id(origin.url)
                 .toolbar {
                     ToolbarItem {
-                        Button("工作区地址", systemImage: "network") {
-                            originDraft = origin.url.absoluteString
-                            editingOrigin = true
-                        }
+                        Button("连接与调试", systemImage: "slider.horizontal.3") { openSettings() }
                     }
                 }
-                .sheet(isPresented: $editingOrigin) { connectionForm.frame(width: 540, height: 360) }
-        } else { connectionForm }
-    }
-
-    private var connectionForm: some View {
-            VStack(alignment: .leading, spacing: 20) {
-                TSBrandMark(size: 28)
-                Text("打开你的工作区").font(.title2)
-                Text("连接 Talent Signal Web，在 Mac 上继续同一份对话、人物和时间记录。")
-                    .foregroundStyle(.secondary)
-                TextField("https://你的工作区地址", text: $originDraft)
-                    .textFieldStyle(.roundedBorder).onSubmit(connect)
-                if let error { Text(error).foregroundStyle(.red) }
-                HStack {
-                    Button("继续", action: connect).buttonStyle(.borderedProminent)
-                    if editingOrigin { Button("取消") { editingOrigin = false; error = nil } }
-                }
-                Text("仅保存服务地址。登录由工作区完成，本机工具另行授权。")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            .padding(40).frame(maxWidth: 540)
-            .frame(maxWidth: .infinity, maxHeight: .infinity).background(TSBrand.canvas)
-    }
-
-    private func connect() {
-        guard let origin = WorkspaceOrigin.parseConfigured(originDraft) else {
-            error = "请输入 HTTPS 工作区地址，不包含路径、账号或查询参数。"
-            return
+        } else {
+            WorkspaceConnectionForm(onConnected: {})
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(TSBrand.canvas)
         }
-        savedOrigin = origin.url.absoluteString
-        editingOrigin = false
-        error = nil
     }
 }

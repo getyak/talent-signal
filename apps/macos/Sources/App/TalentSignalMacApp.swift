@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct TalentSignalMacApp: App {
     @NSApplicationDelegateAdaptor(TalentSignalMacAppDelegate.self) private var appDelegate
+    @StateObject private var updater = DesktopUpdater.shared
     @StateObject private var model = AppModel.bootstrap()
 
     private var isQuickPanelPreview: Bool {
@@ -26,7 +27,7 @@ struct TalentSignalMacApp: App {
                     .environmentObject(model)
                     .environment(\.dynamicTypeSize, model.isAccessibilityZoomPreview ? .accessibility2 : .large)
                     .preferredColorScheme(model.isDarkAppearancePreview ? .dark : nil)
-                    .task { _ = await model.ensureInitialized() }
+                    .task { updater.start(); _ = await model.ensureInitialized() }
                     .background(SelectedTextServiceBridge().environmentObject(model))
             }
             .frame(
@@ -42,6 +43,10 @@ struct TalentSignalMacApp: App {
         .windowToolbarStyle(.unifiedCompact)
         .commands {
             WorkspaceDesktopCommands()
+            CommandGroup(after: .appInfo) {
+                Button(updater.availableVersion.map { "更新至 \($0)…" } ?? "检查更新…") { updater.checkForUpdates() }
+                    .disabled(!updater.isConfigured || (!updater.canCheck && updater.availableVersion == nil))
+            }
             TalentSignalCommands(model: model)
         }
 
