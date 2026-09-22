@@ -403,7 +403,7 @@ describe("Claude relationship Memory review tool", () => {
         time_status: "known" as const,
       }],
     }));
-    const stage = vi.fn(async () => ({
+    const stage = vi.fn(async (_request: unknown) => ({
       proposal_id: "proposal-1",
       proposal_revision: 1,
       item_count: 1,
