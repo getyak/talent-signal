@@ -1,0 +1,117 @@
+import Foundation
+import CryptoKit
+
+/// Connection preferences contain addresses and UI choices, never credentials.
+@MainActor
+final class WorkspaceConnection: ObservableObject {
+    static let shared = WorkspaceConnection()
+    @Published private(set) var origin: WorkspaceOrigin?
+    @Published private(set) var allowsLocalDevelopment: Bool
+    @Published var inspectorEnabled: Bool {
+        didSet { defaults.set(inspectorEnabled, forKey: "workspace.desktop.inspector") }
+    }
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        allowsLocalDevelopment = defaults.bool(forKey: "workspace.connection.localDevelopment")
+        inspectorEnabled = defaults.bool(forKey: "workspace.desktop.inspector")
+        origin = WorkspaceOrigin.configured(saved: defaults.string(forKey: "workspace.web.origin") ?? "",
+                                            allowLocalDevelopment: allowsLocalDevelopment)
+    }
+
+    func save(_ value: String, allowLocalDevelopment: Bool) -> Bool {
+        guard let parsed = Self.parseInput(value, allowLocalDevelopment: allowLocalDevelopment) else { return false }
+        defaults.set(parsed.url.absoluteString, forKey: "workspace.web.origin")
+        defaults.set(allowLocalDevelopment, forKey: "workspace.connection.localDevelopment")
+        allowsLocalDevelopment = allowLocalDevelopment
+        origin = parsed
+        return true
+    }
+
+    static func parseInput(_ value: String, allowLocalDevelopment: Bool) -> WorkspaceOrigin? {
+        guard var parts = URLComponents(string: value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              parts.user == nil, parts.password == nil, parts.query == nil, parts.fragment == nil,
+              parts.path.isEmpty || parts.path == "/" || parts.path == "/workspace" || parts.path.hasPrefix("/workspace/")
+        else { return nil }
+        parts.path = ""
+        guard let origin = parts.url else { return nil }
+        return WorkspaceOrigin(origin.absoluteString, allowLocalDevelopment: allowLocalDevelopment)
+    }
+}
+
+extension WorkspaceOrigin {
+    /// WebKit cookies ignore ports. Separate stores also isolate same-host test environments.
+    var dataStoreIdentifier: UUID {
+        let digest = Array(SHA256.hash(data: Data(url.absoluteString.utf8)).prefix(16))
+        return UUID(uuid: (digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+                           digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]))
+    }
+}
+
+struct ConnectionProbeResult: Equatable {
+    let reachable: Bool
+    let summary: String
+    let detail: String
+}
+
+/// No cookies, credentials, response body retention or redirect-based host discovery.
+final class WorkspaceConnectionProbe: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    let origin: WorkspaceOrigin
+    init(origin: WorkspaceOrigin) { self.origin = origin }
+
+    func run() async -> ConnectionProbeResult {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.urlCredentialStorage = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.timeoutIntervalForRequest = 10
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        var request = URLRequest(url: origin.url.appendingPathComponent("login"))
+        request.httpMethod = "HEAD"
+        do {
+            let (_, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return .init(reachable: false, summary: "未收到网页响应", detail: "请确认这是工作区的网页入口。")
+            }
+            let ok = (200...299).contains(http.statusCode) || [401, 403].contains(http.statusCode)
+            return .init(reachable: ok, summary: ok ? "服务可以访问" : "服务尚未就绪",
+                         detail: "HTTP \(http.statusCode) · 连通性检查不代表已登录或后端业务正常。")
+        } catch {
+            let code = (error as NSError).code
+            let detail: String
+            switch code {
+            case NSURLErrorTimedOut: detail = "连接超时。请检查 Tailscale、代理和服务端口。"
+            case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed: detail = "无法解析地址。请检查拼写和 Tailscale 连接。"
+            case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted,
+                 NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateHasUnknownRoot:
+                detail = "安全连接未通过验证。请检查服务证书。"
+            case NSURLErrorCancelled: detail = "检查已取消。"
+            default: detail = "请检查网络与工作区服务，然后重试。"
+            }
+            return .init(reachable: false, summary: "暂时无法连接", detail: detail)
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(request.url.map(origin.contains) == true ? request : nil)
+    }
+}
+
+/// This is navigation into native review UI, not a general-purpose native bridge.
+enum DesktopChromeAction: String {
+    case settings, updates
+
+    static func resolve(_ target: URL, source: URL?, origin: WorkspaceOrigin,
+                        mainFrame: Bool, userActivated: Bool) -> DesktopChromeAction? {
+        guard mainFrame, userActivated, let source, origin.contains(source),
+              target.scheme == "talentsignal-desktop", target.user == nil, target.password == nil,
+              target.port == nil, target.query == nil, target.fragment == nil,
+              target.path.isEmpty, let host = target.host else { return nil }
+        return Self(rawValue: host)
+    }
+}

@@ -12,7 +12,8 @@ collaboration, and recruiting. The downloadable client is `apps/macos`.
 2. Compare the downloaded file with its `SHA256SUMS.txt` using
    `shasum -a 256 <downloaded-file>`. Drag **Talent Signal** to Applications.
 3. Open the app and enter the HTTPS workspace origin supplied by the workspace
-   owner, without `/workspace` or other paths. Sign in with your own account.
+   owner, or paste a full `/workspace/...` link. The app shows the normalized origin.
+   Sign in with your own account.
 
 For an owner-operated private workspace, authorize the second Mac in the same
 Tailscale network and connect Tailscale before opening the app. The package
@@ -32,11 +33,35 @@ Building from the tagged source is another option for preview evaluation.
 
 ## Update and rollback
 
-**Settings → Talent Signal → View macOS releases** opens release downloads.
-Quit the app and replace the application in Applications; the bundle identifier
-and saved preferences remain stable. Keep the previous package for rollback.
-This workflow automates publication, not silent in-app binary replacement.
-The hosted workspace is updated by its service operator independently.
+Signed builds use Sparkle 2.10.0. A scheduled check shows a compact update button
+beside the account avatar; clicking it opens native version review. The application
+menu also offers **Check for Updates**, including when the Web server is unavailable
+or still runs an older Web version. Download and restart require a user decision;
+automatic download/installation is disabled. **Settings → Updates** controls
+scheduled checks and opt-in preview releases. Production feeds contain only signed,
+notarized packages, including packages in the optional preview channel.
+
+Older pre-Sparkle builds need one manual installation. Unsigned preview builds show
+that signed updating is not configured and retain the release-download link. Keep
+the previous package for operator rollback; do not lower the feed's build number.
+Hosted workspace changes remain independent of the desktop binary.
+
+## Connection and diagnostics
+
+**Settings (⌘ ,) → Connection**, the native toolbar and the Web account menu open
+the same native controls. Enter an HTTPS origin or a `/workspace/...` link without
+credentials, query parameters or fragments. Test the draft before saving; a stale
+probe never applies to a changed address. A successful HEAD request to `/login`
+proves HTTP reachability only, not login or API/database health.
+
+Development controls allow HTTP only for `localhost`, `127.0.0.1` and `::1`, and
+optionally enable WebKit inspection. There is no certificate bypass or editable
+update-feed URL. Workspace API/provider configuration remains server-owned; the
+client does not offer a misleading direct API override for server-rendered pages.
+Cookie stores are partitioned by canonical scheme/host/port, including local ports.
+The first upgrade from legacy default WebKit storage therefore requires a fresh
+login. Switching services asks the user to finish input/uploads before reloading.
+Copyable diagnostics omit origins, accounts, cookies and conversation content.
 
 ## Automated publication
 
@@ -67,8 +92,25 @@ The scoped release environment needs:
 - `MACOS_CERTIFICATE_P12_BASE64`: Developer ID Application certificate with its private key;
 - `MACOS_CERTIFICATE_PASSWORD`: export password;
 - `MACOS_SIGNING_IDENTITY`: exact `Developer ID Application: ...` identity;
+- `MACOS_SPARKLE_PUBLIC_KEY`: base64 Ed25519 public key (32 decoded bytes);
+- `MACOS_SPARKLE_PRIVATE_KEY`: corresponding Sparkle Ed25519 seed, used via stdin only;
 - `MACOS_NOTARY_KEY_ID`, `MACOS_NOTARY_ISSUER_ID`, `MACOS_NOTARY_PRIVATE_KEY`:
   App Store Connect team API key authorized for notarization.
+
+Generate the Sparkle key once using upstream `generate_keys`, retain the private
+key in Infisical, and use the corresponding public key in every signed app. Do not
+use a rehearsal key. Set optional repository variable `MACOS_UPDATE_CHANNEL` to
+`preview` for signed prereleases; it defaults to `stable`. Each new workflow run
+has a monotonically increasing build number; retries must not republish different
+bytes with an already published build number.
+
+After immutable downloads are published, `publish-appcast.sh` verifies the previous
+feed, generates and signs the new feed with pinned upstream tools, validates its
+archive URLs/channel/build, and publishes `appcast.xml` on the dedicated
+`macos-updates` GitHub release. That release is never GitHub's general latest.
+It preserves prior stable entries when adding a preview. Publication ends with a
+fresh download and byte comparison. GitHub asset replacement can have a brief
+unavailable interval; clients keep their installed app and retry later.
 
 The runner imports credentials into an ephemeral keychain and removes it after
 success or failure. Never commit credentials or publish signing inputs with
@@ -92,3 +134,22 @@ run through `scripts/macos/check.sh`; no iOS simulator is needed.
 Sources: [Apple Developer ID](https://developer.apple.com/developer-id/),
 [notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow),
 [GitHub workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows).
+
+## Isolated update rehearsal
+
+Use `scripts/macos/sparkle-tools.sh` with a task-owned `SPARKLE_TOOLS_DIR` to fetch
+and checksum the pinned upstream distribution. With a fresh `MACOS_OUTPUT_DIR`,
+run `scripts/macos/rehearse-update.sh`. It creates an isolated Debug application
+(`com.talentsignal.macos.rehearsal`), a newer archive and a signed local appcast.
+The ephemeral private key stays in that protected output directory, never in the
+user Keychain or source. Remove it with the task artifacts after verification.
+
+Run the Web development server on loopback port 4399, then
+`python3 scripts/macos/serve-update-rehearsal.py <output>/updates` on port 4398.
+Open `<output>/installed/Talent Signal Rehearsal.app`, enable local development,
+and connect to `http://127.0.0.1:4399`. The Debug rehearsal opens the real account-footer
+components with synthetic content at `/dev/desktop-chrome`; production returns
+404 for that page. Verify the quiet indicator, native review, download, signature
+check, explicit restart, new installed build and preserved connection. Corrupt a
+copy of the served archive to verify rejection and continued use of the old build.
+Only Debug rehearsal bundles admit a loopback update feed; production does not.

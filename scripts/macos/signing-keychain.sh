@@ -3,6 +3,8 @@
 set -euo pipefail
 : "${RUNNER_TEMP:?CI runner required}"
 : "${GITHUB_ENV:?CI environment required}"
+: "${MACOS_SPARKLE_PUBLIC_KEY:?Missing Sparkle public key}"
+: "${MACOS_SPARKLE_PRIVATE_KEY:?Missing Sparkle private key}"
 : "${MACOS_CERTIFICATE_P12_BASE64:?Missing Developer ID certificate}"
 : "${MACOS_CERTIFICATE_PASSWORD:?Missing certificate password}"
 : "${MACOS_NOTARY_KEY_ID:?Missing notary key ID}"
