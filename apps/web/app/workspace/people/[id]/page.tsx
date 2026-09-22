@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft, CaretRight } from "@phosphor-icons/react/dist/ssr";
 
 import { auth } from "@/auth";
 import { MemoryReviewCard } from "@/components/memory-review/memory-review-card";
@@ -17,6 +18,8 @@ import { isIntegrationMode, loadPersonMemory } from "@/lib/server/localBackend";
 import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
 import { mintMemoryEntryCapability } from "@/lib/server/memoryEntryCapability";
 import { readBackendSessionClaims } from "@/lib/server/backendAuth";
+
+import styles from "./person-memory.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -53,13 +56,21 @@ export default async function PersonMemoryPage({
   }
   if (!UUID.test(id)) {
     return (
-      <section className="workspace-section" aria-labelledby="person-invalid">
-        <h1 id="person-invalid">人物不可用</h1>
-        <p>这个人物标识无效。</p>
-        <Link href={withReturnSession("/workspace/people", returnSessionId)}>
-          返回人物目录
-        </Link>
-      </section>
+      <main className={styles.main} id="main-content" tabIndex={-1}>
+        <section className={styles.state} aria-labelledby="person-invalid">
+          <h1 className={styles.stateTitle} id="person-invalid">
+            人物不可用
+          </h1>
+          <p className={styles.stateText}>这个人物标识无效。</p>
+          <Link
+            className={styles.backLink}
+            href={withReturnSession("/workspace/people", returnSessionId)}
+          >
+            <ArrowLeft aria-hidden="true" size={16} />
+            返回人物目录
+          </Link>
+        </section>
+      </main>
     );
   }
 
@@ -85,13 +96,23 @@ export default async function PersonMemoryPage({
 
   if (!data) {
     return (
-      <section className="workspace-section" aria-labelledby="person-unavailable">
-        <h1 id="person-unavailable">人物记忆不可用</h1>
-        <p role="alert">{error}</p>
-        <Link href={withReturnSession("/workspace/people", returnSessionId)}>
-          返回人物目录
-        </Link>
-      </section>
+      <main className={styles.main} id="main-content" tabIndex={-1}>
+        <section className={styles.state} aria-labelledby="person-unavailable">
+          <h1 className={styles.stateTitle} id="person-unavailable">
+            人物记忆不可用
+          </h1>
+          <p className={styles.stateText} role="alert">
+            {error}
+          </p>
+          <Link
+            className={styles.backLink}
+            href={withReturnSession("/workspace/people", returnSessionId)}
+          >
+            <ArrowLeft aria-hidden="true" size={16} />
+            返回人物目录
+          </Link>
+        </section>
+      </main>
     );
   }
 
@@ -102,83 +123,109 @@ export default async function PersonMemoryPage({
     list.push(item);
     grouped.set(item.scope, list);
   }
+  // A name-only or expired clue must not read as a currently confirmed contact.
+  const confirmedIdentity = person?.identity_matches.find(
+    (match) => match.kind === "confirmed_handle",
+  );
 
   return (
-    <div className="workspace-section">
-      <header className="context-contact-header">
+    <main className={styles.main} id="main-content" tabIndex={-1}>
+      <header className={styles.identity}>
         <PersonDirectoryAvatar
-          className="context-contact-header__avatar"
+          className={styles.avatar}
           label={person?.display_label ?? "人物"}
           url={person?.avatar?.url ?? null}
         />
-        <div className="context-contact-header__identity">
+        <div className={styles.identityText}>
+          <p className={styles.eyebrow}>人物记忆</p>
           <h1>{person?.display_label ?? "人物"}</h1>
-          <p>
-            {person?.identity_matches[0]
-              ? "已确认的联系方式"
-              : person?.profile?.headline ?? "身份线索待补充"}
-          </p>
+          {person?.profile?.headline ? (
+            <p className={styles.identityNote}>{person.profile.headline}</p>
+          ) : confirmedIdentity ? (
+            <p className={styles.identityNote}>已确认的联系方式</p>
+          ) : null}
         </div>
       </header>
 
       {person && person.contexts.length > 0 ? (
-        <nav aria-label="关系情境">
-          <p>关系情境</p>
-          <ul>
+        <nav className={styles.contexts} aria-labelledby="person-contexts">
+          <h2 className={styles.sectionTitle} id="person-contexts">
+            关系情境
+          </h2>
+          <ul className={styles.contextList}>
             {person.contexts.map((context) => (
               <li key={context.id}>
                 <Link
+                  className={styles.contextRow}
                   href={withReturnSession(
                     `/workspace?person=${encodeURIComponent(person.id)}&context=${encodeURIComponent(context.id)}`,
                     returnSessionId,
                   )}
                 >
-                  {context.display_label ?? "关系情境"}
+                  <span className={styles.contextLabel}>
+                    {context.display_label ?? "关系情境"}
+                  </span>
+                  <CaretRight aria-hidden="true" size={15} />
                 </Link>
               </li>
             ))}
           </ul>
         </nav>
       ) : (
-        <p>
+        <p className={`${styles.quiet} ${styles.contextsEmpty}`}>
           {person
             ? "这个人还没有关系情境；先从这里查看人物记忆，或在对话中建立关系。"
             : "人物目录暂时没有这个人的条目。"}
         </p>
       )}
 
-      <section aria-labelledby="person-memory-pending">
-        <h2 id="person-memory-pending">待确认变化</h2>
-        {proposals.length === 0 ? (
-          <p>没有等待确认的变化。</p>
-        ) : (
-          proposals.map((proposal) => (
-            <MemoryReviewCard
-              binding={binding}
-              contextId={proposal.relationship_context_id ?? null}
-              entryCapability={entryCapability}
-              key={proposal.proposal_id}
-              personId={person?.id ?? id}
-              proposal={{ proposal_id: proposal.proposal_id, revision: proposal.revision }}
-              purpose="people"
-            />
-          ))
-        )}
-      </section>
+      {proposals.length === 0 ? (
+        <p className={styles.pendingEmpty}>暂无待确认变化</p>
+      ) : (
+        <section className={styles.section} aria-labelledby="person-memory-pending">
+          <h2 className={styles.sectionTitle} id="person-memory-pending">
+            待确认变化
+          </h2>
+          <ul className={styles.pendingList}>
+            {proposals.map((proposal) => (
+              <li key={proposal.proposal_id}>
+                <MemoryReviewCard
+                  binding={binding}
+                  contextId={proposal.relationship_context_id ?? null}
+                  entryCapability={entryCapability}
+                  personId={person?.id ?? id}
+                  proposal={{
+                    proposal_id: proposal.proposal_id,
+                    revision: proposal.revision,
+                  }}
+                  purpose="people"
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-      <section aria-labelledby="person-memory-accepted">
-        <h2 id="person-memory-accepted">已保存的记忆</h2>
+      <section
+        className={styles.section}
+        aria-labelledby="person-memory-accepted"
+      >
+        <h2 className={styles.sectionTitle} id="person-memory-accepted">
+          已保存的记忆
+        </h2>
         {items.length === 0 ? (
-          <p>还没有在这个人物上保存记忆。</p>
+          <p className={styles.quiet}>还没有在这个人物上保存记忆。</p>
         ) : (
           Array.from(grouped.entries()).map(([scope, scopeItems]) => (
-            <article key={scope}>
-              <h3>{SCOPE_LABELS[scope] ?? scope}</h3>
-              <ul>
+            <article className={styles.scopeGroup} key={scope}>
+              <h3 className={styles.scopeTitle}>
+                {SCOPE_LABELS[scope] ?? scope}
+              </h3>
+              <ul className={styles.memoryList}>
                 {scopeItems.map((item) => (
-                  <li key={item.id}>
-                    <p>{item.display_text}</p>
-                    <small>
+                  <li className={styles.memoryItem} key={item.id}>
+                    <p className={styles.memoryText}>{item.display_text}</p>
+                    <small className={styles.memoryKind}>
                       {item.statement_kind === "source_statement"
                         ? `来源陈述${item.speaker ? ` · ${item.speaker}` : ""}`
                         : item.statement_kind === "user_opinion"
@@ -193,11 +240,13 @@ export default async function PersonMemoryPage({
         )}
       </section>
 
-      <p>
-        <Link href={withReturnSession("/workspace/people", returnSessionId)}>
-          返回人物目录
-        </Link>
-      </p>
-    </div>
+      <Link
+        className={styles.backLink}
+        href={withReturnSession("/workspace/people", returnSessionId)}
+      >
+        <ArrowLeft aria-hidden="true" size={16} />
+        返回人物目录
+      </Link>
+    </main>
   );
 }

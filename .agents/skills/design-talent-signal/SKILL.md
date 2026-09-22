@@ -131,6 +131,11 @@ Before finishing:
   Record child-page results individually; an overall craft score cannot hide
   unverified loading, empty, error, narrow, keyboard or theme states.
 
+- For save or review flows, continue through the resulting Person or other
+  destination and reload it. Verify its populated layout and saved content;
+  the originating review card or success receipt alone does not validate the
+  destination's styles, navigation, or persistence.
+
 - Inspect the shell with zero recent items and the account menu open. Keep a
   consistent icon column and row rhythm; avoid orphan empty-state icons, repeated
   history links, native title tooltips over menus, and duplicate primary
