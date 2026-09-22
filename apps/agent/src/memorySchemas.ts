@@ -82,6 +82,8 @@ export const MemoryProposalCandidateInputSchema = z.strictObject({
  */
 export const MemoryReviewToolInputSchema = z.strictObject({
   operation: z.enum(["recall", "propose"]),
+  scope: MemoryScopeSchema.optional(),
+  cursor: z.string().max(500).optional(),
   person_id: Id.nullable().optional(),
   relationship_context_id: Id.nullable().optional(),
   contact_decision: MemoryContactDecisionSchema.optional(),
@@ -94,6 +96,8 @@ export const MemoryReviewToolInputSchema = z.strictObject({
 export const MemoryReviewInputSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("recall"),
+    scope: MemoryScopeSchema.optional(),
+    cursor: z.string().max(500).optional(),
     person_id: Id.nullable().optional(),
     relationship_context_id: Id.nullable().optional(),
   }),
@@ -146,18 +150,7 @@ export interface RemoteChatMemoryProposalReference {
 }
 
 export interface RemoteChatMemoryReviewHooks {
-  recall(): Promise<{
-    items: Array<{
-      id: string;
-      scope: "self" | "person" | "relationship";
-      statement_kind: "fact" | "source_statement" | "user_opinion";
-      display_text: string;
-      speaker: string | null;
-      reporter: string | null;
-      valid_time: string | null;
-      time_status: "known" | "unknown" | "future" | "past";
-    }>;
-  }>;
+  recall(input?: { scope?: "person" | "relationship" | undefined; cursor?: string | undefined }): Promise<import("./memoryContext.js").AgentMemoryPage>;
   stage(input: {
     contact_decision: "existing" | "new" | "none";
     person_display_label?: string | null;
@@ -168,6 +161,7 @@ export interface RemoteChatMemoryReviewHooks {
 export const MEMORY_REVIEW_TOOL_DESCRIPTION = [
   "Recall or stage the three-scope Memory review for the authenticated account.",
   'Use {"operation":"recall"} to read accepted, still-valid self/person/relationship memory for the current task scope before answering. Private self memory is never available on a relationship-scoped business view.',
+  "Recall supports scope self/person/relationship and the returned next_cursor. Follow pagination when completeness matters; no result means no currently available evidence, not proof something never happened.",
   'Use {"operation":"propose", ...} only when the current admitted user message and/or admitted images contain a worthwhile, durable change.',
   "Each item must copy one exact contiguous excerpt from the admitted source, name its scope, keep the statement kind (fact, source statement, or user opinion), and preserve speaker/reporter, time, and limiting conditions.",
   "Never infer a person's personality, motive, quality, or acceptance from one message, and never turn 'I want to work with X' into a mutual agreement. A future plan is not a completed fact.",

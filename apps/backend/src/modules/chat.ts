@@ -4,7 +4,7 @@ import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
 import { createHarnessEvidenceImageReader, loadHarnessEvidenceImageScope } from "./harnessEvidenceImages.js";
 import { loadAgentResponsePreference } from "./agentPreferences.js";
 import { createHarnessContinuationFactory } from "./harnessSessions.js";
-import { captureProductStep } from "@talent-signal/agent";
+import { agentMemoryItem, captureProductStep } from "@talent-signal/agent";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -1081,28 +1081,22 @@ export async function createChatTask(
           allowed_citation_ids: evidenceFragmentIds,
           images,
           memoryReview: {
-            recall: async () => {
-              try {
-                const recalled = await recallMemories(client, auth, {
-                  surface: "relationship",
-                  person_id: request.person_id,
-                  relationship_context_id: request.relationship_context_id,
-                });
-                return {
-                  items: recalled.items.map((item) => ({
-                    id: item.id,
-                    scope: item.scope,
-                    statement_kind: item.statement_kind,
-                    display_text: item.display_text,
-                    speaker: item.speaker ?? null,
-                    reporter: item.reporter ?? null,
-                    valid_time: item.valid_time ?? null,
-                    time_status: item.time_status,
-                  })),
-                };
-              } catch {
-                return { items: [] };
-              }
+            recall: async (page) => {
+              await assertCurrent?.();
+              const recalled = await recallMemories(client, auth, {
+                surface: "relationship",
+                person_id: request.person_id,
+                relationship_context_id: request.relationship_context_id,
+                scope: page?.scope,
+                cursor: page?.cursor,
+                limit: 20,
+              });
+              await assertCurrent?.();
+              return {
+                items: recalled.items.map(agentMemoryItem),
+                has_more: recalled.has_more,
+                next_cursor: recalled.next_cursor,
+              };
             },
             stage: async ({ items }) => {
               const nonSelf = items.filter((item) => item.scope !== "self");

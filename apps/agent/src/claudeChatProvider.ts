@@ -1,6 +1,7 @@
 import {runFileTools} from "./runFileTools.js";
 import { z } from "zod";
-import { responsePreferenceTool } from "./responsePreference.js";
+import { responsePreferenceTool, responsePreferenceContext, RESPONSE_PREFERENCE_INSTRUCTIONS } from "./responsePreference.js";
+import { MEMORY_CONTEXT_INSTRUCTIONS } from "./memoryContext.js";
 import { evidenceImageTools } from "./evidenceImageTool.js";
 import { calendarDraftCapability } from "./calendarDraft.js";
 import { ClaudeHarnessFailure, ClaudeHarnessInterruption, runClaudeHarness, type ClaudeHarnessResult, type HarnessTool } from "./claudeHarness.js";
@@ -160,10 +161,11 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
           }
           const review = parsedMemory.data;
           if (review.operation === "recall") {
-            const recalled = await hooks.recall();
+            if (review.scope === "self") return { content: [{ type: "text", text: "MEMORY_SCOPE_NOT_AVAILABLE" }], isError: true };
+            const recalled = await hooks.recall({ scope: review.scope, cursor: review.cursor });
             return { content: [{ type: "text", text: JSON.stringify({
               authority: "accepted_relationship_memory_not_execution_permission",
-              items: recalled.items,
+              ...recalled,
             }) }] };
           }
           const locatorError = memoryLocatorAdmissionError(
@@ -217,12 +219,13 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       ...(request.observation ? { observation: request.observation } : {}),
       ...(request.continuation && !sourceImageTools.length ? { continuation: request.continuation } : {}),
       imageToolResults: Boolean(sourceImageTools.length),
-      objective: request.objective, systemPrompt: [prompt.text, calendar.instructions, files.tools.length ? "For a requested calculation or file export, lead with the result and artifact name, and attribute the inputs to the record once. Read source review status from evidence_review; a proposed relationship block does not make the reviewed source excerpt unreviewed. Do not expose internal status words such as proposed or repeat an uncertainty caveat after already attributing the result to recorded data. Preserve any actual ambiguity that affects the calculation." : ""].filter(Boolean).join("\n\n"), tools, images,
+      objective: request.objective, systemPrompt: [prompt.text, calendar.instructions, request.responsePreference ? RESPONSE_PREFERENCE_INSTRUCTIONS : "", files.tools.length ? "For a requested calculation or file export, lead with the result and artifact name, and attribute the inputs to the record once. Read source review status from evidence_review; a proposed relationship block does not make the reviewed source excerpt unreviewed. Do not expose internal status words such as proposed or repeat an uncertainty caveat after already attributing the result to recorded data. Preserve any actual ambiguity that affects the calculation." : ""].filter(Boolean).join("\n\n"), tools, images,
       context: JSON.stringify({ calendar_clock: calendar.clock, reference_time: request.reference_time, conversation: boundedConversationHistory(request.conversation_history),
         session_title_requested: sessionTitleRequested,
         run_files: files.inventory,
         memory_inventory: request.context_blocks.map(block => ({ type: block.type, status: block.status })),
-        allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference) }),
+        allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference),
+        assistant_service_preference: responsePreferenceContext(request.responsePreference) }),
       effort: "medium", budget: { ...DEFAULT_AGENT_BUDGET, maxDurationMs: 60_000 }, assertCurrent,
     }, abort.signal);
     await assertCurrent();
@@ -323,12 +326,16 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     const outcome = await this.execute(this.configuration, { ...((request.continuation && userImages.length === 0) ? { continuation: request.continuation } : {}), ...(trusted ? { observation: trusted } : {}), objective: request.objective,
       ...(onText ? { onText } : {}),
       ...(userImages.length > 0 ? { images: userImages } : {}),
-      systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions].filter(Boolean).join("\n\n"), tools,
+      systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions,
+        request.responsePreference ? RESPONSE_PREFERENCE_INSTRUCTIONS : "",
+        request.selfMemoryContext ? MEMORY_CONTEXT_INSTRUCTIONS : ""].filter(Boolean).join("\n\n"), tools,
       context: JSON.stringify({ calendar_clock: calendar.clock, scope: request.scopeSummary, conversation: boundedConversationHistory(request.conversationHistory),
         session_title_requested: sessionTitleRequested,
         input_images: userImages.map(part => ({ artifact_id: part.artifactID, mime_type: part.mimeType, byte_size: part.byteSize, content_hash: part.contentHash })),
         input_notes: userImageNotes,
-        response_preference_available: Boolean(request.responsePreference) }),
+        response_preference_available: Boolean(request.responsePreference),
+        assistant_service_preference: responsePreferenceContext(request.responsePreference),
+        private_self_memory: request.selfMemoryContext }),
       effort: "medium", budget: request.budget, assertCurrent: async () => { signal.throwIfAborted(); await request.assertCurrent?.(); },
     }, signal);
     observed?.(outcome);

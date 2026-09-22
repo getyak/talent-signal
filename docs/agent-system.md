@@ -141,11 +141,10 @@ Every included item should have a reason, version, authorization scope, and
 restorable reference. Large observations belong in artifacts, not the active
 prompt.
 
-Each run pins a knowledge snapshot and records a context manifest: the task
-version, Pursuit and subject scope, included references, inclusion reasons,
-authorization scope, and content identity needed to explain or replay what the
-Agent could know. The manifest points to governed content rather than copying another unbounded
-transcript.
+Each run records a knowledge snapshot and context manifest: task version,
+Pursuit and subject scope, references, inclusion reasons, authorization and
+content identity. The manifest references governed content for replay instead
+of copying an unbounded transcript.
 
 Screenshots, web pages, files, connector results, and generated wiki text remain
 untrusted content. They cannot modify policy, permissions, or approval
@@ -167,9 +166,9 @@ turns cannot advance its durable checkpoint. A fresh Session recovers sourced
 Memory through current domain reads, never by inheriting an old transcript.
 
 Response style is a user-owned, revisioned preference in the product database.
-The Agent reads it through a scoped capability; current explicit instructions
-take precedence. Saving or resetting a preference invalidates affected working
-context. Web reads, turns, and preference writes bind the initiating login before
+The host supplies the verified setting before each answer; scoped reads remain
+available. Current instructions take precedence. Saving or resetting invalidates
+working context. Web reads, turns, and preference writes bind the initiating login before
 forwarding its credential; stale tabs cannot act under a replacement account.
 Clients verify a matching readback before displaying a saved setting.
 
@@ -191,14 +190,10 @@ New model output enters as a proposal. Accepted facts, source statements, and
 user opinion stay distinct across the self, person, and relationship scopes.
 Repeated corrections may propose a playbook, but learning remains reviewable.
 
-The Agent Wiki is a versioned semantic compilation over governed state. It is a
-first-class shared memory product and the primary way people and Agents recover
-longitudinal context, not merely a human-facing page.
-
-Wiki pages may be durable, linked, searched, cited, and optimized for Agent
-reading while remaining rebuildable after correction, conflict, expiry,
-permission change, or deletion. They do not replace the evidence, fact
-versions, outcomes, or approved procedures from which they were compiled.
+The Agent Wiki is the primary shared, versioned compilation of governed state
+for longitudinal retrieval. Pages support search and citations, and rebuild
+after correction, conflict, expiry, permission changes or deletion. They never
+replace source evidence, fact versions, outcomes or approved procedures.
 
 Pages contain addressable knowledge blocks rather than one generated essay.
 Material blocks preserve status, time, authorization scope, provenance, and
@@ -214,9 +209,14 @@ workspace or subject map
 → exact source evidence when verification requires it
 ```
 
-The context assembler may combine structured state, Wiki blocks, and exact
-evidence. It must not dump the whole Wiki into a prompt or treat vector
-similarity alone as sufficient grounding.
+The context assembler combines relevant structured state, Wiki blocks and exact
+evidence; whole-Wiki prompts and vector similarity alone are insufficient.
+
+Private workspace turns preload bounded self memory with provenance, time,
+conflicts and versions; scoped recall pages recover omitted detail and excerpts.
+Partial or unavailable context is explicit. Business views never receive self
+content or coverage. Memory data stays separate from verified service settings;
+source guards apply before loading and before accepting an answer.
 
 Each run reads an immutable knowledge snapshot, whether exposed through a
 service or an Agent-readable file bundle. A provider session, compacted chat,

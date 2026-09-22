@@ -9,6 +9,7 @@ import {
   MemoryProposalRebaseRequestSchema,
   MemoryProposalStageRequestSchema,
   MemoryReviewDraftRequestSchema,
+  MemoryScopeSchema,
   MemoryUndoRequestSchema,
   type MemoryCommitRequest,
   type MemoryDismissRequest,
@@ -19,6 +20,7 @@ import {
   type MemoryProposalStageRequest,
   type MemoryReviewDraftRequest,
   type MemorySurface,
+  type MemoryScope,
   type MemoryUndoRequest,
 } from "@talent-signal/contracts";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
@@ -97,6 +99,8 @@ const listQuery = Type.Object({
   relationship_context_id: Type.Optional(Type.String({ format: "uuid" })),
 });
 const recallQuery = Type.Object({
+  scope: Type.Optional(MemoryScopeSchema),
+  cursor: Type.Optional(Type.String({ maxLength: 500 })),
   surface: Type.Union([
     Type.Literal("chat"),
     Type.Literal("people"),
@@ -509,6 +513,8 @@ export function registerMemoryReviewRoutes(
       person_id?: string;
       relationship_context_id?: string;
       limit?: number;
+      scope?: MemoryScope;
+      cursor?: string;
     };
   }>(
     "/v1/memory/items",
@@ -519,6 +525,8 @@ export function registerMemoryReviewRoutes(
         person_id: request.query.person_id ?? null,
         relationship_context_id: request.query.relationship_context_id ?? null,
         ...(request.query.limit ? { limit: request.query.limit } : {}),
+        scope: request.query.scope,
+        cursor: request.query.cursor,
       }),
   );
 
