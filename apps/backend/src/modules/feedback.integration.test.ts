@@ -29,7 +29,9 @@ const provider: RemoteChatAnswerProviding = {
   async answer(input) {
     // Host capabilities are callable, not serializable replay input. Keep the
     // inspected model context immutable without cloning live Memory authority.
-    requests.push(structuredClone({ ...input, memoryReview: undefined }));
+    const modelInput = { ...input };
+    delete modelInput.memoryReview;
+    requests.push(structuredClone(modelInput));
     await beforeAnswer?.();
     const prompt = input.prompt_snapshot ?? bundledPrompt("assistant/relationship");
     return { kind: "answer", title: "Evidence-backed next step",
