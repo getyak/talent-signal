@@ -367,6 +367,9 @@ describe("inline user message images", () => {
     const execute = vi.fn(async (_configuration: unknown, harnessRequest: ClaudeHarnessRequest) => {
       sawImages = harnessRequest.images;
       expect(harnessRequest.continuation).toBeUndefined();
+      expect(harnessRequest.systemPrompt).toContain("For a name-only screenshot, prepare the memory_review contact decision directly");
+      expect(harnessRequest.systemPrompt).not.toContain("Cite relationship evidence through cite_evidence");
+      expect(harnessRequest.budget).toEqual(request.budget);
       expect(JSON.parse(harnessRequest.context!).input_images).toEqual([
         expect.objectContaining({ artifact_id: request.inputParts[0]!.artifactID, content_hash: contentHash }),
       ]);
@@ -380,6 +383,29 @@ describe("inline user message images", () => {
     );
     expect(sawImages).toHaveLength(1);
     expect(sawImages?.[0]).toMatchObject({ kind: "image", mimeType: "image/png", contentHash, dataBase64: bytes.toString("base64") });
+  });
+
+  it("preserves an internal JSON contract without conversational instructions or visible deltas", async () => {
+    const visible = vi.fn();
+    const execute = vi.fn(async (_configuration: unknown, harnessRequest: ClaudeHarnessRequest) => {
+      expect(harnessRequest.systemPrompt).toBe("Return JSON items only.");
+      expect(harnessRequest.onText).toBeUndefined();
+      expect(harnessRequest.tools).toEqual([]);
+      return { ...outcome, text: '{"items":[]}' };
+    });
+    const provider = new ClaudeChatProvider(configuration, execute as never, true);
+    const result = await provider.run({ ...request, systemPrompt: "Return JSON items only.",
+      outputMode: "json", onVisibleText: visible }, async () => ({ ok: false, callID: "none", name: "none" }),
+      new AbortController().signal);
+    expect(result.structuredOutput).toEqual({ items: [] });
+    expect(visible).not.toHaveBeenCalled();
+  });
+
+  it.each(["I prepared a card", "[]", "null"])("rejects invalid internal JSON output instead of accepting prose: %s", async text => {
+    const provider = new ClaudeChatProvider(configuration, vi.fn(async () => ({ ...outcome, text })) as never, true);
+    await expect(provider.run({ ...request, outputMode: "json" },
+      async () => ({ ok: false, callID: "none", name: "none" }), new AbortController().signal))
+      .rejects.toThrow("CLAUDE_CHAT_STRUCTURED_OUTPUT_INVALID");
   });
 
   it("rejects user images when image input is not admitted by configuration", async () => {

@@ -401,6 +401,8 @@ export interface AgentProviderRequest {
   sessionTitleRequested?: boolean;
   conversationHistory?: readonly ConversationMessage[];
   systemPrompt: string;
+  /** Host-only structured consumers must not receive conversational output guidance. */
+  outputMode?: "natural" | "json";
   scopeSummary:
     | {
         kind: "pursuit";

@@ -181,7 +181,7 @@ export const ContactWorkspaceInputSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("search"),
     query: z.string().trim().min(2).max(200).describe(
-      "One exact contiguous clue from the current user message, such as one email address. Never combine separate name, email, or relationship excerpts.",
+      "One exact contiguous clue from current text or an admitted image. For image-only clues also provide source_clue with the matching clue and actual input_images artifact_id. Never combine separate name, email, or relationship excerpts.",
     ),
     maximum_results: z.number().int().min(1).max(6).default(4),
     source_clue: ContactSourceClueSchema.nullable().optional(),

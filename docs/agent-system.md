@@ -42,6 +42,7 @@ An open-ended agent may produce an artifact or proposal. A task may also grant
 specific reversible internal filing operations, enforced by domain tools. It
 cannot confirm a fact, merge identity, or grant itself consequential actions.
 
+Workspace image runs permit 64k cumulative tokens for repeated visual context; text runs remain at 32k, with existing dollar, duration, turn and tool-call caps unchanged.
 Public-web research has a separate definition, explicit company/market purpose, domain and usage budgets, and no conversation evidence or attachments.
 Search discovers untrusted leads; every draft claim cites only same-Run fetched sources and gains no truth or action authority.
 The legacy screenshot public-person definition is read-only: one intentional
@@ -121,10 +122,9 @@ changes. Tool descriptions own usage, the host owns authorization and validation
 and adapters add terminal protocol. Give useful partial answers and clarify
 material gaps. See [prompt operations](operations/opik-prompts.md).
 
-Conversation uses natural prose. Streaming exposes filtered visible text and bounded stage codes; cancellation never starts a second provider run. Typed data belongs at tool and durable artifact
-boundaries, where product validation can act on it. Curated Skills describe
-methods; loading a Skill or delegating a read does not add permissions, expand
-evidence access, or create execution authority.
+Conversation uses natural prose. Streaming exposes filtered visible text and bounded stage codes; cancellation never starts a second provider run. Typed data belongs at tool and durable artifact boundaries, where product validation can act on it. Skills do not add permissions, evidence access, or execution authority.
+
+An intentionally shared conversation screenshot should yield useful relationship context and reviewable changes, rather than repeat every visible bubble. Preserve the owner's introduction, acquaintance source, and relationship events with their speakers and unresolved dates. Public place clues support separate cited research, not proof of presence. Name-only lookup supplies candidates for human review, not authority to read private memory or bind identity. Changes remain unsaved until successful human commit.
 
 Use this order:
 

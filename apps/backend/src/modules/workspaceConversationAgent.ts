@@ -500,6 +500,53 @@ export async function executeWorkspaceConversationAgentCore(input: {
           "Every image region must reference an artifact admitted to this Run.",
         );
       }
+      // A name-only contact draft is grounded by a locator into an image that
+      // this Run actually admitted. Validate it here so a typo or a foreign
+      // artifact returns a clear tool error instead of a silent no-material
+      // change (the staging layer would reject the ungrounded name).
+      const newContactLocator = request.new_contact_source_locator ?? null;
+      if (
+        newContactLocator
+        && newContactLocator.kind === "image_region"
+        && !admittedArtifactIds.includes(newContactLocator.artifact_id)
+      ) {
+        return toolFailure(
+          name,
+          "MEMORY_SOURCE_NOT_ADMITTED",
+          "A new-contact image locator must reference an artifact admitted to this Run.",
+        );
+      }
+      // Admission at the start of the Run is not enough: a screenshot source can
+      // be revoked, deleted, or expire between admission and staging. Revalidate
+      // every image region and the new-contact locator against the host's
+      // current-source callback before any proposal can be staged.
+      const imageRegions: Array<{ artifact_id: string; image_index?: number | undefined }> = [];
+      for (const item of request.items) {
+        if (item.source_locator.kind === "image_region") {
+          imageRegions.push(item.source_locator);
+        }
+      }
+      if (newContactLocator && newContactLocator.kind === "image_region") {
+        imageRegions.push(newContactLocator);
+      }
+      for (const region of imageRegions) {
+        const admitted = admittedImages.get(region.artifact_id);
+        if (!admitted) continue; // already rejected by artifact admission above
+        if (region.image_index !== undefined && region.image_index !== admitted.index) {
+          return toolFailure(
+            name,
+            "MEMORY_SOURCE_NOT_CURRENT",
+            "An image region must reference the admitted image index.",
+          );
+        }
+        if (!await input.imageIsCurrent?.(region.artifact_id, admitted.index, admitted.contentHash)) {
+          return toolFailure(
+            name,
+            "MEMORY_SOURCE_NOT_CURRENT",
+            "An image source is no longer current; it cannot support a Memory suggestion.",
+          );
+        }
+      }
       for (const item of request.items) {
         if (
           item.source_locator.kind === "message"
@@ -682,7 +729,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
         return toolFailure(
           name,
           "CONTACT_SEARCH_NOT_GROUNDED",
-          "Search requires one specific clue grounded in the current user message or an admitted image locator.",
+          "Search requires a current-text clue or source_clue: {clue: same as query, source_locator: {kind: image_region, artifact_id: exact input_images artifact_id, image_index: ordered index}}. Copy only a current admitted image locator; a name remains an unconfirmed candidate.",
         );
       }
       if (imageGrounded) runState.observedImageClue = true;
@@ -977,6 +1024,11 @@ export async function executeWorkspaceConversationAgentCore(input: {
           : {}),
         budget: {
           ...DEFAULT_AGENT_BUDGET,
+          // Image context is resent after a tool receipt. Two observed model
+          // responses alone exceeded 32k; allow the bounded review + reply path
+          // without raising dollars, duration, turns, or tool-call limits.
+          maxTaskTokens: input.inputParts?.some(part => part.kind === "image")
+            ? 64_000 : DEFAULT_AGENT_BUDGET.maxTaskTokens,
           maxTurns: Math.min(DEFAULT_AGENT_BUDGET.maxTurns, 6),
           maxToolCalls: Math.min(DEFAULT_AGENT_BUDGET.maxToolCalls, 6),
           maxDurationMs: durationMs,

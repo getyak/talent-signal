@@ -128,7 +128,7 @@ describe("shared Memory review card", () => {
     const text = document.body.textContent ?? "";
     expect(text).toContain("陈宇");
     expect(text).toContain("本次对话 · 待添加");
-    expect(text).toContain("换个人");
+    expect(text).toContain("关联已有联系人");
     expect(text).toContain("暂不添加联系人");
     expect(text).toContain("关于我");
     expect(text).toContain("关于陈宇");

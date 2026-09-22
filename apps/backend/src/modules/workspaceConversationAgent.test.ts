@@ -88,6 +88,20 @@ describe("workspace conversation Agent", () => {
       contacts: { search: vi.fn(), read: vi.fn() }, provider: { ...provider, id: String(id), run } });
     expect(run).toHaveBeenCalledOnce();
   });
+  it.each([false, true])("bounds the visual round-trip budget without widening other limits (image=%s)", async image => {
+    const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Ready", body: "Ready" });
+    const run = vi.fn<AgentProvider["run"]>(async request => {
+      expect(request.budget).toMatchObject({ maxTaskTokens: image ? 64_000 : 32_000,
+        maxEstimatedUsd: 1, maxTurns: 6, maxToolCalls: 6, maxDurationMs: 60_000 });
+      return { structuredOutput: { outcome: "reply", title: "Ready", body: "Ready" },
+        inputTokens: 0, outputTokens: 0, estimatedUsd: 0, turns: 1, permissionDenials: [] };
+    });
+    await executeWorkspaceConversationAgentCore({ workspaceID: auth.accountId, objective: "Inspect",
+      contacts: { search: vi.fn(), read: vi.fn() }, provider: { ...provider, id: "claude-agent-sdk", run },
+      ...(image ? { inputParts: [{ kind: "image" as const, artifactID: "current", mimeType: "image/jpeg",
+        byteSize: 3, contentHash: "a".repeat(64), dataBase64: "AAAA" }] } : {}) });
+    expect(run).toHaveBeenCalledOnce();
+  });
   it("can reply without opening the contact workspace", async () => {
     const query = vi.fn();
     const execution = await executeWorkspaceConversationAgent({
@@ -1206,4 +1220,323 @@ describe("conversation-only context and proactive contact drafts", () => {
     expect(observed[1]?.ok).toBe(current);
   });
 
+});
+
+describe("shared screenshot relationship review", () => {
+  const artifactId = "conversation-image-44444444-4444-4444-8444-444444444444-0-55555555-5555-4555-8555-555555555555";
+  const foreignArtifactId = "conversation-image-99999999-9999-4999-8999-999999999999-0-55555555-5555-4555-8555-555555555555";
+  const imagePart = {
+    kind: "image" as const,
+    artifactID: artifactId,
+    mimeType: "image/jpeg" as const,
+    byteSize: 12,
+    contentHash: "a".repeat(64),
+    dataBase64: "AAAA",
+  };
+  const stagedProposal = {
+    proposalID: "88888888-8888-4888-8888-888888888888",
+    proposalRevision: 1,
+    itemCount: 1,
+    defaultSelectedCount: 1,
+    scopeCounts: { self: 0, person: 0, relationship: 1 },
+    contactStatus: "pending" as const,
+    personID: null,
+    personDisplayLabel: "周明",
+  };
+  const imageLocator = (artifact = artifactId) => ({
+    kind: "image_region" as const,
+    artifact_id: artifact,
+    image_index: 0,
+  });
+
+  // This scripted-provider test verifies the host plumbing and gates only: the
+  // image is a mock admitted artifact and the excerpts describe the synthetic
+  // fixture. It is not a test of image understanding.
+  it("plumbs a name-only new-contact review from an admitted screenshot without auto-binding a same-name match", async () => {
+    const existingPerson = "66666666-6666-4666-8666-666666666666";
+    const search = vi.fn(async () => [
+      { personID: existingPerson, displayLabel: "周明", directoryRevision: 1, contexts: [], exactIdentityMatch: false },
+    ]);
+    const recall = vi.fn(async () => ({ items: [] }));
+    const stage = vi.fn(async (_input: Parameters<WorkspaceMemoryLookup["stage"]>[0]) => stagedProposal);
+    const memory: WorkspaceMemoryLookup = { recall, stage };
+    const provider = new ScriptedAgentProvider(
+      [
+        {
+          tool: "contact_workspace",
+          input: {
+            operation: "search",
+            query: "周明",
+            source_clue: { clue: "周明", source_locator: imageLocator() },
+          },
+        },
+        { tool: "memory_review", input: { operation: "recall" } },
+        {
+          tool: "memory_review",
+          input: {
+            operation: "propose",
+            contact_decision: "new",
+            person_display_label: "周明",
+            relationship_display_label: "松风9月读书群（南街）",
+            new_contact_source_locator: imageLocator(),
+            items: [
+              {
+                scope: "relationship",
+                dependence_kind: "relationship",
+                operation: "add",
+                statement_kind: "source_statement",
+                display_text: "这段私聊中双方互报姓名",
+                speaker: "周明",
+                time_status: "unknown",
+                sensitivity: "normal",
+                source_excerpt: "周明",
+                source_locator: imageLocator(),
+                reason: "以后要跟进这段关系",
+              },
+              {
+                scope: "relationship",
+                dependence_kind: "relationship",
+                operation: "add",
+                statement_kind: "source_statement",
+                display_text: "用户自我介绍提到来自松风9月读书群（南街）",
+                speaker: "self",
+                time_status: "unknown",
+                sensitivity: "normal",
+                source_excerpt: "I am Lin from 松风9月读书群（南街）",
+                source_locator: imageLocator(),
+                reason: "关系的来源线索",
+              },
+              {
+                scope: "relationship",
+                dependence_kind: "relationship",
+                operation: "add",
+                statement_kind: "source_statement",
+                display_text: "截图第一次可见的加好友事件在周五 20:18，具体日历日期未知",
+                speaker: "self",
+                time_status: "unknown",
+                sensitivity: "normal",
+                source_excerpt: "Friday 20:18",
+                source_locator: imageLocator(),
+                reason: "关系开始时间的来源",
+              },
+            ],
+          },
+        },
+      ],
+      { outcome: "reply", title: "已整理", body: "这位是周明，来自松风9月读书群（南街）。" },
+    );
+    const execution = await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "The user sent one or more images without any accompanying text.",
+      sourceText: "",
+      contacts: { search, read: vi.fn() },
+      memory,
+      inputParts: [imagePart],
+      imageIsCurrent: async () => true,
+      provider,
+    });
+
+    expect(search).toHaveBeenCalledOnce();
+    expect(recall).toHaveBeenCalledOnce();
+    expect(stage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactDecision: "new",
+        personID: null,
+        identityAuthority: "tentative",
+        newContact: expect.objectContaining({
+          display_label: "周明",
+          relationship_context: "松风9月读书群（南街）",
+          source_locator: expect.objectContaining({ kind: "image_region", artifact_id: artifactId }),
+        }),
+      }),
+    );
+    const stagedItems = stage.mock.calls[0]![0].items;
+    expect(stagedItems).toHaveLength(3);
+    expect(stagedItems.every((item) => item.time_status === "unknown" && !("valid_time" in item))).toBe(true);
+    // The group origin is attributed to the owner's own introduction, never to
+    // the counterparty's membership.
+    const origin = stagedItems.find((item) => item.display_text.includes("松风9月读书群"));
+    expect(origin).toMatchObject({ speaker: "self", source_excerpt: "I am Lin from 松风9月读书群（南街）" });
+    const addFriend = stagedItems.find((item) => item.display_text.includes("加好友"));
+    expect(addFriend).toMatchObject({ time_status: "unknown", source_excerpt: "Friday 20:18" });
+    expect(execution.memoryProposal).toEqual({ proposal_id: stagedProposal.proposalID, revision: 1 });
+  });
+
+  it("refuses to auto-bind a same-name existing contact from a name-only screenshot", async () => {
+    const existingPerson = "66666666-6666-4666-8666-666666666666";
+    const search = vi.fn(async () => [
+      { personID: existingPerson, displayLabel: "周明", directoryRevision: 1, contexts: [{ id: contextID, displayLabel: "读书群" }], exactIdentityMatch: false },
+    ]);
+    const stage = vi.fn(async () => stagedProposal);
+    let observed: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "The user sent one or more images without any accompanying text.",
+      sourceText: "",
+      contacts: { search, read: vi.fn() },
+      memory: { recall: vi.fn(async () => ({ items: [] })), stage },
+      inputParts: [imagePart],
+      imageIsCurrent: async () => true,
+      provider: new ScriptedAgentProvider(
+        [
+          { tool: "contact_workspace", input: { operation: "search", query: "周明", source_clue: { clue: "周明", source_locator: imageLocator() } } },
+          {
+            tool: "memory_review",
+            input: {
+              operation: "propose",
+              contact_decision: "existing",
+              person_id: existingPerson,
+              relationship_context_id: contextID,
+              items: [
+                {
+                  scope: "person",
+                  operation: "add",
+                  statement_kind: "source_statement",
+                  display_text: "周明在群里自报姓名",
+                  speaker: "周明",
+                  time_status: "unknown",
+                  sensitivity: "normal",
+                  source_excerpt: "周明",
+                  source_locator: imageLocator(),
+                  reason: "以后要跟进",
+                },
+              ],
+            },
+          },
+        ],
+        (results) => {
+          observed = results;
+          return { outcome: "clarification", title: "需要确认", body: "请先确认是否是同一位周明。" };
+        },
+      ),
+    });
+    expect(stage).not.toHaveBeenCalled();
+    expect(observed[1]).toMatchObject({ ok: false, error: { code: "MEMORY_SCOPE_NOT_AUTHORIZED" } });
+  });
+
+  it("rejects a new-contact image locator that was not admitted to this Run", async () => {
+    const stage = vi.fn(async () => stagedProposal);
+    let observed: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "The user sent one or more images without any accompanying text.",
+      sourceText: "",
+      contacts: { search: vi.fn(), read: vi.fn() },
+      memory: { recall: vi.fn(async () => ({ items: [] })), stage },
+      inputParts: [imagePart],
+      imageIsCurrent: async () => true,
+      provider: new ScriptedAgentProvider(
+        [
+          {
+            tool: "memory_review",
+            input: {
+              operation: "propose",
+              contact_decision: "new",
+              person_display_label: "周明",
+              new_contact_source_locator: imageLocator(foreignArtifactId),
+              items: [
+                {
+                  scope: "person",
+                  operation: "add",
+                  statement_kind: "source_statement",
+                  display_text: "周明在群里自报姓名",
+                  speaker: "周明",
+                  time_status: "unknown",
+                  sensitivity: "normal",
+                  source_excerpt: "周明",
+                  source_locator: imageLocator(),
+                  reason: "以后要跟进",
+                },
+              ],
+            },
+          },
+        ],
+        (results) => {
+          observed = results;
+          return { outcome: "reply", title: "已整理", body: "未保存任何内容。" };
+        },
+      ),
+    });
+    expect(stage).not.toHaveBeenCalled();
+    expect(observed[0]).toMatchObject({ ok: false, error: { code: "MEMORY_SOURCE_NOT_ADMITTED" } });
+  });
+
+  it("does not use a revoked screenshot as a search source", async () => {
+    const contactSearch = vi.fn(async () => []);
+    let observed: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "The user sent one or more images without any accompanying text.",
+      sourceText: "",
+      contacts: { search: contactSearch, read: vi.fn() },
+      memory: { recall: vi.fn(async () => ({ items: [] })), stage: vi.fn() },
+      inputParts: [imagePart],
+      imageIsCurrent: async () => false,
+      provider: new ScriptedAgentProvider(
+        [
+          { tool: "contact_workspace", input: { operation: "search", query: "周明", source_clue: { clue: "周明", source_locator: imageLocator() } } },
+        ],
+        (results) => {
+          observed = results;
+          return { outcome: "reply", title: "来源不可用", body: "这张截图当前不可用，未保存内容。" };
+        },
+      ),
+    });
+    expect(contactSearch).not.toHaveBeenCalled();
+    expect(observed[0]).toMatchObject({ ok: false, error: { code: "CONTACT_SEARCH_NOT_GROUNDED" } });
+  });
+
+  it("rejects a Memory proposal whose admitted screenshot source is no longer current", async () => {
+    // The artifact is admitted by this Run, so artifact admission passes, but
+    // the host's current-source callback reports it revoked/expired. In
+    // production that callback is `imageCurrent`, which checks expiry,
+    // session/entry ownership, the content hash, and the
+    // memory_source_revocations ledger; a revoked source must be refused and
+    // nothing may reach the staging seam.
+    const stage = vi.fn(async () => stagedProposal);
+    let observed: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "The user sent one or more images without any accompanying text.",
+      sourceText: "",
+      contacts: { search: vi.fn(), read: vi.fn() },
+      memory: { recall: vi.fn(async () => ({ items: [] })), stage },
+      inputParts: [imagePart],
+      imageIsCurrent: async () => false,
+      provider: new ScriptedAgentProvider(
+        [
+          {
+            tool: "memory_review",
+            input: {
+              operation: "propose",
+              contact_decision: "new",
+              person_display_label: "周明",
+              new_contact_source_locator: imageLocator(),
+              items: [
+                {
+                  scope: "relationship",
+                  dependence_kind: "relationship",
+                  operation: "add",
+                  statement_kind: "source_statement",
+                  display_text: "截图第一次可见的加好友事件在周五 20:18",
+                  speaker: "self",
+                  time_status: "unknown",
+                  sensitivity: "normal",
+                  source_excerpt: "Friday 20:18",
+                  source_locator: imageLocator(),
+                  reason: "关系开始时间的来源",
+                },
+              ],
+            },
+          },
+        ],
+        (results) => {
+          observed = results;
+          return { outcome: "reply", title: "来源不可用", body: "这张截图当前不可用，未保存内容。" };
+        },
+      ),
+    });
+    expect(stage).not.toHaveBeenCalled();
+    expect(observed[0]).toMatchObject({ ok: false, error: { code: "MEMORY_SOURCE_NOT_CURRENT" } });
+  });
 });

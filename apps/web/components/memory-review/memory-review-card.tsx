@@ -821,7 +821,7 @@ export function MemoryReviewCard(props: MemoryReviewCardProps) {
                 {review.contact_status === "pending" ? "暂不添加联系人" : "本次不关联此人"}
               </button>
               <button className={styles.textButton} disabled={controller.frozen || rebasing} onClick={() => setChanging(true)} type="button">
-                换个人
+                {state.contactDecision === "new" ? "关联已有联系人" : "更换联系人"}
               </button>
             </div>
           ) : (
