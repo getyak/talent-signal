@@ -266,6 +266,12 @@ describe("shared Memory review controller", () => {
   it("does not claim successful regeneration when the new review cannot be read", async () => {
     fetcher.mockResolvedValueOnce(Response.json({ review_credential: "cred-old", review: review() }));
     await act(async () => { await controller.open(); });
+    // Switch before the 600 ms debounce fires; preserve independent self intent.
+    await act(async () => {
+      controller.dispatchDraft(toggleItem(controller.draft!, controller.review!.items[0]!));
+      controller.scheduleDraft();
+    });
+    fetcher.mockResolvedValueOnce(Response.json({ review: { ...review(), review_revision: 1 } }));
     fetcher.mockResolvedValueOnce(Response.json({ proposal: { revision: 2 } }));
     fetcher.mockResolvedValueOnce(Response.json({ code: "UNAVAILABLE" }, { status: 503 }));
     let switched: boolean | undefined;
@@ -279,6 +285,11 @@ describe("shared Memory review controller", () => {
     await act(async () => { await controller.open(); });
     expect(controller.phase).toBe("review");
     expect(controller.review?.proposal_revision).toBe(2);
+    expect(controller.draft?.selected["self-1"]).toBe(false);
+    const draftPut = fetcher.mock.calls.findIndex(([path]) => String(path).endsWith("/draft"));
+    const rebasePost = fetcher.mock.calls.findIndex(([path]) => String(path).endsWith("/rebases"));
+    expect(draftPut).toBeGreaterThan(0);
+    expect(draftPut).toBeLessThan(rebasePost);
   });
 
   it("flushes the latest draft intent once before the commit and keeps double-click to one commit", async () => {

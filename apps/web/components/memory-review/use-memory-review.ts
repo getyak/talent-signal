@@ -737,10 +737,16 @@ export function useMemoryReview(options: {
 
   const rebase = useCallback(
     async (input: MemoryRebaseInput): Promise<boolean> => {
-      if (!binding || !proposalId) return false;
+      if (!binding || !proposalId || inflight.current) return false;
+      inflight.current = true;
       setRebaseState("pending");
       setRebaseError(null);
       try {
+        if (!(await flushDraft())) {
+          setRebaseState("error");
+          setRebaseError("草稿尚未同步，请重试；联系人尚未切换。");
+          return false;
+        }
         const response = await request(
           `/api/memory/proposals/${proposalId}/rebases`,
           {
@@ -779,8 +785,11 @@ export function useMemoryReview(options: {
         scopeRef.current = null;
         reviewRef.current = null;
         setReview(null);
-        draftRef.current = null;
+        // Keep the stable-ID intent privately across a failed re-open. The
+        // old review/credential are no longer actionable; new target items
+        // have new IDs and will remain unchecked.
         setDraft(null);
+        inflight.current = false;
         const reopened = await open();
         if (!reopened) {
           setRebaseState("error");
@@ -795,9 +804,11 @@ export function useMemoryReview(options: {
         setRebaseState("error");
         setRebaseError("网络暂时不可用，未能切换联系人。");
         return false;
+      } finally {
+        inflight.current = false;
       }
     },
-    [binding, proposalId, proposalRevision, request, errorMessage, open],
+    [binding, proposalId, proposalRevision, request, errorMessage, open, flushDraft],
   );
 
   const undo = useCallback(async (): Promise<MemoryUndoOutcome> => {
@@ -905,7 +916,7 @@ export function useMemoryReview(options: {
     receipt,
     error,
     notice,
-    frozen: phase === "saving" || phase === "unknown" || phase === "undoing" || phase === "opening",
+    frozen: rebaseState === "pending" || phase === "saving" || phase === "unknown" || phase === "undoing" || phase === "opening",
     canUndo: phase === "receipt",
     reconciling,
     canReconcile: phase === "unknown" && !reconciling,

@@ -3931,6 +3931,60 @@ describe.skipIf(!pool)("Memory review integration", () => {
     ).rejects.toThrow(/Pursuit|current/i);
   });
 
+  it.each(["new-existing", "existing-new", "skip-existing"] as const)(
+    "rebases persisted draft identity and preserves only self intent: %s", async (direction) => {
+      const auth = await makeAuth(`draft-rebase-${direction}`);
+      const a = await makeContact(auth, "Old target");
+      const b = await makeContact(auth, "Existing target");
+      const fromExisting = direction === "existing-new";
+      const staged = await stage(auth, {
+        items: draftProposalItems().all,
+        contactDecision: fromExisting ? "existing" : "new",
+        ...(fromExisting ? { personId: a.personId, contextId: a.contextId } : {
+          newContact: { display_label: "Old target", relationship_context: "Design" },
+        }),
+        authorityText: "Old target; New target works on design",
+      });
+      const opened = await open(auth, staged!.proposal.proposal_id, "chat");
+      const self = opened.review.items.filter(item => item.scope === "self");
+      const oldPerson = opened.review.items.find(item => item.scope === "person")!;
+      const saved = await saveMemoryReviewDraft(pool!, auth, opened.review.review_scope_id, opened.review_credential!, {
+        expected_review_revision: opened.review.review_revision,
+        contact_decision: direction === "skip-existing" ? "none" : opened.review.contact_decision,
+        selected_item_ids: [self[0]!.id, oldPerson.id],
+        edited_text: { [self[0]!.id]: "I prefer a short conclusion", [oldPerson.id]: "Old edited person" },
+        item_decisions: { [oldPerson.id]: "retain_conflict" },
+      });
+      const nextDecision = fromExisting ? "new" : "existing";
+      await regenerateMemoryProposal(pool!, auth, staged!.proposal.proposal_id, {
+        expected_proposal_revision: staged!.proposal.revision,
+        contact_decision: nextDecision, identity_authority: "human_selection",
+        ...(fromExisting ? { new_contact: { display_label: "New target", relationship_context: "Design" } }
+          : { person_id: b.personId, relationship_context_id: b.contextId }),
+        reason: "Explicitly change identity",
+      }, async () => [candidate({ scope: "person", statement_kind: "source_statement", speaker: "New target",
+        display_text: "New target works on design", source_excerpt: "New target works on design" })]);
+      // An old tab cannot restore the prior decision after the atomic rebase.
+      await expect(saveMemoryReviewDraft(pool!, auth, opened.review.review_scope_id, opened.review_credential!, {
+        expected_review_revision: saved.review.review_revision,
+        contact_decision: "none", selected_item_ids: [], edited_text: {}, item_decisions: {},
+      })).rejects.toThrow(/proposal changed/i);
+      const fresh = await open(auth, staged!.proposal.proposal_id, "chat");
+      const reloaded = await readMemoryReview(pool!, auth, fresh.review.review_scope_id, fresh.review_credential!);
+      expect(reloaded.review.draft?.contact_decision).toBe(nextDecision);
+      expect(reloaded.review.draft?.selected_item_ids).toEqual([self[0]!.id]);
+      expect(reloaded.review.draft?.edited_text).toEqual({ [self[0]!.id]: "I prefer a short conclusion" });
+      expect(reloaded.review.draft?.item_decisions).toEqual({});
+      const regenerated = reloaded.review.items.find(item => item.scope === "person")!;
+      expect(regenerated.id).not.toBe(oldPerson.id);
+      const applied = await commit(auth, reloaded.review, fresh.review_credential!, {
+        selected: [regenerated.id], contactDecision: reloaded.review.draft!.contact_decision,
+        newContact: fromExisting ? { display_label: "New target", relationship_context: "Design" } : null,
+      });
+      expect(applied.body.receipt.created_item_ids).toHaveLength(1);
+    },
+  );
+
   it("reopens a skipped-contact draft with all dependent intent preserved", async () => {
     const auth = await makeAuth("draft-skip-reopen");
     const staged = await stage(auth, {

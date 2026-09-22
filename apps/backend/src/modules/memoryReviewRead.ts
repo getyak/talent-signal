@@ -590,9 +590,12 @@ export async function saveMemoryReviewDraft(
         current_review_revision: scope.revision,
       });
     }
-    const proposal = await loadProposal(client, auth.accountId, scope.proposal_id);
+    const proposal = await loadProposal(client, auth.accountId, scope.proposal_id, true);
     if (!proposal) {
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The reviewed proposal was not found.");
+    }
+    if (scope.proposal_revision !== proposal.revision) {
+      throw new ApiError(409, "MEMORY_REVIEW_DRAFT_STALE", "The proposal changed; reopen it before saving draft choices.");
     }
     const items = await loadProposalItems(client, auth.accountId, proposal.id);
     const visible = await visibleReviewItems(client, auth, scope, proposal, items);

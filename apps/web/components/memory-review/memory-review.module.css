@@ -558,3 +558,30 @@
     transition: opacity 180ms ease, height 180ms ease;
   }
 }
+
+@media (max-width: 600px) {
+  .contactHeader {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 2px;
+  }
+
+  .contactIdentity strong,
+  .contactIdentity small {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .contactActions,
+  .contactHeader > button {
+    grid-column: 2;
+    margin-left: 0;
+    justify-self: start;
+  }
+
+  .contactActions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}

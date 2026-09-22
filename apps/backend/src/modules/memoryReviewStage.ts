@@ -1158,6 +1158,19 @@ export async function regenerateMemoryProposal(
       candidates,
       prepared.existingTexts,
     );
+    // A persisted draft belongs to the proposal, so identity replacement must
+    // move its decision atomically too. Only unchanged self intent survives;
+    // new target-dependent items require a fresh explicit selection.
+    await client.query(
+      `UPDATE memory_review_drafts SET
+         contact_decision = $3, revision = revision + 1, updated_at = now(),
+         selected_item_ids = ARRAY(SELECT id FROM unnest(selected_item_ids) AS id WHERE id = ANY($4::uuid[])),
+         edited_text = COALESCE((SELECT jsonb_object_agg(key, value) FROM jsonb_each(edited_text) WHERE key = ANY($5::text[])), '{}'::jsonb),
+         item_decisions = COALESCE((SELECT jsonb_object_agg(key, value) FROM jsonb_each(item_decisions) WHERE key = ANY($5::text[])), '{}'::jsonb)
+       WHERE account_id = $1 AND proposal_id = $2`,
+      [auth.accountId, proposalId, request.contact_decision,
+        selfItems.map((item) => item.id), selfItems.map((item) => item.id)],
+    );
     await client.query(
       `INSERT INTO memory_proposal_rebases(
          id, account_id, proposal_id, from_revision, to_revision, reason,

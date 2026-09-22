@@ -63,6 +63,8 @@ roles and keyboard behavior were inspected. Native iOS was not changed/tested.
 
 ## Runtime captures
 
+- [Final desktop card](runtime/desktop-final-card.png)
+- [Final 390 px contact header](runtime/mobile-final-card.png)
 - [Desktop answer followed by card](runtime/desktop-answer-card.jpg)
 - [Desktop saved receipt](runtime/desktop-saved16.jpg)
 - [Mobile full group](runtime/mobile-sheet.jpg)
@@ -84,8 +86,10 @@ final copy refinements; they prove behavior, not the latest exact wording.
 
 - Agent suite: **290 passed, 1 skipped**.
 - Backend Memory PostgreSQL integration + workspace conversation host:
-  **111 passed** (69 database cases and 42 host cases).
-- Web suite after navigation and rebase fixes: **1195 passed, 1 skipped**.
+  **114 passed** (72 database cases and 42 host cases).
+- Web suite after navigation and rebase fixes: **1196 passed, 1 skipped**.
+- Backend full suite: **706 passed, 289 skipped** without the optional database
+  environment; the 72 Memory PostgreSQL cases above ran separately with the real DB.
 - Web lint and production build: passed. Build requires an isolated AUTH_SECRET;
   one run without it correctly failed configuration validation, then passed.
 - Real pinned Claude SDK `tools/list` and outbound wire probe: **5 tools loaded**,
@@ -96,7 +100,11 @@ final copy refinements; they prove behavior, not the latest exact wording.
   migrations 076–080 add Memory, credentials, source authority and Pursuit pins.
 - Independent reviews required fixes for image/identity authorization, atomic
   scoped undo, source epoch gaps, entry capabilities, provider schema conversion,
-  navigation ownership, and false success after failed re-open. Parent implemented
+  navigation ownership, false success after failed re-open, and persisted contact
+  decisions after identity replacement. Final independent source review found no
+  unresolved P0/P1. Three real persisted-draft database cases cover new→existing,
+  existing→new and skipped→existing, with stale-write rejection, reopen and commit.
+  Parent implemented
   fixes personally after Pi's provider balance failure.
 
 Commands (from the task worktree):
