@@ -12,6 +12,9 @@ import { registerTimeWorkspaceRoutes } from "./modules/timeWorkspaceRoutes.js";
 import { registerAgentPreferenceRoutes } from "./modules/agentPreferenceRoutes.js";
 import { registerMcpExtensionRoutes } from "./modules/mcpRoutes.js";
 import { registerScreenshotContactRoutes } from "./modules/screenshotContactRoutes.js";
+import { registerMemoryReviewRoutes } from "./modules/memoryReviewRoutes.js";
+import { createMemoryProposalRegenerator } from "./modules/memoryRegenerationAgent.js";
+import { createMemoryRegenerationImageLoader } from "./modules/memoryRegenerationImageLoader.js";
 import { registerSystemHealthRoutes } from "./modules/systemHealth.js";
 import { registerReadinessRoutes } from "./modules/readinessRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
@@ -772,6 +775,13 @@ export async function buildApp(
   registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
   registerAccountOnboarding(app, pool, authenticate);
   registerAgentSessionRoutes(app, pool, authenticate);
+  registerMemoryReviewRoutes(
+    app,
+    pool,
+    authenticate,
+    createMemoryProposalRegenerator(remoteChatProvider),
+    createMemoryRegenerationImageLoader(pool),
+  );
   registerConversationQueueRoutes(app, pool, authenticate);
   registerMeetingDraftRoutes(app, pool, authenticate);
   registerTimeWorkspaceRoutes(app, pool, authenticate, remoteChatProvider);

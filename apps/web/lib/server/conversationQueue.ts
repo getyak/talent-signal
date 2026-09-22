@@ -1,3 +1,4 @@
+import { mintMemoryEntryCapability, verifyMemoryEntryCapability } from "./memoryEntryCapability";
 import { TalentSignalClient, TalentSignalHttpError, type ConversationQueueAdmitRequest, type ConversationQueueMutationRequest } from "@talent-signal/contracts";
 import { backendAuthBaseUrl, readBackendSessionClaims } from "./backendAuth";
 import { contactHandoffSessionVersion } from "./contact-handoff-session";
@@ -25,7 +26,17 @@ export async function conversationQueueRoute(request: Request, id: string, actio
     if (request.headers.get("x-workspace-session") !== contactHandoffSessionVersion(claims)) return json({ code: "session_stale", message: "登录已改变，请重新打开对话。" }, 409);
     const client = new TalentSignalClient(backendAuthBaseUrl(), claims.backendAccessToken);
     const deadline = AbortSignal.any([request.signal, AbortSignal.timeout(12_000)]);
-    if (action === "read") return json(await client.getConversationQueue(id, deadline));
+    if (action === "read") {
+      const snapshot = await client.getConversationQueue(id, deadline);
+      const entry = verifyMemoryEntryCapability(request.headers.get("x-memory-entry-capability"), claims);
+      const response = json(snapshot);
+      // The queue read is owner-authorized by the backend. A matching signed
+      // entry can recover its capability after an admission response was lost.
+      if (entry?.purpose === "chat" && entry.sessionId === id) {
+        response.headers.set("x-memory-entry-capability", mintMemoryEntryCapability(claims, { purpose: "chat", sessionId: id }));
+      }
+      return response;
+    }
     if (action === "stream") {
       const upstream = await client.openConversationQueueStream(id, request.signal);
       if (!upstream.ok) return json({ code: "queue_unavailable", message: "暂时无法连接回复。" }, upstream.status);
@@ -38,6 +49,11 @@ export async function conversationQueueRoute(request: Request, id: string, actio
     }
     try { body = await request.json(); } catch { return json({ message: "请求格式无效。" }, 400); }
     if (action === "mutate") return json(await client.mutateConversationQueue(id, body as ConversationQueueMutationRequest, deadline));
+    const entryToken = request.headers.get("x-memory-entry-capability");
+    const entry = verifyMemoryEntryCapability(entryToken, claims);
+    if (entryToken && (!entry || entry.purpose !== "chat" || entry.sessionId !== id)) {
+      return json({ code: "memory_entry_mismatch", message: "请重新打开这段对话后发送。" }, 403);
+    }
     const input = body as ConversationQueueAdmitRequest;
     const images = Array.isArray(input?.images) ? input.images : [];
     if (!input || input.session_id !== id || !uuid.test(input.message_id ?? "") || typeof input.objective !== "string" || input.objective.length > 1000 || (!input.objective.trim() && images.length === 0) || images.length > 10) return json({ message: "请发送 1–1000 字的消息，或最多 10 张图片。" }, 400);
@@ -55,7 +71,8 @@ export async function conversationQueueRoute(request: Request, id: string, actio
         await client.getAgentSession(id, deadline);
       }
     }
-    return json(await client.admitConversationQueueEntry(input, deadline), 202);
+    const admitted = await client.admitConversationQueueEntry(input, deadline);
+    return json({ ...admitted, ...(entry ? { memory_entry_capability: mintMemoryEntryCapability(claims, { purpose: "chat", sessionId: id }) } : {}) }, 202);
   } catch (error) {
     if (error instanceof BackendSessionExpiredError) return json({ code: "backend_session_expired", message: "请重新登录。" }, 401);
     if (error instanceof TalentSignalHttpError) return json({ code: error.code, message: error.message }, error.status);

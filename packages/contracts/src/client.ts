@@ -26,6 +26,29 @@ import type { AgentPreferenceMutation, AgentPreferenceResponse } from "./agentPr
 import type { MeetingDraftDismissRequest, MeetingDraftListResponse, MeetingDraftListScope, MeetingDraftResponse, MeetingDraftUpdateRequest } from "./meetingDraftSchemas.js";
 import type { SystemHealthResponse } from "./systemHealthSchemas.js";
 import type {
+  MemoryCommitRequest,
+  MemoryCommitResponse,
+  MemoryDismissRequest,
+  MemoryDismissResponse,
+  MemoryItemMutationRequest,
+  MemoryItemMutationResponse,
+  MemoryOperationReadback,
+  MemoryOperationUndoRequest,
+  MemoryOperationUndoResponse,
+  MemoryOpenReviewRequest,
+  MemoryProposalListResponse,
+  MemoryProposalRebaseRequest,
+  MemoryProposalRebaseResponse,
+  MemoryProposalStageRequest,
+  MemoryPursuitScopesResponse,
+  MemoryRecallResponse,
+  MemoryReviewDraftRequest,
+  MemoryReviewResponse,
+  MemoryScopedOperationView,
+  MemoryUndoRequest,
+  MemoryUndoResponse,
+} from "./memorySchemas.js";
+import type {
   AnalysisProposalResponse,
   AppleLoginChallengeRequest,
   AppleLoginChallengeResponse,
@@ -855,8 +878,8 @@ export class TalentSignalClient {
     );
   }
 
-  createUnscopedChatTask(request: UnscopedChatTaskRequest): Promise<UnscopedChatTaskResponse> {
-    return this.request("/v1/chat/unscoped-tasks", { method: "POST", body: request });
+  createUnscopedChatTask(request: UnscopedChatTaskRequest, signal?: AbortSignal): Promise<UnscopedChatTaskResponse> {
+    return this.request("/v1/chat/unscoped-tasks", { method: "POST", body: request, ...(signal ? { signal } : {}) });
   }
 
   createChatTask(request: ChatTaskRequest): Promise<ChatTaskResponse> {
@@ -1254,6 +1277,94 @@ export class TalentSignalClient {
     return this.request("/v1/time/review", { method: "POST", body: input });
   }
 
+  // ---- GET-40 three-scope Memory review (additive) ----
+  stageMemoryProposal(body: MemoryProposalStageRequest): Promise<{ contract_version: string; replayed: boolean; proposal: unknown }> {
+    return this.request("/v1/memory/proposals", { method: "POST", body });
+  }
+
+  listMemoryProposals(query: { purpose?: "chat" | "people" | "relationship"; person_id?: string | null; relationship_context_id?: string | null } = {}): Promise<MemoryProposalListResponse> {
+    const params = new URLSearchParams();
+    if (query.purpose) params.set("purpose", query.purpose);
+    if (query.person_id) params.set("person_id", query.person_id);
+    if (query.relationship_context_id) params.set("relationship_context_id", query.relationship_context_id);
+    const suffix = params.toString();
+    return this.request(`/v1/memory/proposals${suffix ? `?${suffix}` : ""}`, { method: "GET" });
+  }
+
+  openMemoryReview(proposalId: string, body: MemoryOpenReviewRequest): Promise<MemoryReviewResponse> {
+    return this.request(`/v1/memory/proposals/${encodeURIComponent(proposalId)}/reviews`, { method: "POST", body });
+  }
+
+  rebaseMemoryProposal(proposalId: string, body: MemoryProposalRebaseRequest): Promise<MemoryProposalRebaseResponse> {
+    return this.request(`/v1/memory/proposals/${encodeURIComponent(proposalId)}/rebases`, { method: "POST", body });
+  }
+
+  readMemoryReview(reviewScopeId: string, credential: string): Promise<MemoryReviewResponse> {
+    return this.request(`/v1/memory/reviews/${encodeURIComponent(reviewScopeId)}`, {
+      method: "GET",
+      headers: { "x-memory-review-credential": credential },
+    });
+  }
+
+  saveMemoryReviewDraft(reviewScopeId: string, credential: string, body: MemoryReviewDraftRequest): Promise<MemoryReviewResponse> {
+    return this.request(`/v1/memory/reviews/${encodeURIComponent(reviewScopeId)}/draft`, {
+      method: "PUT",
+      body,
+      headers: { "x-memory-review-credential": credential },
+    });
+  }
+
+  commitMemoryReview(reviewScopeId: string, credential: string, body: MemoryCommitRequest): Promise<MemoryCommitResponse> {
+    return this.request(`/v1/memory/reviews/${encodeURIComponent(reviewScopeId)}/commits`, {
+      method: "POST",
+      body,
+      headers: { "x-memory-review-credential": credential },
+    });
+  }
+
+  dismissMemoryReview(reviewScopeId: string, credential: string, body: MemoryDismissRequest): Promise<MemoryDismissResponse> {
+    return this.request(`/v1/memory/reviews/${encodeURIComponent(reviewScopeId)}/dismissals`, {
+      method: "POST",
+      body,
+      headers: { "x-memory-review-credential": credential },
+    });
+  }
+
+  readMemoryOperation(operationKey: string): Promise<MemoryOperationReadback> {
+    return this.request(`/v1/memory/operations/${encodeURIComponent(operationKey)}`, { method: "GET" });
+  }
+
+  readMemoryOperationView(operationKey: string, query: { purpose: "chat" | "people" | "relationship"; person_id?: string | null; relationship_context_id?: string | null }): Promise<MemoryScopedOperationView> {
+    const params = new URLSearchParams({ purpose: query.purpose });
+    if (query.person_id) params.set("person_id", query.person_id);
+    if (query.relationship_context_id) params.set("relationship_context_id", query.relationship_context_id);
+    return this.request(`/v1/memory/operation-views/${encodeURIComponent(operationKey)}?${params.toString()}`, { method: "GET" });
+  }
+
+  undoMemoryOperationScope(operationKey: string, body: MemoryOperationUndoRequest): Promise<MemoryOperationUndoResponse> {
+    return this.request(`/v1/memory/operation-views/${encodeURIComponent(operationKey)}/undo`, { method: "POST", body });
+  }
+
+  undoMemoryCommit(commitId: string, body: MemoryUndoRequest): Promise<MemoryUndoResponse> {
+    return this.request(`/v1/memory/commits/${encodeURIComponent(commitId)}/undo`, { method: "POST", body });
+  }
+
+  recallMemories(query: { surface: "chat" | "people" | "relationship"; person_id?: string | null; relationship_context_id?: string | null; limit?: number }): Promise<MemoryRecallResponse> {
+    const params = new URLSearchParams({ surface: query.surface });
+    if (query.person_id) params.set("person_id", query.person_id);
+    if (query.relationship_context_id) params.set("relationship_context_id", query.relationship_context_id);
+    if (query.limit) params.set("limit", String(query.limit));
+    return this.request(`/v1/memory/items?${params.toString()}`, { method: "GET" });
+  }
+
+  mutateMemoryItem(itemId: string, body: MemoryItemMutationRequest): Promise<MemoryItemMutationResponse> {
+    return this.request(`/v1/memory/items/${encodeURIComponent(itemId)}/mutations`, { method: "POST", body });
+  }
+
+  resolveMemoryPursuitScopes(pursuitId: string): Promise<MemoryPursuitScopesResponse> {
+    return this.request(`/v1/memory/pursuits/${encodeURIComponent(pursuitId)}/scopes`, { method: "GET" });
+  }
+
   private async request<T>(
     path: string,
     options: {
@@ -1261,6 +1372,7 @@ export class TalentSignalClient {
       body?: unknown;
       authenticated?: boolean;
       signal?: AbortSignal;
+      headers?: Record<string, string>;
     },
   ): Promise<T> {
     const response = await this.rawRequest(path, {
@@ -1270,6 +1382,7 @@ export class TalentSignalClient {
         ...(options.body === undefined
           ? {}
           : { "content-type": "application/json" }),
+        ...(options.headers ?? {}),
       },
       body:
         options.body === undefined ? undefined : JSON.stringify(options.body),

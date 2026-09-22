@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { access } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { ClaudeChatProvider } from "./claudeChatProvider.js";
+import { WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES } from "./types.js";
 import { runClaudeHarness, claudeHarnessInterruptionCode, type ClaudeHarnessRequest } from "./claudeHarness.js";
 import { claudeHarnessConfiguration, claudeHarnessConfigurationReceipt } from "./claudeHarnessConfiguration.js";
 
@@ -25,6 +27,30 @@ function queryMock(before?: (input: any) => Promise<void>, terminal = result()) 
 }
 
 describe("Claude harness deployment configuration", () => {
+  it("lists the complete production workspace tool set through the pinned MCP converter",async()=>{
+    let listed: any;
+    const sdk=queryMock(async({options})=>{
+      const handlers=options.mcpServers.talent_signal.instance.server._requestHandlers;
+      listed=await handlers.get("tools/list")({method:"tools/list"},{});
+    });
+    const provider=new ClaudeChatProvider(config,(configuration,input,signal)=>runClaudeHarness(configuration,input,signal,sdk.run as any,null));
+    await provider.run({runID:"synthetic",objective:"Remember my reply preference",systemPrompt:"Synthetic",
+      scopeSummary:{kind:"workspace_conversation",workspaceID:"synthetic",sessionID:null,currentPersonID:null,currentRelationshipContextID:null},
+      toolManifest:WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES,budget:request().budget},async()=>({ok:true,callID:"unused",name:"unused"}),new AbortController().signal);
+    expect(listed.tools.map((entry:any)=>entry.name)).toEqual(expect.arrayContaining(["memory_review","contact_workspace_search","contact_workspace_read","contact_workspace_propose_create","contact_workspace_propose_update"]));
+    expect(listed.tools.find((entry:any)=>entry.name==="memory_review").inputSchema.properties.items).toBeDefined();
+  });
+  it("exposes opt-in protocol metadata without text, arguments or ungranted names",async()=>{
+    const onProtocolMetadata=vi.fn();
+    const sdk=()=>({close:vi.fn(),async *[Symbol.asyncIterator](){
+      yield {type:"system",subtype:"init",tools:["mcp__talent_signal__probe","PRIVATE_NAME"],mcp_servers:[{name:"talent_signal",status:"connected"}],session_id:"synthetic"};
+      yield {type:"assistant",message:{id:"one",model:"synthetic",usage:{input_tokens:10,output_tokens:2},stop_reason:"tool_use",content:[{type:"text",text:"PRIVATE_TEXT"},{type:"tool_use",name:"probe",input:{secret:"PRIVATE_ARGUMENT"}}]}};
+      yield result();
+    }});
+    await runClaudeHarness(config,{...request(),onProtocolMetadata,tools:[{name:"probe",description:"Synthetic probe",schema:z.object({}),readOnly:true,execute:async()=>({content:[]})}]},new AbortController().signal,sdk as any,null);
+    expect(onProtocolMetadata.mock.calls).toEqual([[{kind:"initialized",tools:["mcp__talent_signal__probe"],mcpConnected:true}],[{kind:"assistant",blockTypes:["text","tool_use"],stopReason:"tool_use"}]]);
+    expect(JSON.stringify(onProtocolMetadata.mock.calls)).not.toContain("PRIVATE_");
+  });
   it("finalizes as failed when source authority expires after SDK cleanup",async()=>{
     let expired=false;const finish=vi.fn(),complete=vi.fn();
     const sessionID="10000000-0000-4000-8000-000000000001";

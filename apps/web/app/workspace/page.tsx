@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { TalentSignalClient } from "@talent-signal/contracts";
+import { backendAuthBaseUrl } from "@/lib/server/backendAuth";
+import { mintMemoryEntryCapability } from "@/lib/server/memoryEntryCapability";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { TalentSignalHttpError } from "@talent-signal/contracts";
@@ -43,6 +47,7 @@ export default async function WorkspacePage({
   searchParams,
 }: {
   searchParams: Promise<{
+    draft_session?: string;
     capture?: string;
     context?: string;
     identity_case?: string;
@@ -108,12 +113,29 @@ export default async function WorkspacePage({
   // The default authenticated entry is an unscoped conversation canvas. It uses
   // the existing unscoped Session/Agent controller and never redirects to Today
   // or embeds the CRM dashboard.
+  if (scopedRequest && parameters.draft_session) redirect("/workspace");
   if (!scopedRequest) {
     const claims = await readBackendSessionClaims();
     const current =
       claims && !backendSessionIsExpired(claims.backendExpiresAt) ? claims : null;
+    const draftSessionId = validReturnSessionId(parameters.draft_session) ?? randomUUID();
+    if (current && parameters.draft_session) {
+      const client = new TalentSignalClient(backendAuthBaseUrl(), current.backendAccessToken);
+      try {
+        await client.getAgentSession(draftSessionId, AbortSignal.timeout(8_000));
+      } catch (error) {
+        if (!(error instanceof TalentSignalHttpError) || error.status !== 404) throw error;
+        // An absent locator only grants create/admit authority, never Memory access.
+        return <WorkspaceNewConversation accountId={current.backendAccountId}
+          sessionBinding={workspaceSessionsBinding(current)} sessionVersion={contactHandoffSessionVersion(current)}
+          storageScope={workspaceSessionDraftStorageScope(current)}
+          bootstrap={{ sessionId: draftSessionId, capability: mintMemoryEntryCapability(current, { purpose: "chat", sessionId: draftSessionId, stage: "bootstrap" }) }}/>;
+      }
+      redirect(`/workspace/sessions/${draftSessionId}`);
+    }
     return (
       <WorkspaceNewConversation
+        bootstrap={current ? { sessionId: draftSessionId, capability: mintMemoryEntryCapability(current, { purpose: "chat", sessionId: draftSessionId, stage: "bootstrap" }) } : null}
         accountId={current?.backendAccountId ?? null}
         sessionBinding={
           current ? workspaceSessionsBinding(current) : null

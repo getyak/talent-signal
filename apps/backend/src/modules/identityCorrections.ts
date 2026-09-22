@@ -16,6 +16,7 @@ import {
   completeIdempotency,
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
+import { invalidateMemoriesForCaptureIds } from "./memoryReview.js";
 
 interface BoundCaptureRow {
   id: string;
@@ -401,6 +402,18 @@ export async function correctCaptureIdentity(
         "A source discovered from this capture now belongs to a different identity scope; review the lineage before moving it.",
       );
     }
+    // A rebound source can no longer support Memory attributed to the prior
+    // identity. Tombstone the old capture version (read under the row lock)
+    // before the binding changes; a later binding has a new version.
+    await invalidateMemoriesForCaptureIds(
+      client,
+      auth.accountId,
+      captureIds,
+      "identity_rebound",
+      new Map(
+        lineageCaptures.rows.map((capture) => [capture.id, capture.version]),
+      ),
+    );
 
     const unresolvedEffects = await client.query<{ id: string }>(
       `SELECT id

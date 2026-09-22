@@ -68,6 +68,12 @@ export async function askWorkspaceChat(client: TalentSignalClient, input: Worksp
             status: block.status, citation_dependency_ids: [], requires_user_decision: false as const,
             allows_static_share: false, target_ref: null,
           })),
+          ...(output.memory_proposal ? {
+            memoryProposal: {
+              proposal_id: output.memory_proposal.proposal_id,
+              revision: output.memory_proposal.revision,
+            },
+          } : {}),
         },
       }] },
     });

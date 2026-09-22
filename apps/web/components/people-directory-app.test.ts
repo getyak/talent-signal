@@ -28,7 +28,8 @@ describe("people directory states", () => {
     expect(html).toContain("历史邮箱：l***@example.test");
     expect(html).toContain("项目沟通");
     expect(html).toContain("1 位匹配人物");
-    expect(html).toContain("context=context-a&amp;person=person-a&amp;session=session-a");
+    expect(html).toContain("/workspace/people/person-a?session=session-a");
+    expect(html).toContain("项目沟通");
     expect(html).toContain('name="session"');
     expect(html).toContain('value="session-a"');
   });

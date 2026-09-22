@@ -20,6 +20,7 @@ export const PERSON_RESEARCH_AGENT_TOOL_NAMES = [
 
 export const WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES = [
   "contact_workspace",
+  "memory_review",
 ] as const;
 
 export const ALL_AGENT_TOOL_NAMES = [
@@ -394,6 +395,8 @@ export interface AgentProviderRequest {
   /** Host-observed bounded stage code. Never carries model input or tool arguments. */
   onProgress?: (stage: AgentVisibleProgressStage) => void;
   responsePreference?: import("./responsePreference.js").ResponsePreference;
+  /** Host-compiled private L2; never included on relationship/business entry. */
+  selfMemoryContext?: import("./memoryContext.js").SelfMemoryContext;
   runID: string;
   objective: string;
   /** Host-owned first-result gate for optional Session display metadata. */

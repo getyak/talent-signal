@@ -109,7 +109,11 @@ function NavLink({
       key={route.id}
       onClick={
         route.id === "home"
-          ? () => window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT))
+          ? (event) => {
+              if (event.defaultPrevented) return;
+              const unhandled = window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT, { cancelable: true }));
+              if (!unhandled) event.preventDefault();
+            }
           : undefined
       }
       title={collapsed ? route.label : undefined}

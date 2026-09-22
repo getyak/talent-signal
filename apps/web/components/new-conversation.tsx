@@ -120,25 +120,31 @@ export function WorkspaceNewConversation({
   sessionVersion,
   sessionBinding,
   storageScope,
+  bootstrap,
 }: {
+  bootstrap?: { sessionId: string; capability: string } | null;
   accountId: string | null;
   sessionVersion: string | null;
   sessionBinding: string | null;
   storageScope: string | null;
 }) {
-  const [instance, setInstance] = useState(0);
+  const router = useRouter();
+  const [restarting, setRestarting] = useState(false);
+  useEffect(() => { queueMicrotask(() => setRestarting(false)); }, [bootstrap?.sessionId]);
 
   useEffect(() => {
-    const reset = () => { if (storageScope) conversationHome(storageScope, null); setInstance((current) => current + 1); };
+    const reset = (event: Event) => { event.preventDefault(); if (storageScope) conversationHome(storageScope, null); setRestarting(true); router.push(`/workspace?draft_session=${crypto.randomUUID()}`); };
     window.addEventListener(WORKSPACE_NEW_CONVERSATION_EVENT, reset);
     return () =>
       window.removeEventListener(WORKSPACE_NEW_CONVERSATION_EVENT, reset);
-  }, [storageScope]);
+  }, [storageScope, router]);
 
+  if (restarting) return <p role="status">正在打开新对话…</p>;
   return (
     <ConversationCanvas
       accountId={accountId}
-      key={instance}
+      key={bootstrap?.sessionId ?? "home"}
+      bootstrap={bootstrap}
       sessionBinding={sessionBinding}
       sessionVersion={sessionVersion}
       storageScope={storageScope}
@@ -146,7 +152,7 @@ export function WorkspaceNewConversation({
   );
 }
 
-function ConversationCanvas(props: { accountId: string | null; sessionVersion: string | null; sessionBinding: string | null; storageScope: string | null }) {
+function ConversationCanvas(props: { bootstrap?: { sessionId: string; capability: string } | null; accountId: string | null; sessionVersion: string | null; sessionBinding: string | null; storageScope: string | null }) {
   const { accountId, sessionVersion, sessionBinding, storageScope } = props;
   // Storage is never a render input, so the first client render matches the
   // server and an authenticated-ready home never mounts a live legacy
@@ -177,6 +183,7 @@ function ConversationCanvas(props: { accountId: string | null; sessionVersion: s
       detailBinding={sessionBinding}
       legacyRecovery={recovery}
       scope={storageScope}
+      bootstrap={props.bootstrap}
     />
   );
 }

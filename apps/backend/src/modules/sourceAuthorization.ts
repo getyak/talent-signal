@@ -15,6 +15,7 @@ import {
   completeIdempotency,
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
+import { invalidateMemoriesForCaptureIds } from "./memoryReviewRecall.js";
 import { compileRelationshipWiki } from "./wiki.js";
 
 interface SourceAuthorizationRow {
@@ -571,14 +572,35 @@ async function transitionCaptureSourceAuthorization(
           : root.authorization_expires_at,
       ],
     );
-    await client.query(
+    const advanced = await client.query<{ id: string; version: number }>(
       `UPDATE captures
        SET version = version + 1,
            updated_at = $3
        WHERE account_id = $1
-         AND id = ANY($2::uuid[])`,
+         AND id = ANY($2::uuid[]) RETURNING id, version`,
       [auth.accountId, captureIds, decidedAt],
     );
+    if (request.decision === "expire") {
+      for (const capture of advanced.rows) {
+        await client.query(`INSERT INTO source_natural_epoch_transitions(account_id,capture_id,from_version,to_version,transition_kind,occurred_at)
+          VALUES($1,$2,$3,$4,'authorization_expired',$5)`, [auth.accountId, capture.id, capture.version - 1, capture.version, decidedAt]);
+      }
+    }
+    if (request.decision === "revoke") {
+      // Only an explicit human revoke permanently invalidates accepted Memory.
+      // Natural authorization expiry ("expire") keeps the independently
+      // retained minimal evidence available, matching the retention contract.
+      // The tombstone is epoch-scoped to the revoked capture version, so a
+      // later restore can stage fresh evidence while the old accepted epoch
+      // stays gone.
+      await invalidateMemoriesForCaptureIds(
+        client,
+        auth.accountId,
+        captureIds,
+        "source_revoked",
+        new Map(lineage.rows.map((capture) => [capture.id, capture.version])),
+      );
+    }
     if (request.decision === "restore") {
       await client.query(
         `UPDATE evidence_fragments

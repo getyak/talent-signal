@@ -23,7 +23,7 @@ import {
 } from "@/lib/conversation-image-store";
 import { clearConversationImageStore } from "@/lib/conversation-image-lifecycle";
 
-type Options = { id: string | null; scope: string; chatBinding: string; detailBinding: string; initial?: SessionDetail; onAdmitted?: (id: string) => void };
+type Options = { entryCapability?: string | null; bootstrap?: string | null; id: string | null; scope: string; chatBinding: string; detailBinding: string; initial?: SessionDetail; onAdmitted?: (id: string) => void };
 class RequestError extends Error { constructor(message: string, readonly status: number, readonly code?: string) { super(message); } }
 const sleep = (ms: number, signal: AbortSignal) => new Promise<void>(resolve => {
   const finish = () => { clearTimeout(timer); signal.removeEventListener("abort", finish); resolve(); };
@@ -39,6 +39,14 @@ export type ConversationAttachment = {
 
 export function useConversation(options: Options) {
   const { id, scope, chatBinding, detailBinding, initial } = options;
+  const [entryCapability, setEntryCapability] = useState(options.entryCapability ?? null);
+  const [renderedEntry, setRenderedEntry] = useState(options.entryCapability);
+  if (options.entryCapability !== renderedEntry) {
+    setRenderedEntry(options.entryCapability);
+    setEntryCapability(options.entryCapability ?? null);
+  }
+  const entryCapabilityRef = useRef(entryCapability);
+  useEffect(() => { entryCapabilityRef.current = entryCapability; }, [entryCapability]);
   const [detail, setDetail] = useState(initial ?? null);
   const [draft, setDraft] = useState(initial?.composer_draft ?? "");
   const [messages, setMessages] = useState<LocalMessage[]>([]);
@@ -84,9 +92,11 @@ export function useConversation(options: Options) {
     const controller = lifecycle.current;
     if (!controller || controller.signal.aborted) throw new DOMException("Closed", "AbortError");
     const response = await workspaceSessionFetch(url, { ...init, cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
-      headers: { "x-workspace-session": binding, ...(init.body ? { "content-type": "application/json" } : {}), ...init.headers } });
+      headers: { "x-workspace-session": binding, ...((entryCapabilityRef.current ?? options.bootstrap) ? { "x-memory-entry-capability": entryCapabilityRef.current ?? options.bootstrap! } : {}), ...(init.body ? { "content-type": "application/json" } : {}), ...init.headers } });
     if (!response.ok) { const body = await response.json().catch(() => ({})); throw new RequestError(body.message ?? "连接暂时中断，请重试。", response.status, body.code); }
     if (controller.signal.aborted) throw new DOMException("Closed", "AbortError");
+    const recovered = response.headers.get("x-memory-entry-capability");
+    if (recovered) { entryCapabilityRef.current = recovered; setEntryCapability(recovered); }
     return response;
   }
   function applyDetail(next: SessionDetail) {
@@ -108,6 +118,12 @@ export function useConversation(options: Options) {
     setAttachmentState([]);
   }
   function refuse(error: unknown) {
+    // Entry expiry is recoverable with a fresh SSR entry. Preserve every
+    // unsent message/image so reopening the same URL can retry its exact ID.
+    if (error instanceof RequestError && error.code === "memory_entry_mismatch") {
+      setError("对话入口已过期。请刷新页面后重试，未送达的文字和图片已保留。");
+      return;
+    }
     if (error instanceof RequestError && (error.status === 401 || error.status === 403 || error.status === 410 || error.code === "session_stale")) {
       setUnavailable(true); setPreview(null); setDetail(null); setDraft(""); storeMessages([]); clearAttachments(); if (id) { clearConversationLocal(scope, id); clearConversationImageStore(scope, id); }
     }
@@ -140,8 +156,12 @@ export function useConversation(options: Options) {
         updateMessage(message.id, { delivery: "sending", receiptUncertain: true, error: undefined });
         try {
           const response = await request(queueUrl, { method: "POST", body: JSON.stringify({ session_id: id, message_id: message.id, idempotency_key: `web-queue:${message.id}`, objective: message.objective, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...(uploads && uploads.length ? { images: uploads } : {}) }) });
-          await response.json();
+          const admission = await response.json();
           if (!controller || controller.signal.aborted || lifecycle.current !== controller) break;
+          if (typeof admission.memory_entry_capability === "string") {
+            entryCapabilityRef.current = admission.memory_entry_capability;
+            setEntryCapability(admission.memory_entry_capability);
+          }
           // Accepted only means the server committed the same message identity.
           // Keep the local preview until canonical history reconciles it, so the
           // only thumbnail is never deleted before the server one exists.
@@ -379,7 +399,14 @@ export function useConversation(options: Options) {
 
   async function retryDelivery(message: LocalMessage) {
     // First reconcile a lost receipt. Only an explicit retry can repeat its stable admission.
-    try { const response = await request(queueUrl); const next = await response.json() as ConversationQueueSnapshot; snapshotRef.current = next; setSnapshot(next); await refreshDetail(); reconcile(next, detailRef.current); }
+    try {
+      const response = await request(queueUrl);
+      const next = await response.json() as ConversationQueueSnapshot;
+      snapshotRef.current = next; setSnapshot(next); await refreshDetail(); reconcile(next, detailRef.current);
+      if (!local.current.some(item => item.id === message.id)) {
+        setServerExists(true); pendingHandoff.current = id; handoffWhenSettled();
+      }
+    }
     catch (caught) { if (caught instanceof RequestError && caught.status !== 404) { refuse(caught); if ([401, 403, 410].includes(caught.status)) return; } }
     if (local.current.some(item => item.id === message.id)) updateMessage(message.id, { delivery: "pending", receiptUncertain: message.receiptUncertain ?? message.delivery === "unknown", error: undefined });
   }
@@ -442,5 +469,5 @@ export function useConversation(options: Options) {
     try { const response = await request(`/api/workspace-sessions/${id}`, { method: "DELETE", body: JSON.stringify({ expected_revision: detailRef.current.revision, idempotency_key: crypto.randomUUID() }) }, detailBinding); const body = await response.json(); applyDetail(body.detail); return true; }
     catch (caught) { setError(caught instanceof Error ? caught.message : "删除尚未确认，请重试。"); await refreshDetail().catch(() => {}); return false; }
   }
-  return { detail, draft, messages, attachments, preparing, submitting, snapshot, preview, connection, error, ready, unavailable, draftConflict, mutating, addFiles, removeAttachment, changeDraft, submit, retryDelivery, discardRejectedDelivery, mutate, keepDraft, remove, refreshDetail };
+  return { entryCapability, detail, draft, messages, attachments, preparing, submitting, snapshot, preview, connection, error, ready, unavailable, draftConflict, mutating, addFiles, removeAttachment, changeDraft, submit, retryDelivery, discardRejectedDelivery, mutate, keepDraft, remove, refreshDetail };
 }

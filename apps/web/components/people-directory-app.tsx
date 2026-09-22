@@ -39,15 +39,12 @@ function relationshipHref(
   person: PersonDirectoryItem,
   returnSessionId: string | null,
 ) {
-  const context = person.contexts[0];
-  if (!context) {
-    return withReturnSession("/workspace?surface=desk", returnSessionId);
-  }
-  const search = new URLSearchParams({
-    context: context.id,
-    person: person.id,
-  });
-  return withReturnSession(`/workspace?${search.toString()}`, returnSessionId);
+  // The production person-only route retains the person id even when no
+  // relationship context exists; existing contexts link from that page.
+  return withReturnSession(
+    `/workspace/people/${encodeURIComponent(person.id)}`,
+    returnSessionId,
+  );
 }
 
 function identityHandleLabel(type: string) {

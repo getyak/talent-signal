@@ -80,6 +80,11 @@
     "073_conversation_queue",
     "073_account_onboarding",
     "074_time_workspace",
-    "075_conversation_message_images"
+    "075_conversation_message_images",
+    "076_memory_review",
+    "077_memory_review_corrections",
+    "078_memory_review_hardening",
+    "079_memory_source_authority",
+    "080_memory_pursuit_association"
   ]
 }

@@ -10,6 +10,7 @@ import type { Pool, PoolClient } from "pg";
 import { inTransaction } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
+import { invalidateMemoriesForArtifactIds } from "./memoryReviewRecall.js";
 import { lockLabMediaWorkspace, trackedLabMediaPut } from "./labWorkspaceAccess.js";
 import type { AuthContext } from "./auth.js";
 import type {
@@ -333,6 +334,7 @@ export async function deleteChatMediaAsset(
       mediaId,
       { submitted: false },
     );
+    await invalidateMemoriesForArtifactIds(client, auth.accountId, [mediaId]);
     return { id: mediaId, status: "deleted" };
   });
 }

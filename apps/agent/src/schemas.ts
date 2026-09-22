@@ -156,6 +156,27 @@ const ContactRelationshipContextSchema = z.string().trim().max(200).describe(
   "For a new relationship, copy a VERBATIM CONTIGUOUS SUBSTRING of the current user message/source excerpt, character for character. Never paraphrase, translate, join separate excerpts, or remove words or particles. Prefer the shortest exact relationship label. Use an empty string when the relationship is absent. For an existing relationship update, keep its exact resolved label.",
 );
 
+export const ContactSourceClueSchema = z.strictObject({
+  clue: z.string().trim().min(2).max(120).describe(
+    "One bounded clue observed in the admitted image, such as a single handle. Never a wildcard, concatenated list, or enumerating query.",
+  ),
+  source_locator: z.strictObject({
+    kind: z.literal("image_region"),
+    artifact_id: z.string().min(1).max(200),
+    image_index: z.number().int().min(0).max(9).optional(),
+    region: z
+      .object({
+        x: z.number().min(0).max(1),
+        y: z.number().min(0).max(1),
+        width: z.number().min(0).max(1),
+        height: z.number().min(0).max(1),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+  }),
+});
+
 export const ContactWorkspaceInputSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("search"),
@@ -163,6 +184,7 @@ export const ContactWorkspaceInputSchema = z.discriminatedUnion("operation", [
       "One exact contiguous clue from the current user message, such as one email address. Never combine separate name, email, or relationship excerpts.",
     ),
     maximum_results: z.number().int().min(1).max(6).default(4),
+    source_clue: ContactSourceClueSchema.nullable().optional(),
   }),
   z.strictObject({
     operation: z.literal("read"),
@@ -197,6 +219,7 @@ export const ContactWorkspaceToolInputSchema = z.strictObject({
   operation: z.enum(["search", "read", "propose_create", "propose_update"]),
   query: z.string().trim().min(2).max(200).optional(),
   maximum_results: z.number().int().min(1).max(6).optional(),
+  source_clue: ContactSourceClueSchema.nullable().optional(),
   person_id: Id.optional(),
   relationship_context_id: Id.nullable().optional(),
   base_revision: z.number().int().min(1).optional(),

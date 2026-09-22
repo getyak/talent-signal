@@ -9,9 +9,9 @@ vi.mock("../workspace-session-request",()=>({workspaceSessionFetch:fetcher}));
 const sid="72ce7ff4-a5a8-40d0-b1d7-d84a13adcd30";
 let chat: ReturnType<typeof useConversation>; let root: Root; let mount: HTMLDivElement;
 const onAdmitted = vi.fn();
-function Probe(){const current=useConversation({id:sid,scope:"owner",chatBinding:"chat",detailBinding:"detail",onAdmitted});useLayoutEffect(()=>{chat=current;});return null;}
+function Probe({entryCapability}:{entryCapability?:string}){const current=useConversation({entryCapability,id:sid,scope:"owner",chatBinding:"chat",detailBinding:"detail",bootstrap:"bootstrap",onAdmitted});useLayoutEffect(()=>{chat=current;});return null;}
 async function flush(){await act(async()=>{await Promise.resolve();await Promise.resolve();});}
-beforeEach(async()=>{vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);localStorage.clear();fetcher.mockReset();onAdmitted.mockReset();mount=document.createElement("div");document.body.append(mount);root=createRoot(mount);await act(async()=>{root.render(createElement(Probe));});await flush();});
+beforeEach(async()=>{vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);localStorage.clear();fetcher.mockReset();onAdmitted.mockReset();mount=document.createElement("div");document.body.append(mount);root=createRoot(mount);await act(async()=>{root.render(createElement(Probe,{}));});await flush();});
 afterEach(async()=>{await act(async()=>root.unmount());mount.remove();vi.unstubAllGlobals();});
 it("shows an immutable outgoing message before admission, releases composer, and preserves a new draft on failure",async()=>{
  let reject!: (reason: Error)=>void;fetcher.mockImplementation(()=>new Promise((_,no)=>{reject=no;}));
@@ -86,4 +86,47 @@ it("does not navigate away while Stop is settling alongside admission", async ()
   expect(onAdmitted).not.toHaveBeenCalled();
   await act(async () => {finishStop(Response.json({snapshot:{...snapshot,paused:true}}));await stopping;});
   expect(onAdmitted).toHaveBeenCalledExactlyOnceWith(sid);
+});
+
+it("retains the outbox when the signed entry expires", async () => {
+  fetcher.mockResolvedValue(Response.json({code:"memory_entry_mismatch",message:"入口过期"},{status:403}));
+  await act(async()=>{chat.changeDraft("keep my unsent message");});
+  await act(async()=>{await chat.submit();});
+  expect(chat.unavailable).toBe(false);
+  expect(chat.messages[0].objective).toBe("keep my unsent message");
+  expect(readConversationMessages("owner",sid)[0].id).toBe(chat.messages[0].id);
+  expect(chat.error).toContain("已保留");
+});
+it("uses upgraded authority for the next rapid admission", async () => {
+  const receipts: Array<(value:Response)=>void> = [];
+  fetcher.mockImplementation((_url,init)=>new Promise(resolve=>{if(init?.method==="POST")receipts.push(resolve);}));
+  for(const text of ["one","two"]){await act(async()=>chat.changeDraft(text));await act(async()=>{await chat.submit();});}
+  expect(fetcher.mock.calls[0][1].headers["x-memory-entry-capability"]).toBe("bootstrap");
+  await act(async()=>receipts[0](Response.json({memory_entry_capability:"formal"},{status:202})));
+  const posts=fetcher.mock.calls.filter(call=>call[1]?.method==="POST");
+  expect(posts[1][1].headers["x-memory-entry-capability"]).toBe("formal");
+  await act(async()=>receipts[1](Response.json({memory_entry_capability:"formal"},{status:202})));
+});
+it("recovers a lost admission capability by owner-authorized queue read without resending", async () => {
+  fetcher.mockRejectedValue(new Error("response lost"));
+  await act(async()=>chat.changeDraft("saved once"));await act(async()=>{await chat.submit();});
+  const message=chat.messages[0];
+  fetcher.mockImplementation((url)=>{
+    if(String(url).endsWith("/stream"))return new Promise(()=>{});
+    if(String(url).endsWith("/conversation-queue"))return Promise.resolve(Response.json({session_id:sid,revision:1,active:{message_id:message.id},queued:[]},{headers:{"x-memory-entry-capability":"recovered"}}));
+    return Promise.resolve(Response.json({}));
+  });
+  await act(async()=>{await chat.retryDelivery(message);});
+  expect(chat.entryCapability).toBe("recovered");
+  expect(chat.messages).toEqual([]);
+  expect(onAdmitted).toHaveBeenCalledExactlyOnceWith(sid);
+  expect(fetcher.mock.calls.filter(call=>call[1]?.method==="POST")).toHaveLength(1);
+});
+
+it("uses a refreshed SSR entry capability for the next send",async()=>{
+  fetcher.mockImplementation(()=>new Promise(()=>{}));
+  await act(async()=>root.render(createElement(Probe,{entryCapability:"new-rendered-authority"})));
+  expect(chat.entryCapability).toBe("new-rendered-authority");
+  await act(async()=>chat.changeDraft("use the refreshed entry"));await act(async()=>{await chat.submit();});
+  expect(fetcher.mock.calls.find(call=>call[1]?.method==="POST")?.[1].headers["x-memory-entry-capability"]).toBe("new-rendered-authority");
 });

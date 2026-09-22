@@ -42,10 +42,10 @@ The editable diagram is
 ## Canonical experience
 
 The Agent is one recognizable assistant that interprets authorized signals,
-maintains governed Memory, prepares proposals, and explains its work. Separate
-from Today, its first level contains only Memory, About you, Sources & imports,
-and Action permissions. Today is attention; Agent is the control plane for
-identity, context, source state, and authority—not unsupported autonomy; its Sources page distinguishes profile references, file snapshots, scoped account reads, and independently approved projections rather than collapsing them into one “connected” badge.
+maintains governed self, person, and relationship Memory, prepares proposals,
+and explains its work. Separate from Today, its first level contains only
+Memory, About you, Sources & imports, and Action permissions. Today is
+attention; Agent is the control plane for identity, context, source state, and authority—not unsupported autonomy; its Sources page distinguishes profile references, file snapshots, scoped account reads, and independently approved projections rather than collapsing them into one “connected” badge.
 
 The product is organized around a `Pursuit`: a concrete outcome with a time
 horizon that requires people, organizations, evidence, criteria, and action.

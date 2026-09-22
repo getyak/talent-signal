@@ -28,7 +28,7 @@ describe("provider-neutral Agent capability catalog", () => {
     ]);
     const search = nativeTools[0]!.parameters;
     expect(search).toMatchObject({ type: "object", additionalProperties: false });
-    expect(Object.keys(search.properties)).toEqual(["query", "maximum_results"]);
+    expect(Object.keys(search.properties)).toEqual(["query", "maximum_results", "source_clue"]);
     expect(search.required).toEqual(["query"]);
     expect(ContactWorkspaceInputSchema.parse({ operation: "search", query: "nira.voss@example.com" }))
       .toEqual({ operation: "search", query: "nira.voss@example.com", maximum_results: 4 });
@@ -63,6 +63,7 @@ describe("provider-neutral Agent capability catalog", () => {
     expect(PERSON_RESEARCH_AGENT_TOOL_NAMES).toHaveLength(5);
     expect(WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES).toEqual([
       "contact_workspace",
+      "memory_review",
     ]);
     expect(candidateToolNames(PURSUIT_AGENT_TOOL_NAMES)).toEqual([
       "stage_pursuit_proposal",
@@ -92,12 +93,13 @@ describe("provider-neutral Agent capability catalog", () => {
       (capability) => capability.consequence === "durable_candidate",
     );
 
-    expect(capabilities).toHaveLength(12);
+    expect(capabilities).toHaveLength(13);
     expect(durable.map((capability) => capability.name)).toEqual([
       "stage_pursuit_proposal",
       "create_research_artifact",
       "create_person_research_artifact",
       "contact_workspace",
+      "memory_review",
     ]);
     expect(
       durable.every(
@@ -111,6 +113,9 @@ describe("provider-neutral Agent capability catalog", () => {
       "human_review_before_apply",
     );
     expect(AGENT_TOOL_CATALOG.contact_workspace.approval).toBe(
+      "human_review_before_apply",
+    );
+    expect(AGENT_TOOL_CATALOG.memory_review.approval).toBe(
       "human_review_before_apply",
     );
   });

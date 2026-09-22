@@ -1,12 +1,19 @@
 import {runFileTools} from "./runFileTools.js";
 import { z } from "zod";
-import { responsePreferenceTool } from "./responsePreference.js";
+import { responsePreferenceTool, responsePreferenceContext, RESPONSE_PREFERENCE_INSTRUCTIONS } from "./responsePreference.js";
+import { MEMORY_CONTEXT_INSTRUCTIONS } from "./memoryContext.js";
 import { evidenceImageTools } from "./evidenceImageTool.js";
 import { calendarDraftCapability } from "./calendarDraft.js";
 import { ClaudeHarnessFailure, ClaudeHarnessInterruption, runClaudeHarness, type ClaudeHarnessResult, type HarnessTool } from "./claudeHarness.js";
 import { claudeHarnessConfiguration, type ClaudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import { boundedConversationHistory, type RemoteChatAnswerProviding, type RemoteChatAnswerRequest, type RemoteChatAnswerResult } from "./chatAnswerProvider.js";
 import { ContactWorkspaceInputSchema } from "./schemas.js";
+import {
+  MEMORY_REVIEW_TOOL_DESCRIPTION,
+  MemoryReviewInputSchema,
+  MemoryReviewToolInputSchema,
+  memoryLocatorAdmissionError,
+} from "./memorySchemas.js";
 import { AGENT_TOOL_CATALOG, contactWorkspaceOperationTools } from "./toolCatalog.js";
 import { AGENT_BUDGET_CEILING as DEFAULT_AGENT_BUDGET } from "./runtimePolicy.js";
 import { JSON_OUTPUT_PROTOCOL as CONVERSATION_JSON_PROTOCOL } from "./prompts/assistant-conversation.js";
@@ -138,6 +145,60 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       },
     });
     const imageGuards = new Map<string, () => Promise<void>>();
+    let memoryProposal: RemoteChatAnswerResult["memoryProposal"];
+    if (request.memoryReview) {
+      const hooks = request.memoryReview;
+      tools.push({
+        name: "memory_review",
+        description: MEMORY_REVIEW_TOOL_DESCRIPTION,
+        schema: MemoryReviewToolInputSchema,
+        readOnly: false,
+        alwaysLoad: true,
+        execute: async (input) => {
+          const parsedMemory = MemoryReviewInputSchema.safeParse(input);
+          if (!parsedMemory.success) {
+            return { content: [{ type: "text", text: JSON.stringify({ error: "TOOL_INPUT_INVALID" }) }], isError: true };
+          }
+          const review = parsedMemory.data;
+          if (review.operation === "recall") {
+            if (review.scope === "self") return { content: [{ type: "text", text: "MEMORY_SCOPE_NOT_AVAILABLE" }], isError: true };
+            const recalled = await hooks.recall({ scope: review.scope, cursor: review.cursor });
+            return { content: [{ type: "text", text: JSON.stringify({
+              authority: "accepted_relationship_memory_not_execution_permission",
+              ...recalled,
+            }) }] };
+          }
+          const locatorError = memoryLocatorAdmissionError(
+            review.items,
+            images.map((_image, index) => `image-${index}`),
+          );
+          if (locatorError) {
+            return { content: [{ type: "text", text: JSON.stringify({ error: "MEMORY_SOURCE_NOT_ADMITTED" }) }], isError: true };
+          }
+          const staged = await hooks.stage({
+            contact_decision: review.contact_decision,
+            person_display_label: review.person_display_label ?? null,
+            items: review.items,
+          });
+          if (!staged) {
+            return { content: [{ type: "text", text: JSON.stringify({ status: "no_material_change" }) }] };
+          }
+          memoryProposal = {
+            proposal_id: staged.proposal_id,
+            proposal_revision: staged.proposal_revision,
+            item_count: staged.item_count,
+            default_selected_count: staged.default_selected_count,
+          };
+          return { content: [{ type: "text", text: JSON.stringify({
+            status: "needs_review",
+            proposal_id: staged.proposal_id,
+            proposal_revision: staged.proposal_revision,
+            item_count: staged.item_count,
+            default_selected_count: staged.default_selected_count,
+          }) }] };
+        },
+      });
+    }
     const abort = new AbortController();
     const external = request.signal;
     if (external) {
@@ -158,12 +219,13 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       ...(request.observation ? { observation: request.observation } : {}),
       ...(request.continuation && !sourceImageTools.length ? { continuation: request.continuation } : {}),
       imageToolResults: Boolean(sourceImageTools.length),
-      objective: request.objective, systemPrompt: [prompt.text, calendar.instructions, files.tools.length ? "For a requested calculation or file export, lead with the result and artifact name, and attribute the inputs to the record once. Read source review status from evidence_review; a proposed relationship block does not make the reviewed source excerpt unreviewed. Do not expose internal status words such as proposed or repeat an uncertainty caveat after already attributing the result to recorded data. Preserve any actual ambiguity that affects the calculation." : ""].filter(Boolean).join("\n\n"), tools, images,
+      objective: request.objective, systemPrompt: [prompt.text, calendar.instructions, request.responsePreference ? RESPONSE_PREFERENCE_INSTRUCTIONS : "", files.tools.length ? "For a requested calculation or file export, lead with the result and artifact name, and attribute the inputs to the record once. Read source review status from evidence_review; a proposed relationship block does not make the reviewed source excerpt unreviewed. Do not expose internal status words such as proposed or repeat an uncertainty caveat after already attributing the result to recorded data. Preserve any actual ambiguity that affects the calculation." : ""].filter(Boolean).join("\n\n"), tools, images,
       context: JSON.stringify({ calendar_clock: calendar.clock, reference_time: request.reference_time, conversation: boundedConversationHistory(request.conversation_history),
         session_title_requested: sessionTitleRequested,
         run_files: files.inventory,
         memory_inventory: request.context_blocks.map(block => ({ type: block.type, status: block.status })),
-        allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference) }),
+        allowed_citation_ids: request.allowed_citation_ids, response_preference_available: Boolean(request.responsePreference),
+        assistant_service_preference: responsePreferenceContext(request.responsePreference) }),
       effort: "medium", budget: { ...DEFAULT_AGENT_BUDGET, maxDurationMs: 60_000 }, assertCurrent,
     }, abort.signal);
     await assertCurrent();
@@ -176,6 +238,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
       ...(sessionTitleRequested ? { session_title: parsedOutput.title } : {}),
       ...(calendar.draft() ? { calendarDraft: calendar.draft()! } : {}),
       citation_ids: citations, provider_id: this.providerId, model: this.model, provider_request_id: result.sessionID,
+      ...(memoryProposal ? { memoryProposal } : {}),
       input_tokens: result.inputTokens, output_tokens: result.outputTokens, usage_reported: true,
       reported_model: result.reportedModels.length === 1 ? result.reportedModels[0]! : null, remote_requests_started: null,
       prompt_revision: prompt.revision, prompt_snapshot: snapshot };
@@ -244,7 +307,9 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
             if (data?.operation === "read" && data.person?.id && data.relationship_context?.id) receipt = {
               outcome: "use_contact", person_id: data.person.id, relationship_context_id: data.relationship_context.id,
             };
-            if (result.candidateFingerprint) receipt = { outcome: "contact_change_proposal", candidate_fingerprint: result.candidateFingerprint };
+            // A Memory proposal reference travels outside the contact event and
+            // must never masquerade as a contact-change fingerprint.
+            if (name === "contact_workspace" && result.candidateFingerprint) receipt = { outcome: "contact_change_proposal", candidate_fingerprint: result.candidateFingerprint };
           }
           return { content: [{ type: "text", text: JSON.stringify(result) }], isError: !result.ok };
         } }));
@@ -261,12 +326,16 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
     const outcome = await this.execute(this.configuration, { ...((request.continuation && userImages.length === 0) ? { continuation: request.continuation } : {}), ...(trusted ? { observation: trusted } : {}), objective: request.objective,
       ...(onText ? { onText } : {}),
       ...(userImages.length > 0 ? { images: userImages } : {}),
-      systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions].filter(Boolean).join("\n\n"), tools,
+      systemPrompt: [configuredClaudeChatPrompt(request.systemPrompt, preset).text, calendar.instructions,
+        request.responsePreference ? RESPONSE_PREFERENCE_INSTRUCTIONS : "",
+        request.selfMemoryContext ? MEMORY_CONTEXT_INSTRUCTIONS : ""].filter(Boolean).join("\n\n"), tools,
       context: JSON.stringify({ calendar_clock: calendar.clock, scope: request.scopeSummary, conversation: boundedConversationHistory(request.conversationHistory),
         session_title_requested: sessionTitleRequested,
         input_images: userImages.map(part => ({ artifact_id: part.artifactID, mime_type: part.mimeType, byte_size: part.byteSize, content_hash: part.contentHash })),
         input_notes: userImageNotes,
-        response_preference_available: Boolean(request.responsePreference) }),
+        response_preference_available: Boolean(request.responsePreference),
+        assistant_service_preference: responsePreferenceContext(request.responsePreference),
+        private_self_memory: request.selfMemoryContext }),
       effort: "medium", budget: request.budget, assertCurrent: async () => { signal.throwIfAborted(); await request.assertCurrent?.(); },
     }, signal);
     observed?.(outcome);

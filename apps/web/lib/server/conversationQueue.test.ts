@@ -2,14 +2,14 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { TalentSignalHttpError } from "@talent-signal/contracts";
 import { BackendSessionExpiredError } from "../backend-session";
 const f=vi.hoisted(()=>({claims:vi.fn(),get:vi.fn(),save:vi.fn(),admit:vi.fn(),read:vi.fn(),mutate:vi.fn(),stream:vi.fn()}));
-vi.mock("./backendAuth",()=>({readBackendSessionClaims:f.claims,backendAuthBaseUrl:()=>"http://backend.invalid"}));
+vi.mock("./backendAuth",()=>({readBackendSessionClaims:f.claims,backendAuthBaseUrl:()=>"http://backend.invalid",authSecret:()=>"synthetic-test-only-secret"}));
 vi.mock("./contact-handoff-session",()=>({contactHandoffSessionVersion:()=>"bound-login"}));
 vi.mock("@talent-signal/contracts",async importOriginal=>{const actual=await importOriginal<typeof import("@talent-signal/contracts")>();return {...actual,TalentSignalClient:class{getAgentSession=f.get;saveAgentSession=f.save;admitConversationQueueEntry=f.admit;getConversationQueue=f.read;mutateConversationQueue=f.mutate;openConversationQueueStream=f.stream;}};});
 import { conversationQueueRoute } from "./conversationQueue";
 const sid="72ce7ff4-a5a8-40d0-b1d7-d84a13adcd30",mid="a072ed54-6d56-413d-af4b-3ebc01ba646a";
 function request(body?:unknown,binding="bound-login",origin="http://localhost:3019") {return new Request(`http://localhost:3019/api/workspace-sessions/${sid}/conversation-queue`,{method:body?"POST":"GET",headers:{"content-type":"application/json","x-workspace-session":binding,"origin":origin,"host":"localhost:3019"},...(body?{body:JSON.stringify(body)}:{})});}
 const input={session_id:sid,message_id:mid,idempotency_key:mid,objective:"synthetic"};
-beforeEach(()=>{Object.values(f).forEach(mock=>mock.mockReset());f.claims.mockResolvedValue({backendExpiresAt:"2099-01-01T00:00:00Z",backendAccessToken:"synthetic"});f.get.mockResolvedValue({});f.admit.mockResolvedValue({message_id:mid});});
+beforeEach(()=>{Object.values(f).forEach(mock=>mock.mockReset());f.claims.mockResolvedValue({backendAccountId:"synthetic-account",backendUserId:"synthetic-user",backendExpiresAt:"2099-01-01T00:00:00Z",backendAccessToken:"synthetic"});f.get.mockResolvedValue({});f.admit.mockResolvedValue({message_id:mid});});
 it.each(["read","admit","mutate","stream"] as const)("rejects stale login before %s reaches the backend",async action=>{const response=await conversationQueueRoute(request(input,"old-login"),sid,action);expect(response.status).toBe(409);expect(f.get).not.toHaveBeenCalled();expect(f.admit).not.toHaveBeenCalled();expect(f.stream).not.toHaveBeenCalled();});
 it("maps expired account binding to recoverable authentication failure",async()=>{f.claims.mockRejectedValue(new BackendSessionExpiredError());expect((await conversationQueueRoute(request(),sid,"read")).status).toBe(401);});
 it("rejects cross-origin mutations and oversized messages",async()=>{expect((await conversationQueueRoute(request(input,"bound-login","https://other.invalid"),sid,"admit")).status).toBe(403);expect((await conversationQueueRoute(request({...input,objective:"x".repeat(1001)}),sid,"admit")).status).toBe(400);expect(f.admit).not.toHaveBeenCalled();});
@@ -19,3 +19,39 @@ it("relays an authenticated stream without consuming the full response",async()=
 it("accepts an images-only message and forwards it to durable admission",async()=>{const images=[{attachment_id:mid,file_name:"shot.png",media_type:"image/png",byte_size:8,content_hash:"a".repeat(64),data_base64:"iVBORwECAwQ="}];const response=await conversationQueueRoute(request({...input,objective:"",images}),sid,"admit");expect(response.status).toBe(202);expect(f.admit).toHaveBeenCalledWith(expect.objectContaining({objective:"",images}),expect.any(AbortSignal));});
 it("still rejects an empty text-and-no-image message",async()=>{const response=await conversationQueueRoute(request({...input,objective:""}),sid,"admit");expect(response.status).toBe(400);expect(f.admit).not.toHaveBeenCalled();});
 it("admits a bounded multi-megabyte base64 batch and rejects a declared over-budget body",async()=>{const images=[{attachment_id:mid,file_name:"big.png",media_type:"image/png",byte_size:8,content_hash:"a".repeat(64),data_base64:"A".repeat(11_000_000)}];const accepted=await conversationQueueRoute(request({...input,objective:"",images}),sid,"admit");expect(accepted.status).toBe(202);expect(f.admit).toHaveBeenCalledOnce();f.admit.mockClear();const oversized=new Request(`http://localhost:3019/api/workspace-sessions/${sid}/conversation-queue`,{method:"POST",headers:{"content-type":"application/json","x-workspace-session":"bound-login","origin":"http://localhost:3019","host":"localhost:3019","content-length":"41000001"},body:"{}"});const rejected=await conversationQueueRoute(oversized,sid,"admit");expect(rejected.status).toBe(413);expect(f.admit).not.toHaveBeenCalled();});
+
+
+it("upgrades only the exact SSR bootstrap after actual admission, including same-message replay", async () => {
+  const { mintMemoryEntryCapability, verifyMemoryEntryCapability } = await import("./memoryEntryCapability");
+  const claims = await f.claims();
+  const token = mintMemoryEntryCapability(claims, { purpose: "chat", sessionId: sid, stage: "bootstrap" });
+  f.get.mockRejectedValueOnce(new TalentSignalHttpError(404,"NOT_FOUND","missing",null));
+  const send = () => { const req = request(input); req.headers.set("x-memory-entry-capability",token); return conversationQueueRoute(req,sid,"admit"); };
+  const first = await send(); expect(first.status).toBe(202);
+  const firstCapability = (await first.json()).memory_entry_capability;
+  expect(verifyMemoryEntryCapability(firstCapability, claims)).toMatchObject({ sessionId:sid, purpose:"chat", stage:"review" });
+  const retry = await send(); expect(retry.status).toBe(202);
+  expect(verifyMemoryEntryCapability((await retry.json()).memory_entry_capability, claims)).toMatchObject({ sessionId:sid, stage:"review" });
+  expect(f.save).toHaveBeenCalledTimes(1);
+  expect(f.admit.mock.calls.map(call=>call[0].message_id)).toEqual([mid,mid]);
+});
+it("rejects a business or another-Session token before admission", async () => {
+  const { mintMemoryEntryCapability } = await import("./memoryEntryCapability");
+  const claims = await f.claims();
+  for (const entry of [{purpose:"people" as const,personId:mid},{purpose:"chat" as const,sessionId:mid,stage:"bootstrap" as const}]) {
+    const req=request(input);req.headers.set("x-memory-entry-capability",mintMemoryEntryCapability(claims,entry));
+    expect((await conversationQueueRoute(req,sid,"admit")).status).toBe(403);
+  }
+  expect(f.get).not.toHaveBeenCalled();expect(f.admit).not.toHaveBeenCalled();
+});
+
+it("recovers signed exact-Session authority after owner-authorized queue read", async () => {
+  const {mintMemoryEntryCapability,verifyMemoryEntryCapability}=await import("./memoryEntryCapability");
+  const claims=await f.claims();f.read.mockResolvedValue({session_id:sid,active:null,queued:[]});
+  const req=request();req.headers.set("x-memory-entry-capability",mintMemoryEntryCapability(claims,{purpose:"chat",sessionId:sid,stage:"bootstrap"}));
+  const response=await conversationQueueRoute(req,sid,"read");
+  expect(verifyMemoryEntryCapability(response.headers.get("x-memory-entry-capability"),claims)).toMatchObject({sessionId:sid,stage:"review"});
+  expect(f.admit).not.toHaveBeenCalled();
+  const unsigned=await conversationQueueRoute(request(),sid,"read");
+  expect(unsigned.headers.get("x-memory-entry-capability")).toBeNull();
+});

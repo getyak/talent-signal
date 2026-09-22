@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { PoolClient } from "pg";
+import type { DatabaseClient } from "../database/pool.js";
 
 export interface AuditContext {
   accountId: string;
@@ -8,7 +8,7 @@ export interface AuditContext {
 }
 
 export async function appendAudit(
-  client: PoolClient,
+  client: DatabaseClient,
   context: AuditContext,
   eventType: string,
   entityType: string,
