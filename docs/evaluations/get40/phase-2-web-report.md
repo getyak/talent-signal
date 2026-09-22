@@ -1,6 +1,6 @@
 # GET-40 implementation and acceptance evidence
 
-Date: 2026-09-22. Status: implemented in an isolated worktree; local functional
+Date: 2026-09-22. [Draft PR #235](https://github.com/getyak/talent-signal/pull/235). Status: implemented in an isolated worktree; local functional
 and visual verification performed. **Real-model acceptance remains incomplete.
 Do not close GET-40 or deploy this revision.** This report supersedes the earlier
 worker checkpoints; the backend report remains historical evidence.
@@ -118,6 +118,30 @@ pnpm --filter @talent-signal/web build
 node scripts/evals/get40/probe-tool-wire.mjs
 pnpm docs:check
 ```
+
+## CI review corrections
+
+The first remote CI exposed strict TypeScript errors in two test fixtures;
+Agent/Web typecheck and their 27/11 affected tests passed after correction.
+The next backend integration run exposed a test provider cloning live Memory
+callbacks. It now clones only serializable input; feedback/source lifecycle
+assertions remain unchanged. The affected real PostgreSQL feedback/source
+lifecycle suites passed all 24 tests. No production authorization guard was relaxed.
+
+CodeQL alerts [55](https://github.com/getyak/talent-signal/security/code-scanning/55),
+[56](https://github.com/getyak/talent-signal/security/code-scanning/56),
+[57](https://github.com/getyak/talent-signal/security/code-scanning/57),
+[58](https://github.com/getyak/talent-signal/security/code-scanning/58) and
+[59](https://github.com/getyak/talent-signal/security/code-scanning/59) were
+independently adjudicated as false positives with per-alert audit comments.
+The reported identity branches all validate context when retaining a person;
+missing person/source produces no authority. Operation reads require the
+committing account/user and entry lineage; the reclaimed exception additionally
+requires stored undone/reclaimed state and exact created IDs. Existing PostgreSQL
+regressions and direct invalid-context/empty-source probes confirmed rejection.
+The aggregate scan is neutral because unchanged Swift was not scanned; both
+applicable JavaScript/TypeScript and Actions analyses passed. Check the latest PR
+head for CI completion; a prior revision's success is not a delivery gate.
 
 ## Actual-model result: incomplete, not a pass
 

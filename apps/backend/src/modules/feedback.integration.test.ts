@@ -27,7 +27,9 @@ let beforeAnswer: (() => Promise<void>) | undefined;
 const provider: RemoteChatAnswerProviding = {
   providerId: "zhipu-chat-completions", model: "feedback-proof-model", supportsImageInput: false, supportsPromptPresets: true,
   async answer(input) {
-    requests.push(structuredClone(input));
+    // Host capabilities are callable, not serializable replay input. Keep the
+    // inspected model context immutable without cloning live Memory authority.
+    requests.push(structuredClone({ ...input, memoryReview: undefined }));
     await beforeAnswer?.();
     const prompt = input.prompt_snapshot ?? bundledPrompt("assistant/relationship");
     return { kind: "answer", title: "Evidence-backed next step",
