@@ -180,6 +180,18 @@ These limitations remain explicit delivery gates, not hidden in aggregate tests.
 
 ## Reproduction and isolation
 
+### Final feedback correction
+
+An additional real-browser existing-contact switch preserved all three unchecked
+self items, regenerated unchecked person/relationship items for the selected
+growth-team contact, and saved eight selected person items. The successful receipt
+still showed the earlier instruction to reselect regenerated items. Successful
+commit now clears that obsolete notice while retaining its receipt and Undo.
+The controller regression covers rebase, commit, notice removal, and Undo
+availability (12 controller tests pass); failure and unknown-outcome notices
+remain unchanged. This last one-line UI correction was verified in the controller
+test, not by replaying a newly built browser bundle.
+
 Use a disposable loopback PostgreSQL database named `get40_test` or `get40_eval`,
 apply backend migrations, build packages, then start
 `scripts/evals/get40/fixture-server.mjs` with `DATABASE_URL` and an owned

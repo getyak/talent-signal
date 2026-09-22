@@ -261,6 +261,21 @@ describe("shared Memory review controller", () => {
     expect(body.relationship_context_id).toBe("44444444-4444-4444-8444-444444444444");
     expect(controller.rebaseState).toBe("idle");
     expect(controller.review?.proposal_revision).toBe(2);
+    expect(controller.notice).toContain("请重新勾选");
+    fetcher.mockResolvedValueOnce(Response.json({ replayed: false, receipt: {
+      contract_version: "2026-08-24.10", commit_id: SCOPE, operation_key: "op-rebased",
+      proposal_id: PROPOSAL, proposal_revision: 2, status: "applied", contact_decision: "existing",
+      item_count: 1, applied_item_count: 1, created_item_ids: ["person-1"], updated_item_ids: [],
+      skipped_item_ids: [], kept_old_item_ids: [], decisions: [],
+      undo: { token: "undo-rebased", allowed: true, limits: [] },
+      projection_status: "not_required", created_at: new Date().toISOString(),
+    } }));
+    await act(async () => { await controller.commit({ contactDecision: "existing",
+      selectedItemIds: ["person-1"], editedText: {}, itemDecisions: {}, expectedItemVersions: {},
+    }); });
+    expect(controller.phase).toBe("receipt");
+    expect(controller.notice).toBeNull();
+    expect(controller.canUndo).toBe(true);
   });
 
   it("does not claim successful regeneration when the new review cannot be read", async () => {

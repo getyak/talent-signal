@@ -653,6 +653,7 @@ export function useMemoryReview(options: {
         const result = (await response.json()) as MemoryCommitResponse;
         setReceipt(result.receipt);
         setPhase("receipt");
+        setNotice(null);
         return result;
       } catch {
         // Frozen operation ID: never create a fresh ID on an unknown response.
