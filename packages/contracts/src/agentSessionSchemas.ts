@@ -97,6 +97,15 @@ const response = Type.Object(
     media: optional(Type.Array(media, { maxItems: 10 })),
     createdAt: stamp,
     labFeatureReceipt: optional(labReceipt),
+    // GET-40 independent review: keep only the proposal id/revision in history
+    // so a restored completed turn can re-open the same authorized review
+    // without parsing answer text or listing every account proposal.
+    memoryProposal: optional(
+      Type.Object(
+        { proposal_id: id, revision: Type.Integer({ minimum: 1 }) },
+        obj,
+      ),
+    ),
   },
   obj,
 );

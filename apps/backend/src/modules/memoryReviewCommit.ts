@@ -30,6 +30,51 @@ import {
   validateMemorySelection,
 } from "./memoryReviewPolicy.js";
 import { assertReviewCredential, visibleReviewItems } from "./memoryReviewRead.js";
+import { assertPursuitAssociationCurrent } from "./memoryPursuitScopes.js";
+
+/** Same-transaction revalidation of a stored Pursuit association. */
+export async function assertScopePursuitCurrent(
+  client: DatabaseClient,
+  auth: AuthContext,
+  scope: {
+    pursuit_id: string | null;
+    pursuit_role_id: string | null;
+    pursuit_role_evidence_fragment_id: string | null;
+    pursuit_capture_version: number | null;
+    pursuit_capture_id: string | null;
+    person_id: string | null;
+    relationship_context_id: string | null;
+  },
+  lock: boolean,
+  acceptedHistory = false,
+): Promise<void> {
+  if (!scope.pursuit_id) return;
+  if (
+    !scope.pursuit_role_id
+    || !scope.pursuit_role_evidence_fragment_id
+    || !scope.person_id
+  ) {
+    throw new ApiError(
+      409,
+      "MEMORY_PURSUIT_ASSOCIATION_STALE",
+      "The stored Pursuit association is incomplete; reopen the review from the Pursuit.",
+    );
+  }
+  await assertPursuitAssociationCurrent(
+    client,
+    auth,
+    {
+      pursuitId: scope.pursuit_id,
+      roleId: scope.pursuit_role_id,
+      evidenceFragmentId: scope.pursuit_role_evidence_fragment_id,
+      personId: scope.person_id,
+      relationshipContextId: scope.relationship_context_id,
+      captureVersion: scope.pursuit_capture_version,
+      captureId: scope.pursuit_capture_id,
+    },
+    { lock, acceptedHistory },
+  );
+}
 import { verifyPendingSourceAuthority } from "./memorySourceVerification.js";
 import {
   MEMORY_EVIDENCE_AVAILABLE_SQL,
@@ -201,6 +246,9 @@ export async function commitMemoryReview(
         throw new ApiError(404, "MEMORY_NOT_FOUND", "The requested Memory review was not found.");
       }
       await assertReviewCredential(client, replayScope, credential);
+      // A replay must pass current authorization too: a withdrawn role,
+      // evidence link, source or capture epoch denies the replay.
+      await assertScopePursuitCurrent(client, auth, replayScope, true, true);
       // The operation belongs to the exact scope that committed it; replaying
       // the same key through another legitimate scope must not return the
       // original (possibly private) item ids.
@@ -242,6 +290,9 @@ export async function commitMemoryReview(
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The requested Memory review was not found.");
     }
     await assertReviewCredential(client, scope, credential);
+    // Same transaction as the mutation: a role/evidence/source change during
+    // review must invalidate this commit rather than widen its scope.
+    await assertScopePursuitCurrent(client, auth, scope, true);
     if (scope.expires_at.valueOf() <= Date.now()) {
       throw new ApiError(410, "MEMORY_REVIEW_EXPIRED", "This Memory review expired; open it again.");
     }
@@ -834,7 +885,7 @@ export async function commitMemoryReview(
   });
 }
 
-async function receiptSourceAvailable(
+export async function receiptSourceAvailable(
   client: DatabaseClient,
   accountId: string,
   commitId: string,
@@ -867,10 +918,11 @@ async function receiptSourceAvailable(
 }
 
 export async function readMemoryOperation(
-  client: DatabaseClient,
+  pool: Pool,
   auth: AuthContext,
   operationKey: string,
 ): Promise<MemoryOperationReadback> {
+  return inTransaction(pool, async (client) => {
   const receipt = await client.query<
     ReceiptRow & { proposal_id: string; proposal_revision: number }
   >(
@@ -886,6 +938,10 @@ export async function readMemoryOperation(
   );
   const row = receipt.rows[0];
   if (row) {
+    const commit = await client.query<{ review_scope_id: string }>(`SELECT review_scope_id FROM memory_commits WHERE account_id = $1 AND id = $2 FOR SHARE`, [auth.accountId, row.commit_id]);
+    const scope = commit.rows[0] && await loadReviewScope(client, auth.accountId, commit.rows[0].review_scope_id, true);
+    if (!scope) throw new ApiError(404, "MEMORY_NOT_FOUND", "The operation scope was not found.");
+    await assertScopePursuitCurrent(client, auth, scope, true, true);
     const available = await receiptSourceAvailable(client, auth.accountId, row.commit_id);
     if (!available && row.status === "applied") {
       return {
@@ -921,6 +977,7 @@ export async function readMemoryOperation(
     state: pending.rows[0] ? "pending" : "unavailable",
     receipt: null,
   };
+  });
 }
 
 export async function undoMemoryCommit(
@@ -929,7 +986,16 @@ export async function undoMemoryCommit(
   commitId: string,
   request: MemoryUndoRequest,
 ): Promise<MemoryUndoResponse & { replayed: boolean }> {
-  return inTransaction(pool, async (client) => {
+  return inTransaction(pool, (client) => undoMemoryCommitInTransaction(client, auth, commitId, request));
+}
+
+export async function undoMemoryCommitInTransaction(
+  client: PoolClient,
+  auth: AuthContext,
+  commitId: string,
+  request: MemoryUndoRequest,
+  authorize?: () => Promise<void>,
+): Promise<MemoryUndoResponse & { replayed: boolean }> {
     const idempotency = await claimIdempotency(
       client,
       { accountId: auth.accountId, actorUserId: auth.userId },
@@ -937,20 +1003,19 @@ export async function undoMemoryCommit(
       request.idempotency_key,
       { commit_id: commitId, ...request },
     );
-    if (idempotency.replay) {
-      return { ...(idempotency.replay.body as MemoryUndoResponse), replayed: true };
-    }
     const commit = await client.query<{
       id: string;
       proposal_id: string;
       proposal_revision: number;
+      review_scope_id: string;
       committed_by_user_id: string;
       status: "applied" | "undone";
       revision: number;
       created_person_id: string | null;
       created_relationship_context_id: string | null;
     }>(
-      `SELECT id, proposal_id, proposal_revision, committed_by_user_id, status,
+      `SELECT id, proposal_id, proposal_revision, review_scope_id,
+              committed_by_user_id, status,
               revision, created_person_id, created_relationship_context_id
        FROM memory_commits
        WHERE account_id = $1 AND id = $2
@@ -961,20 +1026,41 @@ export async function undoMemoryCommit(
     if (!row || row.committed_by_user_id !== auth.userId) {
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The requested Memory commit was not found.");
     }
+    const currentScope = await loadReviewScope(client, auth.accountId, row.review_scope_id, true);
+    if (!currentScope) throw new ApiError(404, "MEMORY_NOT_FOUND", "The operation scope was not found.");
+    await assertScopePursuitCurrent(client, auth, currentScope, true, true);
+    if (row.status === "applied" && !await receiptSourceAvailable(client, auth.accountId, commitId)) {
+      throw new ApiError(409, "MEMORY_SOURCE_REVOKED", "The source was revoked; this operation cannot be replayed.");
+    }
+    await authorize?.();
+    if (idempotency.replay) {
+      const receipt = await readReceipt(client, auth.accountId, commitId);
+      if (!receipt) throw new ApiError(404, "MEMORY_NOT_FOUND", "The receipt was not found.");
+      return { contract_version: CONTRACT_VERSION, receipt, replayed: true };
+    }
     if (row.status === "undone") {
+      // The narrow historical-own-compensation exception still revalidates a
+      // Pursuit association: a revoked role/evidence/source denies even an
+      // already-undone receipt.
+      const undoneScope = await loadReviewScope(client, auth.accountId, row.review_scope_id, true);
+      if (undoneScope) await assertScopePursuitCurrent(client, auth, undoneScope, true, true);
       const receipt = await readReceipt(client, auth.accountId, commitId);
       if (!receipt) {
         throw new ApiError(404, "MEMORY_NOT_FOUND", "The commit receipt was not found.");
       }
-      const body: MemoryUndoResponse = { contract_version: CONTRACT_VERSION, replayed: false, receipt };
+      const body: MemoryUndoResponse = { contract_version: CONTRACT_VERSION, replayed: true, receipt };
       await completeIdempotency(client, idempotency, 200, body);
-      return { ...body, replayed: false };
+      return body;
     }
     if (row.revision !== request.expected_commit_revision) {
       throw new ApiError(409, "MEMORY_COMMIT_STALE", "The commit changed before this undo.", {
         current_commit_revision: row.revision,
       });
     }
+    // A Pursuit-derived compensation must revalidate the same current
+    // association in the same transaction as the mutation.
+    const undoingScope = await loadReviewScope(client, auth.accountId, row.review_scope_id, true);
+    if (undoingScope) await assertScopePursuitCurrent(client, auth, undoingScope, true, true);
     const items = await client.query<{
       id: string;
       proposal_item_id: string;
@@ -1087,7 +1173,12 @@ export async function undoMemoryCommit(
         );
       }
     }
+    let contactOutcome: "retained" | "reclaimed" | null = null;
+    let contextOutcome: "retained" | "reclaimed" | null = null;
     if (row.created_person_id) {
+      // Coordinate with foreign-key writers before checking later dependencies.
+      await client.query(`SELECT id FROM subjects WHERE account_id = $1 AND id = $2 FOR UPDATE`, [auth.accountId, row.created_person_id]);
+      if (row.created_relationship_context_id) await client.query(`SELECT id FROM assignments WHERE account_id = $1 AND id = $2 FOR UPDATE`, [auth.accountId, row.created_relationship_context_id]);
       const dependence = await client.query<{
         memories: number;
         assignments: number;
@@ -1131,6 +1222,8 @@ export async function undoMemoryCommit(
         laterProfileCount: counts.profiles,
         laterManifestCount: counts.manifests,
       });
+      contactOutcome = safe ? "reclaimed" : "retained";
+      contextOutcome = row.created_relationship_context_id ? contactOutcome : null;
       if (safe) {
         await client.query(
           `UPDATE assignments SET status = 'deleted', deleted_at = now()
@@ -1156,9 +1249,9 @@ export async function undoMemoryCommit(
     );
     await client.query(
       `UPDATE memory_receipts
-       SET status = 'undone', undone_at = now()
+       SET status = 'undone', undone_at = now(), undo_contact_outcome = $3, undo_context_outcome = $4
        WHERE account_id = $1 AND commit_id = $2`,
-      [auth.accountId, commitId],
+      [auth.accountId, commitId, contactOutcome, contextOutcome],
     );
     const scope = {
       subjectId: row.created_person_id,
@@ -1181,7 +1274,6 @@ export async function undoMemoryCommit(
     const body: MemoryUndoResponse = { contract_version: CONTRACT_VERSION, replayed: false, receipt };
     await completeIdempotency(client, idempotency, 200, body);
     return { ...body, replayed: false };
-  });
 }
 
 export async function readMemoryItem(
@@ -1215,12 +1307,6 @@ export async function mutateMemoryItem(
       request.idempotency_key,
       request,
     );
-    if (idempotency.replay) {
-      return {
-        ...(idempotency.replay.body as MemoryItemMutationResponse),
-        replayed: true,
-      };
-    }
     const existing = await client.query<MemoryItemRow>(
       `SELECT * FROM memory_items
        WHERE account_id = $1 AND id = $2
@@ -1231,6 +1317,27 @@ export async function mutateMemoryItem(
     if (!row || row.owner_user_id !== auth.userId) {
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The requested Memory item was not found.");
     }
+    const entry = request.entry_scope;
+    if (entry && entry.purpose !== "chat") {
+      if (row.scope === "self" || !entry.person_id || row.subject_id !== entry.person_id ||
+          (entry.purpose === "relationship" && (!entry.relationship_context_id || row.relationship_context_id !== entry.relationship_context_id))) {
+        throw new ApiError(403, "MEMORY_SCOPE_MISMATCH", "This item is outside the current entry.");
+      }
+      const person = await client.query(`SELECT id FROM subjects WHERE account_id=$1 AND id=$2 AND status='active' FOR SHARE`, [auth.accountId, entry.person_id]);
+      if (!person.rows[0]) throw new ApiError(404, "MEMORY_NOT_FOUND", "The contact is no longer current.");
+      if (entry.purpose === "relationship") {
+        const context = await client.query(`SELECT id FROM assignments WHERE account_id=$1 AND id=$2 AND subject_id=$3 AND status='active' FOR SHARE`,
+          [auth.accountId, entry.relationship_context_id, entry.person_id]);
+        if (!context.rows[0]) throw new ApiError(404, "MEMORY_NOT_FOUND", "The relationship is no longer current.");
+      }
+      if (entry.pursuit_id) {
+        if (!entry.pursuit_role_id || !entry.pursuit_role_evidence_fragment_id || !entry.pursuit_capture_id || !entry.pursuit_capture_version) throw new ApiError(403, "MEMORY_SCOPE_MISMATCH", "The Pursuit entry is incomplete.");
+        await assertPursuitAssociationCurrent(client, auth, { pursuitId: entry.pursuit_id, roleId: entry.pursuit_role_id,
+          evidenceFragmentId: entry.pursuit_role_evidence_fragment_id, personId: entry.person_id,
+          relationshipContextId: entry.relationship_context_id ?? null, captureId: entry.pursuit_capture_id, captureVersion: entry.pursuit_capture_version }, { lock: true });
+      }
+    }
+    if (idempotency.replay) return { ...(idempotency.replay.body as MemoryItemMutationResponse), replayed: true };
     if (row.status !== "active") {
       throw new ApiError(409, "MEMORY_ITEM_NOT_ACTIVE", "This memory is no longer active.");
     }

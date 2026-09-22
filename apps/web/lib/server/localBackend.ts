@@ -42,6 +42,9 @@ import {
   type VoiceTranscriptionDraft,
   type WorkspaceReviewResponse,
   type TelemetryContext,
+  type MemoryProposalRecord,
+  type MemoryRecallItem,
+  type MemoryPursuitScope,
 } from "@talent-signal/contracts";
 
 import { screenshotIdentityChoiceIssue } from "../person-identity-choice";
@@ -78,6 +81,23 @@ function backendBaseUrl(): string {
 
 function stableRef(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 24);
+}
+
+/**
+ * Deterministic UUID for a caller-owned relationship Session. The same
+ * request_id always resolves the same Session so an idempotent retry never
+ * creates a second conversation or a duplicate committed source.
+ */
+function deterministicSessionId(value: string): string {
+  const digest = createHash("sha256")
+    .update(`get40-relationship-session:${value}`)
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  digest[12] = "4";
+  digest[16] = "8";
+  const hex = digest.join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 async function readWorkspace(
@@ -134,6 +154,55 @@ export async function searchPeopleDirectory(
     "web-people-directory-search",
   );
   return client.searchPeople(query);
+}
+
+/**
+ * Person-only Memory surface. It never forces a relationship context: a
+ * person with no context is still reachable, and any existing contexts remain
+ * explicit navigation links.
+ */
+export async function loadPersonMemory(personId: string): Promise<{
+  person: PersonDirectoryResponse["people"][number] | null;
+  proposals: MemoryProposalRecord[];
+  items: MemoryRecallItem[];
+}> {
+  if (!UUID.test(personId)) throw new Error("人物标识无效。");
+  const [{ client }, directory] = await Promise.all([
+    authenticatedClient("web-person-memory"),
+    loadPeopleDirectory(),
+  ]);
+  const [proposals, recall] = await Promise.all([
+    client.listMemoryProposals({ purpose: "people", person_id: personId }),
+    client.recallMemories({ surface: "people", person_id: personId, limit: 50 }),
+  ]);
+  return {
+    person: directory.people.find((entry) => entry.id === personId) ?? null,
+    proposals: proposals.proposals,
+    items: recall.items,
+  };
+}
+
+/** Pursuit-scoped Memory review entries resolved through the authenticated API. */
+export async function loadPursuitMemoryScopes(pursuitId: string): Promise<
+  Array<
+    MemoryPursuitScope & {
+      proposals: MemoryProposalRecord[];
+    }
+  >
+> {
+  if (!UUID.test(pursuitId)) throw new Error("寻访标识无效。");
+  const { client } = await authenticatedClient("web-pursuit-memory");
+  const resolved = await client.resolveMemoryPursuitScopes(pursuitId);
+  const scopes: Array<MemoryPursuitScope & { proposals: MemoryProposalRecord[] }> = [];
+  for (const scope of resolved.scopes) {
+    const proposals = await client.listMemoryProposals({
+      purpose: "relationship",
+      person_id: scope.person_id,
+      relationship_context_id: scope.relationship_context_id ?? null,
+    });
+    scopes.push({ ...scope, proposals: proposals.proposals });
+  }
+  return scopes;
 }
 
 export async function loadIdentityResolutionCase(
@@ -821,15 +890,162 @@ export async function askRelationshipChat(
       objective,
     },
   );
-  return client.createChatTask({
+  // A real, owner-authorized relationship Session and stable message ID, not a
+  // manually preinserted completed turn. The Memory source can only become
+  // actionable after this turn is actually persisted below.
+  const sessionId = deterministicSessionId(
+    `${input.person_id}:${input.relationship_context_id}:${input.request_id}`,
+  );
+  const messageId = input.request_id;
+  const now = new Date().toISOString();
+  let existingTurns: Array<{ id: string }> = [];
+  let sessionExists = false;
+  try {
+    const existing = await client.getAgentSession(sessionId);
+    if (existing.session.payload) {
+      if (existing.session.payload.scopeKind !== "relationship") {
+        throw new TalentSignalHttpError(
+          409,
+          "relationship_session_unavailable",
+          "这段关系对话已不可用，请重新打开关系工作台。",
+          null,
+        );
+      }
+      existingTurns = existing.session.payload.turns;
+      sessionExists = true;
+    }
+  } catch (error) {
+    if (!(error instanceof TalentSignalHttpError) || error.status !== 404) {
+      throw error;
+    }
+  }
+  if (!sessionExists) {
+    try {
+      await client.saveAgentSession(sessionId, {
+        expected_revision: 0,
+        idempotency_key: sessionId,
+        payload: {
+          id: sessionId,
+          scopeKind: "relationship",
+          personID: input.person_id,
+          relationshipContextID: input.relationship_context_id,
+          personDisplayLabel: "",
+          contextDisplayLabel: "",
+          title: objective.slice(0, 120) || "关系对话",
+          turns: [],
+          updatedAt: now,
+          isUnread: false,
+        },
+      });
+    } catch (error) {
+      // Another tab may have created the same deterministic Session first.
+      if (!(error instanceof TalentSignalHttpError) || error.status !== 409) {
+        throw error;
+      }
+    }
+  }
+  const response = await client.createChatTask({
     idempotency_key: `web-chat:${input.request_id}`,
-    ...(input.previous_task_id ? { previous_task_id: input.previous_task_id } : {}),
+    session_id: sessionId,
+    message_id: messageId,
+    ...(input.previous_task_id
+      ? { previous_task_id: input.previous_task_id }
+      : {}),
     objective,
     ...(input.time_zone ? { time_zone: input.time_zone } : {}),
     person_id: input.person_id,
     relationship_context_id: input.relationship_context_id,
     ...(input.telemetry ? { telemetry: input.telemetry } : {}),
   });
+  if (!existingTurns.some((turn) => turn.id.toLowerCase() === messageId.toLowerCase())) {
+    // The answer is already authoritative; persistence is the precondition for
+    // rendering an actionable Memory reference. A failure is reported truthfully
+    // so the client retries the same idempotent request.
+    let saved = false;
+    for (let attempt = 0; attempt < 3 && !saved; attempt += 1) {
+      try {
+        const current = await client.getAgentSession(sessionId);
+        const payload = current.session.payload;
+        if (!payload) throw new Error("relationship session payload missing");
+        if (payload.turns.some((turn) => turn.id.toLowerCase() === messageId.toLowerCase())) {
+          saved = true;
+          break;
+        }
+        await client.saveAgentSession(sessionId, {
+          expected_revision: current.session.revision,
+          idempotency_key: messageId,
+          payload: {
+            ...payload,
+            ...(payload.turns.length === 0 && response.session_title
+              ? { title: response.session_title.slice(0, 256) }
+              : {}),
+            updatedAt: response.created_at,
+            turns: [
+              ...payload.turns,
+              {
+                id: messageId,
+                objective,
+                createdAt: now,
+                response: {
+                  contractVersion: CONTRACT_VERSION,
+                  taskID: response.task_id,
+                  contextManifestID: response.context_manifest_id,
+                  knowledgeSnapshotID: response.knowledge_snapshot_id,
+                  disposition: response.disposition,
+                  createdAt: response.created_at,
+                  unboundConversationBlocks: response.blocks.slice(0, 32).map((block) => ({
+                    id: block.id,
+                    kind: block.kind,
+                    title: block.title,
+                    body: block.body,
+                    status: block.status,
+                    citation_dependency_ids: [],
+                    requires_user_decision: false as const,
+                    allows_static_share: false,
+                    target_ref: null,
+                  })),
+                  ...(response.memory_proposal
+                    ? {
+                        memoryProposal: {
+                          proposal_id: response.memory_proposal.proposal_id,
+                          revision: response.memory_proposal.revision,
+                        },
+                      }
+                    : {}),
+                },
+              },
+            ],
+          },
+        });
+        saved = true;
+      } catch (error) {
+        if (
+          attempt < 2 &&
+          error instanceof TalentSignalHttpError &&
+          error.status === 409
+        ) {
+          continue;
+        }
+        if (!saved) {
+          throw new TalentSignalHttpError(
+            503,
+            "relationship_answer_persist_failed",
+            "回复已生成，但保存到关系对话失败。请重试同一条消息。",
+            null,
+          );
+        }
+      }
+    }
+    if (!saved) {
+      throw new TalentSignalHttpError(
+        503,
+        "relationship_answer_persist_failed",
+        "回复已生成，但保存到关系对话失败。请重试同一条消息。",
+        null,
+      );
+    }
+  }
+  return response;
 }
 
 export async function transcribeRelationshipVoice(input: {

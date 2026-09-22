@@ -1,6 +1,7 @@
 import {
   ScriptedAgentProvider,
   type AgentProvider,
+  type AgentToolResult,
 } from "@talent-signal/agent";
 import type { DatabaseClient } from "../database/pool.js";
 import { describe, expect, it, vi } from "vitest";
@@ -107,6 +108,44 @@ describe("workspace conversation Agent", () => {
       body: "你好，我在。",
       requires_user_decision: false,
     });
+  });
+
+  it("never executes or presents textual tool markup as a completed reply", async () => {
+    const query = vi.fn();
+    // A model that prints tag-like markup instead of invoking a tool must not
+    // cause the host to parse or execute an arbitrary pseudo-call, and the raw
+    // markup must not be presented as a successful useful answer.
+    const provider = new ScriptedAgentProvider([], {
+      outcome: "reply",
+      title: "Reply",
+      body: '<contact_workspace>{"action":"search","query":"Chen Yu"}</contact_workspace>',
+    });
+    const execution = await executeWorkspaceConversationAgent({
+      database: { query } as unknown as DatabaseClient,
+      auth,
+      objective: "帮我找陈宇",
+      provider,
+    });
+    expect(query).not.toHaveBeenCalled();
+    expect(execution.event).toBeNull();
+    expect(execution.block.body).not.toContain("<contact_workspace>");
+    expect(execution.block.body).toContain("还没有保存任何内容");
+  });
+
+  it("keeps ordinary prose even when it mentions a tool name", async () => {
+    const query = vi.fn();
+    const provider = new ScriptedAgentProvider([], {
+      outcome: "reply",
+      title: "回复",
+      body: "我会先用 contact_workspace 查一下，但这次先回答你的问题：结论是可行的。",
+    });
+    const execution = await executeWorkspaceConversationAgent({
+      database: { query } as unknown as DatabaseClient,
+      auth,
+      objective: "这件事可行吗？",
+      provider,
+    });
+    expect(execution.block.body).toContain("结论是可行的");
   });
 
   it("keeps the reply heading separate from first-result Session metadata", async () => {
@@ -839,4 +878,332 @@ describe("conversation-only context and proactive contact drafts", () => {
     expect(execution.memoryProposal).toBeNull();
     expect(execution.block).toMatchObject({ kind: "answer", body: "这里是回答。" });
   });
+
+  it("admits a bounded image clue only from a source admitted to this Run", async () => {
+    const artifactId = "conversation-image-44444444-4444-4444-8444-444444444444-0-abc";
+    const search = vi.fn(async () => [
+      { personID, displayLabel: "陈宇", directoryRevision: 1, contexts: [{ id: contextID, displayLabel: "关系" }], exactIdentityMatch: true },
+    ]);
+    const imagePart = {
+      kind: "image" as const,
+      artifactID: artifactId,
+      mimeType: "image/jpeg" as const,
+      byteSize: 12,
+      contentHash: "a".repeat(64),
+      dataBase64: "AAAA",
+    };
+    const steps = [{
+      tool: "contact_workspace",
+      input: {
+        operation: "search",
+        query: "@chenyu_demo",
+        source_clue: {
+          clue: "@chenyu_demo",
+          source_locator: { kind: "image_region", artifact_id: artifactId, image_index: 0 },
+        },
+      },
+    }];
+    let admittedResults: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "Please summarize this screenshot.",
+      sourceText: "",
+      contacts: { search, read: vi.fn() },
+      memory: { recall: vi.fn(async () => ({ items: [] })), stage: vi.fn(async () => null) },
+      inputParts: [imagePart],
+      imageIsCurrent: async () => true,
+      provider: new ScriptedAgentProvider(steps, (results) => {
+        admittedResults = results;
+        return { outcome: "reply", title: "已读", body: "这是图片摘要。" } as const;
+      }),
+    });
+    expect(search).toHaveBeenCalledOnce();
+    expect(admittedResults[0]).toMatchObject({ ok: true });
+
+    // A foreign artifact ID cannot authorize the same lookup.
+    const foreignSearch = vi.fn();
+    let foreignResults: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "Please summarize this screenshot.",
+      sourceText: "",
+      contacts: { search: foreignSearch, read: vi.fn() },
+      memory: { recall: vi.fn(async () => ({ items: [] })), stage: vi.fn(async () => null) },
+      inputParts: [{ ...imagePart, artifactID: "conversation-image-foreign-0-xyz" }],
+      provider: new ScriptedAgentProvider(steps, (results) => {
+        foreignResults = results;
+        return { outcome: "reply", title: "已读", body: "这是图片摘要。" } as const;
+      }),
+    });
+    expect(foreignSearch).not.toHaveBeenCalled();
+    expect(foreignResults[0]).toMatchObject({ ok: false, error: { code: "CONTACT_SEARCH_NOT_GROUNDED" } });
+
+    // An admitted artifact with a mismatched image index is also rejected.
+    const wrongIndexSearch = vi.fn();
+    let wrongIndexResults: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "Please summarize this screenshot.",
+      sourceText: "",
+      contacts: { search: wrongIndexSearch, read: vi.fn() },
+      memory: { recall: vi.fn(async () => ({ items: [] })), stage: vi.fn(async () => null) },
+      inputParts: [imagePart],
+      imageIsCurrent: async () => true,
+      provider: new ScriptedAgentProvider(
+        [{
+          tool: "contact_workspace",
+          input: {
+            operation: "search",
+            query: "@chenyu_demo",
+            source_clue: {
+              clue: "@chenyu_demo",
+              source_locator: { kind: "image_region", artifact_id: artifactId, image_index: 3 },
+            },
+          },
+        }],
+        (toolResults) => {
+          wrongIndexResults = toolResults;
+          return { outcome: "reply", title: "已读", body: "这是图片摘要。" } as const;
+        },
+      ),
+    });
+    expect(wrongIndexSearch).not.toHaveBeenCalled();
+    expect(wrongIndexResults[0]).toMatchObject({ ok: false, error: { code: "CONTACT_SEARCH_NOT_GROUNDED" } });
+  });
+
+  it("denies personalized recall for an unresolved same-name search result", async () => {
+    const otherPerson = "77777777-7777-4777-8777-777777777777";
+    const otherContext = "88888888-8888-4888-8888-888888888888";
+    const search = vi.fn(async () => [
+      { personID, displayLabel: "陈宇", directoryRevision: 1, contexts: [{ id: contextID, displayLabel: "甲" }], exactIdentityMatch: false },
+      { personID: otherPerson, displayLabel: "陈宇", directoryRevision: 1, contexts: [{ id: otherContext, displayLabel: "乙" }], exactIdentityMatch: false },
+    ]);
+    const recall = vi.fn(async () => ({ items: [] }));
+    let results: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "陈宇 最近有什么变化",
+      contacts: { search, read: vi.fn() },
+      memory: { recall, stage: vi.fn(async () => null) },
+      provider: new ScriptedAgentProvider(
+        [
+          { tool: "contact_workspace", input: { operation: "search", query: "陈宇", maximum_results: 4 } },
+          { tool: "memory_review", input: { operation: "recall", person_id: personID, relationship_context_id: contextID } },
+        ],
+        (toolResults) => {
+          results = toolResults;
+          return { outcome: "reply", title: "不能确定", body: "有两位同名联系人，请先确认。" } as const;
+        },
+      ),
+    });
+    expect(recall).not.toHaveBeenCalled();
+    expect(results[1]).toMatchObject({ ok: false, error: { code: "MEMORY_RECALL_NOT_AUTHORIZED" } });
+  });
+
+  it("permits personalized recall only for a unique server-confirmed handle", async () => {
+    const search = vi.fn(async () => [
+      { personID, displayLabel: "陈宇", directoryRevision: 1, contexts: [{ id: contextID, displayLabel: "关系" }], exactIdentityMatch: true, confirmedHandleType: "email", confirmedHandleValue: "chenyu@example.com" },
+    ]);
+    const recall = vi.fn(async () => ({ items: [] }));
+    let results: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "chenyu@example.com 最近有什么变化",
+      contacts: { search, read: vi.fn() },
+      memory: { recall, stage: vi.fn(async () => null) },
+      provider: new ScriptedAgentProvider(
+        [
+          { tool: "contact_workspace", input: { operation: "search", query: "chenyu@example.com", maximum_results: 4 } },
+          { tool: "memory_review", input: { operation: "recall", person_id: personID, relationship_context_id: contextID } },
+        ],
+        (toolResults) => {
+          results = toolResults;
+          return { outcome: "reply", title: "最近变化", body: "目前没有新的变化。" } as const;
+        },
+      ),
+    });
+    expect(recall).toHaveBeenCalledOnce();
+    expect(results[1]).toMatchObject({ ok: true });
+  });
+
+  it("does not let a model contact read escalate to personalized recall", async () => {
+    // The model resolved a unique name and read the contact, but a read is a
+    // model call, not a human identity binding, so personalized Memory stays
+    // forbidden until a confirmed handle or an explicit human binding exists.
+    const search = vi.fn(async () => [
+      { personID, displayLabel: "陈宇", directoryRevision: 1, contexts: [{ id: contextID, displayLabel: "关系" }], exactIdentityMatch: false },
+    ]);
+    const recall = vi.fn(async () => ({ items: [] }));
+    let results: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "陈宇 最近有什么变化",
+      contacts: {
+        search,
+        read: vi.fn(async () => ({
+          person: { id: personID, displayLabel: "陈宇", directoryRevision: 1 },
+          relationship: { id: contextID, displayLabel: "关系" },
+        })),
+      },
+      memory: { recall, stage: vi.fn(async () => null) },
+      provider: new ScriptedAgentProvider(
+        [
+          { tool: "contact_workspace", input: { operation: "search", query: "陈宇", maximum_results: 4 } },
+          { tool: "contact_workspace", input: { operation: "read", person_id: personID, relationship_context_id: contextID } },
+          { tool: "memory_review", input: { operation: "recall", person_id: personID, relationship_context_id: contextID } },
+        ],
+        (toolResults) => {
+          results = toolResults;
+          return { outcome: "reply", title: "不能确定", body: "需要先确认身份。" } as const;
+        },
+      ),
+    });
+    expect(recall).not.toHaveBeenCalled();
+    expect(results[2]).toMatchObject({ ok: false, error: { code: "MEMORY_RECALL_NOT_AUTHORIZED" } });
+  });
+
+  it("binds a human identity entry to personalized recall without a model read", async () => {
+    const recall = vi.fn(async () => ({ items: [] }));
+    let results: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "最近有什么变化",
+      contacts: { search: vi.fn(), read: vi.fn() },
+      memory: { recall, stage: vi.fn(async () => null) },
+      humanIdentityBinding: { personID, contextID },
+      provider: new ScriptedAgentProvider(
+        [{ tool: "memory_review", input: { operation: "recall", person_id: personID, relationship_context_id: contextID } }],
+        (toolResults) => {
+          results = toolResults;
+          return { outcome: "reply", title: "变化", body: "没有新的变化。" } as const;
+        },
+      ),
+    });
+    expect(recall).toHaveBeenCalledOnce();
+    expect(results[0]).toMatchObject({ ok: true });
+  });
+
+  it("supplies a neutral organizing relationship label for a new contact", async () => {
+    const stagedProposal = {
+      proposalID: "99999999-9999-4999-8999-999999999999",
+      proposalRevision: 1,
+      itemCount: 1,
+      defaultSelectedCount: 1,
+      scopeCounts: { self: 0, person: 0, relationship: 1 },
+      contactStatus: "pending" as const,
+      personID: null,
+      personDisplayLabel: "陈宇",
+    };
+    const stage = vi.fn(async () => stagedProposal);
+    const memory: WorkspaceMemoryLookup = { recall: vi.fn(async () => ({ items: [] })), stage };
+    const provider = new ScriptedAgentProvider(
+      [
+        {
+          tool: "memory_review",
+          input: {
+            operation: "propose",
+            contact_decision: "new",
+            person_display_label: "陈宇",
+            items: [
+              {
+                scope: "relationship",
+                operation: "add",
+                statement_kind: "source_statement",
+                speaker: "陈宇",
+                display_text: "我们约定下周四先看文字方案",
+                time_status: "known",
+                sensitivity: "normal",
+                source_excerpt: "我们约定下周四先看文字方案",
+                source_locator: { kind: "message", session_id: null, message_id: null },
+                reason: "later reference",
+              },
+            ],
+          },
+        },
+      ],
+      { outcome: "reply", title: "已记录", body: "这里是回答。" },
+    );
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "我们约定下周四先看文字方案",
+      contacts: { search: vi.fn(), read: vi.fn() },
+      memory,
+      provider,
+    });
+    expect(stage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newContact: expect.objectContaining({ relationship_context: "与陈宇的交流" }),
+      }),
+    );
+
+    // An explicit source-supported label is preserved as-is.
+    const explicitStage = vi.fn(async () => stagedProposal);
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "先给结论",
+      contacts: { search: vi.fn(), read: vi.fn() },
+      memory: { recall: vi.fn(async () => ({ items: [] })), stage: explicitStage },
+      provider: new ScriptedAgentProvider(
+        [
+          {
+            tool: "memory_review",
+            input: {
+              operation: "propose",
+              contact_decision: "new",
+              person_display_label: "陈宇",
+              relationship_display_label: "设计交流",
+              items: [
+                {
+                  scope: "self",
+                  operation: "add",
+                  statement_kind: "fact",
+                  display_text: "先给结论",
+                  time_status: "known",
+                  sensitivity: "normal",
+                  source_excerpt: "先给结论",
+                  source_locator: { kind: "message", session_id: null, message_id: null },
+                  reason: "later",
+                },
+              ],
+            },
+          },
+        ],
+        { outcome: "reply", title: "已记录", body: "这里是回答。" },
+      ),
+    });
+    expect(explicitStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newContact: expect.objectContaining({ relationship_context: "设计交流" }),
+      }),
+    );
+  });
+  it("rechecks handle ownership after search instead of recalling the cached person", async () => {
+    const original = { personID, displayLabel: "陈宇", directoryRevision: 1, contexts: [{ id: contextID, displayLabel: "关系" }], exactIdentityMatch: true, confirmedHandleType: "email", confirmedHandleValue: "chenyu@example.com" };
+    const search = vi.fn().mockResolvedValueOnce([original]).mockResolvedValue([{ ...original, personID: "77777777-7777-4777-8777-777777777777" }]);
+    const recall = vi.fn(); let observed: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({ workspaceID: auth.accountId, objective: "chenyu@example.com 最近有什么变化", contacts: { search, read: vi.fn() }, memory: { recall, stage: vi.fn() },
+      provider: new ScriptedAgentProvider([
+        { tool: "contact_workspace", input: { operation: "search", query: "chenyu@example.com" } },
+        { tool: "memory_review", input: { operation: "recall", person_id: personID, relationship_context_id: contextID } },
+      ], results => { observed = results; return { outcome: "reply", title: "待确认", body: "账号归属已变化，请重新确认。" }; }) });
+    expect(search).toHaveBeenCalledTimes(2); expect(recall).not.toHaveBeenCalled();
+    expect(observed[1]).toMatchObject({ ok: false, error: { code: "MEMORY_RECALL_NOT_AUTHORIZED" } });
+  });
+
+  it.each([true, false])("allows an image handle only while its exact source remains current: %s", async current => {
+    const artifactId = "conversation-image-44444444-4444-4444-8444-444444444444-0-55555555-5555-4555-8555-555555555555";
+    const search = vi.fn(async () => [{ personID, displayLabel: "陈宇", directoryRevision: 1, contexts: [{ id: contextID, displayLabel: "关系" }], exactIdentityMatch: true, confirmedHandleType: "email", confirmedHandleValue: "chenyu@example.com" }]);
+    const recall = vi.fn(async () => ({ items: [] }));
+    const imageIsCurrent = vi.fn().mockResolvedValueOnce(true).mockResolvedValue(current);
+    let observed: readonly AgentToolResult[] = [];
+    await executeWorkspaceConversationAgentCore({ workspaceID: auth.accountId, objective: "Summarize image", sourceText: "", contacts: { search, read: vi.fn() }, memory: { recall, stage: vi.fn() }, imageIsCurrent,
+      inputParts: [{ kind: "image", artifactID: artifactId, mimeType: "image/jpeg", byteSize: 3, contentHash: "a".repeat(64), dataBase64: "AAAA" }],
+      provider: new ScriptedAgentProvider([
+        { tool: "contact_workspace", input: { operation: "search", query: "chenyu@example.com", source_clue: { clue: "chenyu@example.com", source_locator: { kind: "image_region", artifact_id: artifactId, image_index: 0 } } } },
+        { tool: "memory_review", input: { operation: "recall", person_id: personID, relationship_context_id: contextID } },
+      ], results => { observed=results; return { outcome: "reply", title: "图片摘要", body: "这是本次来源。" }; }) });
+    expect(recall).toHaveBeenCalledTimes(current ? 1 : 0);
+    expect(observed[1]?.ok).toBe(current);
+  });
+
 });

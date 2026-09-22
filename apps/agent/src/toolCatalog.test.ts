@@ -28,7 +28,7 @@ describe("provider-neutral Agent capability catalog", () => {
     ]);
     const search = nativeTools[0]!.parameters;
     expect(search).toMatchObject({ type: "object", additionalProperties: false });
-    expect(Object.keys(search.properties)).toEqual(["query", "maximum_results"]);
+    expect(Object.keys(search.properties)).toEqual(["query", "maximum_results", "source_clue"]);
     expect(search.required).toEqual(["query"]);
     expect(ContactWorkspaceInputSchema.parse({ operation: "search", query: "nira.voss@example.com" }))
       .toEqual({ operation: "search", query: "nira.voss@example.com", maximum_results: 4 });

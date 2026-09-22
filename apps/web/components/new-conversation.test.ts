@@ -49,6 +49,7 @@ const REQUEST_ID = "8f1c2f6e-9d24-4c9a-9d3d-2f6c1a5b7e10";
 const OBJECTIVE = "旧版草稿  保留空格\n第二行";
 
 type Props = {
+  bootstrap?: { sessionId: string; capability: string };
   accountId: string | null;
   sessionBinding: string | null;
   sessionVersion: string | null;
@@ -122,6 +123,23 @@ async function render(props: Props = READY): Promise<void> {
   await act(async () => {
     root?.render(createElement(WorkspaceNewConversation, props));
   });
+}
+
+async function receiveFreshServerBootstrap(): Promise<void> {
+  expect(document.body.textContent).toContain("正在打开新对话");
+  const pushOrder = router.push.mock.invocationCallOrder.at(-1) ?? 0;
+  const replaceOrder = router.replace.mock.invocationCallOrder.at(-1) ?? 0;
+  expect(pushOrder).toBeGreaterThan(replaceOrder);
+  const href = router.push.mock.calls.at(-1)?.[0];
+  const sessionId = new URL(href, "http://localhost").searchParams.get("draft_session");
+  expect(sessionId).toMatch(/^[0-9a-f-]{36}$/);
+  // Next navigation resolves a fresh server-signed capability; a client reset
+  // must not reuse the previous Session authority while waiting for it.
+  window.history.replaceState(null, "", href);
+  await act(async () => root?.render(createElement(WorkspaceNewConversation, {
+    ...READY, bootstrap: { sessionId: sessionId!, capability: `new-server-capability:${sessionId}` },
+  })));
+  await flush();
 }
 
 beforeEach(() => {
@@ -369,13 +387,15 @@ describe("authenticated home with a legacy conversation-home record", () => {
     const link = document.createElement("a");
     link.href = "/workspace";
     link.addEventListener("click", (event) => {
+      // Like Next Link, respect the fresh-bootstrap navigation owner.
+      if (event.defaultPrevented) return;
       event.preventDefault();
-      // Next reuses its Home component tree when returning to the same page.
       window.history.replaceState(null, "", "/workspace");
     });
     mount?.append(link);
     await act(async () => link.click());
     await flush();
+    await receiveFreshServerBootstrap();
     const fresh = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
     expect(fresh).not.toBe(composer);
     expect(document.querySelector("h1")).toBeNull();
@@ -417,6 +437,7 @@ describe("authenticated home with a legacy conversation-home record", () => {
     await act(async () => button("删除对话")?.click());
     await act(async () => button("确认删除")?.click());
     await flush();
+    await receiveFreshServerBootstrap();
     const fresh = document.querySelector<HTMLTextAreaElement>("#queued-conversation-composer")!;
     expect(fresh).not.toBe(composer);
     expect(fresh.disabled).toBe(false);
@@ -459,6 +480,7 @@ describe("authenticated home with a legacy conversation-home record", () => {
       window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT));
     });
     await flush();
+    await receiveFreshServerBootstrap();
 
     expect(
       document.querySelectorAll('[aria-label="旧版未完成消息"]'),

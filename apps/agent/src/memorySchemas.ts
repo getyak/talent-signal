@@ -45,7 +45,10 @@ export const MemorySourceLocatorInputSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("document"),
     source_resource_id: Id.nullable().optional(),
-    locator: z.record(z.string(), z.unknown()),
+    // An open JSON object, like the host locator contract. The pinned SDK/Zod
+    // converter bridge throws for record(string, unknown), causing MCP tools/list to
+    // drop the entire server's tools. A loose object preserves the same input.
+    locator: z.looseObject({}),
   }),
 ]);
 
@@ -83,6 +86,7 @@ export const MemoryReviewToolInputSchema = z.strictObject({
   relationship_context_id: Id.nullable().optional(),
   contact_decision: MemoryContactDecisionSchema.optional(),
   person_display_label: z.string().max(200).nullable().optional(),
+  relationship_display_label: z.string().max(200).nullable().optional(),
   new_contact_source_locator: MemorySourceLocatorInputSchema.nullable().optional(),
   items: z.array(MemoryProposalCandidateInputSchema).min(1).max(40).optional(),
 });
@@ -99,6 +103,7 @@ export const MemoryReviewInputSchema = z.discriminatedUnion("operation", [
     relationship_context_id: Id.nullable().optional(),
     contact_decision: MemoryContactDecisionSchema,
     person_display_label: z.string().max(200).nullable().optional(),
+    relationship_display_label: z.string().max(200).nullable().optional(),
     new_contact_source_locator: MemorySourceLocatorInputSchema.nullable().optional(),
     items: z.array(MemoryProposalCandidateInputSchema).min(1).max(40),
   }),

@@ -1,5 +1,5 @@
 import { measureLabServerStage, measureLabServerStageSync } from "../lib/labDiagnostics.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import {
   ContactWorkspaceInputSchema,
@@ -28,16 +28,16 @@ import type {
   WorkspaceConversationAgentEvent,
 } from "@talent-signal/contracts";
 
-import type { DatabaseClient } from "../database/pool.js";
+import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import type { AuthContext } from "./auth.js";
-import { getRelationshipScope, searchPeople } from "./people.js";
+import { getRelationshipScope, searchPeople, peopleIdentityQuery } from "./people.js";
 import { sha256 } from "../lib/hash.js";
 import {
   recallMemories,
   stageMemoryProposal,
   type MemorySourceAuthority,
 } from "./memoryReview.js";
-import type { MemoryImageManifestEntry } from "./memoryReviewStore.js";
+import { currentStableHandleOwner, type MemoryImageManifestEntry } from "./memoryReviewStore.js";
 
 const WORKSPACE_CONVERSATION_TIMEOUT_MS = 35_000;
 
@@ -49,6 +49,13 @@ export type WorkspaceContactSearchResult = {
   directoryRevision: number;
   contexts: Array<{ id: string; displayLabel: string }>;
   exactIdentityMatch?: boolean;
+  /**
+   * Server-owned canonical handle type for a current confirmed match. The
+   * value itself is the user's grounded clue; a model-supplied guess is never
+   * accepted as identity authority.
+   */
+  confirmedHandleType?: string;
+  confirmedHandleValue?: string;
 };
 
 export interface WorkspaceContactLookup {
@@ -91,12 +98,16 @@ export interface WorkspaceMemoryLookup {
   recall(input: {
     personID: string | null;
     contextID: string | null;
+    identityClue?: { type: string; value: string } | null;
+    imageAuthority?: { artifactId: string; index: number; hash: string } | null;
   }): Promise<{ items: WorkspaceMemoryRecall[] }>;
   stage(input: {
     surface: MemorySurface;
     personID: string | null;
     contextID: string | null;
     contactDecision: "existing" | "new" | "none";
+    identityAuthority: "tentative" | "stable_handle" | "human_selection";
+    identityClue: { type: "email" | "phone" | "wechat" | "linkedin_url" | "public_profile_url" | "source_native_id"; value: string } | null;
     newContact: {
       display_label: string;
       relationship_context: string;
@@ -256,6 +267,40 @@ function block(
   };
 }
 
+const TOOL_MARKUP_TAGS = "contact_workspace|memory_review|tool_call|function_calls?|invoke";
+
+/**
+ * A model that prints tag-like or bare-JSON tool markup instead of invoking a
+ * tool did not complete a useful reply. The host never parses or executes that
+ * text; it replaces it with a truthful retry message.
+ */
+export function isToolMarkupOnly(body: string): boolean {
+  const trimmed = body.trim();
+  if (!trimmed) return true;
+  const tagPattern = new RegExp(
+    `</?(?:${TOOL_MARKUP_TAGS})[^>]*>[\\s\\S]*?</?(?:${TOOL_MARKUP_TAGS})[^>]*>|</?(?:${TOOL_MARKUP_TAGS})[^>]*/?>`,
+    "gi",
+  );
+  const withoutTags = trimmed.replace(tagPattern, "").trim();
+  if (!withoutTags) return true;
+  if (/^\{[\s\S]*\}$/.test(trimmed)) {
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      if (
+        parsed
+        && typeof parsed === "object"
+        && !Array.isArray(parsed)
+        && ["action", "operation", "name", "tool", "tool_name"].some((key) => key in parsed)
+      ) {
+        return true;
+      }
+    } catch {
+      // Not JSON; ordinary prose stays untouched.
+    }
+  }
+  return false;
+}
+
 export async function executeWorkspaceConversationAgentCore(input: {
   objective: string;
   /** Raw user source text. For an images-only message this is empty; the
@@ -265,6 +310,14 @@ export async function executeWorkspaceConversationAgentCore(input: {
   workspaceID: string;
   contacts: WorkspaceContactLookup;
   memory?: WorkspaceMemoryLookup;
+  /**
+   * Host-supplied human identity binding for the authenticated entry (for
+   * example the exact person/context the user opened). A model `read` call is
+   * never a human binding; only this or a current confirmed handle authorizes
+   * personalized Memory.
+   */
+  imageIsCurrent?: (artifactId: string, index: number, hash: string) => Promise<boolean>;
+  humanIdentityBinding?: { personID: string; contextID: string | null } | null;
   sessionID?: string | null;
   messageID?: string;
   sessionTitleRequested?: boolean;
@@ -284,15 +337,48 @@ export async function executeWorkspaceConversationAgentCore(input: {
   const searchResults = new Map<string, WorkspaceContactSearchResult>();
   const readableScopes = new Set<string>();
   const updateablePeople = new Set<string>();
+  const confirmedHandlePeople = new Set<string>();
+  const confirmedHandleClues = new Map<string, { type: "email" | "phone" | "wechat" | "linkedin_url" | "public_profile_url" | "source_native_id"; value: string }>();
   const sourceMessageID = input.messageID ?? randomUUID();
   const runState: {
     readScope: { personID: string; contextID: string } | null;
     proposal: WorkspaceConversationAgentEvent | null;
     memoryProposal: WorkspaceMemoryStagedProposal | null;
-  } = { readScope: null, proposal: null, memoryProposal: null };
+    observedImageClue: boolean;
+  } = { readScope: null, proposal: null, memoryProposal: null, observedImageClue: false };
   const admittedArtifactIds = (input.inputParts ?? []).map(
     (part) => part.artifactID,
   );
+  // Current admitted ordered image manifest for this Run: an image clue must
+  // name a real image part with a matching index, not merely any artifact id.
+  const admittedImages = new Map<string, { index: number; contentHash: string }>();
+  for (const part of input.inputParts ?? []) {
+    if (part.kind !== "image") continue;
+    const match = part.artifactID.match(/^conversation-image-[0-9a-f-]{36}-(\d+)-/iu);
+    admittedImages.set(part.artifactID, {
+      index: match ? Number(match[1]) : -1,
+      contentHash: part.contentHash,
+    });
+  }
+  // Personalized Memory scope needs a uniquely resolved identity: a current
+  // confirmed-handle owner or an explicit same-Run read. Search membership is
+  // only a candidate list, never identity authority.
+  const isResolvedSubject = (personID: string): boolean =>
+    confirmedHandlePeople.has(personID)
+    || input.humanIdentityBinding?.personID === personID;
+  const identityLookups = new Map<string, { query: string; image: { artifactId: string; index: number; hash: string } | null }>();
+  const resolvedSubjectCurrent = async (personID: string): Promise<boolean> => {
+    if (input.humanIdentityBinding?.personID === personID) return true;
+    const lookup = identityLookups.get(personID);
+    if (!lookup || !isResolvedSubject(personID)) return false;
+    if (lookup.image && !await input.imageIsCurrent?.(lookup.image.artifactId, lookup.image.index, lookup.image.hash)) return false;
+    const current = (await input.contacts.search(lookup.query)).filter(person => person.exactIdentityMatch);
+    if (current.length !== 1 || current[0]!.personID !== personID) return false;
+    const clue = confirmedHandleClues.get(personID);
+    if (!clue || current[0]!.confirmedHandleType !== clue.type || current[0]!.confirmedHandleValue !== clue.value) return false;
+    searchResults.set(personID, current[0]!);
+    return true;
+  };
   let toolCallCount = 0;
   // SDK startup and tool turns share the same admitted wall-clock ceiling as
   // scoped Chat. Keep the legacy HTTP adapter's tighter existing deadline.
@@ -347,16 +433,25 @@ export async function executeWorkspaceConversationAgentCore(input: {
       if (request.operation === "recall") {
         const personID = request.person_id ?? null;
         const contextID = request.relationship_context_id ?? null;
-        if (personID && !searchResults.has(personID)) {
+        // Personalized recall needs a uniquely resolved identity: a current
+        // confirmed-handle owner or an explicit read of that exact contact.
+        // Merely appearing in a search result set is not identity authority.
+        const authorizedPersonID =
+          personID !== null
+          && await resolvedSubjectCurrent(personID);
+        if (personID && !authorizedPersonID) {
           return toolFailure(
             name,
             "MEMORY_RECALL_NOT_AUTHORIZED",
-            "Recall the current user's own memory, or only a contact found in this Run.",
+            "Personalized recall needs a uniquely resolved contact, not just a search result.",
           );
         }
         if (personID && contextID) {
           const result = searchResults.get(personID);
-          if (!result?.contexts.some((context) => context.id === contextID)) {
+          const contextAuthorized =
+            input.humanIdentityBinding?.personID === personID
+            && input.humanIdentityBinding.contextID === contextID;
+          if (!contextAuthorized && !result?.contexts.some((context) => context.id === contextID)) {
             return toolFailure(
               name,
               "MEMORY_RECALL_NOT_AUTHORIZED",
@@ -366,7 +461,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
         }
         let recalled: Awaited<ReturnType<WorkspaceMemoryLookup["recall"]>>;
         try {
-          recalled = await input.memory.recall({ personID, contextID });
+          recalled = await input.memory.recall({ personID, contextID, identityClue: personID ? confirmedHandleClues.get(personID) ?? null : null, imageAuthority: personID ? identityLookups.get(personID)?.image ?? null : null });
         } catch {
           return toolFailure(
             name,
@@ -416,16 +511,20 @@ export async function executeWorkspaceConversationAgentCore(input: {
             "A message excerpt must be copied from the current user message.",
           );
         }
-        if (item.subject_id && !searchResults.has(item.subject_id)) {
+        if (item.subject_id && !await resolvedSubjectCurrent(item.subject_id)) {
           return toolFailure(
             name,
             "MEMORY_SCOPE_NOT_AUTHORIZED",
-            "A Memory item may only depend on a contact found in this Run.",
+            "A Memory item may only depend on a uniquely resolved contact.",
           );
         }
         if (
           item.subject_id
           && item.relationship_context_id
+          && !(
+            input.humanIdentityBinding?.personID === item.subject_id
+            && input.humanIdentityBinding.contextID === item.relationship_context_id
+          )
           && !searchResults
             .get(item.subject_id)
             ?.contexts.some((context) => context.id === item.relationship_context_id)
@@ -438,7 +537,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
         }
       }
       const personID = request.person_id ?? null;
-      if (personID && !searchResults.has(personID)) {
+      if (personID && !await resolvedSubjectCurrent(personID)) {
         return toolFailure(
           name,
           "MEMORY_SCOPE_NOT_AUTHORIZED",
@@ -449,6 +548,10 @@ export async function executeWorkspaceConversationAgentCore(input: {
       if (
         personID
         && contextID
+        && !(
+          input.humanIdentityBinding?.personID === personID
+          && input.humanIdentityBinding.contextID === contextID
+        )
         && !searchResults
           .get(personID)
           ?.contexts.some((context) => context.id === contextID)
@@ -460,12 +563,26 @@ export async function executeWorkspaceConversationAgentCore(input: {
         );
       }
       const target = personID ? searchResults.get(personID)! : null;
+      const newContactDisplayLabel = (request.person_display_label ?? target?.displayLabel ?? "").trim();
+      // The host derives authority from an authenticated human binding or a
+      // uniquely confirmed current handle; a model read is never selection.
+      let identityAuthority: "tentative" | "stable_handle" | "human_selection" = "tentative";
+      let identityClue: { type: "email" | "phone" | "wechat" | "linkedin_url" | "public_profile_url" | "source_native_id"; value: string } | null = null;
+      if (personID && input.humanIdentityBinding?.personID === personID) {
+        identityAuthority = "human_selection";
+      } else if (personID && confirmedHandleClues.has(personID)) {
+        identityAuthority = "stable_handle";
+        identityClue = confirmedHandleClues.get(personID)!;
+      }
       const newContact =
         request.contact_decision === "new"
           ? {
-              display_label:
-                request.person_display_label ?? target?.displayLabel ?? "",
-              relationship_context: "",
+              display_label: newContactDisplayLabel,
+              // A neutral organizing label keeps relationship Memory committable
+              // without asserting formal cooperation or a completed outcome.
+              relationship_context:
+                request.relationship_display_label?.trim()
+                || (newContactDisplayLabel ? `与${newContactDisplayLabel}的交流` : ""),
               source_locator: (request.new_contact_source_locator ?? null) as MemorySourceLocator | null,
             }
           : null;
@@ -476,6 +593,8 @@ export async function executeWorkspaceConversationAgentCore(input: {
           personID,
           contextID,
           contactDecision: request.contact_decision,
+          identityAuthority,
+          identityClue,
           newContact,
           sourceMessageID,
           items: request.items,
@@ -531,27 +650,85 @@ export async function executeWorkspaceConversationAgentCore(input: {
     const request = parsed.data;
     if (request.operation === "search") {
       const query = normalized(request.query);
+      const groundedInMessage = Boolean(query) && normalized(input.objective).includes(query);
+      // An image observation authorizes only a minimal candidate lookup: the
+      // locator must name a source admitted to this Run, the clue must equal
+      // the query and stay bounded, and it grants no identity confirmation.
+      const clue = request.source_clue ?? null;
+      const clueMatchesQuery = Boolean(
+        clue
+        && query
+        && normalized(clue.clue) === query
+        && clue.clue.length <= 120
+        && !/[*%\n\r]/u.test(clue.clue),
+      );
+      const clueArtifactAdmitted = Boolean(
+        clue
+        && admittedImages.has(clue.source_locator.artifact_id)
+        && (clue.source_locator.image_index === undefined
+          || clue.source_locator.image_index
+            === admittedImages.get(clue.source_locator.artifact_id)!.index),
+      );
+      const image = clue ? admittedImages.get(clue.source_locator.artifact_id) : null;
+      const imageGrounded = Boolean(clueMatchesQuery && clueArtifactAdmitted && image &&
+        await input.imageIsCurrent?.(clue!.source_locator.artifact_id, image.index, image.contentHash));
       if (
         !query ||
         /[*%]/u.test(query) ||
         query === "all" ||
         query === "全部" ||
-        !normalized(input.objective).includes(query)
+        (!groundedInMessage && !imageGrounded)
       ) {
         return toolFailure(
           name,
           "CONTACT_SEARCH_NOT_GROUNDED",
-          "Search requires one specific clue grounded in the current user message.",
+          "Search requires one specific clue grounded in the current user message or an admitted image locator.",
         );
       }
+      if (imageGrounded) runState.observedImageClue = true;
       const matches = await input.contacts.search(request.query);
       const results = matches.slice(0, request.maximum_results);
       for (const result of results) searchResults.set(result.personID, result);
-      const exactMatches = matches.filter((person) =>
-        person.exactIdentityMatch || normalized(person.displayLabel) === query,
+      // Only a server-owned current confirmed handle can mark a person as an
+      // exact identity; a display-label match is a candidate at most. The type
+      // type/value comes from the server matcher. An image clue only initiates
+      // lookup; a unique currently confirmed owner supplies identity authority.
+      const confirmedHandleMatches = matches.filter((person) => person.exactIdentityMatch === true);
+      for (const person of results) {
+        if (confirmedHandleMatches.length === 1 && person.exactIdentityMatch === true && person.confirmedHandleType && person.confirmedHandleValue) {
+          confirmedHandlePeople.add(person.personID);
+          if (groundedInMessage || imageGrounded) {
+            identityLookups.set(person.personID, { query: request.query, image: imageGrounded && image ? { artifactId: clue!.source_locator.artifact_id, index: image.index, hash: image.contentHash } : null });
+            confirmedHandleClues.set(person.personID, {
+              type: person.confirmedHandleType as
+                | "email"
+                | "phone"
+                | "wechat"
+                | "linkedin_url"
+                | "public_profile_url"
+                | "source_native_id",
+              value: person.confirmedHandleValue,
+            });
+          }
+        }
+      }
+      const uniqueConfirmedHandle =
+        confirmedHandleMatches.length === 1
+        && results.some((person) => person.personID === confirmedHandleMatches[0]!.personID);
+      if (uniqueConfirmedHandle) updateablePeople.add(confirmedHandleMatches[0]!.personID);
+      // A unique name match may still seed a reviewable contact-update proposal
+      // (existing general-contact behavior), but it never authorizes
+      // personalized Memory recall or stage.
+      const uniqueCandidateMatches = matches.filter(
+        (person) =>
+          person.exactIdentityMatch === true
+          || normalized(person.displayLabel) === query,
       );
-      if (exactMatches.length === 1 && results.some((person) => person.personID === exactMatches[0]!.personID)) {
-        updateablePeople.add(exactMatches[0]!.personID);
+      if (
+        uniqueCandidateMatches.length === 1
+        && results.some((person) => person.personID === uniqueCandidateMatches[0]!.personID)
+      ) {
+        updateablePeople.add(uniqueCandidateMatches[0]!.personID);
       }
       const readableScope = uniquelyGroundedScope(matches, input.objective);
       if (readableScope) readableScopes.add(readableScope);
@@ -566,7 +743,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
             person_id: result.personID,
             display_label: result.displayLabel,
             directory_revision: result.directoryRevision,
-            exact_identity_match: updateablePeople.has(result.personID),
+            exact_identity_match: confirmedHandlePeople.has(result.personID),
             relationship_contexts: result.contexts.map((context) => ({
               id: context.id,
               display_label: context.displayLabel,
@@ -832,10 +1009,18 @@ export async function executeWorkspaceConversationAgentCore(input: {
       const resolvedContext = resolvedPerson?.contexts.find(
         (context) => context.id === runState.readScope!.contextID,
       );
+      const markupOnly = isToolMarkupOnly(output.body);
       return {
-        block: block("answer", output.title, output.body, false),
+        block: markupOnly
+          ? block(
+              "answer",
+              "未能完成",
+              "这次没能完成整理，还没有保存任何内容。请重试，或补充说明你想推进的事。",
+              false,
+            )
+          : block("answer", output.title, output.body, false),
         event:
-          runState.readScope && resolvedPerson && resolvedContext
+          !markupOnly && runState.readScope && resolvedPerson && resolvedContext
             ? {
                 kind: "resolved_contact_context",
                 person_id: runState.readScope.personID,
@@ -968,6 +1153,8 @@ export async function executeWorkspaceConversationAgent(input: {
   onProgress?: (stage: AgentVisibleProgressStage) => void;
   signal?: AbortSignal;
   recordSourcePerson?: (personID: string) => void;
+  /** Authenticated entry binding; the only non-handle Memory authority. */
+  humanIdentityBinding?: { personID: string; contextID: string | null } | null;
 }): Promise<WorkspaceConversationAgentExecution> {
   const refs = input.observation?.source_refs;
   const recordScope = (personID: string, contextIDs: string[]) => {
@@ -976,20 +1163,29 @@ export async function executeWorkspaceConversationAgent(input: {
     if (!refs.person_ids.includes(personID)) refs.person_ids.push(personID);
     for (const id of contextIDs) if (!refs.relationship_context_ids.includes(id)) refs.relationship_context_ids.push(id);
   };
+  const withDatabaseTransaction = <T>(operation: (client: import("pg").PoolClient) => Promise<T>): Promise<T> =>
+    "release" in input.database ? operation(input.database) : inTransaction(input.database, operation);
   const contacts: WorkspaceContactLookup = {
     search: async (query) => {
       const response = await searchPeople(input.database, input.auth, query);
+      const identityQuery = peopleIdentityQuery(query);
       for (const person of response.people) recordScope(person.id, person.contexts.map((context) => context.id));
-      return response.people.map((person) => ({
-        personID: person.id,
-        displayLabel: person.display_label,
-        directoryRevision: person.profile?.revision ?? 1,
-        contexts: person.contexts.map((context) => ({
-          id: context.id,
-          displayLabel: context.display_label,
-        })),
-        exactIdentityMatch: person.identity_matches.some((match) => match.kind === "confirmed_handle"),
-      }));
+      return response.people.map((person) => {
+        const confirmed = person.identity_matches.find(
+          (match) => match.kind === "confirmed_handle",
+        );
+        return {
+          personID: person.id,
+          displayLabel: person.display_label,
+          directoryRevision: person.profile?.revision ?? 1,
+          contexts: person.contexts.map((context) => ({
+            id: context.id,
+            displayLabel: context.display_label,
+          })),
+          exactIdentityMatch: confirmed !== undefined,
+          ...(confirmed && identityQuery?.type === confirmed.handle_type ? { confirmedHandleType: confirmed.handle_type, confirmedHandleValue: identityQuery.value } : {}),
+        };
+      });
     },
     read: async (personID, contextID) => {
       const scope = await getRelationshipScope(input.database, input.auth, personID, contextID);
@@ -1007,9 +1203,35 @@ export async function executeWorkspaceConversationAgent(input: {
       };
     },
   };
+  const imageCurrent = async (client: DatabaseClient, artifactId: string, index: number, hash: string, lock = false) => {
+      const parsed = artifactId.match(/^conversation-image-([0-9a-f-]{36})-(\d+)-(.+)$/u);
+      if (!parsed || Number(parsed[2]) !== index || !input.sessionID) return false;
+      const result = await client.query<{ content_hash: string; content: Buffer }>(
+        `SELECT image.content_hash, image.content FROM conversation_message_images image
+         JOIN agent_sessions session ON session.account_id = image.account_id AND session.id = image.session_id
+         JOIN conversation_queue_entries entry ON entry.account_id = image.account_id AND entry.id = image.queue_entry_id
+         WHERE image.account_id = $1 AND image.session_id = $2 AND image.message_id = $3
+           AND image.image_index = $4 AND image.attachment_id = $5 AND image.expires_at > now()
+           AND session.created_by_user_id = $6 AND session.deleted_at IS NULL AND session.expires_at > now()
+           AND entry.created_by_user_id = $6 AND entry.expires_at > now() AND entry.content_state = 'retained'
+           AND NOT EXISTS (SELECT 1 FROM memory_source_revocations r WHERE r.account_id = image.account_id
+             AND ((r.source_kind = 'artifact' AND r.source_id = $7) OR (r.source_kind = 'session' AND r.source_id = image.session_id::text)))
+         ${lock ? "FOR SHARE OF image, session, entry" : ""}`,
+        [input.auth.accountId, input.sessionID, parsed[1], index, parsed[3], input.auth.userId, artifactId],
+      );
+      const row = result.rows[0];
+      return Boolean(row && row.content_hash === hash && createHash("sha256").update(row.content).digest("hex") === hash);
+  };
   const memory: WorkspaceMemoryLookup = {
-    recall: async ({ personID, contextID }) => {
-      const recalled = await recallMemories(input.database, input.auth, {
+    recall: async ({ personID, contextID, identityClue, imageAuthority }) => withDatabaseTransaction(async (client) => {
+      if (imageAuthority && !await imageCurrent(client, imageAuthority.artifactId, imageAuthority.index, imageAuthority.hash, true)) {
+        throw new Error("MEMORY_IMAGE_AUTHORITY_NO_LONGER_CURRENT");
+      }
+      if (personID && input.humanIdentityBinding?.personID !== personID &&
+          (!identityClue || await currentStableHandleOwner(client, input.auth.accountId, identityClue) !== personID)) {
+        throw new Error("MEMORY_IDENTITY_NO_LONGER_CURRENT");
+      }
+      const recalled = await recallMemories(client, input.auth, {
         surface: "chat",
         person_id: personID,
         relationship_context_id: contextID,
@@ -1024,15 +1246,17 @@ export async function executeWorkspaceConversationAgent(input: {
           evidence_retained: item.evidence_retained,
         })),
       };
-    },
+    }),
     stage: async ({
       personID,
       contextID,
       contactDecision,
+      identityAuthority,
+      identityClue,
       newContact,
       sourceMessageID,
       items,
-    }) => {
+    }) => withDatabaseTransaction(async (client) => {
       const authority: MemorySourceAuthority = {
         text: input.sourceText ?? input.objective,
         artifacts: [
@@ -1069,12 +1293,12 @@ export async function executeWorkspaceConversationAgent(input: {
         captureSubjectId: null,
         captureContextId: null,
       };
-      const isolated = typeof (input.database as { release?: unknown }).release === "function";
-      if (isolated) await input.database.query("SAVEPOINT memory_review_stage");
+      const isolated = typeof (client as { release?: unknown }).release === "function";
+      if (isolated) await client.query("SAVEPOINT memory_review_stage");
       let staged: Awaited<ReturnType<typeof stageMemoryProposal>>;
       try {
         staged = await stageMemoryProposal(
-          input.database,
+          client,
           input.auth,
           {
             idempotency_key: randomUUID(),
@@ -1085,6 +1309,8 @@ export async function executeWorkspaceConversationAgent(input: {
             person_id: personID,
             relationship_context_id: contextID,
             contact_decision: contactDecision,
+            identity_authority: identityAuthority,
+            identity_clue: identityClue,
             new_contact: newContact,
             proposer: {
               kind: "agent",
@@ -1095,10 +1321,10 @@ export async function executeWorkspaceConversationAgent(input: {
           },
           authority,
         );
-        if (isolated) await input.database.query("RELEASE SAVEPOINT memory_review_stage");
+        if (isolated) await client.query("RELEASE SAVEPOINT memory_review_stage");
       } catch {
         if (isolated) {
-          await input.database.query("ROLLBACK TO SAVEPOINT memory_review_stage");
+          await client.query("ROLLBACK TO SAVEPOINT memory_review_stage");
         }
         return null;
       }
@@ -1113,15 +1339,17 @@ export async function executeWorkspaceConversationAgent(input: {
         personID: staged.proposal.person_id ?? null,
         personDisplayLabel: staged.proposal.person_display_label ?? null,
       };
-    },
+    }),
   };
   return executeWorkspaceConversationAgentCore({
     objective: input.objective,
     ...(input.sourceText === undefined ? {} : { sourceText: input.sourceText }),
     provider: input.provider,
     workspaceID: input.auth.accountId,
+    imageIsCurrent: (artifactId, index, hash) => imageCurrent(input.database, artifactId, index, hash),
     contacts,
     memory,
+    ...(input.humanIdentityBinding ? { humanIdentityBinding: input.humanIdentityBinding } : {}),
     ...(input.runID ? { runID: input.runID } : {}),
     ...(input.observation ? { observation: input.observation } : {}),
     ...(input.continuation ? { continuation: input.continuation } : {}),

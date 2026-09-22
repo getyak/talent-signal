@@ -664,6 +664,14 @@ function itemMatchesTarget(
  * claims for a different person are produced by regenerateMemoryProposal, not
  * by moving the old person's sentences.
  */
+async function currentRelationshipLabel(client: DatabaseClient, accountId: string, binding: IdentityBinding, newLabel: string | null | undefined): Promise<string | null> {
+  if (!binding.contextId) return newLabel?.trim() || null;
+  const rows = await client.query<{display_label:string}>(
+    "SELECT display_label FROM assignments WHERE account_id=$1 AND id=$2 AND subject_id=$3 AND status='active'",
+    [accountId,binding.contextId,binding.personId]);
+  return rows.rows[0]?.display_label ?? null;
+}
+
 export async function rebaseMemoryProposal(
   client: DatabaseClient,
   auth: AuthContext,
@@ -698,10 +706,7 @@ export async function rebaseMemoryProposal(
   });
   const personId = binding.personId;
   const contextId = binding.contextId;
-  const relationshipDisplayLabel =
-    request.contact_decision === "new"
-      ? request.new_contact?.relationship_context?.trim() || null
-      : null;
+  const relationshipDisplayLabel = await currentRelationshipLabel(client,auth.accountId,binding,request.new_contact?.relationship_context);
 
   const sameTarget =
     previousPersonId === personId
@@ -979,6 +984,7 @@ export async function regenerateMemoryProposal(
       binding,
       sameTarget,
       images,
+      relationshipLabel: await currentRelationshipLabel(client,auth.accountId,binding,request.new_contact?.relationship_context),
       existingTexts: recalled.items.map((item) => item.display_text),
       items,
     };
@@ -1004,7 +1010,7 @@ export async function regenerateMemoryProposal(
     targetPersonId: prepared.binding.personId,
     targetContextId: prepared.binding.contextId,
     targetDisplayLabel: prepared.binding.displayLabel,
-    relationshipDisplayLabel: request.new_contact?.relationship_context?.trim() || null,
+    relationshipDisplayLabel: prepared.relationshipLabel,
     existingMemoryTexts: prepared.existingTexts,
   });
 
@@ -1129,7 +1135,7 @@ export async function regenerateMemoryProposal(
         binding.status,
         binding.authority,
         binding.displayLabel,
-        request.new_contact?.relationship_context?.trim() || null,
+        await currentRelationshipLabel(client,auth.accountId,binding,request.new_contact?.relationship_context),
         sourceRevision,
       ],
     );

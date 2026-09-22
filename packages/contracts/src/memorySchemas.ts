@@ -344,6 +344,11 @@ export const MemoryReviewDraftRequestSchema = Type.Object(
  * Counts only ever describe the visible item set. `review_credential` is
  * returned exactly once, when the purpose-bound scope is created.
  */
+export const MemorySourceStatusSchema = Type.Union([
+  Type.Literal("available"),
+  Type.Literal("unavailable"),
+]);
+
 export const MemoryReviewViewSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
@@ -361,12 +366,23 @@ export const MemoryReviewViewSchema = Type.Object(
     relationship_context_id: optional(id),
     person_display_label: optional(text(200)),
     relationship_display_label: optional(text(200)),
+    pursuit_id: optional(id),
+    pursuit_role_id: optional(id),
+    pursuit_role_evidence_fragment_id: optional(id),
+    pursuit_capture_id: optional(id),
+    pursuit_capture_version: optional(Type.Integer({ minimum: 1 })),
+    /* Exact originating source Session/message; the BFF binds a Chat
+     * capability to this and never trusts a browser target claim. */
+    source_session_id: optional(id),
+    source_message_id: optional(id),
     contact_decision: MemoryContactDecisionSchema,
     contact_status: MemoryContactStatusSchema,
     status: MemoryProposalStatusSchema,
     expires_at: stamp,
     visible_item_count: Type.Integer({ minimum: 0 }),
     visible_default_selected_count: Type.Integer({ minimum: 0 }),
+    source_status: MemorySourceStatusSchema,
+    source_unavailable_visible_item_count: Type.Integer({ minimum: 0 }),
     items: Type.Array(MemoryProposalItemSchema, { maxItems: 200 }),
     draft: Type.Union([MemoryReviewDraftSchema, Type.Null()]),
   },
@@ -378,6 +394,12 @@ export const MemoryOpenReviewRequestSchema = Type.Object(
     purpose: MemorySurfaceSchema,
     person_id: optional(id),
     relationship_context_id: optional(id),
+    pursuit_id: optional(id),
+    pursuit_role_id: optional(id),
+    pursuit_role_evidence_fragment_id: optional(id),
+    pursuit_capture_id: optional(id),
+    pursuit_capture_version: optional(Type.Integer({ minimum: 1 })),
+    session_id: optional(id),
   },
   obj,
 );
@@ -445,7 +467,11 @@ export const MemoryReceiptSchema = Type.Object(
     created_person_id: optional(id),
     person_display_label: optional(text(200)),
     created_relationship_context_id: optional(id),
+    undo_contact_outcome: optional(Type.Union([Type.Literal("retained"), Type.Literal("reclaimed")])),
+    undo_context_outcome: optional(Type.Union([Type.Literal("retained"), Type.Literal("reclaimed")])),
     item_count: Type.Integer({ minimum: 0 }),
+    /** Decisions that actually wrote or updated a Memory row; keep_old/skip excluded. */
+    applied_item_count: Type.Integer({ minimum: 0 }),
     created_item_ids: Type.Array(id, { maxItems: 200 }),
     updated_item_ids: Type.Array(id, { maxItems: 200 }),
     skipped_item_ids: Type.Array(id, { maxItems: 200 }),
@@ -553,6 +579,11 @@ export const MemoryRecallResponseSchema = Type.Object(
 
 export const MemoryItemMutationRequestSchema = Type.Object(
   {
+    entry_scope: Type.Optional(Type.Object({
+      purpose: MemorySurfaceSchema, person_id: optional(id), relationship_context_id: optional(id),
+      pursuit_id: optional(id), pursuit_role_id: optional(id), pursuit_role_evidence_fragment_id: optional(id),
+      pursuit_capture_id: optional(id), pursuit_capture_version: optional(Type.Integer({ minimum: 1 })),
+    }, obj)),
     operation: Type.Union([Type.Literal("correct"), Type.Literal("delete")]),
     idempotency_key: id,
     expected_version: Type.Integer({ minimum: 1 }),
@@ -651,12 +682,124 @@ export const MemoryDismissResponseSchema = Type.Object(
   obj,
 );
 
+/**
+ * One authorized person/relationship association reachable from a Pursuit.
+ * The resolver verifies the current account and Pursuit first and never
+ * returns private self fields.
+ */
+export const MemoryPursuitScopeSchema = Type.Object(
+  {
+    person_id: id,
+    person_display_label: text(200),
+    relationship_context_id: optional(id),
+    relationship_display_label: optional(text(200)),
+    role_id: optional(id),
+    role_evidence_fragment_id: optional(id),
+    capture_id: optional(id),
+    capture_version: optional(Type.Integer({ minimum: 1 })),
+    has_pending_review: Type.Boolean(),
+  },
+  obj,
+);
+
+export const MemoryPursuitScopesResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    pursuit_id: id,
+    pursuit_display_label: optional(text(300)),
+    scopes: Type.Array(MemoryPursuitScopeSchema, { maxItems: 50 }),
+  },
+  obj,
+);
+
+/**
+ * Scope-bound operation view. A restricted projection contains only the
+ * effects visible to the current purpose/target; whole-batch undo is allowed
+ * only when every original effect is visible and actionable here.
+ */
+export const MemoryScopedOperationViewSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    operation_key: id,
+    commit_id: optional(id),
+    commit_revision: optional(Type.Integer({ minimum: 1 })),
+    state: Type.Union([
+      Type.Literal("applied"),
+      Type.Literal("undone"),
+      Type.Literal("pending"),
+      Type.Literal("unavailable"),
+      Type.Literal("source_revoked"),
+      Type.Literal("scope_mismatch"),
+    ]),
+    purpose: MemorySurfaceSchema,
+    person_id: optional(id),
+    relationship_context_id: optional(id),
+    pursuit_id: optional(id),
+    pursuit_role_id: optional(id),
+    pursuit_role_evidence_fragment_id: optional(id),
+    pursuit_capture_id: optional(id),
+    pursuit_capture_version: optional(Type.Integer({ minimum: 1 })),
+    source_session_id: optional(id),
+    visible_effect_count: Type.Integer({ minimum: 0 }),
+    visible_receipt: Type.Union([MemoryReceiptSchema, Type.Null()]),
+    undo: Type.Object(
+      {
+        allowed: Type.Boolean(),
+        limits: Type.Array(text(200), { maxItems: 10 }),
+      },
+      obj,
+    ),
+  },
+  obj,
+);
+
+export const MemoryOperationUndoRequestSchema = Type.Object(
+  {
+    idempotency_key: id,
+    expected_commit_revision: Type.Integer({ minimum: 1 }),
+    purpose: MemorySurfaceSchema,
+    person_id: optional(id),
+    relationship_context_id: optional(id),
+    session_id: optional(id),
+    pursuit_id: optional(id),
+    pursuit_role_id: optional(id),
+    pursuit_role_evidence_fragment_id: optional(id),
+    pursuit_capture_id: optional(id),
+    pursuit_capture_version: optional(Type.Integer({ minimum: 1 })),
+    reason: text(500),
+  },
+  obj,
+);
+
+export const MemoryOperationUndoResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    replayed: Type.Boolean(),
+    receipt: MemoryReceiptSchema,
+  },
+  obj,
+);
+
 export type MemoryIdentityAuthority = Static<
   typeof MemoryIdentityAuthoritySchema
 >;
 export type MemoryDependenceKind = Static<typeof MemoryDependenceKindSchema>;
 export type MemoryDismissRequest = Static<typeof MemoryDismissRequestSchema>;
 export type MemoryDismissResponse = Static<typeof MemoryDismissResponseSchema>;
+export type MemorySourceStatus = Static<typeof MemorySourceStatusSchema>;
+export type MemoryPursuitScope = Static<typeof MemoryPursuitScopeSchema>;
+export type MemoryPursuitScopesResponse = Static<
+  typeof MemoryPursuitScopesResponseSchema
+>;
+export type MemoryScopedOperationView = Static<
+  typeof MemoryScopedOperationViewSchema
+>;
+export type MemoryOperationUndoRequest = Static<
+  typeof MemoryOperationUndoRequestSchema
+>;
+export type MemoryOperationUndoResponse = Static<
+  typeof MemoryOperationUndoResponseSchema
+>;
 export type MemoryProposalReference = {
   proposal_id: string;
   revision: number;

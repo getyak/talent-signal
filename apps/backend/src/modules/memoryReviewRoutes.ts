@@ -5,6 +5,7 @@ import {
   MemoryDismissRequestSchema,
   MemoryItemMutationRequestSchema,
   MemoryOpenReviewRequestSchema,
+  MemoryOperationUndoRequestSchema,
   MemoryProposalRebaseRequestSchema,
   MemoryProposalStageRequestSchema,
   MemoryReviewDraftRequestSchema,
@@ -13,6 +14,7 @@ import {
   type MemoryDismissRequest,
   type MemoryItemMutationRequest,
   type MemoryOpenReviewRequest,
+  type MemoryOperationUndoRequest,
   type MemoryProposalRebaseRequest,
   type MemoryProposalStageRequest,
   type MemoryReviewDraftRequest,
@@ -30,16 +32,20 @@ import {
   dismissMemoryReview,
   listMemoryProposals,
   mutateMemoryItem,
+  readMemoryItem,
   openMemoryReview,
   readMemoryOperation,
   readMemoryReview,
+  readMemoryScopedOperationView,
   rebaseMemoryProposal,
   recallMemories,
   regenerateMemoryProposal,
+  resolveMemoryPursuitScopes,
   resolveSessionSourceAuthority,
   saveMemoryReviewDraft,
   stageMemoryProposal,
   undoMemoryCommit,
+  undoMemoryScopedOperation,
   type MemoryProposalRegenerator,
   type MemoryRegenerationImageLoader,
 } from "./memoryReview.js";
@@ -49,9 +55,35 @@ const reviewParams = Type.Object({ reviewScopeId: Type.String({ format: "uuid" }
 const commitParams = Type.Object({ commitId: Type.String({ format: "uuid" }) });
 const operationParams = Type.Object({ operationKey: Type.String({ format: "uuid" }) });
 const itemParams = Type.Object({ itemId: Type.String({ format: "uuid" }) });
-const credentialQuery = Type.Object({
-  credential: Type.Optional(Type.String({ minLength: 16, maxLength: 200 })),
+const pursuitParams = Type.Object({ pursuitId: Type.String({ format: "uuid" }) });
+const operationViewQuery = Type.Object({
+  purpose: Type.Union([
+    Type.Literal("chat"),
+    Type.Literal("people"),
+    Type.Literal("relationship"),
+  ]),
+  person_id: Type.Optional(Type.String({ format: "uuid" })),
+  relationship_context_id: Type.Optional(Type.String({ format: "uuid" })),
+  session_id: Type.Optional(Type.String({ format: "uuid" })),
+  pursuit_id: Type.Optional(Type.String({ format: "uuid" })),
+  pursuit_role_id: Type.Optional(Type.String({ format: "uuid" })),
+  pursuit_role_evidence_fragment_id: Type.Optional(Type.String({ format: "uuid" })),
+  pursuit_capture_id: Type.Optional(Type.String({ format: "uuid" })),
+  pursuit_capture_version: Type.Optional(Type.Integer({ minimum: 1 })),
 });
+/**
+ * Review credentials travel in a header, never a query string, so the request
+ * URL (which the platform logger records) can never contain the capability.
+ */
+export const MEMORY_REVIEW_CREDENTIAL_HEADER = "x-memory-review-credential";
+
+function reviewCredential(request: {
+  headers: Record<string, string | string[] | undefined>;
+}): string | null {
+  const value = request.headers[MEMORY_REVIEW_CREDENTIAL_HEADER];
+  if (typeof value === "string" && value.length > 0) return value;
+  return null;
+}
 const listQuery = Type.Object({
   purpose: Type.Optional(
     Type.Union([
@@ -60,6 +92,7 @@ const listQuery = Type.Object({
       Type.Literal("relationship"),
     ]),
   ),
+  session_id: Type.Optional(Type.String({ format: "uuid" })),
   person_id: Type.Optional(Type.String({ format: "uuid" })),
   relationship_context_id: Type.Optional(Type.String({ format: "uuid" })),
 });
@@ -90,6 +123,7 @@ export function registerMemoryReviewRoutes(
   app.get<{
     Querystring: {
       purpose?: MemorySurface;
+      session_id?: string;
       person_id?: string;
       relationship_context_id?: string;
     };
@@ -103,8 +137,27 @@ export function registerMemoryReviewRoutes(
         request.query.purpose ?? null,
         request.query.person_id ?? null,
         request.query.relationship_context_id ?? null,
+        request.query.session_id ?? null,
       ),
   );
+
+  // Minimal immutable lineage for the authenticated BFF, without proposal text.
+  app.get<{ Params: { proposalId: string } }>("/v1/memory/proposals/:proposalId/lineage", {
+    preHandler: authenticate, schema: { tags: ["memory"], security, params: proposalParams },
+  }, async (request) => {
+    const result = await pool.query(`SELECT session_id AS source_session_id FROM memory_proposals
+      WHERE account_id = $1 AND id = $2 AND created_by_user_id = $3`,
+      [request.auth.accountId, request.params.proposalId, request.auth.userId]);
+    if (!result.rows[0]) throw new ApiError(404, "MEMORY_NOT_FOUND", "The proposal was not found.");
+    return result.rows[0];
+  });
+  app.get<{ Params: { itemId: string } }>("/v1/memory/items/:itemId/scope", {
+    preHandler: authenticate, schema: { tags: ["memory"], security, params: itemParams },
+  }, async (request) => {
+    const item = await readMemoryItem(pool, request.auth, request.params.itemId);
+    if (!item) throw new ApiError(404, "MEMORY_NOT_FOUND", "The Memory was not found.");
+    return { scope: item.scope, person_id: item.subject_id, relationship_context_id: item.relationship_context_id };
+  });
 
   app.post<{ Body: unknown }>("/v1/memory/proposals", {
     preHandler: authenticate,
@@ -263,7 +316,7 @@ export function registerMemoryReviewRoutes(
     },
   );
 
-  app.post<{ Params: { reviewScopeId: string }; Querystring: { credential?: string }; Body: unknown }>(
+  app.post<{ Params: { reviewScopeId: string }; Body: unknown }>(
     "/v1/memory/reviews/:reviewScopeId/dismissals",
     {
       preHandler: authenticate,
@@ -271,7 +324,6 @@ export function registerMemoryReviewRoutes(
         tags: ["memory"],
         security,
         params: reviewParams,
-        querystring: credentialQuery,
         body: MemoryDismissRequestSchema,
       },
     },
@@ -280,7 +332,7 @@ export function registerMemoryReviewRoutes(
         pool,
         request.auth,
         request.params.reviewScopeId,
-        request.query.credential ?? null,
+        reviewCredential(request),
         request.body as MemoryDismissRequest,
       );
       return reply
@@ -290,21 +342,20 @@ export function registerMemoryReviewRoutes(
     },
   );
 
-  app.get<{ Params: { reviewScopeId: string }; Querystring: { credential?: string } }>(
+  app.get<{ Params: { reviewScopeId: string } }>(
     "/v1/memory/reviews/:reviewScopeId",
-    { preHandler: authenticate, schema: { tags: ["memory"], security, params: reviewParams, querystring: credentialQuery } },
+    { preHandler: authenticate, schema: { tags: ["memory"], security, params: reviewParams } },
     async (request) =>
       readMemoryReview(
         pool,
         request.auth,
         request.params.reviewScopeId,
-        request.query.credential ?? null,
+        reviewCredential(request),
       ),
   );
 
   app.put<{
     Params: { reviewScopeId: string };
-    Querystring: { credential?: string };
     Body: unknown;
   }>(
     "/v1/memory/reviews/:reviewScopeId/draft",
@@ -314,7 +365,6 @@ export function registerMemoryReviewRoutes(
         tags: ["memory"],
         security,
         params: reviewParams,
-        querystring: credentialQuery,
         body: MemoryReviewDraftRequestSchema,
       },
     },
@@ -323,14 +373,13 @@ export function registerMemoryReviewRoutes(
         pool,
         request.auth,
         request.params.reviewScopeId,
-        request.query.credential ?? null,
+        reviewCredential(request),
         request.body as MemoryReviewDraftRequest,
       ),
   );
 
   app.post<{
     Params: { reviewScopeId: string };
-    Querystring: { credential?: string };
     Body: unknown;
   }>(
     "/v1/memory/reviews/:reviewScopeId/commits",
@@ -340,7 +389,6 @@ export function registerMemoryReviewRoutes(
         tags: ["memory"],
         security,
         params: reviewParams,
-        querystring: credentialQuery,
         body: MemoryCommitRequestSchema,
       },
     },
@@ -349,7 +397,7 @@ export function registerMemoryReviewRoutes(
         pool,
         request.auth,
         request.params.reviewScopeId,
-        request.query.credential ?? null,
+        reviewCredential(request),
         request.body as MemoryCommitRequest,
       );
       return reply
@@ -357,6 +405,73 @@ export function registerMemoryReviewRoutes(
         .status(result.status)
         .send(result.body);
     },
+  );
+
+  app.get<{ Params: { pursuitId: string } }>(
+    "/v1/memory/pursuits/:pursuitId/scopes",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["memory"],
+        security,
+        params: pursuitParams,
+      },
+    },
+    async (request) =>
+      resolveMemoryPursuitScopes(pool, request.auth, request.params.pursuitId),
+  );
+
+  app.get<{
+    Params: { operationKey: string };
+    Querystring: {
+      purpose: MemorySurface;
+      person_id?: string;
+      relationship_context_id?: string;
+      session_id?: string;
+      pursuit_id?: string;
+      pursuit_role_id?: string;
+      pursuit_role_evidence_fragment_id?: string;
+      pursuit_capture_id?: string;
+      pursuit_capture_version?: number;
+    };
+  }>(
+    "/v1/memory/operation-views/:operationKey",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["memory"],
+        security,
+        params: operationParams,
+        querystring: operationViewQuery,
+      },
+    },
+    async (request) =>
+      readMemoryScopedOperationView(
+        pool,
+        request.auth,
+        request.params.operationKey,
+        request.query,
+      ),
+  );
+
+  app.post<{ Params: { operationKey: string }; Body: unknown }>(
+    "/v1/memory/operation-views/:operationKey/undo",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["memory"],
+        security,
+        params: operationParams,
+        body: MemoryOperationUndoRequestSchema,
+      },
+    },
+    async (request) =>
+      undoMemoryScopedOperation(
+        pool,
+        request.auth,
+        request.params.operationKey,
+        request.body as MemoryOperationUndoRequest,
+      ),
   );
 
   app.get<{ Params: { operationKey: string } }>(

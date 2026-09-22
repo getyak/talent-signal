@@ -950,7 +950,7 @@ async function purgeSourceContent(
      WHERE account_id = $1 AND capture_id = $2`,
     [row.account_id, row.capture_id],
   );
-  await client.query(
+  const advanced = await client.query<{ id: string; version: number }>(
     `UPDATE captures
      SET source_metadata = jsonb_strip_nulls(jsonb_build_object(
            'kind', source_kind,
@@ -960,9 +960,13 @@ async function purgeSourceContent(
          )),
          version = version + 1,
          updated_at = $3
-     WHERE account_id = $1 AND id = $2`,
+     WHERE account_id = $1 AND id = $2 RETURNING id, version`,
     [row.account_id, row.capture_id, occurredAt],
   );
+  for (const capture of advanced.rows) {
+    await client.query(`INSERT INTO source_natural_epoch_transitions(account_id,capture_id,from_version,to_version,transition_kind,occurred_at)
+      VALUES($1,$2,$3,$4,'payload_purged',$5)`, [row.account_id, capture.id, capture.version - 1, capture.version, occurredAt]);
+  }
   await client.query(
     `UPDATE idempotency_records
      SET response_body = jsonb_build_object('capture_id', $2)

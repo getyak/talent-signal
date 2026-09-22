@@ -156,6 +156,11 @@ export interface ReviewScopeRow {
   relationship_context_id: string | null;
   source_session_id: string | null;
   source_message_id: string | null;
+  pursuit_id: string | null;
+  pursuit_role_id: string | null;
+  pursuit_role_evidence_fragment_id: string | null;
+  pursuit_capture_id: string | null;
+  pursuit_capture_version: number | null;
   revision: number;
   created_at: Date;
   expires_at: Date;
@@ -171,6 +176,8 @@ export interface ReceiptRow {
   created_person_id: string | null;
   person_display_label: string | null;
   created_relationship_context_id: string | null;
+  undo_contact_outcome: "retained" | "reclaimed" | null;
+  undo_context_outcome: "retained" | "reclaimed" | null;
   item_count: number;
   created_item_ids: string[];
   updated_item_ids: string[];
@@ -327,10 +334,15 @@ export async function loadReviewScope(
   return result.rows[0] ?? null;
 }
 
+/**
+ * Canonical proposal-level draft for one reader. The draft is keyed by
+ * proposal, not by a single purpose-bound review scope, so every surface sees
+ * the merged selection while only its own visible items are submitted.
+ */
 export async function loadDraft(
   client: DatabaseClient,
   accountId: string,
-  reviewScopeId: string,
+  proposalId: string,
   readerUserId: string,
 ): Promise<MemoryReviewDraft | null> {
   const result = await client.query<{
@@ -344,8 +356,9 @@ export async function loadDraft(
     `SELECT contact_decision, selected_item_ids, edited_text, item_decisions,
             revision, updated_at
      FROM memory_review_drafts
-     WHERE account_id = $1 AND review_scope_id = $2 AND reader_user_id = $3`,
-    [accountId, reviewScopeId, readerUserId],
+     WHERE account_id = $1 AND proposal_id = $2 AND reader_user_id = $3
+       AND (expires_at IS NULL OR expires_at > now())`,
+    [accountId, proposalId, readerUserId],
   );
   const row = result.rows[0];
   if (!row) return null;
@@ -448,6 +461,9 @@ export function serializeReceipt(input: {
   const keptOldItemIds = decisions
     .filter((entry) => entry.decision === "keep_old")
     .map((entry) => entry.proposal_item_id);
+  const appliedItemCount = decisions.filter(
+    (entry) => entry.decision !== "keep_old" && entry.decision !== "skip",
+  ).length;
   return {
     contract_version: CONTRACT_VERSION,
     commit_id: row.commit_id,
@@ -459,7 +475,10 @@ export function serializeReceipt(input: {
     created_person_id: row.created_person_id,
     person_display_label: row.person_display_label,
     created_relationship_context_id: row.created_relationship_context_id,
+    undo_contact_outcome: row.undo_contact_outcome ?? null,
+    undo_context_outcome: row.undo_context_outcome ?? null,
     item_count: row.item_count,
+    applied_item_count: appliedItemCount,
     created_item_ids: row.created_item_ids,
     updated_item_ids: row.updated_item_ids,
     skipped_item_ids: row.skipped_item_ids,
@@ -574,15 +593,29 @@ export async function currentStableHandleOwner(
 ): Promise<string | null> {
   const normalized = normalizeIdentityHandle(clue.type as IdentityHandleType, clue.value);
   if (!normalized) return null;
-  const result = await client.query<{ subject_id: string }>(
-    `SELECT subject_id FROM identity_handles
-     WHERE account_id = $1 AND handle_type = $2 AND normalized_value_hash = $3
-       AND status = 'confirmed'
-       AND (valid_until IS NULL OR valid_until > now())
-     LIMIT 1`,
+  const result = await client.query<{ subject_id: string; source_resource_id: string | null }>(
+    `SELECT handles.subject_id, handles.source_resource_id FROM identity_handles handles
+     JOIN subjects subject ON subject.account_id = handles.account_id AND subject.id = handles.subject_id AND subject.status = 'active'
+     LEFT JOIN source_resources resource ON resource.account_id = handles.account_id AND resource.id = handles.source_resource_id
+     LEFT JOIN source_retention_receipts receipt ON receipt.account_id = resource.account_id AND receipt.capture_id = resource.capture_id
+     WHERE handles.account_id = $1 AND handles.handle_type = $2 AND handles.normalized_value_hash = $3
+       AND handles.status = 'confirmed' AND (handles.valid_until IS NULL OR handles.valid_until > now())
+       AND (handles.source_resource_id IS NULL OR (resource.processing_state <> 'deleted'
+         AND receipt.authorization_state = 'authorized' AND (receipt.authorization_expires_at IS NULL OR receipt.authorization_expires_at > now())))
+     ORDER BY handles.id LIMIT 2 FOR SHARE OF handles, subject`,
     [accountId, clue.type, sha256(normalized)],
   );
-  return result.rows[0]?.subject_id ?? null;
+  if (result.rows.length !== 1) return null;
+  const owner = result.rows[0]!;
+  if (owner.source_resource_id) {
+    const source = await client.query(`SELECT resource.id FROM source_resources resource
+      JOIN source_retention_receipts receipt ON receipt.account_id = resource.account_id AND receipt.capture_id = resource.capture_id
+      WHERE resource.account_id = $1 AND resource.id = $2 AND resource.processing_state <> 'deleted'
+        AND receipt.authorization_state = 'authorized' AND (receipt.authorization_expires_at IS NULL OR receipt.authorization_expires_at > now())
+      FOR SHARE OF resource, receipt`, [accountId, owner.source_resource_id]);
+    if (!source.rows[0]) return null;
+  }
+  return owner.subject_id;
 }
 
 /**

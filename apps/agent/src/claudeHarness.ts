@@ -114,6 +114,14 @@ export interface ClaudeHarnessRequest {
   onText?: (text: string) => void;
   /** Trusted SDK completion metadata, internal to this Run; not model input. */
   onToolCompleted?: (event: HarnessToolObservation) => void;
+  /** Opt-in diagnostic metadata only: never model text, arguments or credentials. */
+  onProtocolMetadata?: (event: {
+    kind: "initialized" | "assistant";
+    tools?: string[];
+    mcpConnected?: boolean;
+    blockTypes?: string[];
+    stopReason?: string | null;
+  }) => void;
 }
 
 export interface ClaudeHarnessResult {
@@ -529,7 +537,12 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
       stream = warm.query(prompt());
     } else stream = sdkQuery({ prompt: prompt(), options });
     for await (const message of stream) {
-      if (message.type === "system" && message.subtype === "init") sdkTiming.initializedAfterMs ??= Date.now() - executionStarted;
+      if (message.type === "system" && message.subtype === "init") {
+        sdkTiming.initializedAfterMs ??= Date.now() - executionStarted;
+        request.onProtocolMetadata?.({kind:"initialized",
+          tools:(message.tools??[]).filter(name=>allowed.has(name)),
+          mcpConnected:(message.mcp_servers??[]).some(server=>server.name==="talent_signal" && server.status==="connected")});
+      }
       if (message.type === "system" && message.subtype === "api_retry" && apiRetries.length < 30) apiRetries.push({
         afterMs: Date.now() - executionStarted, attempt: message.attempt, maxRetries: message.max_retries,
         delayMs: message.retry_delay_ms, httpStatus: message.error_status,
@@ -547,6 +560,11 @@ async function executeClaudeHarness(configuration: ClaudeHarnessConfiguration, r
         if (message.event.delta.text) { streamedText = true; request.onText(message.event.delta.text); }
       }
       if (message.type === "assistant") {
+        const safeTypes=new Set(["text","tool_use","thinking","redacted_thinking","server_tool_use","tool_search_tool_result"]);
+        const safeStops=new Set(["end_turn","tool_use","max_tokens","stop_sequence","pause_turn","refusal"]);
+        request.onProtocolMetadata?.({kind:"assistant",
+          blockTypes:(message.message.content??[]).map(block=>safeTypes.has(block.type)?block.type:"other"),
+          stopReason:message.message.stop_reason && safeStops.has(message.message.stop_reason)?message.message.stop_reason:null});
         if (message.message.model && !message.message.model.startsWith("<")) sdkTiming.firstModelResponseAfterMs ??= Date.now() - executionStarted;
         if(message.message.model && !message.message.model.startsWith("<"))reportedModels.add(message.message.model);
         if (message.message.model && !message.message.model.startsWith("<")) observation?.recordSDKAssistant(message.message, message.message,

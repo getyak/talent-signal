@@ -84,6 +84,7 @@ type Props = {
   meetingReadFailed?: boolean;
   accountId?: string;
   chatSessionVersion?: string;
+  entryCapability?: string | null;
   initialDetail: SessionDetail;
   sessionVersion: string | null;
   initialError: string | null;
@@ -117,7 +118,7 @@ function SessionComposerMode(props: Props) {
     return () => { mounted = false; };
   }, [props.storageScope, props.initialDetail.session_id]);
   if (legacy === null) return <section aria-label="正在加载对话"><h1>{props.initialDetail.title}</h1><p role="status">正在加载对话…</p></section>;
-  if (!legacy) return <QueuedConversation initialDetail={props.initialDetail} scope={props.storageScope} chatBinding={props.chatSessionVersion!} detailBinding={props.sessionVersion!} meetingLinks={props.meetingLinks} meetingReadFailed={props.meetingReadFailed}/>;
+  if (!legacy) return <QueuedConversation initialDetail={props.initialDetail} scope={props.storageScope} chatBinding={props.chatSessionVersion!} detailBinding={props.sessionVersion!} meetingLinks={props.meetingLinks} meetingReadFailed={props.meetingReadFailed} entryCapability={props.entryCapability ?? null}/>;
   return <LegacySessionWorkbench {...props}/>;
 }
 

@@ -36,6 +36,45 @@ import {
   type ReviewScopeRow,
 } from "./memoryReviewStore.js";
 import { verifyPendingSourceAuthority } from "./memorySourceVerification.js";
+import { assertPursuitAssociationCurrent } from "./memoryPursuitScopes.js";
+
+/**
+ * Revalidate a stored Pursuit association before any read/mutation, in the
+ * caller's transaction so authority cannot change between check and write.
+ */
+async function revalidateScopePursuit(
+  client: DatabaseClient,
+  auth: AuthContext,
+  scope: ReviewScopeRow,
+  lock: boolean,
+): Promise<void> {
+  if (!scope.pursuit_id) return;
+  if (
+    !scope.pursuit_role_id
+    || !scope.pursuit_role_evidence_fragment_id
+    || !scope.person_id
+  ) {
+    throw new ApiError(
+      409,
+      "MEMORY_PURSUIT_ASSOCIATION_STALE",
+      "The stored Pursuit association is incomplete; reopen the review from the Pursuit.",
+    );
+  }
+  await assertPursuitAssociationCurrent(
+    client,
+    auth,
+    {
+      pursuitId: scope.pursuit_id,
+      roleId: scope.pursuit_role_id,
+      evidenceFragmentId: scope.pursuit_role_evidence_fragment_id,
+      personId: scope.person_id,
+      relationshipContextId: scope.relationship_context_id,
+      captureVersion: scope.pursuit_capture_version,
+      captureId: scope.pursuit_capture_id,
+    },
+    { lock },
+  );
+}
 
 export function hashReviewCredential(token: string): string {
   return sha256(`memory-review-credential:${token}`);
@@ -183,7 +222,17 @@ async function buildReviewView(
   proposal: ProposalRow,
 ): Promise<MemoryReviewView> {
   const items = await loadProposalItems(client, auth.accountId, proposal.id);
-  const visible = await visibleReviewItems(client, auth, scope, proposal, items);
+  const scoped = visibleItems(scope, items);
+  const verification = await verifyPendingSourceAuthority(
+    client,
+    auth,
+    proposal,
+    scoped,
+  );
+  const visible = scoped.filter(
+    (item) => !verification.unavailableItemIds.has(item.id),
+  );
+  const unavailableVisibleCount = scoped.length - visible.length;
   const draft = filterDraft(
     await loadDraft(client, auth.accountId, proposal.id, auth.userId),
     new Set(visible.map((item) => item.id)),
@@ -200,12 +249,23 @@ async function buildReviewView(
     relationship_context_id: scope.relationship_context_id,
     person_display_label: proposal.person_display_label,
     relationship_display_label: proposal.relationship_display_label,
+    pursuit_id: scope.pursuit_id,
+    pursuit_role_id: scope.pursuit_role_id,
+    pursuit_role_evidence_fragment_id: scope.pursuit_role_evidence_fragment_id,
+    pursuit_capture_id: scope.pursuit_capture_id,
+    pursuit_capture_version: scope.pursuit_capture_version,
+    source_session_id: scope.source_session_id,
+    source_message_id: scope.source_message_id,
     contact_decision: proposal.contact_decision,
     contact_status: proposal.contact_status,
     status: proposal.status,
     expires_at: scope.expires_at.toISOString(),
     visible_item_count: visible.length,
     visible_default_selected_count: visible.filter((item) => item.default_selected).length,
+    source_status: !verification.proposalSourceAvailable || unavailableVisibleCount > 0
+      ? "unavailable"
+      : "available",
+    source_unavailable_visible_item_count: unavailableVisibleCount,
     items: visible.map(serializeProposalItem),
     draft,
   };
@@ -263,6 +323,7 @@ export async function listMemoryProposals(
   purpose: MemorySurface | null,
   personId: string | null,
   contextId: string | null,
+  sessionId: string | null = null,
 ): Promise<MemoryProposalListResponse> {
   const effectivePurpose = purpose ?? "chat";
   if (effectivePurpose !== "chat" && !personId) {
@@ -274,9 +335,10 @@ export async function listMemoryProposals(
        AND created_by_user_id = $2
        AND status IN ('open', 'partially_committed')
        AND expires_at > now()
+       AND ($3::uuid IS NULL OR session_id = $3)
      ORDER BY created_at DESC, id
      LIMIT 50`,
-    [auth.accountId, auth.userId],
+    [auth.accountId, auth.userId, sessionId],
   );
   const proposals: MemoryProposalRecord[] = [];
   for (const row of result.rows) {
@@ -302,21 +364,58 @@ export async function openMemoryReview(
   pool: Pool,
   auth: AuthContext,
   proposalId: string,
-  request: { purpose: MemorySurface; person_id?: string | null; relationship_context_id?: string | null },
+  request: {
+    purpose: MemorySurface;
+    person_id?: string | null;
+    relationship_context_id?: string | null;
+    pursuit_id?: string | null;
+    pursuit_role_id?: string | null;
+    pursuit_role_evidence_fragment_id?: string | null;
+    session_id?: string | null;
+    pursuit_capture_id?: string | null;
+    pursuit_capture_version?: number | null;
+  },
 ): Promise<MemoryReviewResponse> {
   return inTransaction(pool, async (client) => {
     const proposal = await loadProposal(client, auth.accountId, proposalId, true);
     if (!proposal || proposal.created_by_user_id !== auth.userId) {
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The requested Memory proposal was not found.");
     }
-    if (proposal.status !== "open" && proposal.status !== "partially_committed") {
-      throw new ApiError(409, "MEMORY_PROPOSAL_CLOSED", "This Memory proposal is no longer open for review.");
+    let personId = request.person_id ?? proposal.target_person_id;
+    let contextId = request.relationship_context_id ?? proposal.target_relationship_context_id;
+    // A Chat entry capability binds the exact originating Session; a browser
+    // cannot open the same proposal under a different Session authority.
+    if (request.session_id && proposal.session_id !== request.session_id) {
+      throw new ApiError(
+        409,
+        "MEMORY_REVIEW_SCOPE_MISMATCH",
+        "This Memory proposal belongs to a different conversation than the current entry.",
+      );
     }
-    if (proposal.expires_at.valueOf() <= Date.now()) {
-      throw new ApiError(410, "MEMORY_PROPOSAL_EXPIRED", "This Memory proposal expired.");
+    let pursuitCaptureId: string | null = null;
+    let pursuitCaptureVersion: number | null = null;
+    if (request.pursuit_id) {
+      if (!request.pursuit_role_id || !request.pursuit_role_evidence_fragment_id || !personId) {
+        throw new ApiError(
+          400,
+          "MEMORY_PURSUIT_ASSOCIATION_REQUIRED",
+          "A Pursuit-scoped review needs its exact role, evidence reference and person.",
+        );
+      }
+      const association = await assertPursuitAssociationCurrent(client, auth, {
+        pursuitId: request.pursuit_id,
+        roleId: request.pursuit_role_id,
+        evidenceFragmentId: request.pursuit_role_evidence_fragment_id,
+        personId,
+        relationshipContextId: contextId,
+        captureId: request.pursuit_capture_id ?? null,
+        captureVersion: request.pursuit_capture_version ?? null,
+      }, { lock: true });
+      // The current association is authority; a supplied context cannot widen it.
+      contextId = association.relationshipContextId;
+      pursuitCaptureId = association.captureId;
+      pursuitCaptureVersion = association.captureVersion;
     }
-    const personId = request.person_id ?? proposal.target_person_id;
-    const contextId = request.relationship_context_id ?? proposal.target_relationship_context_id;
     if (request.purpose === "chat" && proposal.surface !== "chat") {
       throw new ApiError(
         403,
@@ -339,6 +438,27 @@ export async function openMemoryReview(
         throw new ApiError(409, "MEMORY_REVIEW_SCOPE_MISMATCH", "The relationship surface must open the proposal's exact contact and relationship context.");
       }
     }
+    // Terminal metadata is scoped and authoritative, including in a fresh tab.
+    // It contains no private item text, IDs or counts from another surface.
+    if (proposal.status === "dismissed") {
+      throw new ApiError(409, "MEMORY_REVIEW_DISMISSED", "This proposal was dismissed.");
+    }
+    if (proposal.status === "committed") {
+      const operation = await client.query<{ operation_key: string }>(
+        `SELECT commit.operation_key FROM memory_commits commit
+         JOIN memory_review_scopes review ON review.account_id = commit.account_id AND review.id = commit.review_scope_id
+         WHERE commit.account_id = $1 AND commit.proposal_id = $2 AND commit.committed_by_user_id = $3
+           AND ($4 = 'chat' OR (review.purpose = $4 AND review.person_id IS NOT DISTINCT FROM $5::uuid
+             AND review.relationship_context_id IS NOT DISTINCT FROM $6::uuid))
+         ORDER BY commit.created_at DESC LIMIT 1`,
+        [auth.accountId, proposal.id, auth.userId, request.purpose, personId, contextId],
+      );
+      throw new ApiError(409, "MEMORY_REVIEW_PROCESSED", "This proposal was already processed.", { operation_key: operation.rows[0]?.operation_key ?? null });
+    }
+    if (proposal.status !== "open" && proposal.status !== "partially_committed") {
+      throw new ApiError(409, "MEMORY_PROPOSAL_CLOSED", "This proposal is no longer available.");
+    }
+    if (proposal.expires_at.valueOf() <= Date.now()) throw new ApiError(410, "MEMORY_PROPOSAL_EXPIRED", "This Memory proposal expired.");
     const allowedScope = allowedScopeForSurface(request.purpose);
     const credential = mintReviewCredential();
     const existing = await client.query<ReviewScopeRow>(
@@ -347,6 +467,9 @@ export async function openMemoryReview(
          AND purpose = $4 AND proposal_revision = $5
          AND person_id IS NOT DISTINCT FROM $6::uuid
          AND relationship_context_id IS NOT DISTINCT FROM $7::uuid
+         AND pursuit_id IS NOT DISTINCT FROM $8::uuid
+         AND pursuit_role_id IS NOT DISTINCT FROM $9::uuid
+         AND pursuit_role_evidence_fragment_id IS NOT DISTINCT FROM $10::uuid
          AND expires_at > now()
        ORDER BY created_at DESC
        LIMIT 1
@@ -359,6 +482,9 @@ export async function openMemoryReview(
         proposal.revision,
         personId,
         contextId,
+        request.pursuit_id ?? null,
+        request.pursuit_role_id ?? null,
+        request.pursuit_role_evidence_fragment_id ?? null,
       ],
     );
     let scope = existing.rows[0];
@@ -369,9 +495,11 @@ export async function openMemoryReview(
              id, account_id, proposal_id, proposal_revision, reader_user_id,
              surface, purpose, allowed_scope, credential_hash, person_id,
              relationship_context_id, source_session_id, source_message_id,
+             pursuit_id, pursuit_role_id, pursuit_role_evidence_fragment_id,
+             pursuit_capture_id, pursuit_capture_version,
              revision, expires_at
            )
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,$14)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,0,$19)
            RETURNING *`,
           [
             randomUUID(),
@@ -387,6 +515,11 @@ export async function openMemoryReview(
             contextId,
             proposal.session_id,
             proposal.source_message_id,
+            request.pursuit_id ?? null,
+            request.pursuit_role_id ?? null,
+            request.pursuit_role_evidence_fragment_id ?? null,
+            pursuitCaptureId,
+            pursuitCaptureVersion,
             new Date(Date.now() + MEMORY_REVIEW_SCOPE_TTL_MS),
           ],
         )
@@ -417,6 +550,7 @@ export async function readMemoryReview(
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The requested Memory review was not found.");
     }
     await assertReviewCredential(client, scope, credential);
+    await revalidateScopePursuit(client, auth, scope, false);
     const proposal = await loadProposal(client, auth.accountId, scope.proposal_id);
     if (!proposal) {
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The reviewed proposal was not found.");
@@ -447,6 +581,7 @@ export async function saveMemoryReviewDraft(
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The requested Memory review was not found.");
     }
     await assertReviewCredential(client, scope, credential);
+    await revalidateScopePursuit(client, auth, scope, true);
     if (scope.expires_at.valueOf() <= Date.now()) {
       throw new ApiError(410, "MEMORY_REVIEW_EXPIRED", "This Memory review expired; open it again.");
     }
@@ -570,6 +705,7 @@ export async function dismissMemoryReview(
       throw new ApiError(404, "MEMORY_NOT_FOUND", "The requested Memory review was not found.");
     }
     await assertReviewCredential(client, scope, credential);
+    await revalidateScopePursuit(client, auth, scope, true);
     if (scope.revision !== request.expected_review_revision) {
       throw new ApiError(409, "MEMORY_REVIEW_DRAFT_STALE", "The review changed elsewhere.", {
         current_review_revision: scope.revision,

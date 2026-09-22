@@ -72,6 +72,7 @@ export {
   mutateMemoryItem,
   readMemoryItem,
   readMemoryOperation,
+  receiptSourceAvailable,
   undoMemoryCommit,
   type MemoryCommitResult,
 } from "./memoryReviewCommit.js";
@@ -83,3 +84,9 @@ export {
   sweepExpiredMemoryProposals,
   type MemoryRecallRequest,
 } from "./memoryReviewRecall.js";
+export { resolveMemoryPursuitScopes } from "./memoryPursuitScopes.js";
+export {
+  readMemoryScopedOperationView,
+  undoMemoryScopedOperation,
+  type ScopedOperationQuery,
+} from "./memoryReviewOperationView.js";

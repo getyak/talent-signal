@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { PursuitMemoryReview } from "@/components/memory-review/pursuit-memory-review";
 import { PursuitReviewGate } from "@/components/pursuit-review-gate";
 import { PursuitAgentRail } from "@/components/pursuit-agent-rail";
 import styles from "@/components/pursuit-room.module.css";
@@ -13,6 +14,10 @@ import {
   isPursuitIntegrationMode,
   loadPursuitRoom,
 } from "@/lib/server/pursuitBackend";
+import { readBackendSessionClaims } from "@/lib/server/backendAuth";
+import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
+import { mintMemoryEntryCapability } from "@/lib/server/memoryEntryCapability";
+import { loadPursuitMemoryScopes } from "@/lib/server/localBackend";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +85,25 @@ export default async function PursuitRoomPage({
     notFound();
   }
   const { pursuit, proposals, agentContext, agentTasks } = room;
+  const pursuitClaims = await readBackendSessionClaims();
+  const pursuitMemoryBinding = pursuitClaims
+    ? contactHandoffSessionVersion(pursuitClaims)
+    : null;
+  const pursuitMemoryScopes = pursuitClaims
+    ? (await loadPursuitMemoryScopes(pursuit.id).catch(() => [])).map((scope) => ({
+        ...scope,
+        capability: mintMemoryEntryCapability(pursuitClaims, {
+          purpose: "relationship",
+          personId: scope.person_id,
+          contextId: scope.relationship_context_id ?? null,
+          pursuitId: pursuit.id,
+          pursuitRoleId: scope.role_id ?? null,
+          pursuitEvidenceFragmentId: scope.role_evidence_fragment_id ?? null,
+          pursuitCaptureId: scope.capture_id ?? null,
+          pursuitCaptureVersion: scope.capture_version ?? null,
+        }),
+      }))
+    : [];
   const openGaps = pursuit.gaps.filter((gap) => gap.status === "open");
   const openActions = pursuit.actions.filter(
     (action) => !["completed", "cancelled", "failed"].includes(action.status),
@@ -183,6 +207,12 @@ export default async function PursuitRoomPage({
             decisionBundle={agentTasks[0]?.decision_bundle ?? undefined}
             key={pursuit.id}
             proposals={proposals}
+          />
+
+          <PursuitMemoryReview
+            binding={pursuitMemoryBinding}
+            pursuitId={pursuit.id}
+            scopes={pursuitMemoryScopes}
           />
         </div>
       </main>

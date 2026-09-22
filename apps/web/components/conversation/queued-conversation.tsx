@@ -15,6 +15,7 @@ import { conversationNearBottom, sessionBlockTitle, sessionTurnBlocks } from "..
 import { LegacyRecoveryNotice } from "./legacy-recovery-notice";
 import { ConversationImageStrip } from "./conversation-images";
 import { useConversation } from "./use-conversation";
+import { MemoryReviewCard } from "../memory-review/memory-review-card";
 import styles from "./queued-conversation.module.css";
 
 const stages: Record<string, string> = { queued: "等待开始", preparing: "正在准备回复", thinking: "正在处理", contact_lookup: "正在查找相关人物", contact_read: "正在阅读相关记录", calendar_draft: "正在整理日程草稿", answer: "正在回复", responding: "正在回复", persisting: "正在保存回复", running: "正在处理" };
@@ -24,7 +25,7 @@ function displayText(objective: string, images: readonly ConversationImageManife
   return images?.length ? "（图片）" : objective;
 }
 
-type Props = { initialDetail?: SessionDetail; scope: string; chatBinding: string; detailBinding: string; meetingLinks?: Array<{id: string; title: string}>; meetingReadFailed?: boolean; legacyRecovery?: LegacyConversationRecovery | null };
+type Props = { bootstrap?: { sessionId: string; capability: string } | null; initialDetail?: SessionDetail; scope: string; chatBinding: string; detailBinding: string; meetingLinks?: Array<{id: string; title: string}>; meetingReadFailed?: boolean; legacyRecovery?: LegacyConversationRecovery | null; entryCapability?: string | null };
 export function QueuedConversation(props: Props) {
   const router = useRouter();
   const [id, setId] = useState<string | null>(props.initialDetail?.session_id ?? null);
@@ -43,15 +44,34 @@ export function QueuedConversation(props: Props) {
       if (destination.origin === window.location.origin && (destination.pathname !== window.location.pathname || destination.search !== window.location.search)) {
         leaving();
         // The retained Home tree is reused when a brand link returns home.
-        if (!props.initialDetail && handedOff.current && destination.pathname === "/workspace" && !destination.search && !destination.hash) window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT));
+        if (!props.initialDetail && handedOff.current && destination.pathname === "/workspace" && !destination.search && !destination.hash) {
+          const unhandled = window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT, { cancelable: true }));
+          if (!unhandled) event.preventDefault();
+        }
       }
     };
     document.addEventListener("click", linkIntent, true);
     window.addEventListener("popstate", leaving);
     return () => { document.removeEventListener("click", linkIntent, true); window.removeEventListener("popstate", leaving); };
   }, [props.initialDetail]);
-  useEffect(() => { let current = true; queueMicrotask(() => { if (current && !props.initialDetail) { const next = conversationHome(props.scope) ?? crypto.randomUUID(); conversationHome(props.scope, next); setId(next); } }); return () => { current = false; }; }, [props.scope, props.initialDetail]);
-  const chat = useConversation({ id, scope: props.scope, chatBinding: props.chatBinding, detailBinding: props.detailBinding, initial: props.initialDetail, onAdmitted: sessionId => {
+  useEffect(() => {
+    let current = true;
+    queueMicrotask(() => {
+      if (!current || props.initialDetail) return;
+      const previous = conversationHome(props.scope);
+      const explicit = new URL(window.location.href).searchParams.get("draft_session");
+      if (props.bootstrap && previous && previous !== props.bootstrap.sessionId && !explicit) {
+        router.replace(`/workspace?draft_session=${previous}`);
+        return;
+      }
+      const next = props.bootstrap?.sessionId ?? previous ?? crypto.randomUUID();
+      conversationHome(props.scope, next);
+      if (props.bootstrap) window.history.replaceState(null, "", `/workspace?draft_session=${next}`);
+      setId(next);
+    });
+    return () => { current = false; };
+  }, [props.scope, props.initialDetail, props.bootstrap, router]);
+  const chat = useConversation({ entryCapability: props.entryCapability, bootstrap: props.bootstrap?.capability, id, scope: props.scope, chatBinding: props.chatBinding, detailBinding: props.detailBinding, initial: props.initialDetail, onAdmitted: sessionId => {
     if (handedOff.current) return;
     handedOff.current = true;
     setAdmitted(true);
@@ -60,7 +80,7 @@ export function QueuedConversation(props: Props) {
     // Next integrates native History API updates with usePathname; refresh still
     // opens the canonical Session. Do not rewrite an intervening navigation.
     // https://nextjs.org/docs/app/getting-started/linking-and-navigating#native-history-api
-    if (!navigating.current && window.location.pathname === "/workspace" && !window.location.search && !window.location.hash) {
+    if (!navigating.current && window.location.pathname === "/workspace" && (!window.location.search || new URLSearchParams(window.location.search).get("draft_session") === sessionId) && !window.location.hash) {
       window.history.replaceState(null, "", `/workspace/sessions/${sessionId}`);
     }
   } });
@@ -103,8 +123,8 @@ export function QueuedConversation(props: Props) {
   }, [chat]);
   async function remove() {
     if (await chat.remove()) {
-      window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT));
-      router.replace("/workspace");
+      const unhandled = window.dispatchEvent(new Event(WORKSPACE_NEW_CONVERSATION_EVENT, { cancelable: true }));
+      if (unhandled) router.replace("/workspace");
     }
   }
   async function applyEdit(entry: string) { if (await chat.mutate({ kind: "edit", queue_entry_id: entry, objective: editValue.trim() })) setEditing(null); }
@@ -120,7 +140,7 @@ export function QueuedConversation(props: Props) {
     <div className={styles.transcript} ref={viewport} role="region" aria-label="对话记录" tabIndex={0} onWheel={() => { userScroll.current = true; }} onTouchStart={() => { userScroll.current = true; }} onPointerDown={() => { userScroll.current = true; }} onKeyDown={event => { if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown"].includes(event.key)) userScroll.current = true; }} onScroll={() => { if (viewport.current && userScroll.current) { follows.current = conversationNearBottom(viewport.current); setAway(!follows.current); } }}>
       <div className={styles.content} ref={content}>
         {!hasContent && <div className={styles.welcome}><span className={styles.welcomeMark} aria-hidden="true"/><h2>今天想推进什么？</h2></div>}
-        {turns.map(turn => <article className={styles.turn} key={turn.id}><div className={styles.userRow}><div className={styles.userMessage}>{displayText(turn.objective, turn.images)}{turn.images?.length ? <ConversationImageStrip binding={props.chatBinding} images={turn.images} local={false} messageId={turn.id} scope={props.scope} sessionId={chat.detail?.session_id ?? id ?? ""}/> : null}</div></div><div className={styles.answer}><Identity/>{sessionTurnBlocks(turn.response).map((block, index) => <div key={index}>{sessionBlockTitle(block.title) && <h3>{sessionBlockTitle(block.title)}</h3>}<ConversationResponse>{block.body}</ConversationResponse></div>)}</div></article>)}
+        {turns.map(turn => <article className={styles.turn} key={turn.id}><div className={styles.userRow}><div className={styles.userMessage}>{displayText(turn.objective, turn.images)}{turn.images?.length ? <ConversationImageStrip binding={props.chatBinding} images={turn.images} local={false} messageId={turn.id} scope={props.scope} sessionId={chat.detail?.session_id ?? id ?? ""}/> : null}</div></div><div className={styles.answer}><Identity/>{sessionTurnBlocks(turn.response).map((block, index) => <div key={index}>{sessionBlockTitle(block.title) && <h3>{sessionBlockTitle(block.title)}</h3>}<ConversationResponse>{block.body}</ConversationResponse></div>)}{turn.response.memoryProposal ? <div onFocusCapture={() => { follows.current = false; userScroll.current = true; }} onPointerDown={() => { follows.current = false; userScroll.current = true; }}><MemoryReviewCard binding={props.chatBinding} entryCapability={chat.entryCapability ?? props.entryCapability ?? null} proposal={turn.response.memoryProposal} purpose="chat" sessionId={chat.detail?.session_id ?? id ?? null}/></div> : null}</div></article>)}
         {activeVisible && <article className={styles.turn} key={active.message_id}><div className={styles.userRow}><div className={styles.userMessage}>{displayText(active.objective, active.images)}{active.images?.length ? <ConversationImageStrip binding={props.chatBinding} images={active.images} local={false} messageId={active.message_id} scope={props.scope} sessionId={id ?? ""}/> : null}</div></div><div className={styles.answer}><Identity/>{forming?.text ? <div className={styles.forming}><ConversationResponse>{forming.text}</ConversationResponse><span className={styles.cursor} aria-hidden="true"/></div> : <div className={styles.waiting}><span className={styles.pulse} aria-hidden="true"/>{status}</div>}<div className={styles.runMeta}>{forming?.text ? status : ""}{seconds >= 8 && <span>{seconds} 秒{seconds >= 20 ? " · 可以继续补充，我会按顺序处理" : ""}</span>}</div></div></article>}
         {chat.messages.map(message => <article className={styles.localTurn} key={message.id}><div className={styles.userRow}><div className={styles.userMessage}>{displayText(message.objective, message.images)}{message.images?.length ? <ConversationImageStrip binding={props.chatBinding} images={message.images} local messageId={message.id} scope={props.scope} sessionId={id ?? ""}/> : null}</div></div><div className={styles.delivery}>{message.delivery === "accepted" ? <><Check size={12}/>已送达</> : message.delivery === "unknown" || message.delivery === "rejected" ? <>{message.error || "送达结果尚未确认，请核对后重试。"}<button onClick={() => void chat.retryDelivery(message)}>核对并重试</button>{message.delivery === "rejected" && <button onClick={() => chat.discardRejectedDelivery(message.id)}>移除</button>}</> : message.delivery === "pending" ? "等待送达" : "正在送达…"}</div></article>)}
       </div>

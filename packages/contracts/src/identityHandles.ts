@@ -103,6 +103,11 @@ export function parseIdentityHandleQuery(
   if (!normalized) {
     return null;
   }
+  // An explicit @handle is a source-native identifier. A plain display name
+  // remains a name query and never supplies identity authority.
+  if (/^@[a-zA-Z0-9][a-zA-Z0-9_.-]{1,119}$/u.test(normalized)) {
+    return { type: "source_native_id", value: normalized.slice(1) };
+  }
   const prefixed = prefixedHandle(normalized);
   if (prefixed) {
     return prefixed;

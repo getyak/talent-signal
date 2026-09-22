@@ -47,6 +47,13 @@ interface PersonDirectoryRow {
   }>;
 }
 
+/** One canonical parser shared by directory matching and the Memory host. */
+export function peopleIdentityQuery(query: string) {
+  const parsed = parseIdentityHandleQuery(query);
+  const value = parsed && normalizeIdentityHandle(parsed.type, parsed.value);
+  return parsed && value ? { type: parsed.type, value } : null;
+}
+
 async function queryPeople(
   pool: DatabaseClient,
   auth: AuthContext,
@@ -54,12 +61,8 @@ async function queryPeople(
   includeConfirmedHandleMatch = false,
 ): Promise<PersonDirectoryResponse> {
   const normalizedQuery = query.normalize("NFKC").trim().toLowerCase();
-  const parsedHandle = includeConfirmedHandleMatch
-    ? parseIdentityHandleQuery(query)
-    : null;
-  const normalizedHandle = parsedHandle
-    ? normalizeIdentityHandle(parsedHandle.type, parsedHandle.value)
-    : null;
+  const parsedHandle = includeConfirmedHandleMatch ? peopleIdentityQuery(query) : null;
+  const normalizedHandle = parsedHandle?.value ?? null;
   const nameQuery = parsedHandle ? "" : normalizedQuery;
   const handleType = parsedHandle?.type ?? null;
   const handleHash = normalizedHandle ? sha256(normalizedHandle) : null;

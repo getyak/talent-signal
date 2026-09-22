@@ -95,6 +95,7 @@ type QueueTurn = {
     disposition: string;
     createdAt: string;
     unboundConversationBlocks: ReturnType<typeof displayBlocks>;
+    memoryProposal?: { proposal_id: string; revision: number };
   };
 };
 
@@ -102,7 +103,7 @@ function queueTurn(
   messageId: string,
   objective: string,
   acceptedAt: string,
-  response: { taskID: string; disposition: string; blocks: ChatResponseBlock[]; createdAt: string },
+  response: { taskID: string; disposition: string; blocks: ChatResponseBlock[]; createdAt: string; memoryProposal?: { proposal_id: string; revision: number } },
   images: readonly ConversationImageManifest[] = [],
 ): QueueTurn {
   return {
@@ -118,6 +119,7 @@ function queueTurn(
       disposition: response.disposition,
       createdAt: response.createdAt,
       unboundConversationBlocks: displayBlocks(response.blocks),
+      ...(response.memoryProposal ? { memoryProposal: response.memoryProposal } : {}),
     },
   };
 }
@@ -214,6 +216,9 @@ export async function persistConversationQueueCompletion(
       disposition: body.disposition,
       blocks: body.blocks,
       createdAt: body.created_at,
+      ...(body.memory_proposal
+        ? { memoryProposal: { proposal_id: body.memory_proposal.proposal_id, revision: body.memory_proposal.revision } }
+        : {}),
     }, input.images),
     { title: body.session_title ?? null, updatedAt: body.created_at },
   );

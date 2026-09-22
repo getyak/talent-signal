@@ -99,10 +99,10 @@ export function createMemoryProposalRegenerator(
         ...(inputParts.length > 0 ? { inputParts } : {}),
         budget: {
           maxTurns: 1,
-          maxToolCalls: 0,
+          maxToolCalls: 1,
           maxDurationMs: 30_000,
           maxTaskTokens: 6_000,
-          maxEstimatedUsd: 0,
+          maxEstimatedUsd: 0.05,
         },
       },
       async (name) => ({

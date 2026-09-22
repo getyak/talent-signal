@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { loadMeetingDrafts } from "@/lib/server/meetingDrafts";
 import { contactHandoffSessionVersion } from "@/lib/server/contact-handoff-session";
+import { mintMemoryEntryCapability } from "@/lib/server/memoryEntryCapability";
 import { SessionWorkbench } from "@/components/session-workbench/session-workbench";
 import {
   backendSessionRecoveryHref,
@@ -93,6 +94,7 @@ export default async function SessionDetailPage({
   return (
     <SessionWorkbench
       initialDetail={detail}
+      entryCapability={mintMemoryEntryCapability(claims, { purpose: "chat", sessionId: id })}
       meetingLinks={meetingLinks}
       meetingReadFailed={meetingReadFailed}
       accountId={claims.backendAccountId}

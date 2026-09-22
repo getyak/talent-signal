@@ -1,3 +1,4 @@
+import { sweepDueSourceRetention } from "./sourceRetention.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import type {
@@ -33,10 +34,14 @@ import {
   readMemoryReview,
   rebaseMemoryProposal,
   recallMemories,
+  readMemoryScopedOperationView,
+  saveMemoryReviewDraft,
   regenerateMemoryProposal,
+  resolveMemoryPursuitScopes,
   resolveSessionSourceAuthority,
   stageMemoryProposal,
   undoMemoryCommit,
+  undoMemoryScopedOperation,
   dismissMemoryReview,
   type MemorySourceAuthority,
 } from "./memoryReview.js";
@@ -108,6 +113,53 @@ async function makeContact(
     [contextId, auth.accountId, personId, `memory-test-context:${contextId}`, `${label} relationship`],
   );
   return { personId, contextId };
+}
+
+/** Build one confirmed Pursuit role with a current, bound evidence chain. */
+async function makePursuitWithEvidence(
+  auth: AuthContext,
+  contact: { personId: string; contextId: string },
+): Promise<{ pursuitId: string; roleId: string; fragmentId: string; captureId: string }> {
+  const pursuitId = randomUUID();
+  await pool!.query(
+    `INSERT INTO pursuits(id, account_id, pursuit_type, title, target_outcome, target_date, status, milestone, milestone_authority_user_id, milestone_authority_at, created_by_user_id, updated_by_user_id)
+     VALUES($1,$2,'recruiting','Pursuit association','Hire','2026-12-31','active','screen',$3,now(),$3,$3)`,
+    [pursuitId, auth.accountId, auth.userId],
+  );
+  const roleId = randomUUID();
+  await pool!.query(
+    `INSERT INTO pursuit_roles(id, account_id, pursuit_id, person_id, role_type, status, confidence, basis_kind, display_order, created_by_user_id)
+     VALUES($1,$2,$3,$4,'candidate','active','confirmed','evidence_supported',0,$5)`,
+    [roleId, auth.accountId, pursuitId, contact.personId, auth.userId],
+  );
+  const captureId = randomUUID();
+  const resourceId = randomUUID();
+  const fragmentId = randomUUID();
+  await pool!.query(
+    `INSERT INTO captures(id, account_id, created_by_user_id, subject_id, assignment_id, source_kind, source_metadata, identity_status, identity_context, purpose, status)
+     VALUES($1,$2,$3,$4,$5,'conversation_screenshot','{}'::jsonb,'bound','{}'::jsonb,'relationship_evidence','active')`,
+    [captureId, auth.accountId, auth.userId, contact.personId, contact.contextId],
+  );
+  await pool!.query(
+    `INSERT INTO source_resources(id, account_id, capture_id, created_by_user_id, client_resource_id, resource_kind, input_channel, display_name, media_type, observed_at, retention_scope, processing_state)
+     VALUES($1,$2,$3,$4,$5,'conversation_screenshot','chat','Pursuit source','image/png',now(),'relationship','ready')`,
+    [resourceId, auth.accountId, captureId, auth.userId, `pursuit-assoc-${fragmentId}`],
+  );
+  await pool!.query(
+    `INSERT INTO evidence_fragments(id, account_id, capture_id, resource_id, fragment_kind, sequence, text_content, content_hash, locator, attributed_actor, attribution_status, parser_name, parser_version, status, review_status)
+     VALUES($1,$2,$3,$4,'message',0,'Pursuit association evidence',$5,'{}'::jsonb,'unknown','confirmed','test','1','active','reviewed')`,
+    [fragmentId, auth.accountId, captureId, resourceId, `hash-${fragmentId}`],
+  );
+  await pool!.query(
+    `INSERT INTO source_retention_receipts(receipt_id, account_id, capture_id, policy_version, requested_mode, effective_mode, source_scope, source_access_state, source_access_reason, retention_until, created_at)
+     VALUES($1,$2,$3,'source-retention.v2','full_source','full_source','full_reviewed_source','available','review_completed',now() + interval '30 days',now())`,
+    [randomUUID(), auth.accountId, captureId],
+  );
+  await pool!.query(
+    `INSERT INTO pursuit_role_evidence(account_id, role_id, evidence_fragment_id) VALUES($1,$2,$3)`,
+    [auth.accountId, roleId, fragmentId],
+  );
+  return { pursuitId, roleId, fragmentId, captureId };
 }
 
 function candidate(
@@ -2533,12 +2585,21 @@ describe.skipIf(!pool)("Memory review integration", () => {
     const proposalId = execution.body.memory_proposal!.proposal_id;
     const opened = await open(auth, proposalId, "chat");
     expect(opened.review.visible_item_count).toBe(17);
+    // The host must supply a non-empty organizing label for a new contact so
+    // the browser's own commit (which uses the review label) can save all 17,
+    // including the six relationship items.
+    expect(opened.review.relationship_display_label).toBeTruthy();
     const committed = await commit(auth, opened.review, opened.review_credential!, {
       selected: opened.review.items.map((item) => item.id),
       contactDecision: "new",
-      newContact: { display_label: "陈宇", relationship_context: "设计合作" },
+      newContact: {
+        display_label: "陈宇",
+        relationship_context: opened.review.relationship_display_label ?? "",
+      },
     });
     expect(committed.body.receipt.item_count).toBe(17);
+    expect(committed.body.receipt.created_person_id).toBeTruthy();
+    expect(committed.body.receipt.created_relationship_context_id).toBeTruthy();
   });
 
 
@@ -2607,6 +2668,9 @@ describe.skipIf(!pool)("Memory review integration", () => {
       sourceText,
       sessionID: sessionId,
       messageID: messageId,
+      // The authenticated relationship entry supplies the human identity
+      // binding; a model read alone no longer grants personalized authority.
+      humanIdentityBinding: { personID: contact.personId, contextID: contact.contextId },
       provider: provider as never,
     });
     expect(execution.block).toMatchObject({ kind: "answer", body: "这里是回答。" });
@@ -3043,6 +3107,7 @@ describe.skipIf(!pool)("Memory review integration", () => {
       },
     );
     expect(result.proposal.person_id).toBe(contactB.personId);
+    expect(result.proposal.relationship_display_label).toBe("Dana relationship");
     // Ordered admitted image bytes reached the provider.
     expect(captured.inputParts).toHaveLength(2);
     expect(captured.inputParts!.map((part) => part.artifactID)).toEqual([
@@ -3055,10 +3120,12 @@ describe.skipIf(!pool)("Memory review integration", () => {
     ]);
     const objective = JSON.parse(captured.objective!) as {
       target_person_label: string;
+      relationship_label: string;
       existing_accepted_memory: string[];
       admitted_images: Array<{ artifact_id: string }>;
     };
     expect(objective.target_person_label).toBe("Dana");
+    expect(objective.relationship_label).toBe("Dana relationship");
     expect(objective.admitted_images.map((image) => image.artifact_id)).toEqual([
       artifact0,
       artifact1,
@@ -3444,6 +3511,608 @@ describe.skipIf(!pool)("Memory review integration", () => {
     } finally {
       await app.close();
     }
+  });
+
+  it("resolves only confirmed, currently evidenced Pursuit person/context scopes", async () => {
+    const auth = await makeAuth("pursuit-scope");
+    const person = await makeContact(auth, "Pursuit Chen");
+    const pursuitId = randomUUID();
+    await pool!.query(
+      `INSERT INTO pursuits(id, account_id, pursuit_type, title, target_outcome, target_date, status, milestone, milestone_authority_user_id, milestone_authority_at, created_by_user_id, updated_by_user_id)
+       VALUES($1,$2,'recruiting','Design lead','Hire a design lead','2026-12-31','active','screen',$3,now(),$3,$3)`,
+      [pursuitId, auth.accountId, auth.userId],
+    );
+    const roleId = randomUUID();
+    await pool!.query(
+      `INSERT INTO pursuit_roles(id, account_id, pursuit_id, person_id, role_type, status, confidence, basis_kind, display_order, created_by_user_id)
+       VALUES($1,$2,$3,$4,'candidate','active','confirmed','user_authored',0,$5)`,
+      [roleId, auth.accountId, pursuitId, person.personId, auth.userId],
+    );
+
+    // A user-authored role with no evidentiary context stays person-only; it
+    // never grants all of that person's relationships to the Pursuit.
+    let resolved = await resolveMemoryPursuitScopes(pool!, auth, pursuitId);
+    expect(resolved.scopes).toHaveLength(1);
+    expect(resolved.scopes[0]!.person_id).toBe(person.personId);
+    expect(resolved.scopes[0]!.relationship_context_id).toBeNull();
+
+    const captureId = randomUUID();
+    const resourceId = randomUUID();
+    const fragmentId = randomUUID();
+    await pool!.query(
+      `INSERT INTO captures(id, account_id, created_by_user_id, subject_id, assignment_id, source_kind, source_metadata, identity_status, identity_context, purpose, status)
+       VALUES($1,$2,$3,$4,$5,'conversation_screenshot','{}'::jsonb,'bound','{}'::jsonb,'relationship_evidence','active')`,
+      [captureId, auth.accountId, auth.userId, person.personId, person.contextId],
+    );
+    await pool!.query(
+      `INSERT INTO source_resources(id, account_id, capture_id, created_by_user_id, client_resource_id, resource_kind, input_channel, display_name, media_type, observed_at, retention_scope, processing_state)
+       VALUES($1,$2,$3,$4,$5,'conversation_screenshot','chat','Pursuit source','image/png',now(),'relationship','ready')`,
+      [resourceId, auth.accountId, captureId, auth.userId, `pursuit-${fragmentId}`],
+    );
+    await pool!.query(
+      `INSERT INTO evidence_fragments(id, account_id, capture_id, resource_id, fragment_kind, sequence, text_content, content_hash, locator, attributed_actor, attribution_status, parser_name, parser_version, status, review_status)
+       VALUES($1,$2,$3,$4,'message',0,'Pursuit evidence',$5,'{}'::jsonb,'unknown','confirmed','test','1','active','reviewed')`,
+      [fragmentId, auth.accountId, captureId, resourceId, `hash-${fragmentId}`],
+    );
+    await pool!.query(
+      `INSERT INTO source_retention_receipts(receipt_id, account_id, capture_id, policy_version, requested_mode, effective_mode, source_scope, source_access_state, source_access_reason, retention_until, created_at)
+       VALUES($1,$2,$3,'source-retention.v2','full_source','full_source','full_reviewed_source','available','review_completed',now() + interval '30 days',now())`,
+      [randomUUID(), auth.accountId, captureId],
+    );
+    await pool!.query(
+      `INSERT INTO pursuit_role_evidence(account_id, role_id, evidence_fragment_id) VALUES($1,$2,$3)`,
+      [auth.accountId, roleId, fragmentId],
+    );
+    await pool!.query(
+      `UPDATE pursuit_roles SET basis_kind='evidence_supported' WHERE account_id=$1 AND id=$2`,
+      [auth.accountId, roleId],
+    );
+    resolved = await resolveMemoryPursuitScopes(pool!, auth, pursuitId);
+    expect(resolved.scopes[0]!.relationship_context_id).toBe(person.contextId);
+
+    // A removed or suggested role is never eligible.
+    await pool!.query(`UPDATE pursuit_roles SET status='removed' WHERE account_id=$1 AND id=$2`, [auth.accountId, roleId]);
+    expect((await resolveMemoryPursuitScopes(pool!, auth, pursuitId)).scopes).toHaveLength(0);
+    await pool!.query(`UPDATE pursuit_roles SET status='active', confidence='suggested' WHERE account_id=$1 AND id=$2`, [auth.accountId, roleId]);
+    expect((await resolveMemoryPursuitScopes(pool!, auth, pursuitId)).scopes).toHaveLength(0);
+    await pool!.query(`UPDATE pursuit_roles SET confidence='confirmed' WHERE account_id=$1 AND id=$2`, [auth.accountId, roleId]);
+
+    // A revoked/deleted capture degrades the association to person-only.
+    await pool!.query(`UPDATE captures SET status='deleted', deleted_at=now() WHERE account_id=$1 AND id=$2`, [auth.accountId, captureId]);
+    const degraded = (await resolveMemoryPursuitScopes(pool!, auth, pursuitId)).scopes;
+    expect(degraded).toHaveLength(1);
+    expect(degraded[0]!.relationship_context_id).toBeNull();
+  });
+
+  it("restricts a mixed chat operation view and denies cross-scope undo", async () => {
+    const auth = await makeAuth("scoped-undo");
+    const { all } = draftProposalItems();
+    const staged = await stage(auth, {
+      items: all,
+      contactDecision: "new",
+      newContact: { display_label: "Scoped Chen", relationship_context: "Design partner" },
+      authorityText: "Scoped Chen design system notes",
+    });
+    const opened = await open(auth, staged!.proposal.proposal_id, "chat");
+    const committed = await commit(auth, opened.review, opened.review_credential!, {
+      selected: opened.review.items.map((item) => item.id),
+      contactDecision: "new",
+      newContact: { display_label: "Scoped Chen", relationship_context: "Design partner" },
+    });
+    const receipt = committed.body.receipt;
+    const personId = receipt.created_person_id!;
+    const contextId = receipt.created_relationship_context_id!;
+    const selfProposalIds = new Set(
+      opened.review.items.filter((item) => item.scope === "self").map((item) => item.id),
+    );
+
+    const relationshipView = await readMemoryScopedOperationView(pool!, auth, receipt.operation_key, {
+      purpose: "relationship",
+      person_id: personId,
+      relationship_context_id: contextId,
+    });
+    expect(relationshipView.visible_effect_count).toBe(6);
+    expect(relationshipView.undo.allowed).toBe(false);
+    expect(relationshipView.visible_receipt?.applied_item_count).toBe(6);
+    expect(relationshipView.visible_receipt?.decisions).toHaveLength(6);
+    // A restricted projection never leaks private self ids or counts.
+    for (const decision of relationshipView.visible_receipt?.decisions ?? []) {
+      expect(selfProposalIds.has(decision.proposal_item_id)).toBe(false);
+    }
+    expect(relationshipView.visible_receipt?.item_count).toBe(6);
+
+    await expect(
+      undoMemoryScopedOperation(pool!, auth, receipt.operation_key, {
+        idempotency_key: randomUUID(),
+        expected_commit_revision: relationshipView.commit_revision!,
+        purpose: "relationship",
+        person_id: personId,
+        relationship_context_id: contextId,
+        reason: "cross scope undo",
+      }),
+    ).rejects.toThrow(/scope|authorized/i);
+
+    const chatView = await readMemoryScopedOperationView(pool!, auth, receipt.operation_key, {
+      purpose: "chat",
+    });
+    expect(chatView.visible_effect_count).toBe(17);
+    expect(chatView.undo.allowed).toBe(true);
+
+    const undone = await undoMemoryScopedOperation(pool!, auth, receipt.operation_key, {
+      idempotency_key: randomUUID(),
+      expected_commit_revision: chatView.commit_revision!,
+      purpose: "chat",
+      reason: "authorized full undo",
+    });
+    expect(undone.receipt.status).toBe("undone");
+  });
+
+  it("denies relationship undo when skipped private self items share the batch", async () => {
+    const auth = await makeAuth("scoped-skip");
+    const { self, relationship } = draftProposalItems();
+    const staged = await stage(auth, {
+      items: [...self, ...relationship],
+      contactDecision: "new",
+      newContact: { display_label: "Skip Chen", relationship_context: "Design partner" },
+      authorityText: "Skip Chen design system notes",
+    });
+    const opened = await open(auth, staged!.proposal.proposal_id, "chat");
+    const selfIds = opened.review.items
+      .filter((item) => item.scope === "self")
+      .map((item) => item.id);
+    const relationshipIds = opened.review.items
+      .filter((item) => item.scope === "relationship")
+      .map((item) => item.id);
+    const decisions = Object.fromEntries(
+      selfIds.map((id) => [id, "skip" as const]),
+    );
+    const committed = await commit(auth, opened.review, opened.review_credential!, {
+      selected: relationshipIds,
+      contactDecision: "new",
+      newContact: { display_label: "Skip Chen", relationship_context: "Design partner" },
+      decisions,
+    });
+    const receipt = committed.body.receipt;
+    const personId = receipt.created_person_id!;
+    const contextId = receipt.created_relationship_context_id!;
+    const view = await readMemoryScopedOperationView(pool!, auth, receipt.operation_key, {
+      purpose: "relationship",
+      person_id: personId,
+      relationship_context_id: contextId,
+    });
+    expect(view.visible_effect_count).toBe(6);
+    // Skipped private self items are hidden, so a relationship surface can
+    // never whole-batch undo this mixed Chat commit.
+    expect(view.undo.allowed).toBe(false);
+    const selfIdSet = new Set(selfIds);
+    for (const decision of view.visible_receipt?.decisions ?? []) {
+      expect(selfIdSet.has(decision.proposal_item_id)).toBe(false);
+    }
+    for (const skipped of view.visible_receipt?.skipped_item_ids ?? []) {
+      expect(selfIdSet.has(skipped)).toBe(false);
+    }
+    await expect(
+      undoMemoryScopedOperation(pool!, auth, receipt.operation_key, {
+        idempotency_key: randomUUID(),
+        expected_commit_revision: view.commit_revision!,
+        purpose: "relationship",
+        person_id: personId,
+        relationship_context_id: contextId,
+        reason: "relationship scoped undo",
+      }),
+    ).rejects.toThrow(/scope|authorized/i);
+  });
+
+  it("reopens a canonical proposal draft at 16 and preserves hidden choices across a scoped save", async () => {
+    const auth = await makeAuth("draft-reopen");
+    const contact = await makeContact(auth, "Draft Chen");
+    const { all } = draftProposalItems();
+    const staged = await stage(auth, {
+      items: all,
+      contactDecision: "existing",
+      personId: contact.personId,
+      contextId: contact.contextId,
+      identityAuthority: "human_selection",
+      authorityText: "Draft Chen design system notes",
+    });
+    const chat = await open(auth, staged!.proposal.proposal_id, "chat");
+    const chatVisible = chat.review.items;
+    const deselected = chatVisible.find((item) => item.scope === "person")!.id;
+    const chatSelected = chatVisible.filter((item) => item.id !== deselected).map((item) => item.id);
+    await saveMemoryReviewDraft(pool!, auth, chat.review.review_scope_id, chat.review_credential!, {
+      expected_review_revision: chat.review.review_revision,
+      contact_decision: "existing",
+      selected_item_ids: chatSelected,
+      edited_text: {},
+      item_decisions: {},
+    });
+    // A fresh read on the same proposal must see the persisted 16-selection.
+    const reopened = await readMemoryReview(pool!, auth, chat.review.review_scope_id, chat.review_credential!);
+    expect(reopened.review.draft?.selected_item_ids).toHaveLength(16);
+    expect(reopened.review.draft?.selected_item_ids).not.toContain(deselected);
+
+    // A relationship-scoped save must preserve the hidden self/person choices.
+    const relationship = await open(
+      auth,
+      staged!.proposal.proposal_id,
+      "relationship",
+      contact.personId,
+      contact.contextId,
+    );
+    const relationshipIds = relationship.review.items
+      .filter((item) => item.scope === "relationship")
+      .map((item) => item.id);
+    expect(relationshipIds).toHaveLength(6);
+    await saveMemoryReviewDraft(
+      pool!,
+      auth,
+      relationship.review.review_scope_id,
+      relationship.review_credential!,
+      {
+        expected_review_revision: relationship.review.review_revision,
+        contact_decision: "existing",
+        selected_item_ids: relationshipIds,
+        edited_text: {},
+        item_decisions: {},
+      },
+    );
+    const chatAgain = await readMemoryReview(pool!, auth, chat.review.review_scope_id, chat.review_credential!);
+    expect(chatAgain.review.draft?.selected_item_ids).toHaveLength(16);
+    expect(chatAgain.review.draft?.selected_item_ids).not.toContain(deselected);
+    for (const id of relationshipIds) {
+      expect(chatAgain.review.draft?.selected_item_ids).toContain(id);
+    }
+  });
+
+  it("never hands another person the original created relationship context", async () => {
+    const auth = await makeAuth("other-person-context");
+    const other = await makeContact(auth, "Unrelated Person");
+    const { all } = draftProposalItems();
+    const staged = await stage(auth, {
+      items: all,
+      contactDecision: "new",
+      newContact: { display_label: "Owner Person", relationship_context: "Owner context" },
+      authorityText: "Owner Person design system notes",
+    });
+    const opened = await open(auth, staged!.proposal.proposal_id, "chat");
+    const committed = await commit(auth, opened.review, opened.review_credential!, {
+      selected: opened.review.items.map((item) => item.id),
+      contactDecision: "new",
+      newContact: { display_label: "Owner Person", relationship_context: "Owner context" },
+    });
+    const view = await readMemoryScopedOperationView(pool!, auth, committed.body.receipt.operation_key, {
+      purpose: "people",
+      person_id: other.personId,
+      relationship_context_id: null,
+    });
+    expect(view.visible_receipt?.created_person_id).toBeNull();
+    expect(view.visible_receipt?.created_relationship_context_id).toBeNull();
+    expect(view.undo.allowed).toBe(false);
+  });
+
+  it("recovers an already-undone scoped compensation after the created contact is reclaimed", async () => {
+    const auth = await makeAuth("undo-reclaimed");
+    const { relationship } = draftProposalItems();
+    const staged = await stage(auth, {
+      items: relationship,
+      contactDecision: "new",
+      newContact: { display_label: "Reclaim Person", relationship_context: "Reclaim context" },
+      authorityText: "Reclaim Person design system notes",
+    });
+    const opened = await open(auth, staged!.proposal.proposal_id, "chat");
+    const committed = await commit(auth, opened.review, opened.review_credential!, {
+      selected: opened.review.items.map((item) => item.id),
+      contactDecision: "new",
+      newContact: { display_label: "Reclaim Person", relationship_context: "Reclaim context" },
+    });
+    const receipt = committed.body.receipt;
+    const personId = receipt.created_person_id!;
+    const contextId = receipt.created_relationship_context_id!;
+    const first = await readMemoryScopedOperationView(pool!, auth, receipt.operation_key, {
+      purpose: "relationship",
+      person_id: personId,
+      relationship_context_id: contextId,
+    });
+    expect(first.undo.allowed).toBe(true);
+    await undoMemoryScopedOperation(pool!, auth, receipt.operation_key, {
+      idempotency_key: randomUUID(),
+      expected_commit_revision: first.commit_revision!,
+      purpose: "relationship",
+      person_id: personId,
+      relationship_context_id: contextId,
+      reason: "scoped undo",
+    });
+    // Replayed read must recover the historical own compensation receipt even
+    // though the newly created person/context may no longer be active.
+    const replay = await readMemoryScopedOperationView(pool!, auth, receipt.operation_key, {
+      purpose: "relationship",
+      person_id: personId,
+      relationship_context_id: contextId,
+    });
+    expect(replay.state).toBe("undone");
+    expect(replay.visible_receipt?.status).toBe("undone");
+    expect(replay.visible_receipt?.undo_contact_outcome).toBe("reclaimed");
+    const recovered = await undoMemoryScopedOperation(pool!, auth, receipt.operation_key, {
+      idempotency_key: randomUUID(),
+      expected_commit_revision: replay.commit_revision!,
+      purpose: "relationship",
+      person_id: personId,
+      relationship_context_id: contextId,
+      reason: "lost response replay",
+    });
+    expect(recovered.replayed).toBe(true);
+  });
+
+  it("pins and revalidates the exact Pursuit association on read and commit", async () => {
+    const auth = await makeAuth("pursuit-assoc");
+    const contact = await makeContact(auth, "Pursuit Assoc");
+    const { pursuitId, roleId, fragmentId, captureId } = await makePursuitWithEvidence(auth, contact);
+    const { relationship } = draftProposalItems();
+    const staged = await stage(auth, {
+      items: relationship,
+      contactDecision: "existing",
+      personId: contact.personId,
+      contextId: contact.contextId,
+      identityAuthority: "human_selection",
+      authorityText: "Pursuit association evidence",
+    });
+    const opened = await openMemoryReview(pool!, auth, staged!.proposal.proposal_id, {
+      purpose: "relationship",
+      person_id: contact.personId,
+      relationship_context_id: contact.contextId,
+      pursuit_id: pursuitId,
+      pursuit_role_id: roleId,
+      pursuit_role_evidence_fragment_id: fragmentId,
+    });
+    expect(opened.review.pursuit_id).toBe(pursuitId);
+    expect(opened.review.pursuit_role_id).toBe(roleId);
+    expect(opened.review.pursuit_role_evidence_fragment_id).toBe(fragmentId);
+
+    // A later role removal invalidates the derived review and its commit.
+    await pool!.query("UPDATE pursuit_roles SET status='removed' WHERE account_id=$1 AND id=$2", [auth.accountId, roleId]);
+    await expect(
+      readMemoryReview(pool!, auth, opened.review.review_scope_id, opened.review_credential!),
+    ).rejects.toThrow(/Pursuit|current/i);
+    await expect(
+      commit(auth, opened.review, opened.review_credential!, {
+        selected: opened.review.items.map((item) => item.id),
+        contactDecision: "existing",
+      }),
+    ).rejects.toThrow(/Pursuit|current/i);
+
+    // A capture epoch change (rebind) invalidates the pinned association too.
+    await pool!.query("UPDATE pursuit_roles SET status='active' WHERE account_id=$1 AND id=$2", [auth.accountId, roleId]);
+    await pool!.query("UPDATE captures SET version=version+1 WHERE account_id=$1 AND id=$2", [auth.accountId, captureId]);
+    await expect(
+      readMemoryReview(pool!, auth, opened.review.review_scope_id, opened.review_credential!),
+    ).rejects.toThrow(/Pursuit|current/i);
+  });
+
+  it("denies a committed Pursuit operation replay after the role is withdrawn", async () => {
+    const auth = await makeAuth("pursuit-replay");
+    const contact = await makeContact(auth, "Replay Assoc");
+    const { pursuitId, roleId, fragmentId } = await makePursuitWithEvidence(auth, contact);
+    const staged = await stage(auth, {
+      items: draftProposalItems().relationship,
+      contactDecision: "existing",
+      personId: contact.personId,
+      contextId: contact.contextId,
+      identityAuthority: "human_selection",
+      authorityText: "Replay association evidence",
+    });
+    const opened = await openMemoryReview(pool!, auth, staged!.proposal.proposal_id, {
+      purpose: "relationship",
+      person_id: contact.personId,
+      relationship_context_id: contact.contextId,
+      pursuit_id: pursuitId,
+      pursuit_role_id: roleId,
+      pursuit_role_evidence_fragment_id: fragmentId,
+    });
+    const idempotencyKey = randomUUID();
+    const body = {
+      idempotency_key: idempotencyKey,
+      expected_proposal_revision: opened.review.proposal_revision,
+      contact_decision: "existing" as const,
+      identity_authority: "human_selection" as const,
+      person_id: contact.personId,
+      relationship_context_id: contact.contextId,
+      selected_item_ids: opened.review.items.map((item) => item.id),
+      edited_text: {},
+      item_decisions: {},
+      expected_item_versions: {},
+      reason: "pursuit replay",
+    };
+    const applied = await commitMemoryReview(pool!, auth, opened.review.review_scope_id, opened.review_credential!, body);
+    expect(applied.body.receipt.status).toBe("applied");
+    // Withdrawing the role denies even an idempotent replay of the same key.
+    await pool!.query("UPDATE pursuit_roles SET status='removed' WHERE account_id=$1 AND id=$2", [auth.accountId, roleId]);
+    await expect(
+      commitMemoryReview(pool!, auth, opened.review.review_scope_id, opened.review_credential!, body),
+    ).rejects.toThrow(/Pursuit|current/i);
+  });
+
+  it("reopens a skipped-contact draft with all dependent intent preserved", async () => {
+    const auth = await makeAuth("draft-skip-reopen");
+    const staged = await stage(auth, {
+      items: draftProposalItems().all,
+      contactDecision: "new",
+      newContact: { display_label: "Skip Draft", relationship_context: "设计交流" },
+      authorityText: "Skip Draft design system notes",
+    });
+    const opened = await open(auth, staged!.proposal.proposal_id, "chat");
+    const personItem = opened.review.items.find((item) => item.scope === "person")!;
+    const selfItem = opened.review.items.find((item) => item.scope === "self")!;
+    const selected = opened.review.items
+      .filter((item) => item.id !== personItem.id && item.id !== selfItem.id)
+      .map((item) => item.id);
+    await saveMemoryReviewDraft(pool!, auth, opened.review.review_scope_id, opened.review_credential!, {
+      expected_review_revision: opened.review.review_revision,
+      contact_decision: "none",
+      selected_item_ids: selected,
+      edited_text: {},
+      item_decisions: {},
+    });
+    const reopened = await readMemoryReview(pool!, auth, opened.review.review_scope_id, opened.review_credential!);
+    expect(reopened.review.draft?.contact_decision).toBe("none");
+    expect(reopened.review.draft?.selected_item_ids).toHaveLength(15);
+    const otherPersonItem = opened.review.items.find((item) => item.scope === "person" && item.id !== personItem.id)!;
+    const relationshipItem = opened.review.items.find((item) => item.scope === "relationship")!;
+    expect(reopened.review.draft?.selected_item_ids).not.toContain(personItem.id);
+    expect(reopened.review.draft?.selected_item_ids).not.toContain(selfItem.id);
+    // The hidden dependent intent (other person + relationship items) survives
+    // the skipped-contact save and its PG reopen.
+    expect(reopened.review.draft?.selected_item_ids).toContain(otherPersonItem.id);
+    expect(reopened.review.draft?.selected_item_ids).toContain(relationshipItem.id);
+  });
+
+  async function committedPursuit(label: string) {
+    const auth = await makeAuth(label);
+    const contact = await makeContact(auth, label);
+    const association = await makePursuitWithEvidence(auth, contact);
+    const staged = await stage(auth, { items: draftProposalItems().relationship, contactDecision: "existing",
+      personId: contact.personId, contextId: contact.contextId, identityAuthority: "human_selection", authorityText: "Pursuit association evidence" });
+    const opened = await openMemoryReview(pool!, auth, staged!.proposal.proposal_id, { purpose: "relationship",
+      person_id: contact.personId, relationship_context_id: contact.contextId, pursuit_id: association.pursuitId,
+      pursuit_role_id: association.roleId, pursuit_role_evidence_fragment_id: association.fragmentId });
+    const applied = await commit(auth, opened.review, opened.review_credential!, { selected: opened.review.items.map(item => item.id), contactDecision: "existing" });
+    return { auth, contact, association, receipt: applied.body.receipt, query: { purpose: "relationship" as const, person_id: contact.personId, relationship_context_id: contact.contextId } };
+  }
+
+  it.each(["link", "pursuit", "resource"] as const)("serializes %s withdrawal against scoped undo", async kind => {
+    const { auth, association, receipt, query } = await committedPursuit(`barrier-${kind}`);
+    const revoke = await pool!.connect();
+    await revoke.query("BEGIN");
+    let undo!: Promise<unknown>;
+    try {
+      if (kind === "link") await revoke.query("DELETE FROM pursuit_role_evidence WHERE account_id=$1 AND role_id=$2", [auth.accountId, association.roleId]);
+      if (kind === "pursuit") await revoke.query("UPDATE pursuits SET status='cancelled' WHERE account_id=$1 AND id=$2", [auth.accountId, association.pursuitId]);
+      if (kind === "resource") await revoke.query("UPDATE source_resources SET processing_state='deleted' WHERE account_id=$1 AND capture_id=$2", [auth.accountId, association.captureId]);
+      let settled = false;
+      undo = undoMemoryScopedOperation(pool!, auth, receipt.operation_key, { ...query, idempotency_key: randomUUID(), expected_commit_revision: 1, reason: "concurrent undo" })
+        .then(value => { settled = true; return value; }, error => { settled = true; return error; });
+      // The revocation owns the exact authorizing row before undo starts.
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(settled).toBe(false);
+      await revoke.query("COMMIT");
+      expect(await undo).toMatchObject({ code: "MEMORY_PURSUIT_ASSOCIATION_STALE" });
+      expect((await pool!.query("SELECT status FROM memory_commits WHERE id=$1", [receipt.commit_id])).rows[0].status).toBe("applied");
+    } finally { await revoke.query("ROLLBACK"); revoke.release(); if (undo) await undo; }
+  });
+
+  it.each(["purge", "expire", "expire-purge", "purge-expire"])("retains accepted Pursuit history through real natural lifecycle: %s", async order => {
+    const { auth, association, receipt, query } = await committedPursuit(`pursuit-natural-${order}`);
+    for (const step of order.split("-")) {
+      if (step === "purge") {
+        await pool!.query("UPDATE source_retention_receipts SET retention_until=now()-interval '1 hour' WHERE account_id=$1 AND capture_id=$2", [auth.accountId, association.captureId]);
+        await sweepDueSourceRetention(pool!);
+        expect((await pool!.query("SELECT status FROM evidence_fragments WHERE id=$1", [association.fragmentId])).rows[0].status).toBe("purged");
+      } else {
+        await pool!.query("UPDATE source_retention_receipts SET authorization_expires_at=now()-interval '1 hour' WHERE account_id=$1 AND capture_id=$2", [auth.accountId, association.captureId]);
+        await sweepDueSourceAuthorizations(pool!);
+        expect((await pool!.query("SELECT authorization_state FROM source_retention_receipts WHERE capture_id=$1", [association.captureId])).rows[0].authorization_state).toBe("expired");
+      }
+    }
+    expect((await readMemoryScopedOperationView(pool!, auth, receipt.operation_key, query)).state).toBe("applied");
+    const undo = { ...query, idempotency_key: randomUUID(), expected_commit_revision: 1, reason: "undo after natural TTL" };
+    expect((await undoMemoryScopedOperation(pool!, auth, receipt.operation_key, undo)).receipt.status).toBe("undone");
+    expect((await undoMemoryScopedOperation(pool!, auth, receipt.operation_key, undo)).replayed).toBe(true);
+    await pool!.query("UPDATE source_retention_receipts SET authorization_state='revoked' WHERE account_id=$1 AND capture_id=$2", [auth.accountId, association.captureId]);
+    await expect(readMemoryScopedOperationView(pool!, auth, receipt.operation_key, query)).rejects.toMatchObject({ code: "MEMORY_PURSUIT_ASSOCIATION_STALE" });
+    await expect(undoMemoryCommit(pool!, auth, receipt.commit_id, { idempotency_key: undo.idempotency_key, expected_commit_revision: undo.expected_commit_revision, reason: undo.reason })).rejects.toMatchObject({ code: "MEMORY_PURSUIT_ASSOCIATION_STALE" });
+  });
+
+  it("rejects accepted history when a manual epoch interrupts natural transitions", async () => {
+    const { auth, association, receipt, query } = await committedPursuit("pursuit-epoch-gap");
+    await pool!.query("UPDATE source_retention_receipts SET authorization_expires_at=now()-interval '1 hour' WHERE capture_id=$1", [association.captureId]);
+    await sweepDueSourceAuthorizations(pool!);
+    await pool!.query("UPDATE captures SET version=version+1 WHERE id=$1", [association.captureId]);
+    await pool!.query("UPDATE source_retention_receipts SET retention_until=now()-interval '1 hour' WHERE capture_id=$1", [association.captureId]);
+    await sweepDueSourceRetention(pool!);
+    await expect(readMemoryScopedOperationView(pool!, auth, receipt.operation_key, query)).rejects.toMatchObject({ code: "MEMORY_PURSUIT_ASSOCIATION_STALE" });
+  });
+
+  it("does not exempt an existing contact from current scope checks after undo", async () => {
+    const auth = await makeAuth("historical-existing");
+    const contact = await makeContact(auth, "Existing");
+    const staged = await stage(auth, { items: draftProposalItems().relationship, contactDecision: "existing", personId: contact.personId, contextId: contact.contextId, identityAuthority: "human_selection" });
+    const opened = await open(auth, staged!.proposal.proposal_id, "relationship", contact.personId, contact.contextId);
+    const applied = await commit(auth, opened.review, opened.review_credential!, { selected: opened.review.items.map(item => item.id), contactDecision: "existing" });
+    await undoMemoryCommit(pool!, auth, applied.body.receipt.commit_id, { idempotency_key: randomUUID(), expected_commit_revision: 1, reason: "undo" });
+    await pool!.query("UPDATE subjects SET status='deleted' WHERE id=$1", [contact.personId]);
+    await expect(readMemoryScopedOperationView(pool!, auth, applied.body.receipt.operation_key, { purpose: "people", person_id: contact.personId })).rejects.toMatchObject({ code: "MEMORY_NOT_FOUND" });
+  });
+
+  it("persists retained contact outcome and rejects later business reads after its deletion", async () => {
+    const auth = await makeAuth("historical-retained");
+    const newContact = { display_label: "Retained", relationship_context: "Design" };
+    const staged = await stage(auth, { items: draftProposalItems().relationship, contactDecision: "new", newContact, authorityText: "Retained design system notes" });
+    const opened = await open(auth, staged!.proposal.proposal_id, "chat");
+    const applied = await commit(auth, opened.review, opened.review_credential!, { selected: opened.review.items.map(item => item.id), contactDecision: "new", newContact });
+    const receipt = applied.body.receipt;
+    await pool!.query("INSERT INTO assignments(id,account_id,subject_id,external_ref,display_label,status) VALUES($1,$2,$3,$4,'Later relationship','active')", [randomUUID(), auth.accountId, receipt.created_person_id, randomUUID()]);
+    const request = { idempotency_key: randomUUID(), expected_commit_revision: 1, reason: "retain later work" };
+    expect((await undoMemoryCommit(pool!, auth, receipt.commit_id, request)).receipt.undo_contact_outcome).toBe("retained");
+    const view = await readMemoryScopedOperationView(pool!, auth, receipt.operation_key, { purpose: "people", person_id: receipt.created_person_id! });
+    expect(view.visible_receipt?.undo_contact_outcome).toBe("retained");
+    expect((await undoMemoryCommit(pool!, auth, receipt.commit_id, request)).receipt.undo_contact_outcome).toBe("retained");
+    await pool!.query("UPDATE subjects SET status='deleted' WHERE id=$1", [receipt.created_person_id]);
+    await expect(readMemoryScopedOperationView(pool!, auth, receipt.operation_key, { purpose: "people", person_id: receipt.created_person_id! })).rejects.toMatchObject({ code: "MEMORY_NOT_FOUND" });
+  });
+
+  it("binds operation read and undo to the signed Session inside the transaction", async () => {
+    const {auth,receipt}=await committedPursuit("operation-session");
+    const request={purpose:"chat" as const,session_id:randomUUID()};
+    await expect(readMemoryScopedOperationView(pool!,auth,receipt.operation_key,request)).rejects.toMatchObject({code:"MEMORY_ENTRY_SCOPE_MISMATCH"});
+    await expect(undoMemoryScopedOperation(pool!,auth,receipt.operation_key,{...request,idempotency_key:randomUUID(),expected_commit_revision:1,reason:"wrong entry"})).rejects.toMatchObject({code:"MEMORY_ENTRY_SCOPE_MISMATCH"});
+    expect((await pool!.query("SELECT status FROM memory_commits WHERE id=$1",[receipt.commit_id])).rows[0].status).toBe("applied");
+  });
+  it.each(["delete","rebind"])("rejects relationship corrections and replay after context %s", async kind => {
+    const {auth,contact,receipt}=await committedPursuit(`mutation-${kind}`);
+    const id=receipt.created_item_ids[0]!;
+    const request={operation:"correct" as const,idempotency_key:randomUUID(),expected_version:1,display_text:"Human corrected plan",reason:"human correction",
+      entry_scope:{purpose:"relationship" as const,person_id:contact.personId,relationship_context_id:contact.contextId}};
+    await mutateMemoryItem(pool!,auth,id,request);
+    if(kind==="delete")await pool!.query("UPDATE assignments SET status='deleted' WHERE id=$1",[contact.contextId]);
+    else {const other=await makeContact(auth,"Other");await pool!.query("UPDATE assignments SET subject_id=$2 WHERE id=$1",[contact.contextId,other.personId]);}
+    await expect(mutateMemoryItem(pool!,auth,id,request)).rejects.toMatchObject({code:"MEMORY_NOT_FOUND"});
+    await expect(mutateMemoryItem(pool!,auth,id,{...request,idempotency_key:randomUUID(),expected_version:2})).rejects.toMatchObject({code:"MEMORY_NOT_FOUND"});
+  });
+
+  it("rechecks image authority transactionally after the preflight image read", async () => {
+    const auth=await makeAuth("image-recall-race");const contact=await makeContact(auth,"Chen");
+    await pool!.query(`INSERT INTO identity_handles(id,account_id,subject_id,handle_type,normalized_value_hash,display_hint,status,confirmed_by_user_id,freshness_policy_version,validity_basis,valid_until)
+      VALUES($1,$2,$3,'source_native_id',$4,'@chenyu_demo','confirmed',$5,'identity-freshness-2026-08-07.v1','policy_default',now()+interval '180 days')`,[randomUUID(),auth.accountId,contact.personId,createHash("sha256").update("chenyu_demo").digest("hex"),auth.userId]);
+    const staged=await stage(auth,{items:draftProposalItems().relationship,contactDecision:"existing",personId:contact.personId,contextId:contact.contextId,identityAuthority:"human_selection"});
+    const opened=await open(auth,staged!.proposal.proposal_id,"chat");
+    await commit(auth,opened.review,opened.review_credential!,{selected:opened.review.items.map(item=>item.id),contactDecision:"existing"});
+    const sessionId=randomUUID(),messageId=randomUUID(),attachmentId=randomUUID();
+    const hash=createHash("sha256").update(Buffer.from([1,2,3,4])).digest("hex");
+    await insertSourceSession(auth,sessionId,messageId,"",[{attachmentId,contentHash:hash}]);
+    const artifact=`conversation-image-${messageId}-0-${attachmentId}`;
+    // Pause after the second real PG image preflight has observed the row,
+    // then remove it before the adapter enters its authorization transaction.
+    const original=pool!.query.bind(pool!);let reads=0;
+    const spy=vi.spyOn(pool!,"query").mockImplementation((async (...args: unknown[])=>{
+      const result=await (original as (...args: unknown[])=>Promise<unknown>)(...args);
+      if(typeof args[0]==="string" && args[0].includes("SELECT image.content_hash, image.content") && ++reads===2) {
+        await original("DELETE FROM conversation_message_images WHERE account_id=$1 AND session_id=$2",[auth.accountId,sessionId]);
+      }
+      return result;
+    }) as Pool["query"]);
+    let recalled: unknown;
+    try {
+      const provider={providerId:"zhipu-chat-completions",id:"image-race",model:"synthetic",sdkVersion:"test",supportsImageInput:true,
+        inputCapabilities:{text:true,image:true,imageUnderstanding:true},answer:vi.fn(),
+        run:async (_request:unknown,invoke:(name:string,input:unknown)=>Promise<unknown>)=>{
+          expect(await invoke("contact_workspace",{operation:"search",query:"@chenyu_demo",maximum_results:4,source_clue:{clue:"@chenyu_demo",source_locator:{kind:"image_region",artifact_id:artifact,image_index:0}}})).toMatchObject({ok:true});
+          recalled=await invoke("memory_review",{operation:"recall",person_id:contact.personId,relationship_context_id:contact.contextId});
+          return {structuredOutput:{outcome:"reply",title:"Source changed",body:"请重新提供图片。"},inputTokens:1,outputTokens:1,estimatedUsd:0,turns:1,permissionDenials:[]};
+        }};
+      await executeWorkspaceConversationAgent({database:pool!,auth,sessionID:sessionId,messageID:messageId,objective:"Please summarize this image",sourceText:"",provider:provider as never,
+        inputParts:[{kind:"image",artifactID:artifact,mimeType:"image/png",byteSize:4,contentHash:hash,dataBase64:Buffer.from([1,2,3,4]).toString("base64")}]});
+      expect(reads).toBe(2);expect(recalled).toMatchObject({ok:false,error:{code:"MEMORY_UNAVAILABLE"}});
+      expect(JSON.stringify(recalled)).not.toContain("display_text");
+    } finally {spy.mockRestore();}
   });
 
 });
