@@ -3,6 +3,13 @@
 Status: **incomplete; live model quota blocked**. This is a development evaluation,
 not release acceptance or human gold. No production deployment occurred.
 
+Delivery: [draft PR #239](https://github.com/getyak/talent-signal/pull/239).
+Initial CI identified two public-subject regex performance alerts and an
+unregistered evaluation credential name. The parser now uses bounded, separate
+linear steps; `IMSTAGE_MCP_TOKEN` is declared only in the evaluation secret group.
+Four subject-admission tests, thirteen secret-contract tests and Agent typecheck
+pass locally. Updated remote checks and final live acceptance remain required.
+
 ## Dataset and projects
 
 24 fictional, natural mobile WeChat/WhatsApp conversations are saved in IMStage

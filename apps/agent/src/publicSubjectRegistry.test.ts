@@ -21,4 +21,10 @@ describe("public topic admission",()=>{
   expect(registry.registerImage(input)?.name).toBe("Simon Willison");
   expect(registry.subjects()[0]?.isCurrent).toBe(input.isCurrent);
  });
+ it("bounds hostile clauses while preserving explicit whitespace-separated names",()=>{
+  for(const objective of ["查查"+"\t".repeat(100_000),"查查a的背景"+"a的作品".repeat(100_000)]){
+   expect(publicSubjectRegistry(objective).subjects()).toEqual([]);
+  }
+  expect(publicSubjectRegistry("请\t研究\tSimon Willison\tand\tCraig Mod 的文章").subjects().map(s=>s.name)).toEqual(["Simon Willison","Craig Mod"]);
+ });
 });

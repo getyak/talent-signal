@@ -18,9 +18,21 @@ export function publicSubjectRegistry(objective:string) {
   const prohibited=/(?:不要|不许|别|禁止)[^，。！？;；\n]{0,12}(?:搜|查|检索|研究)|(?:do not|don['’]t|never)\s+(?:search|research|look up)/iu.test(objective);
   if(!prohibited){
     for(const clause of objective.split(/[，。！？;；\n]/u)){
-      const request=clause.trim().match(/^(?:(?:请|帮我)\s*)?(?:查一下|查查|搜索|研究|了解一下|介绍一下|look up|research)\s*(?:聊天提到的\s*)?(.+?)(?:的(?:背景|作品|文章).*)?$/iu);
-      if(!request)continue;
-      const names=request[1]!.split(/\s+(?:and|和)\s+|、|与/u);
+      // Parse bounded clauses in separate linear steps. Overlapping whitespace
+      // and optional suffix patterns can otherwise backtrack on hostile input.
+      if(clause.length>512)continue;
+      let request=clause.trim();
+      for(const prefix of ["请","帮我"])if(request.startsWith(prefix)){
+        request=request.slice(prefix.length).trimStart();break;
+      }
+      const verb=["查一下","查查","搜索","研究","了解一下","介绍一下","look up","research"]
+        .find(prefix=>request.toLowerCase().startsWith(prefix));
+      if(!verb)continue;
+      request=request.slice(verb.length).trimStart();
+      if(request.startsWith("聊天提到的"))request=request.slice("聊天提到的".length).trimStart();
+      const suffixes=["的背景","的作品","的文章"].map(suffix=>request.indexOf(suffix)).filter(index=>index>=0);
+      if(suffixes.length)request=request.slice(0,Math.min(...suffixes));
+      const names=request.replace(/\s+/gu," ").trim().split(/ and | 和 |、|与/u);
       // Every token must be a complete bounded name. Reject a whole ambiguous
       // target phrase instead of finding capitalized substrings within it.
       if(names.every(name=>/[\p{Script=Latin}]/u.test(name) && isBoundedPublicName(name.trim())))for(const name of names)register(name.trim(),"objective");
