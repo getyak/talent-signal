@@ -7,12 +7,15 @@ export interface CalendarDraftContext {
   sourceRequestID: string;
   referenceTime: string;
   timeZone: string;
+  /** Host-only validator backed by same-Run current image observations. */
+  validateImageExcerpt?: (artifactID: string, excerpt: string) => Promise<false | NonNullable<CalendarDraft["source_image"]>>;
 }
 
 const schema = z.strictObject({
   title: z.string().trim().min(1).max(200),
   starts_at: z.iso.datetime({ offset: true }), ends_at: z.iso.datetime({ offset: true }),
   time_zone: z.string().trim().min(1).max(100), source_excerpt: z.string().trim().min(1).max(1000),
+  source_image_artifact_id: z.string().min(1).max(300).optional(),
 });
 
 function wallTimeMatches(value: string, zone: string): boolean {
@@ -36,11 +39,15 @@ export function calendarDraftCapability(context: CalendarDraftContext | undefine
   const content = (value: unknown, isError = false) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }], isError });
   const tool: HarnessTool = {
     name: "stage_calendar_draft", readOnly: false, alwaysLoad: true, schema,
-    description: `Prepare one editable calendar draft for the user's current request, without saving an event, inviting anyone, or scheduling a reminder. Use calendar_clock in the current request context as the exclusive reference for today. Resolve relative dates using that reference, include the explicit UTC offset in both local timestamps, preserve stated duration, and quote the exact supporting user text. If a date or duration is materially unclear, ask before staging. A successful draft is the end of preparation and still requires an explicit human calendar action.`,
+    description: `Prepare one editable calendar draft for the user's current request, without saving an event, inviting anyone, or scheduling a reminder. Use calendar_clock in the current request context as the exclusive reference for today. Resolve relative dates using that reference, include the explicit UTC offset in both local timestamps, preserve stated duration, and quote the exact supporting user text. For screenshot or poster evidence, first call inspect_current_image, then quote its visible_text and set source_image_artifact_id. A screenshot may describe an old date: its relative times require an explicit source date or a user-confirmed reference; an undated old screenshot cannot use today as its source date. Respect later rescheduling/cancellation in the source. If a date or duration is materially unclear, ask before staging. A successful draft is the end of preparation and still requires an explicit human calendar action.`,
     execute: async raw => {
       const input = schema.parse(raw);
       if (draft) return content({ error: "CALENDAR_DRAFT_ALREADY_STAGED" }, true);
-      if (!objective.includes(input.source_excerpt)) return content({ error: "CALENDAR_DRAFT_SOURCE_MISMATCH" }, true);
+      const grounded = input.source_image_artifact_id
+        ? await context.validateImageExcerpt?.(input.source_image_artifact_id,input.source_excerpt)
+        : objective.includes(input.source_excerpt);
+      if (!grounded) return content({ error: "CALENDAR_DRAFT_SOURCE_MISMATCH", instruction: "For screenshot text, inspect_current_image first, then quote its visible_text and supply source_image_artifact_id. Never substitute generated descriptions for a quote." }, true);
+      if (draft) return content({ error: "CALENDAR_DRAFT_ALREADY_STAGED" }, true);
       if (input.time_zone !== context.timeZone || !wallTimeMatches(input.starts_at, context.timeZone) || !wallTimeMatches(input.ends_at, context.timeZone)) {
         return content({ error: "CALENDAR_DRAFT_TIME_ZONE_MISMATCH", time_zone: context.timeZone }, true);
       }
@@ -49,6 +56,7 @@ export function calendarDraftCapability(context: CalendarDraftContext | undefine
       draft = { id: randomUUID(), title: input.title, starts_at: new Date(start).toISOString(), ends_at: new Date(end).toISOString(),
         time_zone: context.timeZone, source_request_id: context.sourceRequestID, source_excerpt: input.source_excerpt,
         reference_time: new Date(context.referenceTime).toISOString(), status: "needs_review", external_effect: "none" };
+      if (typeof grounded === "object") draft.source_image = grounded;
       return content({ calendar_draft: draft, instruction: "Present the draft for human review in the attached calendar card. No calendar event has been created and nobody has been invited. The user must use that card's calendar action; a conversational reply is not approval and cannot save an event. Keep the reply brief because the card already shows the exact title and time." });
     },
   };

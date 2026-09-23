@@ -33,6 +33,11 @@ function candidate(
 }
 
 describe("memory_review Agent tool", () => {
+  it("permits a contact-only name draft with provenance but not an empty no-op", () => {
+    expect(MemoryReviewInputSchema.safeParse({operation:"propose",scope:"relationship",contact_decision:"new",person_display_label:"阿禾",new_contact_source_locator:{kind:"image_region",artifact_id:"current-image",image_index:0},items:[]}).success).toBe(true);
+    expect(MemoryReviewInputSchema.safeParse({operation:"propose",contact_decision:"new",person_display_label:"阿禾",new_contact_source_locator:{kind:"image_region",artifact_id:"current-image",image_index:0},items:[]}).success).toBe(true);
+    expect(MemoryReviewInputSchema.safeParse({operation:"propose",contact_decision:"none",items:[]}).success).toBe(false);
+  });
   it("is a Zod object capability with a typed recall/propose boundary", () => {
     expect(AGENT_TOOL_CATALOG.memory_review.capabilityClass).toBe("memory_review");
     expect(AGENT_TOOL_CATALOG.memory_review.approval).toBe("human_review_before_apply");

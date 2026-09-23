@@ -116,6 +116,14 @@ function clickByText(text: string) {
 }
 
 describe("shared Memory review card", () => {
+  it("offers a contact-only save without an empty Memory counter",async()=>{
+    const contact={...review(),items:[],visible_item_count:0,visible_default_selected_count:0};
+    fetcher.mockResolvedValue(Response.json({review_credential:"cred-1234567890",review:contact}));
+    await act(async()=>root.render(createElement(MemoryReviewCard,{key:"contact-only",binding:"binding-1",proposal:{proposal_id:PROPOSAL,revision:1},purpose:"chat"})));await flush();
+    expect(document.body.textContent).toContain("仅添加陈宇");
+    expect(document.body.textContent).not.toContain("已选 0 条");
+    expect(document.body.textContent).toContain("先保存姓名");
+  });
   it("keeps a business entry fixed to its person and shows old to new in the folded preview",async()=>{
     const scoped=review();scoped.purpose="relationship";scoped.allowed_scope="relationship";scoped.contact_decision="existing";scoped.contact_status="resolved";
     scoped.items=[{...item("change","relationship","原型已发出。"),operation:"update",previous_text:"原型计划周五发出。"}];

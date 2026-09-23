@@ -90,7 +90,7 @@ export const MemoryReviewToolInputSchema = z.strictObject({
   person_display_label: z.string().max(200).nullable().optional(),
   relationship_display_label: z.string().max(200).nullable().optional(),
   new_contact_source_locator: MemorySourceLocatorInputSchema.nullable().optional(),
-  items: z.array(MemoryProposalCandidateInputSchema).min(1).max(40).optional(),
+  items: z.array(MemoryProposalCandidateInputSchema).max(40).optional(),
 });
 
 export const MemoryReviewInputSchema = z.discriminatedUnion("operation", [
@@ -103,14 +103,17 @@ export const MemoryReviewInputSchema = z.discriminatedUnion("operation", [
   }),
   z.strictObject({
     operation: z.literal("propose"),
+    scope: MemoryScopeSchema.optional(),
     person_id: Id.nullable().optional(),
     relationship_context_id: Id.nullable().optional(),
     contact_decision: MemoryContactDecisionSchema,
     person_display_label: z.string().max(200).nullable().optional(),
     relationship_display_label: z.string().max(200).nullable().optional(),
     new_contact_source_locator: MemorySourceLocatorInputSchema.nullable().optional(),
-    items: z.array(MemoryProposalCandidateInputSchema).min(1).max(40),
-  }),
+    items: z.array(MemoryProposalCandidateInputSchema).max(40),
+  }).refine(input => !input.scope || input.items.every(item => item.scope === input.scope),
+    "Top-level scope must agree with every proposed item; omit it for mixed scopes.").refine(input => input.items.length > 0 || (input.contact_decision === "new" && Boolean(input.person_display_label?.trim()) && Boolean(input.new_contact_source_locator)),
+    "An empty Memory proposal requires a source-grounded new contact."),
 ]);
 
 export type MemoryReviewToolInput = z.infer<typeof MemoryReviewToolInputSchema>;
@@ -162,7 +165,7 @@ export const MEMORY_REVIEW_TOOL_DESCRIPTION = [
   "Recall or stage the three-scope Memory review for the authenticated account.",
   'Use {"operation":"recall"} to read accepted, still-valid self/person/relationship memory for the current task scope before answering. Private self memory is never available on a relationship-scoped business view.',
   "Recall supports scope self/person/relationship and the returned next_cursor. Follow pagination when completeness matters; no result means no currently available evidence, not proof something never happened.",
-  'Use {"operation":"propose", ...} only when the current admitted user message and/or admitted images contain a worthwhile, durable change.',
+  'Use {"operation":"propose", ...} for a durable change or a named new counterparty in a direct-chat image. Name or nickname alone is enough for the editable Add contact option: contact_decision="new", person_display_label, new_contact_source_locator; items=[] is valid when no durable Memory item is needed. No email or company is required.',
   "Each item must copy one exact contiguous excerpt from the admitted source, name its scope, keep the statement kind (fact, source statement, or user opinion), and preserve speaker/reporter, time, and limiting conditions.",
   "Never infer a person's personality, motive, quality, or acceptance from one message, and never turn 'I want to work with X' into a mutual agreement. A future plan is not a completed fact.",
   "This tool never writes accepted memory or a contact; it stages a review card that the human confirms, edits, or skips.",

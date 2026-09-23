@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ExaProvider, publicExaUrl } from "./exaProvider.js";
+import {randomUUID} from "node:crypto";
+import {runContactResearchTool} from "./contactResearchService.js";
 import { configuredLocalWebSearchProvider } from "./providerConfig.js";
 
 const signal = () => new AbortController().signal;
@@ -106,4 +108,12 @@ describe("Exa research", () => {
     await expect(new ExaProvider({ apiKey: "test-secret", fetcher }).searchWeb("Example Person", 5, signal()))
       .rejects.toMatchObject({ code: "EXA_RESPONSE_TOO_LARGE" });
   });
+});
+
+it("keeps an empty-titled official result valid across the contact research contract",async()=>{
+ const url="https://www.andrewng.org/about";
+ const exa=new ExaProvider({apiKey:"test",fetcher:async()=>response([{url,title:"  ",highlights:["Official biography"]}])});
+ const result=await runContactResearchTool({contract_version:"contact-research-tools.v3",task_id:randomUUID(),call_id:randomUUID(),anchors:["Andrew Ng"],input:{operation:"search",channels:["web"],query:"Andrew Ng biography official website",maximum_results_per_channel:3}},{},{exa});
+ expect(result.sources[0]).toMatchObject({url,title:url,text:"Official biography",stage:"discovered"});
+ expect(result.channels[0]).toMatchObject({status:"ok",result_count:1});
 });

@@ -7,6 +7,16 @@ const input = { title: "与陈夏会谈", starts_at: "2026-09-10T15:00:00+08:00"
 const signal = new AbortController().signal;
 
 describe("review-only calendar capability", () => {
+  it("admits only one of concurrent image drafts and preserves its image receipt", async () => {
+    let release!:()=>void;
+    const barrier=new Promise<void>(resolve=>{release=resolve;});
+    const source={artifact_id:"image",content_hash:"a".repeat(64),inspection_request_id:"inspection"};
+    const capability=calendarDraftCapability({...context,validateImageExcerpt:async()=>{await barrier;return source;}},"");
+    const calls=[1,2].map(()=>capability.tools[0]!.execute({...input,source_image_artifact_id:"image"},signal));
+    release();const results=await Promise.all(calls);
+    expect(results.filter(r=>!r.isError)).toHaveLength(1);
+    expect(capability.draft()?.source_image).toEqual(source);
+  });
   it("stages the exact source and zoned interval without an external effect", async () => {
     const capability = calendarDraftCapability(context, objective);
     expect(capability.draft()).toBeUndefined();

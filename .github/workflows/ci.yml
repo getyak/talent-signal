@@ -238,7 +238,7 @@ jobs:
         run: pnpm test
 
       - name: Run candidate momentum Eval
-        run: pnpm eval:core
+        run: pnpm eval:core && pnpm eval:relationships:check
 
       - name: Build
         env:

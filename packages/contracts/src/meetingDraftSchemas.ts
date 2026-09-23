@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { CONTRACT_VERSION } from "./constants.js";
+import { CalendarDraftSchema } from "./calendarDraftSchemas.js";
 
 /**
  * A persistent projection of a CalendarDraft value produced by a session-bound
@@ -40,6 +41,7 @@ const availableContent = {
   time_zone: Type.String({ minLength: 1, maxLength: 100, pattern: "\\S" }),
   source_excerpt: Type.String({ minLength: 1, maxLength: 1000, pattern: "\\S" }),
   reference_time: stamp,
+  source_image: CalendarDraftSchema.properties.source_image,
   redacted_at: Type.Null(),
 } as const;
 const unavailableContent = {

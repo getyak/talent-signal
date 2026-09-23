@@ -96,6 +96,7 @@ type QueueTurn = {
     createdAt: string;
     unboundConversationBlocks: ReturnType<typeof displayBlocks>;
     memoryProposal?: { proposal_id: string; revision: number };
+    meetingDraft?: {id:string;title:string};
   };
 };
 
@@ -119,6 +120,8 @@ function queueTurn(
       disposition: response.disposition,
       createdAt: response.createdAt,
       unboundConversationBlocks: displayBlocks(response.blocks),
+      ...(response.blocks.find(block=>block.calendar_draft)?.calendar_draft
+        ? {meetingDraft:{id:response.blocks.find(block=>block.calendar_draft)!.calendar_draft!.id,title:response.blocks.find(block=>block.calendar_draft)!.calendar_draft!.title}} : {}),
       ...(response.memoryProposal ? { memoryProposal: response.memoryProposal } : {}),
     },
   };

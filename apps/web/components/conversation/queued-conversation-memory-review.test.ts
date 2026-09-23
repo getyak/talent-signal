@@ -172,6 +172,14 @@ afterEach(async () => {
 });
 
 describe("queued conversation memory review", () => {
+  it("shows a direct calendar handoff for a completed queue turn",async()=>{
+    const detail={...initialDetail,turns:initialDetail.turns.map(turn=>({...turn,response:{...turn.response,meetingDraft:{id:PROPOSAL,title:"Coffee"}}}))};
+    await act(async()=>root?.render(createElement(QueuedConversation,{chatBinding:"chat-binding",detailBinding:"detail-binding",initialDetail:detail,scope:"a".repeat(64)})));
+    await flush();
+    const link=document.querySelector(`a[href='/workspace/meetings?draft=${PROPOSAL}']`);
+    expect(link?.textContent).toContain("核对日历草稿");
+    expect(link?.closest("details")).toBeNull();
+  });
   it("renders the staged contact/memory review card for a completed image-only turn", async () => {
     await act(async () => {
       root?.render(createElement(QueuedConversation, {
