@@ -83,6 +83,9 @@ jobs:
           env-slug: staging
           secret-path: /release
           export-type: env
+      - name: Verify signed release prerequisites
+        if: env.MACOS_RELEASE_MODE == 'signed'
+        run: node scripts/macos/release-prerequisites.mjs
       - name: Configure ephemeral signing keychain
         if: env.MACOS_RELEASE_MODE == 'signed'
         run: scripts/macos/signing-keychain.sh

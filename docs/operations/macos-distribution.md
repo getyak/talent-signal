@@ -89,8 +89,14 @@ push CI for that exact revision.
 Infisical remains the canonical secret store. Configure a separate GitHub OIDC
 identity restricted to this repository's `macos-release` environment, audience
 `infisical://talent-signal/macos-release`, and `staging:/release` read scope.
-Set `INFISICAL_MACOS_IDENTITY_ID` as a repository variable. Restrict the GitHub
-`macos-release` environment to the default branch.
+The configured identity and exact claims are recorded under `githubMacosOidc` in
+`config/infisical-secrets.json`; `INFISICAL_MACOS_IDENTITY_ID` is a repository
+variable. The GitHub `macos-release` environment admits only `main`. Identity
+base access is `no-access`; its additional privilege can only describe/read
+the eight `macosRelease` names in `staging:/release`. OIDC also binds the immutable
+repository/owner IDs, `refs/heads/main`, and the exact release workflow path;
+its access token lasts 900 seconds. Configuration readback does not prove a
+successful GitHub OIDC exchange.
 
 Before requesting new credentials, resolve the existing release contract. A
 missing `MACOS_*` name does not prove the underlying credential is absent.
@@ -100,6 +106,21 @@ credentials with a read-only `notarytool history` request before provisioning
 new ones or binding them to the macOS names below. Keep any transient key file
 mode `0600` and remove it immediately; never print its value. Authentication
 success proves access, not notarization of a release.
+
+Check configuration readiness against the injected names without printing
+values:
+
+```sh
+./scripts/infisical/run.sh staging /release -- node scripts/macos/release-prerequisites.mjs
+```
+
+The read-only diagnostic prints fixed credential names and statuses, reports a
+complete `APP_STORE_CONNECT_*` triplet as a recoverable notarization alias source
+only when the `MACOS_NOTARY_*` names are absent, and exits nonzero until every
+`MACOS_*` name below is present with a `Developer ID Application:` identity and a
+canonical 32-byte Sparkle public key. Configuration readiness is not proof of
+signing, notarization, or update-feed publication; recoverable aliases alone
+never count as ready.
 
 Check the certificate type separately: an encrypted Fastlane Match distribution
 certificate or an installed Apple Distribution identity is not a Developer ID
@@ -115,6 +136,11 @@ The scoped release environment needs:
 - `MACOS_SPARKLE_PRIVATE_KEY`: corresponding Sparkle Ed25519 seed, used via stdin only;
 - `MACOS_NOTARY_KEY_ID`, `MACOS_NOTARY_ISSUER_ID`, `MACOS_NOTARY_PRIVATE_KEY`:
   App Store Connect team API key authorized for notarization.
+
+The production Sparkle key is stored in those two Infisical names. Its local
+recovery copy is the login Keychain item for upstream `generate_keys` account
+`getyak.talent-signal.macos.production`. Recover the existing key before creating
+one: replacing it changes the update trust anchor of installed clients.
 
 Generate the Sparkle key once using upstream `generate_keys`, retain the private
 key in Infisical, and use the corresponding public key in every signed app. Do not
