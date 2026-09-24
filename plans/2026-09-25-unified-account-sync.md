@@ -53,7 +53,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | Safe conflict and relay behavior | hostile/replay/ownership tests | pending |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10 and reconciliation boundary8/8 at intermediate source; recovery UI fixes pending |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | pending |
-| Session history sync both directions | same session/message IDs and deletion | actual Web open-history update and draft preservation observed; native/bidirectional/deletion pending |
+| Session history sync both directions | same session/message IDs and deletion | actual Web open-history update, draft preservation and remote tombstone observed; native/bidirectional pending |
 | Interrupted/offline recovery | preserved draft and no duplicate write | pending |
 | Real Apple sign-in | provider callback and post-login readback | pending |
 | Review and delivery | independent P0/P1 closure and exact-head checks | pending |
@@ -159,3 +159,38 @@ prepare the complete reviewable flow before asking for that specific step. Unit
 verifier injection is not live provider evidence. Do not end the task just because
 Pi reports ready_for_review. Unresolved historical collision or missing live
 platform evidence remains explicitly incomplete.
+
+### Independent acceptance checkpoint at 05:17 local
+
+Pi continues repair11 in the original task/session. The parent has integrated
+only design, evaluation documents and optional native build-origin plumbing;
+implementation remains in the worker checkout until its outstanding review
+findings are fixed. The full repair contract and current parent receipts remain
+under the task artifact directory.
+
+- The authenticated Apple Developer readback confirms Service ID
+  `com.talentsignal.web` is grouped with primary App ID
+  `6RG2F8YY59.com.talentsignal.app`. The registered HTTPS return URL uses port
+  `10443`. No provider configuration was changed; live Apple identity continuity
+  remains unverified.
+- The parent launched the exact repair10 simulator binary under the shared
+  device guard. It stopped at protected test-workspace recovery before login.
+  Code-sign readback shows a linker-signed binary without entitlements after
+  Pi's `CODE_SIGNING_ALLOWED=NO` Debug build. A normally signed Debug build is
+  needed to test the suspected Keychain cause. No protected state was erased.
+- A deterministic test of the production Web refresh defaults starts its first
+  read after 16 seconds: 15-second interval plus 1-second coalescing. This fails
+  the 15-second target before network latency; the default interval needs margin.
+- Repair11's Web review still identifies missing target-round creation in the
+  password-first binding action and missing rendered-flow-ref rejection. The
+  narrow tests bypassed these real entry points. Stale-error retirement and
+  truthful recovery-proof projection also require correction.
+- Actual Chrome login encountered an onboarding/login redirect loop. An
+  independent HTTP probe reproduced that loop with a deliberately invalid Lab
+  selection cookie after successful primary login; the clean-cookie control
+  reached the workspace. Chrome's specific cookie cause is not established.
+  Recovery must preserve isolation rather than silently fall back to a parent.
+- The disposable UI database's empty reconciliation table received its two
+  missing development columns after schema comparison against the fresh proof
+  database. Existing synthetic Person/Session IDs were retained. This adjustment
+  is not fresh-migration proof and did not touch any resident database.
