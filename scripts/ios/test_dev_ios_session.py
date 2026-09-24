@@ -257,7 +257,7 @@ import sys
 
 grandchild_code = (
     "import os, pathlib, signal, time;"
-    "signal.signal(signal.SIGTERM, signal.SIG_IGN);"
+    "signal.signal(signal.SIGTERM, lambda *_: pathlib.Path(os.environ['GRANDCHILD_TERM_MARKER']).touch());"
     "pathlib.Path(os.environ['GRANDCHILD_MARKER']).write_text('up');"
     "time.sleep(60)"
 )
@@ -812,6 +812,7 @@ class DevIOSSessionTest(unittest.TestCase):
 
     def test_grandchild_teardown_keeps_lock_until_group_empty(self):
         marker = os.path.join(self.temp, "grandchild-marker")
+        term_marker = os.path.join(self.temp, "grandchild-term-marker")
         pid_file = os.path.join(self.temp, "grandchild.pid")
         first = subprocess.Popen(
             [
@@ -824,7 +825,11 @@ class DevIOSSessionTest(unittest.TestCase):
                 sys.executable,
                 self.grandchild_leader,
             ],
-            env=self.env(GRANDCHILD_MARKER=marker, GRANDCHILD_PID_FILE=pid_file),
+            env=self.env(
+                GRANDCHILD_MARKER=marker,
+                GRANDCHILD_TERM_MARKER=term_marker,
+                GRANDCHILD_PID_FILE=pid_file,
+            ),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -833,8 +838,12 @@ class DevIOSSessionTest(unittest.TestCase):
             self.assertTrue(self.wait_until(lambda: os.path.exists(pid_file)))
             with open(pid_file, encoding="utf-8") as handle:
                 grandchild_pid = int(handle.read().strip())
-            # The leader already exited, but the wrapper must still own the lock
-            # while it terminates the lingering descendant.
+            # Wait until teardown has signaled the lingering descendant and
+            # confirmed it is still alive. The marker removes a scheduler race
+            # where a fast runner could let the leader exit after the lock
+            # assertion was already satisfied.
+            self.assertTrue(self.wait_until(lambda: os.path.exists(term_marker)))
+            self.assertTrue(self.process_exists(grandchild_pid))
             second = self.run_session(["run", "--timeout", "1", "--", "true"], timeout=30)
             self.assertEqual(second.returncode, 75, second.stderr)
             self.assertEqual(first.wait(timeout=60), 0)
