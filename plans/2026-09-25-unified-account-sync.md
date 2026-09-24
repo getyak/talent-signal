@@ -33,8 +33,9 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 
 ## Milestones
 
-1. Active: finish design/security review and freeze Pi contract.
-2. Pi implements uniqueness, settings binding and sync lifecycle; runs relevant
+1. Complete: design and independent identity-safety review; review identified
+   unverified password email claims and the design now requires verification.
+2. Active: Pi implements uniqueness, settings binding and sync lifecycle; runs relevant
    TypeScript/PostgreSQL/Swift tests and documents exact limitations.
 3. Parent performs independent security/correctness review and real UI
    acceptance on Primary iPhone, Web and macOS; fix and re-review confirmed bugs.
@@ -47,6 +48,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | Requirement | Required proof | Current state |
 | --- | --- | --- |
 | New email globally unique | PostgreSQL concurrent registration tests | pending |
+| Password email ownership | real delivery plus challenge/replay tests | transport configuration requested |
 | Apple/Google/password same account/user | backend receipts and settings UI | pending |
 | Safe conflict and relay behavior | hostile/replay/ownership tests | pending |
 | Historical duplicates handled | classified inventory, preview, dual proof | pending |

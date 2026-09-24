@@ -38,6 +38,24 @@ unique key and a nullable owner in conflict state is acceptable for this
 transition; it is not permission to claim historical conflicts are resolved.
 Normal new and linked accounts must have exactly one canonical owner.
 
+New password registration must verify actual email ownership before activating a
+canonical claim or admitting private product data. A pending registration is
+short-lived and cannot reserve an email indefinitely or prevent a verified
+provider's signup. Store only password hashes and verification-secret hashes;
+rate-limit starts and attempts, expire and consume challenges atomically, and
+return generic public responses. On successful verification, arbitrate ownership
+in the same transaction; a concurrently created owner leads to sign-in/binding,
+never attaching the pending password automatically. Existing password accounts
+remain explicitly legacy-unverified until ownership is proven. Their passwords
+are never inherited by an OAuth email match.
+
+Use an explicit injectable transactional email delivery adapter, configured only
+on the server, with an isolated test sink for tests. Production may never return
+or log verification codes, use the test sink, or pretend an unconfigured delivery
+transport succeeded. The parent is locating the user's existing email service;
+its real delivery verification is a separate required checkpoint. Keep existing
+sign-in and authenticated linking usable while email delivery is unavailable.
+
 ## Settings experience
 
 Use the existing quiet account settings surface, with one vertical reading
