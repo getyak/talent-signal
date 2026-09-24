@@ -147,6 +147,17 @@ Recovery remains in memory: leaving or refreshing warns truthfully but cannot
 restore the pending request after reopening. Durable recovery is still a deeper
 improvement direction.
 
+The next parent review found a second transport boundary: the resource Web
+route converted a backend fetch or receipt-parse exception into 422, falsely
+classifying an uncertain upstream write as validation rejection. Two new tests
+first reproduced this failure. The route now tracks attempted/acknowledged
+writes, returns a neutral 503 unknown-outcome response after transport/parse
+failure, and also preserves uncertainty when a document saved before a later
+link failed. Pre-write validation stays editable; an acknowledged first atomic
+backend rejection retains its status. All 42 affected route/card tests pass.
+This boundary is verified by deterministic route tests; the earlier browser
+probes specifically cover loss between browser and Web, not this upstream hop.
+
 ### Browser tooling isolation
 
 Client navigation in the extension-enabled audit tab raised a React

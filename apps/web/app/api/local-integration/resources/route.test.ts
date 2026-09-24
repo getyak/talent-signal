@@ -19,6 +19,7 @@ vi.mock("@/lib/server/localBackend", () => ({
 }));
 
 import { POST } from "./route";
+import { TalentSignalHttpError } from "@talent-signal/contracts";
 
 const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 const PERSON_ID = "22222222-2222-4222-8222-222222222222";
@@ -114,6 +115,57 @@ describe("governed conversation resource intake", () => {
         ],
       }),
     );
+  });
+
+  it.each([
+    new TypeError("fetch failed: private upstream detail"),
+    new SyntaxError("private malformed upstream receipt"),
+  ])("preserves an unknown upstream write outcome instead of returning a validation rejection", async (failure) => {
+    // The upstream may have committed before transport/JSON parsing failed.
+    commitRelationshipResourceMock.mockRejectedValueOnce(failure);
+    const result = await POST(request(transcriptBody));
+    expect(result.status).toBe(503);
+    const payload = await result.json();
+    expect(payload).toMatchObject({ code: "resource_intake_outcome_unknown" });
+    expect(JSON.stringify(payload)).not.toContain("private");
+    expect(JSON.stringify(payload)).not.toContain("未保存");
+    expect(commitRelationshipResourceMock).toHaveBeenCalledOnce();
+  });
+
+  it("preserves an acknowledged rejection from the first atomic upstream write", async () => {
+    commitRelationshipResourceMock.mockRejectedValueOnce(
+      new TalentSignalHttpError(409, "RESOURCE_SCOPE_CHANGED", "请重新选择关系。", null),
+    );
+    const result = await POST(request(transcriptBody));
+    expect(result.status).toBe(409);
+    await expect(result.json()).resolves.toMatchObject({ code: "RESOURCE_SCOPE_CHANGED" });
+  });
+
+  it("does not report a later document-link rejection as if the parent document never saved", async () => {
+    commitRelationshipResourceMock.mockResolvedValueOnce({
+      identity: { person_id: PERSON_ID, relationship_context_id: CONTEXT_ID },
+      resource: { id: "44444444-4444-4444-8444-444444444444" },
+    }).mockRejectedValueOnce(
+      new TalentSignalHttpError(422, "LINK_REJECTED", "private child rejection", null),
+    );
+    const form = new FormData();
+    for (const [key, value] of Object.entries({
+      request_id: REQUEST_ID,
+      captured_at: transcriptBody.captured_at,
+      person_id: PERSON_ID,
+      relationship_context_id: CONTEXT_ID,
+      document_kind: "document",
+      save_discovered_links: "true",
+    })) form.set(key, value);
+    form.set("file", new File(["Synthetic document https://example.org/docs"], "synthetic.txt", { type: "text/plain" }));
+    const result = await POST(new Request("http://127.0.0.1:3000/api/local-integration/resources", {
+      method: "POST", headers: { host: "127.0.0.1:3000", origin: "http://127.0.0.1:3000" }, body: form,
+    }));
+    expect(commitRelationshipResourceMock).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe(503);
+    const payload = await result.json();
+    expect(payload.code).toBe("resource_intake_outcome_unknown");
+    expect(JSON.stringify(payload)).not.toContain("private");
   });
 
   it("rejects cross-origin transcript mutation before commit", async () => {
