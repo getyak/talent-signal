@@ -254,14 +254,21 @@ GRANDCHILD_LEADER = """#!__PYTHON__
 import os
 import subprocess
 import sys
+import time
 
 grandchild_code = (
     "import os, pathlib, signal, time;"
     "signal.signal(signal.SIGTERM, lambda *_: pathlib.Path(os.environ['GRANDCHILD_TERM_MARKER']).touch());"
+    "pathlib.Path(os.environ['GRANDCHILD_READY_MARKER']).write_text('ready');"
     "pathlib.Path(os.environ['GRANDCHILD_MARKER']).write_text('up');"
     "time.sleep(60)"
 )
 grandchild = subprocess.Popen([sys.executable, "-c", grandchild_code], env=os.environ)
+deadline = time.monotonic() + 5
+while not os.path.exists(os.environ["GRANDCHILD_READY_MARKER"]) and time.monotonic() < deadline:
+    time.sleep(0.01)
+if not os.path.exists(os.environ["GRANDCHILD_READY_MARKER"]):
+    sys.exit(1)
 with open(os.environ["GRANDCHILD_PID_FILE"], "w", encoding="utf-8") as handle:
     handle.write(str(grandchild.pid))
 sys.exit(0)
@@ -812,6 +819,7 @@ class DevIOSSessionTest(unittest.TestCase):
 
     def test_grandchild_teardown_keeps_lock_until_group_empty(self):
         marker = os.path.join(self.temp, "grandchild-marker")
+        ready_marker = os.path.join(self.temp, "grandchild-ready-marker")
         term_marker = os.path.join(self.temp, "grandchild-term-marker")
         pid_file = os.path.join(self.temp, "grandchild.pid")
         first = subprocess.Popen(
@@ -827,6 +835,7 @@ class DevIOSSessionTest(unittest.TestCase):
             ],
             env=self.env(
                 GRANDCHILD_MARKER=marker,
+                GRANDCHILD_READY_MARKER=ready_marker,
                 GRANDCHILD_TERM_MARKER=term_marker,
                 GRANDCHILD_PID_FILE=pid_file,
             ),
