@@ -59,6 +59,18 @@ type ScopeFields = Pick<
   | "relationship_context_label"
 >;
 
+// `captured_at` is client-attested observation evidence. Validate it without
+// calling Date.toISOString on an invalid value (that would throw a raw
+// RangeError) and never fall back to server time.
+function validCapturedAt(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !Number.isNaN(Date.parse(value)) &&
+    new Date(value).toISOString() === value
+  );
+}
+
 function response(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
@@ -272,6 +284,7 @@ function textFragments(
 
 async function commitText(
   input: TextResourceInput,
+  commit: typeof commitRelationshipResource,
 ): Promise<{
   receipts: ResourceCaptureResponse[];
   discovered_links: string[];
@@ -281,6 +294,11 @@ async function commitText(
     !UUID.test(input.request_id)
   ) {
     throw new Error("来源请求 ID 无效。");
+  }
+  if (!validCapturedAt(input.captured_at)) {
+    throw new Error(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
   }
   const clientResourceId = `web-resource:${input.request_id}`;
   const scope = personScope(input);
@@ -304,7 +322,7 @@ async function commitText(
         "Confirm a valid identity clue on an existing person and relationship.",
       );
     }
-    const receipt = await commitRelationshipResource({
+    const receipt = await commit({
       request_id: input.request_id,
       captured_at: input.captured_at,
       person_scope: scope,
@@ -352,7 +370,7 @@ async function commitText(
     };
   }
   const resource = textFragments(input, clientResourceId);
-  const receipt = await commitRelationshipResource({
+  const receipt = await commit({
     request_id: input.request_id,
     captured_at: input.captured_at,
     person_scope: scope,
@@ -375,6 +393,7 @@ async function commitText(
 
 async function commitFile(
   form: FormData,
+  commit: typeof commitRelationshipResource,
 ): Promise<{
   receipts: ResourceCaptureResponse[];
   discovered_links: string[];
@@ -400,16 +419,20 @@ async function commitFile(
   const file = form.get("file");
   if (
     !UUID.test(requestId) ||
-    new Date(capturedAt).toISOString() !== capturedAt ||
     !(file instanceof File) ||
     !["resume", "document"].includes(documentKind)
   ) {
     throw new Error("文档接收信息不完整。");
   }
+  if (!validCapturedAt(capturedAt)) {
+    throw new Error(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
+  }
 
   const clientResourceId = `web-resource:${requestId}`;
   const extraction = await extractDocument(file, clientResourceId);
-  const parent = await commitRelationshipResource({
+  const parent = await commit({
     request_id: requestId,
     captured_at: capturedAt,
     person_scope: personScope({
@@ -449,7 +472,7 @@ async function commitFile(
       const childRequestId = derivedUuid(`${requestId}\n${link}`);
       const childClientResourceId = `web-resource:${childRequestId}`;
       receipts.push(
-        await commitRelationshipResource({
+        await commit({
           request_id: childRequestId,
           captured_at: capturedAt,
           person_id: boundPersonId,
@@ -561,25 +584,41 @@ export async function POST(request: Request) {
     return response({ code: "resource_too_large" }, 413);
   }
 
+  let writeAttempted = false;
+  let acknowledgedWrites = 0;
+  const commit: typeof commitRelationshipResource = async (input) => {
+    writeAttempted = true;
+    const receipt = await commitRelationshipResource(input);
+    acknowledgedWrites += 1;
+    return receipt;
+  };
   try {
     const contentType =
       request.headers.get("content-type")?.toLowerCase() ?? "";
     if (contentType.startsWith("application/json")) {
       return response(
-        await commitText((await request.json()) as TextResourceInput),
+        await commitText((await request.json()) as TextResourceInput, commit),
         201,
       );
     }
     if (contentType.startsWith("multipart/form-data")) {
-      return response(await commitFile(await request.formData()), 201);
+      return response(await commitFile(await request.formData(), commit), 201);
     }
     return response({ code: "resource_content_type_invalid" }, 415);
   } catch (error) {
-    if (error instanceof TalentSignalHttpError) {
+    if (error instanceof TalentSignalHttpError && acknowledgedWrites === 0) {
       return response(
         { code: error.code, message: error.message },
         error.status,
       );
+    }
+    if (writeAttempted) {
+      // A transport or receipt-parse failure is not proof of rollback. A later
+      // file/link rejection also cannot erase an acknowledged parent write.
+      return response({
+        code: "resource_intake_outcome_unknown",
+        message: "无法确认此次提交的完整结果，内容可能已保存。请保留原内容并重试核实。",
+      }, 503);
     }
     return response(
       {

@@ -126,6 +126,12 @@ function failureCopy(item: Task): string | null {
   return null;
 }
 
+class ContactTaskRequestError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, body?: unknown): Promise<T> {
   const response = await workspaceSessionFetch(`/api/contact-agent/${path}`, {
     method: body ? "POST" : "GET",
@@ -145,7 +151,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
         "来源整理服务暂未就绪。当前输入仍在，请保留此页面，稍后重试。",
       );
     }
-    throw new Error(message ?? "暂时无法完成，请重试。");
+    throw new ContactTaskRequestError(message ?? "暂时无法完成，请重试。", response.status, code);
   }
   return value as T;
 }
@@ -288,6 +294,8 @@ function HistoryRow({
 
 type TaskCardProps = {
   item: Task;
+  archivePersonID?: string;
+  archiveContextID?: string;
   busy: boolean;
   deleteID: string | null;
   name: string;
@@ -306,6 +314,8 @@ type TaskCardProps = {
 
 function TaskEvidenceCard({
   item,
+  archivePersonID,
+  archiveContextID,
   busy,
   deleteID,
   name,
@@ -339,12 +349,12 @@ function TaskEvidenceCard({
           </p>
           <h2>{heading}</h2>
         </div>
-        {item.contact ? (
+        {item.contact && !(item.contact.person_id === archivePersonID && item.contact.relationship_context_id === archiveContextID) ? (
           <Link
             className={styles.profileLink}
             href={`/workspace/captures/people/${item.contact.person_id}?context=${item.contact.relationship_context_id}`}
           >
-            打开档案 ↗
+            查看人物来源 ↗
           </Link>
         ) : null}
       </div>
@@ -403,7 +413,7 @@ function TaskEvidenceCard({
         <div className={styles.progress}>
           <span className={styles.pulse} />
           <span>{tools[item.events.at(-1)?.tool ?? ""] ?? "正在提取来源并查找人物"}</span>
-          <button type="button" onClick={() => void onCancelTask(item)}>
+          <button type="button" disabled={busy} onClick={() => void onCancelTask(item)}>
             停止
           </button>
         </div>
@@ -429,6 +439,7 @@ function TaskEvidenceCard({
       {item.question && !item.contact_draft ? (
         <div className={styles.question}>
           <h3>{item.question}</h3>
+          {item.candidates.length > 0 ? <p>选择后会归入该人物的关系记录并继续整理。</p> : null}
           {item.candidates.map((candidate) => (
             <button
               key={`${candidate.person_id}:${candidate.relationship_context_id}`}
@@ -436,7 +447,7 @@ function TaskEvidenceCard({
               onClick={() => void onResume(item, candidate)}
               disabled={busy}
             >
-              {candidate.display_name} · {candidate.relationship_label}
+              归入 {candidate.display_name} · {candidate.relationship_label}
             </button>
           ))}
           {item.extraction ? (
@@ -455,7 +466,7 @@ function TaskEvidenceCard({
                 onClick={() => void onResume(item)}
                 disabled={busy || (!name.trim() && !hasDraftImage)}
               >
-                确认并继续
+                按此姓名继续整理
               </button>
             </>
           ) : null}
@@ -487,6 +498,7 @@ function TaskEvidenceCard({
             <button
               className={styles.textButton}
               type="button"
+              disabled={busy}
               onClick={() => onRequestDelete(item.task_id)}
             >
               删除这次采集
@@ -633,7 +645,7 @@ function TaskEvidenceCard({
         </details>
       ) : null}
 
-      <details className={styles.section}>
+      {item.events.length > 0 ? <details className={styles.section}>
         <summary>查看实际处理记录</summary>
         <ol>
           {item.events.map((event) => (
@@ -647,7 +659,7 @@ function TaskEvidenceCard({
             </li>
           ))}
         </ol>
-      </details>
+      </details> : null}
     </section>
   );
 }
@@ -738,6 +750,7 @@ function CaptureWorkspace({
   const [historyError, setHistoryError] = useState("");
   const [composerError, setComposerError] = useState(initialError ?? "");
   const [actionError, setActionError] = useState("");
+  const [conflictTaskID, setConflictTaskID] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [unresolved, setUnresolved] = useState(
     Boolean(initialImageAttempt || initialTextAttempt),
@@ -763,10 +776,17 @@ function CaptureWorkspace({
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [admission] = useState(() => new AdmissionGuard());
   const [selection] = useState(() => new SelectionGate());
+  const [taskMutation] = useState(() => new AdmissionGuard());
+  const taskMutationEpoch = useRef(0);
   const alive = useRef(true);
   const seededFiles = useRef(false);
+  const actionErrorRef = useRef<HTMLParagraphElement | null>(null);
 
   const dialogMode = presentation === "dialog";
+
+  useEffect(() => {
+    if (actionError) actionErrorRef.current?.focus();
+  }, [actionError]);
 
   useEffect(() => {
     alive.current = true;
@@ -794,7 +814,7 @@ function CaptureWorkspace({
         ? request<Intelligence>(`people/${personID}/contact-intelligence?relationship_context_id=${encodeURIComponent(contextID)}`)
         : Promise.resolve<Intelligence | null>(null),
     ]).then(([historyResult, profileResult]) => {
-      if (token !== recordsToken.current) return;
+      if (!alive.current || token !== recordsToken.current) return;
       setRecent(historyResult.tasks);
       if (profileResult) {
         setProfileTasks(profileResult.tasks);
@@ -805,7 +825,7 @@ function CaptureWorkspace({
       setHistoryError("");
       setHistoryStatus("ready");
     }).catch((error: Error) => {
-      if (token !== recordsToken.current) return;
+      if (!alive.current || token !== recordsToken.current) return;
       setHistoryError(error.message);
       setHistoryStatus((current) => current === "loading" ? "error" : current);
     });
@@ -863,9 +883,18 @@ function CaptureWorkspace({
     let valid = true;
     let timeout: ReturnType<typeof setTimeout>;
     const poll = async () => {
+      if (taskMutation.pending) {
+        timeout = setTimeout(poll, 2200);
+        return;
+      }
+      const epoch = taskMutationEpoch.current;
       try {
         const next = await request<Task>(`tasks/${taskID}`);
         if (!valid) return;
+        if (epoch !== taskMutationEpoch.current) {
+          timeout = setTimeout(poll, 2200);
+          return;
+        }
         setTask(next);
         setActionError("");
         if (next.status === "running") {
@@ -875,6 +904,10 @@ function CaptureWorkspace({
         }
       } catch (error) {
         if (!valid) return;
+        if (epoch !== taskMutationEpoch.current) {
+          timeout = setTimeout(poll, 2200);
+          return;
+        }
         setActionError((error as Error).message);
         timeout = setTimeout(poll, 5000);
       }
@@ -884,7 +917,7 @@ function CaptureWorkspace({
       valid = false;
       clearTimeout(timeout);
     };
-  }, [taskID, status, loadRecords]);
+  }, [taskID, status, loadRecords, taskMutation]);
 
   useEffect(() => {
     if (!taskID) return;
@@ -1082,6 +1115,7 @@ function CaptureWorkspace({
     if (busy || admission.pending) return;
     selection.cancel();
     setTask(null);
+    setConflictTaskID(null);
     setDeleteID(null);
     setActionError("");
     setComposerError("");
@@ -1094,8 +1128,9 @@ function CaptureWorkspace({
     setActionError("");
     try {
       const value = await request<Task>(`tasks/${id}`);
-      if (!selection.isCurrent(token)) return;
+      if (!alive.current || !selection.isCurrent(token)) return;
       setTask(value);
+      setConflictTaskID(null);
       setDeleteID(null);
       setComposerOpen(false);
     } catch (error) {
@@ -1196,90 +1231,96 @@ function CaptureWorkspace({
     }
   }
 
-  async function resume(item: Task, selected?: CandidateSelection) {
+  async function refreshConflictedTask(id: string, token: number) {
+    try {
+      const latest = await request<Task>(`tasks/${id}`);
+      if (!alive.current || !selection.isCurrent(token)) return;
+      setTask(latest);
+      setDeleteID(null);
+      setConflictTaskID(null);
+      setActionError("这条来源已更新。已载入最新状态，请核对后重新选择；刚才的操作没有执行。");
+      await loadRecords();
+    } catch {
+      if (!alive.current || !selection.isCurrent(token)) return;
+      setConflictTaskID(id);
+      setActionError("这条来源已更新，但暂时无法读取最新状态。输入仍在，请先刷新状态，再决定是否继续。");
+    }
+  }
+
+  async function retryConflictRead() {
+    if (!conflictTaskID || !taskMutation.tryEnter()) return;
+    const token = selection.begin();
+    taskMutationEpoch.current += 1;
+    setBusy(true);
+    try {
+      await refreshConflictedTask(conflictTaskID, token);
+    } finally {
+      taskMutation.leave();
+      if (alive.current) setBusy(false);
+    }
+  }
+
+  async function mutateTask(
+    item: Task,
+    action: "resume" | "profile-confirmation" | "cancel" | "delete",
+    body: unknown | (() => Promise<unknown>),
+  ) {
+    if (conflictTaskID === item.task_id || !taskMutation.tryEnter()) return;
+    const token = selection.begin();
+    taskMutationEpoch.current += 1;
     setBusy(true);
     setActionError("");
     try {
+      const payload = typeof body === "function" ? await body() : body;
+      if (!alive.current || !selection.isCurrent(token)) return;
+      const latest = await request<Task>(`tasks/${item.task_id}/${action}`, payload);
+      if (!alive.current || !selection.isCurrent(token)) return;
+      setTask(latest);
+      if (action === "resume") setName("");
+      if (action === "delete") setDeleteID(null);
+      await loadRecords();
+    } catch (error) {
+      if (!alive.current || !selection.isCurrent(token)) return;
+      if (error instanceof ContactTaskRequestError && error.status === 409 && error.code === "CONTACT_TASK_REVISION_CHANGED") {
+        // Refresh only. The previous human decision must never authorize a
+        // second mutation against a state they have not reviewed.
+        setDeleteID(null);
+        setConflictTaskID(item.task_id);
+        await refreshConflictedTask(item.task_id, token);
+      } else {
+        setActionError(error instanceof Error ? error.message : "暂时无法完成，请重试。");
+      }
+    } finally {
+      taskMutation.leave();
+      if (alive.current) setBusy(false);
+    }
+  }
+
+  async function resume(item: Task, selected?: CandidateSelection) {
+    await mutateTask(item, "resume", async () => {
       const body: Record<string, unknown> = {
         expected_revision: item.revision,
         ...(selected
-          ? {
-              selected_person_id: selected.person_id,
-              selected_relationship_context_id:
-                selected.relationship_context_id,
-            }
-          : name.trim()
-            ? { new_contact_name: name.trim() }
-            : {}),
+          ? { selected_person_id: selected.person_id, selected_relationship_context_id: selected.relationship_context_id }
+          : name.trim() ? { new_contact_name: name.trim() } : {}),
       };
-      if (
-        !item.extraction &&
-        !item.source_images?.length &&
-        attachments[0]
-      ) {
+      if (!item.extraction && !item.source_images?.length && attachments[0]) {
         body.image = await imageInput(attachments[0].file);
       }
-      setTask(await request<Task>(`tasks/${item.task_id}/resume`, body));
-      if (!alive.current) return;
-      setName("");
-    } catch (error) {
-      setActionError((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
+      return body;
+    });
   }
 
-  async function confirmProfile(
-    item: Task,
-    review: ContactProfileConfirmation,
-  ) {
-    setBusy(true);
-    setActionError("");
-    try {
-      setTask(
-        await request<Task>(`tasks/${item.task_id}/profile-confirmation`, review),
-      );
-      await loadRecords();
-    } catch (error) {
-      setActionError((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
+  async function confirmProfile(item: Task, review: ContactProfileConfirmation) {
+    await mutateTask(item, "profile-confirmation", review);
   }
 
   async function cancelTask(item: Task) {
-    setBusy(true);
-    setActionError("");
-    try {
-      setTask(
-        await request<Task>(`tasks/${item.task_id}/cancel`, {
-          expected_revision: item.revision,
-        }),
-      );
-    } catch (error) {
-      setActionError((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    await mutateTask(item, "cancel", { expected_revision: item.revision });
   }
 
   async function removeSource(item: Task) {
-    setBusy(true);
-    setActionError("");
-    try {
-      setTask(
-        await request<Task>(`tasks/${item.task_id}/delete`, {
-          expected_revision: item.revision,
-        }),
-      );
-      setDeleteID(null);
-      await loadRecords();
-    } catch (error) {
-      setActionError((error as Error).message);
-      await openTask(item.task_id);
-    } finally {
-      setBusy(false);
-    }
+    await mutateTask(item, "delete", { expected_revision: item.revision });
   }
 
   async function archive() {
@@ -1708,16 +1749,19 @@ function CaptureWorkspace({
           )}
 
           {actionError ? (
-            <p className={styles.error} role="alert">
+            <p className={styles.error} role="alert" ref={actionErrorRef} tabIndex={-1}>
               {actionError}
             </p>
           ) : null}
+          {conflictTaskID ? <button type="button" disabled={busy} onClick={() => void retryConflictRead()}>刷新来源状态</button> : null}
 
           {shown.map((item) => (
             <TaskEvidenceCard
               key={item.task_id}
               item={item}
-              busy={busy}
+              archivePersonID={personID}
+              archiveContextID={contextID}
+              busy={busy || conflictTaskID === item.task_id}
               deleteID={deleteID}
               name={name}
               hasDraftImage={attachments.length > 0}

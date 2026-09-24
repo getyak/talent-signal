@@ -68,6 +68,61 @@ describe("system health observation", () => {
     );
   });
 
+  it("settles a hanging database observation within one bounded deadline", async () => {
+    const query = vi.fn().mockReturnValue(new Promise(() => undefined));
+
+    const startedAt = Date.now();
+    const result = await observeSystemHealth(
+      { query } as unknown as Pick<Pool, "query">,
+      () => observedAt,
+      25,
+    );
+
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    expect(result.status).toBe("unavailable");
+    expect(result.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "database",
+          status: "unavailable",
+          detail_code: "dependency_unreachable",
+        }),
+        expect.objectContaining({
+          id: "migrations",
+          status: "unknown",
+          detail_code: "not_observed",
+        }),
+      ]),
+    );
+  });
+
+  it("settles a hanging migration observation without claiming schema health", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ system_health_ready: 1 }] })
+      .mockReturnValueOnce(new Promise(() => undefined));
+
+    const startedAt = Date.now();
+    const result = await observeSystemHealth(
+      { query } as unknown as Pick<Pool, "query">,
+      () => observedAt,
+      60,
+    );
+
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    expect(result.status).toBe("unavailable");
+    expect(result.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "database", status: "healthy" }),
+        expect.objectContaining({
+          id: "migrations",
+          status: "unavailable",
+          detail_code: "dependency_unreachable",
+        }),
+      ]),
+    );
+  });
+
   it("keeps migrations unknown when PostgreSQL cannot be observed", async () => {
     const query = vi.fn().mockRejectedValue(new Error("synthetic outage"));
 

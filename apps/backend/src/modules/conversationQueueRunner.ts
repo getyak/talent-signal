@@ -6,7 +6,7 @@ import type { Pool } from "pg";
 
 import type { AuthContext } from "./auth.js";
 import type { RemoteChatAnswerProviding } from "./chatAnswerProvider.js";
-import { readConversationRunImages } from "./conversationMessageImages.js";
+import { readConversationMessageImageManifests, readConversationRunImages } from "./conversationMessageImages.js";
 import { executeUnscopedChatTask } from "./unscopedChat.js";
 import {
   CONVERSATION_QUEUE_MAX_CONCURRENT_RUNS,
@@ -234,11 +234,26 @@ export class ConversationQueueRunner {
             }
           }
         }
-        await finalizeConversationQueueEntry(this.options.pool, {
+        const interrupted = await finalizeConversationQueueEntry(this.options.pool, {
           fence,
           status: "interrupted",
           failureCode: "RUNNER_INTERRUPTED",
         });
+        if (!interrupted.applied && interrupted.effectiveStatus === "running") {
+          // Recheck the owned stop through the normal cancellation path. Keep
+          // the admitted message and attachment references in Session history
+          // before terminal finalization scrubs the queue's source text. This
+          // reads metadata only and never replays the provider after a stop.
+          const images = await readConversationMessageImageManifests(
+            this.options.pool, reclaimed.accountId, [reclaimed.entryId],
+          );
+          await this.finalizeCancelled(auth, reclaimed, fence, "", images.get(reclaimed.entryId) ?? []);
+          this.options.logger.warn(
+            { queue_entry_id: reclaimed.entryId },
+            "conversation queue attempted settlement of a recovered stop",
+          );
+          continue;
+        }
         this.options.logger.warn(
           { queue_entry_id: reclaimed.entryId },
           "conversation queue recovered an interrupted run and paused its queue",
@@ -316,7 +331,7 @@ export class ConversationQueueRunner {
     let auth: AuthContext;
     try { auth = await runnerAuthContext(this.options.pool, { accountId: claimed.accountId, userId: claimed.createdByUserId, authSessionId: claimed.authSessionId }); }
     catch { await this.finalizeRetained(fence, "OWNER_UNAVAILABLE"); return; }
-    if (this.closing) { await this.finalizeRetained(fence, "RUNNER_SHUTDOWN"); return; }
+    if (this.closing) { await this.finalizeRetained(fence, "RUNNER_SHUTDOWN", { auth, claimed, partialText: "" }); return; }
     if (claimed.hasResult) {
       const result = (await readConversationQueueResult(
         this.options.pool,
@@ -372,7 +387,7 @@ export class ConversationQueueRunner {
       ) {
         // Sources or the Session were withdrawn; the result is no longer
         // admissible and must not be resurrected.
-        await this.finalizeRetained(fence, "SOURCE_REVOKED");
+        await this.finalizeRetained(fence, "SOURCE_REVOKED", { auth, claimed, partialText: "" });
         return true;
       }
       await this.markPersistencePending(fence);
@@ -478,7 +493,7 @@ export class ConversationQueueRunner {
             })
           : { provider: this.options.provider };
         if (!selection.provider) {
-          await this.finalizeRetained(fence, "MODEL_PROVIDER_UNAVAILABLE");
+          await this.finalizeRetained(fence, "MODEL_PROVIDER_UNAVAILABLE", { auth, claimed, partialText: "" });
           return;
         }
         const runImageContext = await readConversationRunImages(
@@ -549,12 +564,12 @@ export class ConversationQueueRunner {
           if (reason === "USER_CANCELLED") {
             await this.finalizeCancelled(auth, claimed, fence, previewText, entryImages.map((image) => image.manifest));
           } else {
-            await this.finalizeRetained(fence, reason === "RUNNER_SHUTDOWN" ? "RUNNER_SHUTDOWN" : reason === "LEASE_LOST" ? "LEASE_LOST" : "SOURCE_REVOKED");
+            await this.finalizeRetained(fence, reason === "RUNNER_SHUTDOWN" ? "RUNNER_SHUTDOWN" : reason === "LEASE_LOST" ? "LEASE_LOST" : "SOURCE_REVOKED", { auth, claimed, partialText: previewText });
           }
           return;
         }
         if (execution.remoteStatus === "fallback") {
-          await this.finalizeRetained(fence, "MODEL_RUN_FAILED");
+          await this.finalizeRetained(fence, "MODEL_RUN_FAILED", { auth, claimed, partialText: previewText });
           return;
         }
         const result = serializedResult(
@@ -576,9 +591,9 @@ export class ConversationQueueRunner {
         if (reason === "USER_CANCELLED") {
           await this.finalizeCancelled(auth, claimed, fence, previewText, entryImages.map((image) => image.manifest)).catch(() => undefined);
         } else if (revocationCode === "SOURCE_REVOKED" || reason === "SOURCE_REVOKED") {
-          await this.finalizeRetained(fence, "SOURCE_REVOKED").catch(() => undefined);
+          await this.finalizeRetained(fence, "SOURCE_REVOKED", { auth, claimed, partialText: previewText }).catch(() => undefined);
         } else {
-          await this.finalizeRetained(fence, reason === "RUNNER_SHUTDOWN" ? "RUNNER_SHUTDOWN" : "RUN_FAILED").catch(() => undefined);
+          await this.finalizeRetained(fence, reason === "RUNNER_SHUTDOWN" ? "RUNNER_SHUTDOWN" : "RUN_FAILED", { auth, claimed, partialText: previewText }).catch(() => undefined);
         }
       } finally {
         previewClosed = true;
@@ -614,11 +629,15 @@ export class ConversationQueueRunner {
       });
     } catch (error) {
       if (error instanceof ConversationQueueLeaseLostError) return;
-      // Revocation or an expired Session must never store a partial answer.
+      // Never scrub the admitted message if its history was not saved. A
+      // transient failure can retry on lease recovery; revoked or expired
+      // context still cannot receive a partial answer and retains its existing
+      // expiry/deletion boundary.
       this.options.logger.warn(
         { queue_entry_id: claimed.entryId, err: error },
         "conversation queue stop could not persist a partial answer",
       );
+      return;
     }
     await finalizeConversationQueueEntry(this.options.pool, {
       fence,
@@ -629,19 +648,53 @@ export class ConversationQueueRunner {
   private async finalizeRetained(
     fence: ConversationQueueRunFence,
     failureCode: string,
+    stop?: {
+      auth: AuthContext;
+      claimed: ClaimedConversationQueueEntry;
+      partialText: string;
+    },
   ): Promise<void> {
     const outcome = await finalizeConversationQueueEntry(this.options.pool, {
       fence,
       status: failureCode === "RUNNER_SHUTDOWN" ? "interrupted" : "failed",
       failureCode,
     });
-    if (!outcome.applied && outcome.effectiveStatus === "running") {
-      // A stop won the race; record the truthful cancelled state instead.
-      await finalizeConversationQueueEntry(this.options.pool, {
+    if (outcome.applied || outcome.effectiveStatus !== "running") return;
+    // A committed stop won the race against this failure or shutdown path. The
+    // cancelled terminal state scrubs the queue's admitted text, so the exact
+    // message and attachment manifests must reach Session history first through
+    // the governed cancellation persistence. Without owned auth/identity, when
+    // that persistence fails, or when the context is revoked or expired, keep
+    // the fenced row retained for lease recovery instead of scrubbing it or
+    // claiming the message saved.
+    if (!stop) return;
+    try {
+      const images = (
+        await readConversationMessageImageManifests(this.options.pool, fence.accountId, [fence.entryId])
+      ).get(fence.entryId) ?? [];
+      await persistConversationQueueCancellation(this.options.pool, stop.auth, {
         fence,
-        status: "cancelled",
+        sessionId: fence.sessionId,
+        messageId: stop.claimed.messageId,
+        objective: stop.claimed.objective,
+        acceptedAt: stop.claimed.acceptedAt,
+        images,
+        partialText: stop.partialText,
+        stoppedAt: new Date().toISOString(),
       });
+    } catch (error) {
+      if (!(error instanceof ConversationQueueLeaseLostError)) {
+        this.options.logger.warn(
+          { queue_entry_id: fence.entryId, failure_code: "CANCELLATION_PERSISTENCE_FAILED" },
+          "conversation queue stop racing a failure could not persist the admitted message",
+        );
+      }
+      return;
     }
+    await finalizeConversationQueueEntry(this.options.pool, {
+      fence,
+      status: "cancelled",
+    }).catch(() => undefined);
   }
 
   private async markPersistencePending(fence: ConversationQueueRunFence): Promise<void> {

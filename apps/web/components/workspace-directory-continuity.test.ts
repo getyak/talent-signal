@@ -10,7 +10,7 @@ vi.mock("./workspace-session-request", () => ({
   workspaceSessionFetch: vi.fn(),
 }));
 import { workspaceSessionFetch } from "./workspace-session-request";
-import { useWorkspaceDirectory } from "./workspace-search";
+import { useWorkspaceDirectory, WorkspaceGlobalSearchDialog } from "./workspace-search";
 import { WorkspaceDirectoryScope } from "./workspace-directory-cache";
 import { invalidateWorkspaceDirectory, readCachedWorkspaceDirectory } from "@/lib/workspace-directory-cache";
 
@@ -46,6 +46,25 @@ afterEach(async () => {
 });
 
 describe("rendered workspace directory continuity", () => {
+  it("ignores a queued close event delivered after search has already reopened", async () => {
+    await act(async () => root.render(createElement(WorkspaceGlobalSearchDialog, { binding: "a" })));
+    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="搜索"]')!.click());
+    const dialog = host.querySelector<HTMLDialogElement>("dialog")!;
+    const input = dialog.querySelector<HTMLInputElement>("input")!;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => {
+      setValue.call(input, "合成人物");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(dialog.open).toBe(true);
+    expect(dialog.querySelector("[data-search-result]")?.textContent).toContain("合成人物");
+    // HTMLDialogElement queues close asynchronously. It can arrive after a
+    // subsequent showModal(), when this currently-open dialog must stay active.
+    await act(async () => dialog.dispatchEvent(new Event("close")));
+    expect(input.value).toBe("合成人物");
+    expect(dialog.querySelector("[data-search-result]")?.textContent).toContain("合成人物");
+  });
+
   it("deduplicates consumers and keeps the directory on a warm route change", async () => {
     await act(async () => root.render(tree("a")));
     expect(host.textContent).toBe("合成人物合成人物");

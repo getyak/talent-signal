@@ -13,7 +13,6 @@ import {
   LinkSimple,
   Phone,
   Plus,
-  ShieldCheck,
   WechatLogo,
 } from "@phosphor-icons/react";
 
@@ -149,12 +148,7 @@ export function RelationshipContactHeader({
                   更新于 {formatDate(workspace.analysis.created_at)}
                 </span>
               </>
-            ) : (
-              <span>
-                <ShieldCheck aria-hidden="true" size={14} />
-                身份由你关联
-              </span>
-            )}
+            ) : null}
           </div>
         </div>
         <div className="context-contact-header__actions">

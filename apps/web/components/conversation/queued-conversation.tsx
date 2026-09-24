@@ -20,6 +20,16 @@ import styles from "./queued-conversation.module.css";
 
 const stages: Record<string, string> = { queued: "等待开始", preparing: "正在准备回复", thinking: "正在处理", contact_lookup: "正在查找相关人物", contact_read: "正在阅读相关记录", calendar_draft: "正在整理日程草稿", answer: "正在回复", responding: "正在回复", persisting: "正在保存回复", running: "正在处理" };
 function Identity() { return <div className={styles.identity}><span className={styles.mark} aria-hidden="true" />Talent Signal</div>; }
+// Admission may rewrite the draft URL only when the query is empty or holds
+// exactly one draft_session parameter for this session. A duplicated key or
+// any extra parameter is a separate navigation intent whose contents
+// admission must not discard.
+function onlyDraftSessionSearch(search: string, sessionId: string): boolean {
+  if (search === "" || search === "?") return true;
+  const params = new URLSearchParams(search);
+  const keys = [...params.keys()];
+  return keys.length === 1 && keys[0] === "draft_session" && params.getAll("draft_session").length === 1 && params.get("draft_session") === sessionId;
+}
 export function displayText(objective: string, images: readonly ConversationImageManifest[] | undefined): string {
   if (objective.trim()) return objective;
   // An attached image strip already renders this message; its per-image alt
@@ -84,8 +94,13 @@ export function QueuedConversation(props: Props) {
     // Next integrates native History API updates with usePathname; refresh still
     // opens the canonical Session. Do not rewrite an intervening navigation.
     // https://nextjs.org/docs/app/getting-started/linking-and-navigating#native-history-api
-    if (!navigating.current && window.location.pathname === "/workspace" && (!window.location.search || new URLSearchParams(window.location.search).get("draft_session") === sessionId) && !window.location.hash) {
-      window.history.replaceState(null, "", `/workspace/sessions/${sessionId}`);
+    // The skip link's #main-content anchor is valid on the canonical Session
+    // URL and must survive the replace. Any other hash, or a query that is not
+    // exactly this one draft_session parameter, is unrelated navigation
+    // intent and stays untouched.
+    const anchor = window.location.hash;
+    if (!navigating.current && window.location.pathname === "/workspace" && onlyDraftSessionSearch(window.location.search, sessionId) && (anchor === "" || anchor === "#main-content")) {
+      window.history.replaceState(null, "", `/workspace/sessions/${sessionId}${anchor}`);
     }
   } });
   const [editing, setEditing] = useState<string | null>(null);
@@ -138,7 +153,7 @@ export function QueuedConversation(props: Props) {
     await chat.mutate({ kind: "prioritize", queue_entry_id: queueEntryId });
   }
 
-  return <section className={styles.canvas} aria-label="对话" data-conversation-canvas data-empty={!hasContent}>
+  return <main id="main-content" tabIndex={-1} className={styles.canvas} aria-label="对话" data-conversation-canvas data-empty={!hasContent}>
     {admitted && <header className={styles.header}><h1>{chat.detail?.title || "新对话"}</h1><details className={styles.details}><summary>对话详情</summary><div className={styles.detailPanel}>
       <p>历史回复保留当时的判断，执行前请核对当前信息。</p>
       {chat.detail && <p>保留至 {new Date(chat.detail.expires_at).toLocaleDateString("zh-CN")}</p>}
@@ -181,5 +196,5 @@ export function QueuedConversation(props: Props) {
       {!hasContent && <div className={styles.starters} aria-label="开始一个话题">{["你可以帮我做什么？", "梳理今天需要跟进的人"].map(text => <button key={text} onClick={() => { chat.changeDraft(text); document.getElementById("queued-conversation-composer")?.focus(); }}>{text}<ArrowUp size={13} aria-hidden="true"/></button>)}</div>}
       <div className={styles.footer}><span role="status" aria-live="polite" aria-atomic="true">{status || ""}</span><span>Enter 发送 · Shift+Enter 换行</span></div>
     </div>
-  </section>;
+  </main>;
 }

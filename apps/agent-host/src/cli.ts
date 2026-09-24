@@ -247,6 +247,10 @@ export async function runLocalResearchCommand(
 }
 
 async function main() {
+  // SDK Linux libc detection uses a synchronous Node diagnostic report.
+  // Omit reverse DNS and credentials from service diagnostics, as in the API.
+  // Node 24 supports excludeNetwork although @types/node omits the property.
+  Object.assign(process.report, { excludeNetwork: true, excludeEnv: true });
   const args = process.argv.slice(2);
   if (args[0] === "person-research-server") {
     let stateRoot = process.env.TALENT_SIGNAL_AGENT_STATE_DIR?.trim()

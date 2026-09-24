@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { workspaceSessionFetch } from "@/components/workspace-session-request";
 
@@ -37,6 +37,7 @@ export type SessionSummary = {
 };
 
 type Props = {
+  renderedAt: string;
   initialSessions: SessionSummary[];
   initialComplete: boolean;
   initialNextCursor: string | null;
@@ -46,6 +47,7 @@ type Props = {
 };
 
 export function SessionDirectory({
+  renderedAt,
   initialSessions,
   initialComplete,
   initialNextCursor,
@@ -54,6 +56,13 @@ export function SessionDirectory({
   sessionRecoveryHref,
 }: Props) {
   const router = useRouter();
+  // Hydration must use the server's clock snapshot, including at minute/hour
+  // boundaries. Refresh relative labels only after the initial render.
+  const [now, setNow] = useState(() => new Date(renderedAt));
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [sessions, setSessions] = useState(initialSessions);
   const [complete, setComplete] = useState(initialComplete);
   const [cursor, setCursor] = useState(initialNextCursor);
@@ -150,7 +159,7 @@ export function SessionDirectory({
   });
 
   return (
-    <section aria-labelledby="sessions-title" className={styles.page}>
+    <main id="main-content" tabIndex={-1} aria-labelledby="sessions-title" className={styles.page}>
       <header className={styles.header}>
         <div>
           <h1 className={styles.title} id="sessions-title">
@@ -222,7 +231,7 @@ export function SessionDirectory({
                       ? "还没有回复"
                       : `${session.turn_count} 轮`}
                     {" · "}
-                    {formatSessionTime(session.updated_at)}
+                    {formatSessionTime(session.updated_at, now)}
                   </span>
                 </span>
                 <ArrowRight aria-hidden="true" size={16} />
@@ -247,6 +256,6 @@ export function SessionDirectory({
           </button>
         </div>
       ) : null}
-    </section>
+    </main>
   );
 }

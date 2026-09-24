@@ -72,7 +72,7 @@ beforeAll(async () => {
 }, 30_000);
 afterAll(async () => { await jobs?.close(); await app?.close(); await pool?.end(); vi.unstubAllEnvs(); });
 
-async function fixture() {
+async function fixture(options: { unreviewed?: boolean } = {}) {
   const person = randomUUID(), context = randomUUID(), capture = randomUUID(), resource = randomUUID(), fragment = randomUUID();
   await pool!.query("INSERT INTO subjects(id,account_id,external_ref,display_label) VALUES($1::uuid,$2,$1::text,'Synthetic Person')", [person, auth.accountId]);
   await pool!.query("INSERT INTO assignments(id,account_id,subject_id,external_ref,display_label) VALUES($1::uuid,$2,$3,$1::text,'Synthetic Context')", [context, auth.accountId, person]);
@@ -84,6 +84,9 @@ async function fixture() {
     VALUES($1,$2,$3,'source-retention.v2','ephemeral','ephemeral','reviewed_selected_text','available','awaiting_review_completion',now(),now())`, [randomUUID(), auth.accountId, capture]);
   await pool!.query(`INSERT INTO evidence_fragments(id,account_id,capture_id,resource_id,fragment_kind,sequence,text_content,content_hash,locator,attributed_actor,attribution_status,parser_name,parser_version,review_status)
     VALUES($1,$2,$3,$4,'message',0,'Synthetic source: Wednesday is tentative; clarify the exact date.','synthetic','{}','recruiter','confirmed','fixture','1','reviewed')`, [fragment, auth.accountId, capture, resource]);
+  if (options.unreviewed) {
+    await pool!.query("UPDATE evidence_fragments SET review_status='proposed',attribution_status='unknown' WHERE id=$1", [fragment]);
+  }
   await compileRelationshipWiki(pool!, auth, person, context, { idempotency_key: randomUUID(), objective: "Compile the authorized synthetic proof source" });
   const value: AgentSessionPayload = { id: randomUUID(), scopeKind: "relationship", personID: person, relationshipContextID: context,
     personDisplayLabel: "Synthetic Person", contextDisplayLabel: "Synthetic Context", title: "Feedback proof", updatedAt: stamp(), isUnread: false, turns: [] };
@@ -203,6 +206,78 @@ async function revokeWhilePaused(capture: string, gate: ReturnType<typeof paused
 }
 
 describe.skipIf(!pool)("Authenticated product feedback learning PostgreSQL loop", () => {
+  it.each([true, false])("excludes unchanged proposed evidence from the reviewed manifest without a false source-change error (Session: %s)", async (withSession) => {
+    const f = await fixture({ unreviewed: true });
+    const response = await app.inject({ method: "POST", url: "/v1/chat/tasks", headers, payload: {
+      idempotency_key: randomUUID(), ...(withSession ? { session_id: f.value.id } : {}),
+      person_id: f.person, relationship_context_id: f.context, objective: "Explain what still needs review before planning a meeting.",
+    } });
+    expect(response.statusCode, response.body).toBe(201);
+    expect(requests.at(-1)!.allowed_citation_ids).not.toContain(f.fragment);
+    expect(requests.at(-1)!.context_blocks.every((block) => !JSON.stringify(block).includes(f.fragment))).toBe(true);
+    expect((await pool!.query("SELECT evidence_fragment_id FROM context_manifest_evidence WHERE account_id=$1 AND manifest_id=$2",
+      [auth.accountId, response.json().context_manifest_id])).rows).toEqual([]);
+    expect((await pool!.query("SELECT review_status,attribution_status FROM evidence_fragments WHERE id=$1", [f.fragment])).rows[0])
+      .toEqual({ review_status: "proposed", attribution_status: "unknown" });
+  }, 30_000);
+
+  it("admits currently authorized evidence to provider work as the positive control", async () => {
+    const f = await fixture();
+    const response = await app.inject({ method: "POST", url: "/v1/chat/tasks", headers, payload: {
+      idempotency_key: randomUUID(), person_id: f.person, relationship_context_id: f.context,
+      objective: "Explain what must be clarified before planning a meeting." } });
+    expect(response.statusCode, response.body).toBe(201);
+    expect(requests.at(-1)!.allowed_citation_ids).toContain(f.fragment);
+    expect(JSON.stringify(requests.at(-1))).toContain("Wednesday is tentative");
+    expect((await pool!.query("SELECT evidence_fragment_id FROM context_manifest_evidence WHERE account_id=$1 AND manifest_id=$2",
+      [auth.accountId, response.json().context_manifest_id])).rows).toEqual([{ evidence_fragment_id: f.fragment }]);
+  }, 30_000);
+
+  it("fails early and truthfully when the source-authorization deadline elapsed before provider work", async () => {
+    const f = await fixture();
+    await pool!.query("UPDATE source_retention_receipts SET authorization_expires_at=now()-interval '1 second' WHERE capture_id=$1", [f.capture]);
+    const calls = requests.length;
+    const response = await app.inject({ method: "POST", url: "/v1/chat/tasks", headers, payload: {
+      idempotency_key: randomUUID(), person_id: f.person, relationship_context_id: f.context,
+      objective: "Explain what must be clarified before planning a meeting." } });
+    // The elapsed authorization is decided before provider work with a truthful
+    // error; the unauthorized text never reaches a model.
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe("WIKI_SOURCE_AUTHORIZATION_STALE");
+    expect(requests.length).toBe(calls);
+    expect(response.body).not.toContain("Wednesday is tentative");
+  }, 30_000);
+
+  it.each<[
+    string,
+    (f: Awaited<ReturnType<typeof fixture>>) => Promise<unknown>,
+  ]>([
+    ["a deleted source resource", (f) =>
+      pool!.query("UPDATE source_resources SET processing_state='deleted' WHERE account_id=$1 AND id=$2", [auth.accountId, f.resource])],
+    ["empty reviewed text", (f) =>
+      pool!.query("UPDATE evidence_fragments SET text_content='   ' WHERE id=$1", [f.fragment])],
+    ["a capture bound to a different scope", async (f) => {
+      const other = await fixture();
+      await pool!.query("UPDATE captures SET subject_id=$2, assignment_id=$3 WHERE id=$1", [f.capture, other.person, other.context]);
+    }],
+  ])("excludes evidence with %s before provider work instead of a false source-change error", async (_label, exclude) => {
+    const f = await fixture();
+    await exclude(f);
+    const calls = requests.length;
+    const response = await app.inject({ method: "POST", url: "/v1/chat/tasks", headers, payload: {
+      idempotency_key: randomUUID(), person_id: f.person, relationship_context_id: f.context,
+      objective: "Explain what must be clarified before planning a meeting." } });
+    // The outcome is decided before provider work: the unauthorized fragment
+    // never reaches the model and no post-provider source-change error fires.
+    expect(response.statusCode, response.body).toBe(201);
+    expect(requests.length).toBe(calls + 1);
+    expect(requests.at(-1)!.allowed_citation_ids).not.toContain(f.fragment);
+    expect(requests.at(-1)!.context_blocks.every((block) => !JSON.stringify(block).includes(f.fragment))).toBe(true);
+    expect(JSON.stringify(requests.at(-1))).not.toContain("Wednesday is tentative");
+    expect((await pool!.query("SELECT evidence_fragment_id FROM context_manifest_evidence WHERE account_id=$1 AND manifest_id=$2",
+      [auth.accountId, response.json().context_manifest_id])).rows).toEqual([]);
+  }, 30_000);
+
   it("rejects a prior answer that expires while its correction is being generated", async () => {
     const f=await fixture();
     const ask=(payload:Record<string,unknown>)=>app.inject({method:"POST",url:"/v1/chat/tasks",headers,payload});

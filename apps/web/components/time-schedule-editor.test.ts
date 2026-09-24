@@ -7,7 +7,7 @@ const mock = vi.hoisted(() => ({ request: vi.fn(), read: vi.fn(), saved: vi.fn()
 vi.mock("@/lib/time-workspace-client", async (original) => ({ ...await original<typeof import("@/lib/time-workspace-client")>(), timeRequest: mock.request, readTimeSchedule: mock.read }));
 import { TimeScheduleEditor } from "./time-schedule-editor";
 import { readTimeEditorDraft, rememberTimeEditorDraft } from "@/lib/time-workspace-storage";
-import { pendingTimeOperation } from "@/lib/time-workspace-client";
+import { pendingTimeOperation, TimeRequestError } from "@/lib/time-workspace-client";
 import { timeFixtureSchedule } from "@/lib/test/time-fixtures";
 let host: HTMLDivElement, root: Root;
 beforeEach(() => {
@@ -70,9 +70,43 @@ describe("rendered schedule recovery", () => {
     await render(); expect(host.querySelector("textarea")!.value).toBe("Private note");
     mock.read.mockResolvedValue({ ...timeFixtureSchedule, revision: 2, status: "deleted", content_available: false, title: null, note: null });
     await render(timeFixtureSchedule, 1);
-    expect(host.querySelector("input")!.value).toBe(""); expect(host.querySelector("textarea")!.value).toBe("");
+    // Deleted content is terminal: no stale form, no old content, one compact
+    // immediately visible view with heading, explanation and Close.
+    expect(host.querySelector("form")).toBeNull();
+    expect(host.querySelector("input")).toBeNull();
+    expect(host.querySelector("textarea")).toBeNull();
+    expect(host.querySelector("fieldset")).toBeNull();
+    expect(host.querySelector("h2")!.textContent).toBe("这条安排已删除");
     expect(host.textContent).toContain("旧内容已清除");
+    expect(host.textContent).not.toContain("Private note");
     expect([...host.querySelectorAll("button")].some((b) => b.textContent === "下载日历文件")).toBe(false);
+    expect([...host.querySelectorAll("button")].some((b) => b.textContent === "删除安排")).toBe(false);
+  });
+
+  it("renders a compact terminal view with a working Close for a deleted deep link", async () => {
+    mock.read.mockResolvedValue({ ...timeFixtureSchedule, revision: 2, status: "deleted", content_available: false, title: null, note: null });
+    await render();
+    expect(host.querySelector("form")).toBeNull();
+    expect(host.querySelector("h2")!.textContent).toBe("这条安排已删除");
+    expect(host.textContent).toContain("这条安排已删除，旧内容已清除。已导出的日历文件不会自动撤回。");
+    expect(host.textContent).not.toContain("Synthetic meeting");
+    expect(host.textContent).not.toContain("编辑安排");
+    const close = [...host.querySelectorAll("button")].find((b) => b.textContent === "关闭");
+    expect(close).toBeTruthy();
+    await act(async () => close!.click());
+    expect(mock.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders an unavailable terminal view when the arrangement cannot be accessed", async () => {
+    mock.read.mockRejectedValue(new TimeRequestError("gone", 404));
+    await render();
+    expect(host.querySelector("form")).toBeNull();
+    expect(host.querySelector("h2")!.textContent).toBe("这条安排已不可访问");
+    expect(host.textContent).toContain("这条安排已不可访问，旧内容已清除。");
+    const close = [...host.querySelectorAll("button")].find((b) => b.textContent === "关闭");
+    expect(close).toBeTruthy();
+    await act(async () => close!.click());
+    expect(mock.close).toHaveBeenCalledTimes(1);
   });
 
   it("clears private fields immediately when a deletion is acknowledged", async () => {
@@ -80,7 +114,13 @@ describe("rendered schedule recovery", () => {
     mock.read.mockImplementation(() => new Promise(() => {}));
     mock.request.mockImplementation(async (_url: string, _binding: string, request: RequestInit) => ({ contract_version: CONTRACT_VERSION, schedule: { ...timeFixtureSchedule, revision: 2, last_operation_id: JSON.parse(request.body as string).idempotency_key, status: "deleted", content_available: false, title: null, note: null, starts_at: null, ends_at: null, time_zone: null, kind: null, reminder_minutes: null } }));
     await click("删除安排"); await click("确认删除内容");
-    expect(host.querySelector("input")!.value).toBe(""); expect(host.querySelector("textarea")!.value).toBe("");
+    // The acknowledged deletion replaces the form with the same compact
+    // terminal view; no private field or stale form survives.
+    expect(host.querySelector("form")).toBeNull();
+    expect(host.querySelector("input")).toBeNull();
+    expect(host.querySelector("textarea")).toBeNull();
+    expect(host.querySelector("h2")!.textContent).toBe("这条安排已删除");
+    expect(host.textContent).toContain("已导出的日历事件需在日历应用中处理");
     expect(pendingTimeOperation("a")).toBeNull();
   });
 

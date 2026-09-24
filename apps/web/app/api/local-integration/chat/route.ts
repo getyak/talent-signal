@@ -50,7 +50,12 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof TalentSignalHttpError) {
       return response(
-        { code: error.code, message: error.message },
+        {
+          code: error.code,
+          message: error.code === "CHAT_COMPLETION_SOURCE_CHANGED"
+            ? "生成期间的来源依据已变化，本次结果未被采用。请刷新当前来源后重试。"
+            : error.message,
+        },
         error.status,
       );
     }
@@ -58,7 +63,7 @@ export async function POST(request: Request) {
       {
         code: "chat_task_failed",
         message:
-          "The brief could not be compiled. Prior reviewed state remains unchanged.",
+          "这次未能整理简报，先前已审阅的状态仍保留。请稍后重试。",
       },
       503,
     );

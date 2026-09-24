@@ -287,3 +287,25 @@
   color: var(--ink);
   cursor: pointer;
 }
+
+/* Working-source decisions use the same readable scale as their evidence. */
+.label, .sourceLabel, .researchOption, .retentionDisclosure,
+.card .muted, .card .section, .card .progress, .card .deleteSource,
+.error, .composerError, .pendingAttempt {
+  font-size: .875rem;
+}
+.label input, .label textarea, .sourceTextarea { font-size: 1rem; }
+.question button:not(.primary), .card > button:not(.primary), .primary {
+  font-size: .875rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .page button, .page .question button, .page .card > button,
+  .page .profileLink, .viewer button {
+    min-height: 44px;
+  }
+  .page input:not([type="checkbox"]), .page textarea { min-height: 44px; }
+  .viewerHeader button { min-width: 44px; }
+}

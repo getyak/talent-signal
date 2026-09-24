@@ -9,7 +9,7 @@ import {
   ChatCircleDots,
   FileImage,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
@@ -62,6 +62,18 @@ export function RelationshipAgentStartPanel({
 }) {
   const [isComposing, setIsComposing] = useState(false);
   const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
+  const startContent = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!createOpen || identityResolutionCase) return;
+    const frame = window.requestAnimationFrame(() => {
+      const content = startContent.current;
+      content?.scrollIntoView({ block: "center" });
+      const input = content?.querySelector<HTMLInputElement>("input:not(:disabled)");
+      const target = input?.getClientRects().length ? input : content;
+      target?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [createOpen, identityResolutionCase]);
 
   return (
     <aside
@@ -81,7 +93,7 @@ export function RelationshipAgentStartPanel({
           </strong>
         </div>
       </div>
-      <div className="context-agent-thread">
+      <div className="context-agent-thread" ref={startContent} tabIndex={-1}>
         {identityResolutionCase ? (
           <AgentIdentityReviewCard
             identityCase={identityResolutionCase}
@@ -132,7 +144,7 @@ export function RelationshipAgentStartPanel({
             <span className="sr-only">给关系智能助理发消息</span>
             <textarea
               disabled={busy}
-              autoFocus
+              autoFocus={!createOpen && !identityResolutionCase}
               id="relationship-agent-composer"
               maxLength={1_000}
               onChange={(event) => {

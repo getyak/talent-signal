@@ -93,6 +93,19 @@ function snapshot(status: KnowledgeSnapshot["status"]): KnowledgeSnapshot {
 }
 
 describe("relationship Wiki projection", () => {
+  it.each([
+    ["No supported next action is ready.", "现有依据尚不足以提出下一步。"],
+    ["Wait until the person supplies the missing date.", "Wait until the person supplies the missing date."],
+  ])("localizes only the exact system no-action fallback: %s", (headline, expected) => {
+    const current = snapshot("published");
+    const next = current.blocks.find(block => block.type === "next_action")!;
+    next.type = "no_action";
+    next.content.headline = headline;
+    const projected = knowledgeSnapshotWikiView(current)?.blocks.find(block => block.kind === "no_action");
+    expect(projected?.body).toBe(expected);
+    expect(projected?.citationDependencyIds).toEqual(next.dependencies.map(dependency => dependency.id));
+  });
+
   it("keeps confirmed facts, contested review, and a proposed action distinct", () => {
     const view = knowledgeSnapshotWikiView(snapshot("published"));
 

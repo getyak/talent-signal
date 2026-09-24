@@ -6,6 +6,13 @@ import { recoverInterruptedAgentRuns } from "./modules/agentRuns.js";
 import { recoverGovernedAgentTasks } from "./modules/agentTasks.js";
 import { sweepClaudeHarnessWorkspaces } from "@talent-signal/agent";
 
+// The SDK probes Linux libc with getReport() at task admission. Reverse DNS
+// for live sockets must not synchronously block the API event loop; diagnostic
+// reports also do not need the service's credential-bearing environment.
+// https://nodejs.org/api/report.html
+// excludeNetwork is supported by our Node 24 runtime but absent in @types/node.
+Object.assign(process.report, { excludeNetwork: true, excludeEnv: true });
+
 const config = loadConfig();
 const pool = createPool(config);
 const app = await buildApp({ config, pool });

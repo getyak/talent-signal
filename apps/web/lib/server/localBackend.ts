@@ -453,8 +453,18 @@ export async function commitRelationshipResource(
     throw new Error("受治理来源的接收信息不完整。");
   }
   const capturedAt = input.captured_at;
-  if (new Date(capturedAt).toISOString() !== capturedAt) {
-    throw new Error("受治理来源的观察时间无效。");
+  // The observation time is client-attested evidence. Never invent it here;
+  // reject missing or malformed values with a recoverable validation error
+  // instead of letting Date.toISOString throw a raw RangeError.
+  if (
+    typeof capturedAt !== "string" ||
+    capturedAt.length === 0 ||
+    Number.isNaN(Date.parse(capturedAt)) ||
+    new Date(capturedAt).toISOString() !== capturedAt
+  ) {
+    throw new Error(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
   }
   const timezone =
     Intl.DateTimeFormat().resolvedOptions().timeZone || null;

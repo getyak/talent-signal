@@ -27,8 +27,8 @@
 .quickRanges button[aria-pressed=true] { background: var(--surface-muted); color: var(--ink); }
 .quickRanges>span { border-left: 1px solid var(--line); margin-left: 4px; padding-left: 13px; }
 .filters { align-items: end; background: var(--surface-muted); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding: 16px; }
-.filters label,.formFields label { color: var(--muted-strong); display: flex; flex-direction: column; font-size: .73rem; gap: 7px; min-width: 0; }
-.page input,.page select,.page textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: .82rem; min-height: 37px; min-width: 0; padding: 8px 10px; width: 100%; }
+.filters label,.formFields label { color: var(--muted-strong); display: flex; flex-direction: column; font-size: .875rem; gap: 7px; min-width: 0; }
+.page input,.page select,.page textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: 1rem; min-height: 37px; min-width: 0; padding: 8px 10px; width: 100%; }
 .filters label { flex: 1 1 140px; }
 .customRange { align-items: end; display: flex; flex: 2 1 370px; gap: 8px; }
 .customRange label { flex: 1; }
@@ -60,7 +60,7 @@
 .reviewTitle { align-items: center; display: flex; gap: 8px; }
 .reviewTitle svg { color: var(--accent,#a34e3c); }
 .reviewTitle h2 { font-size: .89rem; font-weight: 550; }
-.review>p { color: var(--muted); font-size: .73rem; line-height: 1.8; margin: 10px 0 15px; }
+.review>p { color: var(--muted-strong); font-size: .875rem; line-height: 1.8; margin: 10px 0 15px; }
 .review form { display: grid; gap: 10px; }
 .review textarea { line-height: 1.7; resize: vertical; }
 .review form button { justify-self: end; }
@@ -96,7 +96,7 @@
 .loadingDot { animation: breathe 1.6s ease-in-out infinite; background: var(--muted); border-radius: 50%; height: 7px; width: 7px; }
 @keyframes breathe { 50% { opacity: .25; } }
 .more { color: var(--muted-strong); font-size: .75rem; padding: 18px 0; text-align: center; }.more p { margin-bottom: 12px; }
-.coverage { color: var(--muted); font-size: .66rem; line-height: 1.8; padding: 20px 0; }
+.coverage { color: var(--muted-strong); font-size: .875rem; line-height: 1.8; padding: 20px 0; }
 .weekdays { color: var(--muted); display: grid; font-size: .7rem; grid-template-columns: repeat(7,minmax(0,1fr)); padding: 15px 0; text-align: center; }
 .monthGrid { border-left: 1px solid var(--line-soft); border-top: 1px solid var(--line-soft); display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); }
 .monthCell { border-bottom: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); min-height: 110px; min-width: 0; padding: 6px 3px; }
@@ -117,5 +117,11 @@
 @media(min-width:1600px) { .page { padding: 38px 48px; }.workspace { grid-template-columns: minmax(0,1fr) 330px; }.canvas { padding-right: 36px; }.inspector { padding-left: 32px; } }
 @media(max-width:1200px) { .page { padding: 24px 22px; }.workspace { grid-template-columns: minmax(0,1fr) 265px; }.canvas { padding-right: 16px; }.inspector { padding-left: 18px; }.activityStatus { display: none; }.rowArrow { display: none; }.header p { font-size: .78rem; } }
 @media(max-width:1000px) { .workspace { grid-template-columns: minmax(0,1fr); }.canvas { padding-right: 0; }.inspector { border-left: 0; border-top: 1px solid var(--line); padding: 26px 0; }.contextIntro { display: none; }.review { max-width: 600px; }.editor,.detail { max-width: 600px; }.toolbar { gap: 12px; }.dateNavigation { flex-basis: 100%; }.dateNavigation>div { flex: 1; }.inspector:has(.editor),.inspector:has(.detail) { background: var(--background); border: 1px solid var(--line); border-radius: 12px; bottom: 18px; box-shadow: 0 12px 60px #00000020; max-height: 80dvh; overflow: auto; padding: 22px; position: fixed; right: 20px; width: min(420px,calc(100vw - 40px)); z-index: 60; } }
-@media(max-width:640px) { .page { padding: 24px 16px 80px; }.header { gap: 12px; margin-bottom: 24px; }.header h1 { font-size: 1.55rem; }.header .eyebrow { display: none; }.header p { max-width: 190px; line-height: 1.7; }.header button { white-space: nowrap; }.scopeBar { align-items: start; }.scopeBar>span { white-space: nowrap; }.quickRanges>span { border: 0; flex-basis: 100%; padding: 7px 0 0; }.activityBody strong { font-size: .88rem; }.activity { gap: 9px !important; }.activityTime { flex-basis: 32px; }.activityIcon { flex-basis: 28px; height: 28px; }.monthCell { min-height: 90px; }.monthEvent span { display: none; }.monthEvent { padding: 4px 2px !important; }.inspector:has(.editor),.inspector:has(.detail) { bottom: 70px; }.customRange { flex-wrap: wrap; }.page button { min-height: 38px; } }
+@media(max-width:640px) { .page { padding: 24px 16px 80px; }.header { gap: 12px; margin-bottom: 24px; }.header h1 { font-size: 1.55rem; }.header .eyebrow { display: none; }.header p { max-width: 190px; line-height: 1.7; }.header button { white-space: nowrap; }.scopeBar { align-items: start; }.scopeBar>span { white-space: nowrap; }.quickRanges>span { border: 0; flex-basis: 100%; padding: 7px 0 0; }.activityBody strong { font-size: .88rem; }.activity { gap: 9px !important; }.activityTime { flex-basis: 32px; }.activityIcon { flex-basis: 28px; height: 28px; }.monthCell { min-height: 90px; }.monthEvent span { display: none; }.monthEvent { padding: 4px 2px !important; }.inspector:has(.editor),.inspector:has(.detail) { bottom: 70px; }.customRange { flex-wrap: wrap; }.page button { min-height: 44px; }.formFields .checkLabel,.page input:not([type=checkbox]),.page select { min-height: 44px; } }
+/* The mobile target is 44px (project target, not WCAG's 24px AA minimum).
+   Nested toolbar rules (.segmented button, .quickRanges button) keep their
+   desktop heights, so the narrow-viewport target is restated with higher
+   specificity after the generic rule. Calendar content (month day/event, week
+   points/header) keeps its own higher-specificity sizes and usable width. */
+@media(max-width:640px) { .page .header button,.page .dateNavigation button,.page .segmented button,.page .quickRanges button,.page .filterToggle { min-height: 44px; } }
 @media(prefers-reduced-motion:reduce) { .loadingDot { animation: none; } }

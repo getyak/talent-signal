@@ -155,6 +155,11 @@
   color: var(--ink);
 }
 
+/* Keep the keyboard indicator inside short-window scroll boundaries. */
+.navLink:focus-visible {
+  outline-offset: -2px;
+}
+
 .navLink[aria-current="page"] {
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-soft);
@@ -891,7 +896,8 @@
   color: var(--ink);
   flex: 1;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 1rem;
+  min-height: 44px;
   min-width: 0;
   padding: 6px 2px;
 }
@@ -902,6 +908,8 @@
 
 .searchClose {
   flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .searchResults {
@@ -914,7 +922,7 @@
 
 .searchSection {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   padding: 8px 8px 4px;
 }
 
@@ -948,17 +956,16 @@
 
 .searchResult strong {
   display: block;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 520;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .searchResult small {
   color: var(--muted);
   display: block;
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -967,7 +974,7 @@
 
 .searchEmpty {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   line-height: 1.7;
   padding: 14px 8px;
 }
@@ -1037,12 +1044,13 @@
   .navLink {
     border-radius: 10px;
     flex-direction: column;
-    font-size: 0.625rem;
+    font-size: 0.75rem;
     gap: 2px;
     justify-content: center;
+    line-height: 1.25;
     min-height: 44px;
     min-width: 44px;
-    padding: 4px 6px;
+    padding: 3px 6px;
   }
 
   .navLink > span {
@@ -1066,6 +1074,9 @@
 
   .mobileHeader .brand {
     flex: 0 0 auto;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
     padding: 0 4px;
     width: auto;
   }
@@ -1080,6 +1091,12 @@
     gap: 4px;
   }
 
+  .mobileHeader .iconButton {
+    flex-shrink: 0;
+    height: 44px;
+    width: 44px;
+  }
+
   .mobileSources {
     align-items: center;
     border-radius: 9px;
@@ -1089,8 +1106,10 @@
     justify-content: center;
     min-height: 44px;
     min-width: 44px;
+    flex-shrink: 0;
     padding: 6px 9px;
     text-decoration: none;
+    white-space: nowrap;
   }
 
   .mobileSources:hover {
@@ -1100,6 +1119,7 @@
 
   .mobileAccount .accountTrigger {
     min-height: 44px;
+    min-width: 44px;
     padding: 4px 6px;
     width: auto;
   }
@@ -1132,8 +1152,12 @@
 }
 
 @media (max-width: 390px) {
-  .navLink {
-    font-size: 0.5625rem;
+  .mobileHeader {
+    padding-inline: 12px;
+  }
+
+  .mobileSources > span {
+    display: none;
   }
 }
 
@@ -1148,7 +1172,7 @@
 .searchResult .avatar { flex: 0 0 32px; height: 32px; width: 32px; }
 .searchResult:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .searchHint { border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 12px; margin-top: 10px; padding: 12px 8px 0; }
-.searchRetry { background: var(--surface-muted); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); cursor: pointer; font: inherit; margin-top: 12px; min-height: 40px; padding: 8px 14px; }
+.searchRetry { background: var(--surface-muted); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); cursor: pointer; font: inherit; margin-top: 12px; min-height: 44px; padding: 8px 14px; }
 
 /* Zoom and short desktop windows keep both direct routes and retrieval reachable. */
 @media (min-width: 761px) and (max-height: 600px) {

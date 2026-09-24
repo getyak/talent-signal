@@ -905,7 +905,7 @@ export function RelationshipWorkspaceApp({
                 {activeScope
                   ? workspace?.data_classification === "synthetic_fixture_only"
                     ? "合成审阅"
-                    : "敏感候选人证据"
+                    : "私密关系记录"
                   : "私密工作台"}
               </span>
             </div>

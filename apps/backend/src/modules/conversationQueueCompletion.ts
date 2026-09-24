@@ -228,11 +228,16 @@ export async function persistConversationQueueCompletion(
 }
 
 /**
- * Persist the partial text a stopped run already produced, marked incomplete.
+ * Persist the admitted message and the partial text a stopped run already
+ * produced, marked incomplete.
  *
- * Only reached from an explicit user stop with a live owned claim and current
- * source validity. Revocation, expiry, stale leases, and shutdown never take
- * this path, so now-unauthorized text is never stored.
+ * Only reached when an explicit user stop is durably committed on a live owned
+ * claim with current source validity — including a stop that raced failure or
+ * shutdown finalization before the queue row could be scrubbed. Revocation,
+ * expiry, and stale leases never pass the owned-claim and context checks below,
+ * so now-unauthorized text is never stored; a caller that cannot persist here
+ * must retain the fenced row instead of scrubbing it or claiming the message
+ * saved.
  */
 export async function persistConversationQueueCancellation(
   pool: Pool,

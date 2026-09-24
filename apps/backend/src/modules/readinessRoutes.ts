@@ -1,7 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import type { Pool } from "pg";
 
-import { REQUIRED_SYSTEM_MIGRATIONS } from "./systemHealth.js";
+import {
+  REQUIRED_SYSTEM_MIGRATIONS,
+  SYSTEM_HEALTH_OBSERVATION_TIMEOUT_MS,
+  boundedHealthObservation,
+} from "./systemHealth.js";
 
 const latestRequiredMigration = REQUIRED_SYSTEM_MIGRATIONS.at(-1);
 if (!latestRequiredMigration) {
@@ -11,6 +15,7 @@ if (!latestRequiredMigration) {
 export function registerReadinessRoutes(
   app: FastifyInstance,
   pool: Pool,
+  timeoutMs: number = SYSTEM_HEALTH_OBSERVATION_TIMEOUT_MS,
 ): void {
   app.get("/health/live", async () => ({
     status: "ok",
@@ -29,11 +34,16 @@ export function registerReadinessRoutes(
     },
     async (_request, reply) => {
       try {
-        const result = await pool.query<{ version: string }>(
-          `SELECT version
+        // Readiness must fail bounded too: a stalled dependency returns 503
+        // within the observation budget instead of hanging deployment probes.
+        const result = await boundedHealthObservation(
+          pool.query<{ version: string }>(
+            `SELECT version
            FROM schema_migrations
            WHERE version = ANY($1::text[])`,
-          [REQUIRED_SYSTEM_MIGRATIONS],
+            [REQUIRED_SYSTEM_MIGRATIONS],
+          ),
+          Date.now() + timeoutMs,
         );
         const applied = new Set(result.rows.map((row) => row.version));
         if (!REQUIRED_SYSTEM_MIGRATIONS.every((version) => applied.has(version))) {

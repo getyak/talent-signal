@@ -29,6 +29,43 @@ function elapsedMilliseconds(startedAt: number): number {
   return Math.max(0, Math.round(performance.now() - startedAt));
 }
 
+/**
+ * One overall observation budget, matching the Web server-to-backend bound in
+ * `docs/operations/system-health.md`. A stalled dependency (an unreachable
+ * PostgreSQL host can block `pool.connect()` forever) must never leave the
+ * health surface permanently pending.
+ */
+export const SYSTEM_HEALTH_OBSERVATION_TIMEOUT_MS = 4_000;
+
+export function boundedHealthObservation<T>(
+  work: Promise<T>,
+  deadlineAt: number,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const remaining = deadlineAt - Date.now();
+    if (remaining <= 0) {
+      work.then(() => undefined, () => undefined);
+      reject(new Error("SYSTEM_HEALTH_OBSERVATION_TIMEOUT"));
+      return;
+    }
+    const timer = setTimeout(
+      () => reject(new Error("SYSTEM_HEALTH_OBSERVATION_TIMEOUT")),
+      remaining,
+    );
+    timer.unref?.();
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 function component(
   value: Omit<SystemHealthComponent, "required">,
 ): SystemHealthComponent {
@@ -38,7 +75,9 @@ function component(
 export async function observeSystemHealth(
   pool: Pick<Pool, "query">,
   now: () => Date = () => new Date(),
+  timeoutMs: number = SYSTEM_HEALTH_OBSERVATION_TIMEOUT_MS,
 ): Promise<SystemHealthResponse> {
+  const deadlineAt = Date.now() + timeoutMs;
   const components: SystemHealthComponent[] = [
     component({
       id: "backend",
@@ -52,7 +91,10 @@ export async function observeSystemHealth(
 
   const databaseStartedAt = performance.now();
   try {
-    await pool.query("SELECT 1 AS system_health_ready");
+    await boundedHealthObservation(
+      pool.query("SELECT 1 AS system_health_ready"),
+      deadlineAt,
+    );
     components.push(
       component({
         id: "database",
@@ -93,11 +135,14 @@ export async function observeSystemHealth(
 
   const migrationsStartedAt = performance.now();
   try {
-    const result = await pool.query<{ version: string }>(
-      `SELECT version
+    const result = await boundedHealthObservation(
+      pool.query<{ version: string }>(
+        `SELECT version
        FROM schema_migrations
        WHERE version = ANY($1::text[])`,
-      [REQUIRED_SYSTEM_MIGRATIONS],
+        [REQUIRED_SYSTEM_MIGRATIONS],
+      ),
+      deadlineAt,
     );
     const applied = new Set(result.rows.map((row) => row.version));
     const complete = REQUIRED_SYSTEM_MIGRATIONS.every((version) =>
