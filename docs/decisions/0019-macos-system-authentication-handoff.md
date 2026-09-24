@@ -29,11 +29,17 @@ enter an unsupported protocol. Display metadata is never authorization.
 2. Prepare checks exact Origin, sets an HttpOnly pairing cookie, and redirects
    to a fixed pending path. Link authorization scope, recent reauthentication,
    session fingerprint and credential revision come from the server session.
+   Every purpose captures the initiating authentication fingerprint, including
+   an explicit anonymous state for login; an intervening login must not be
+   overwritten by a delayed callback.
    Client-supplied account/user IDs are not accepted as proof.
 3. Native accepts pending navigation only for its active generation and state.
    It starts ASWebAuthenticationSession at first-party
-   `/desktop-auth/authorize?attempt=<opaque-id>`. Provider state/nonce/PKCE
-   cookies are created there, in the system authentication browser.
+   `/desktop-auth/authorize?attempt=<opaque-id>&state=<native-state>`. The server
+   verifies the state against the stored hash and retains it in a short-lived
+   sealed browser-attempt cookie for the final callback. It cannot reconstruct
+   the raw state from its database hash. Provider state/nonce/PKCE cookies are
+   created there, in the system authentication browser.
 4. Provider completion retains the established Apple HTTPS form-post callback.
    A confirmation view names the verified identity and intended effect. An
    unrelated existing browser login is not fresh provider proof. Completion
@@ -43,7 +49,8 @@ enter an unsupported protocol. Display metadata is never authorization.
    and current attempt generation before submitting a same-origin
    `POST /api/desktop-auth/consume` in the original WKWebView.
 6. Consume requires the pairing cookie, code and verifier. It atomically
-   rechecks all bindings and expiry, consumes the attempt and creates a separate
+   rechecks all bindings, unchanged initiating auth fingerprint and expiry,
+   consumes the attempt and creates a separate
    backend device session for login, or commits the existing linking transaction.
    The Web server sets its normal HttpOnly cookie. Link preserves the original
    WKWebView login, account and drafts.
@@ -63,14 +70,16 @@ One backend `desktop_auth_attempts` state machine owns the durable protocol:
 
 Store opaque ID, provider, purpose, protocol version, exact Web origin/backend
 environment, challenge, state hash, pairing-secret hash, expiry, originating
-session fingerprint and scope (required for link), credential revision,
+session fingerprint and scope (explicitly anonymous or authenticated for login;
+authenticated for link), credential revision,
 reauthentication reference, approved verified proof reference, code hash and
 lifecycle timestamps. Use a five-minute attempt and at most a one-minute code.
 Consume is atomic, single-use and replay resistant. Hash opaque secrets at rest.
 
 Return paths and callback are fixed by purpose; reject arbitrary redirect URLs.
-Session revocation, account switch, origin change, window destruction and
-credential changes invalidate outstanding link attempts. Lab accounts cannot
+Session revocation, account switch, origin change and window destruction
+invalidate outstanding attempts for both login and link. Credential changes
+also invalidate outstanding link attempts. Lab accounts cannot
 use the handoff to cross into real-account scope; include the new table in
 classified cleanup and data-inventory checks.
 
