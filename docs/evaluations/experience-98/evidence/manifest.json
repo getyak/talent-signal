@@ -253,5 +253,35 @@
     "file": "time-saved-reload.png",
     "sha256": "0e5d743ef36f7eaf1d5be663a960401bffa6bb63b0d7c926ffe584099eeccdd4",
     "bytes": 103841
+  },
+  {
+    "file": "time-type-after-320.png",
+    "sha256": "35972d0ca8dd1836a3d8284e42cb6c1add544b3c42f21c21d6250136cad33bee",
+    "bytes": 61442
+  },
+  {
+    "file": "time-type-after.json",
+    "sha256": "372d389cd9964937cf52fc5c72bf609087fb222d0c8cec184fe4f5b2f9980678",
+    "bytes": 1421
+  },
+  {
+    "file": "time-type-before-320.png",
+    "sha256": "2aef3de4e255ee44eea12f0e4367a6ee641b0bacb20d92ef85f5accf843230cd",
+    "bytes": 56872
+  },
+  {
+    "file": "time-type-before.json",
+    "sha256": "0aa9d4b682b3a79affaeb595e58658ae6e309d4792232ae18ccc411a19253314",
+    "bytes": 1439
+  },
+  {
+    "file": "time-type-form-320.png",
+    "sha256": "c0d3a1f0081bd99d42efd87c24d0c0e8f9948831d536b16968c9f322ac1ed7c3",
+    "bytes": 55994
+  },
+  {
+    "file": "time-type-form.json",
+    "sha256": "bc92a596b304522e9ce6612d769ce1f90f0d3ab53fbf666ab177d6cc45c30d82",
+    "bytes": 5846
   }
 ]

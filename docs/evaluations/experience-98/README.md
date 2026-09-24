@@ -93,6 +93,15 @@ must count visible/accessibility-exposed routes rather than hidden cache nodes.
   The relationship page now uses the Chinese no-action fallback and does not
   assert a manual identity decision without evidence. See [relationship and
   shell readback](evidence/relationship-shell-readback.json).
+- A follow-up found Time's retention/scope explanation at 10.56px, review
+  explanation at 11.68px and inputs at 13.12px. Scoped CSS now renders the two
+  explanations and form labels at 14px and inputs at 16px. Both 320px and
+  390px browser checks preserve page width; the open arrangement form fits
+  within the viewport, including native date/time fields. Mobile inputs and
+  selects measure 44px high; the checkbox's clickable label also measures
+  44px. These changes do
+  not alter dense month/week calendar typography. See [before](evidence/time-type-before.json),
+  [after](evidence/time-type-after.json) and [form reflow](evidence/time-type-form.json).
 
 ## Coverage and remaining evidence
 
@@ -157,6 +166,8 @@ link failed. Pre-write validation stays editable; an acknowledged first atomic
 backend rejection retains its status. All 42 affected route/card tests pass.
 This boundary is verified by deterministic route tests; the earlier browser
 probes specifically cover loss between browser and Web, not this upstream hop.
+After the upstream-boundary and Time typography follow-ups, the complete Web
+suite passed 1,272 tests with one skipped. No skipped check is counted as passed.
 
 ### Browser tooling isolation
 
