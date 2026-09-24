@@ -62,6 +62,10 @@ failure's cause is still unknown; an old deployment is a fact, not a diagnosis.
   still reaches the canonical Person. See [before](evidence/search-type-before.json)
   and [after](evidence/search-type-after.json). Native iOS keyboard zoom is not
   claimed from these desktop Chrome measurements.
+- A bounded read-only 503 injection shows an alert, preserves the search text,
+  and exposes a 44px retry target. Explicit retry against the real backend
+  restores the correct Person result and clears the alert without a page error.
+  See [search read-failure recovery](evidence/search-directory-recovery.json).
 - EXP-11 history traversal: a delayed first-source receipt could still start
   the clue POST before the old card unmounted. A failing regression reproduced
   two writes; the history event now revokes continuation immediately. A

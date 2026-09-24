@@ -225,6 +225,16 @@
     "bytes": 7412
   },
   {
+    "file": "search-directory-failure.png",
+    "sha256": "92f785594c4190772485717523534d0da7fe7b8ef7cbddf9370da8df91ad6474",
+    "bytes": 56026
+  },
+  {
+    "file": "search-directory-recovery.json",
+    "sha256": "83966f240f915246d2096bd5243c36d65344fada914cdcfce4ddf046ccb2e167",
+    "bytes": 648
+  },
+  {
     "file": "search-keyboard.json",
     "sha256": "d1a889081797d7e3129e08f6bf03a7793fbaf2b45565a26197ed1a00ab365c56",
     "bytes": 1422
