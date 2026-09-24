@@ -504,9 +504,11 @@ export function AgentCreatePersonCard({
     targetSelectable &&
     firstNote.trim().length > 0 &&
     (target.mode !== "new_person" || newPersonAllowed);
+  // Keep the complete match set; the intake contract admits 2–20 candidates.
+  const reviewCandidateCountValid = matches.length >= 2 && matches.length <= 20;
   const reviewReady =
     identityChoiceNeedsReview &&
-    matches.length >= 2 &&
+    reviewCandidateCountValid &&
     name.trim().length > 0 &&
     contextLabel.trim().length > 0 &&
     firstNote.trim().length > 0;
@@ -1560,12 +1562,18 @@ export function AgentCreatePersonCard({
               <small>
                 {committedSource
                   ? `人物已固定为 ${committedSource.scope.person.display_label}。请核对这条线索是否属于此人；不确定时请取消确认，直接打开已保存的人物。`
-                  : matches.length >= 2
+                  : reviewCandidateCountValid
                     ? "请选择当前人物、移除线索，或将此来源保留为未解决。历史归属者仍可用于对比，但不能接收此来源。"
                     : "如果确认是同一人，请选择当前人物；否则先移除线索，再继续核对。身份未确认前，此来源不会保存。"}
               </small>
             </p>
           </div>
+        ) : null}
+        {!editsLocked && identityChoiceNeedsReview && matches.length > 20 ? (
+          <p role="status">
+            匹配到 {matches.length} 个人物。请补充姓名或身份线索以缩小范围，或先选择已核实的人物。
+            当前不会提交待审阅来源，也不会省略候选人物。
+          </p>
         ) : null}
         {!editsLocked &&
         lookupState === "ready" &&

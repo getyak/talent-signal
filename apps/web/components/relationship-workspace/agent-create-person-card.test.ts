@@ -432,6 +432,43 @@ describe("create-contact resource request identity", () => {
     expect(resourcePosts()).toHaveLength(0);
   });
 
+  it.each([20, 21])("respects the deferred-review maximum after merging name and clue searches (%s people)", async (count) => {
+    const namedPeople = Array.from({ length: 20 }, (_, index) => person(
+      `80000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      `Synthetic Candidate ${index + 1}`,
+    ));
+    const owner = person(count === 20 ? namedPeople[0]!.id : OTHER_PERSON_ID, "Synthetic Current Owner");
+    owner.identity_matches = [{ kind: "confirmed_handle", handle_type: "email",
+      display_hint: CLUE, source_resource_id: RESOURCE_ID }];
+    fetcher.mockImplementation((url: string, init?: RequestInit) => {
+      if (String(url).includes("/people/search")) {
+        const { query } = JSON.parse(String(init?.body));
+        return Promise.resolve(Response.json({ people: query === CLUE ? [owner] : namedPeople }));
+      }
+      return Promise.resolve(Response.json({
+        receipts: [receipt(namedPeople[0]!.id, { resolution_case_id: CASE_ID })],
+      }));
+    });
+    await render();
+    await fillCreateDraft();
+    const reviewButton = [...host.querySelectorAll("button")]
+      .find((button) => button.textContent === "保存待身份审阅");
+    if (count === 20) {
+      expect(reviewButton).toBeTruthy();
+      await clickButton("保存待身份审阅");
+      await flush(50);
+      expect(resourcePosts()).toHaveLength(1);
+      expect(resourcePosts()[0].candidate_person_ids).toHaveLength(20);
+      expect(mock.deferred).toHaveBeenCalledTimes(1);
+    } else {
+      expect(reviewButton).toBeUndefined();
+      expect(host.textContent).toContain("匹配到 21 个人物");
+      expect(host.textContent).toContain("缩小范围");
+      expect(host.textContent).not.toContain("保留为未解决");
+      expect(resourcePosts()).toHaveLength(0);
+    }
+  });
+
   it("saves an ambiguous identity for review with its own stable request identity", async () => {
     let fail = true;
     fetcher.mockImplementation((url: string) => {
