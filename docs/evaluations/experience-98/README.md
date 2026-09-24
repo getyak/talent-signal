@@ -25,6 +25,7 @@ Status: in progress. No 98/100 acceptance claim has been issued.
 | EXP-09 | P1 | Starting a synthetic text-source run stalled the whole API: liveness and readiness each exceeded 8 seconds in three consecutive probes. The source list/detail took about 35 seconds. SDK 0.3.266 synchronously calls `process.report.getReport()` to detect Linux libc before spawning its executable. Node diagnostic reports perform reverse DNS on active sockets by default. An isolated server reproduced a 3,118ms report versus 2.4ms with network collection disabled. | Disable network lookups in runtime diagnostics before SDK admission, preserve required libc detection, and repeat a real source run while measuring API liveness/readiness. The isolated pair is not yet resident-runtime acceptance. |
 | EXP-10 | P1 | Source confirmation/deletion can submit a stale terminal revision after the runner's last save. The page displays raw `CONTACT_TASK_REVISION_CHANGED` and retains the stale action state; a full page reload was needed to proceed. | Reload current task on conflict, retain editable input, explain the changed state and require a fresh human decision. Do not automatically replay identity/deletion writes. |
 | EXP-11 | P1 | After the first resource POST returned a real 201, a synthetic transport failure hid the receipt from the form. Editing the note and pressing Create sent another `new_person` request; the backend created a second Person with a distinct ID. | Lock an unknown outcome to its exact submitted payload and request identity, reconcile before edits, and distinguish an acknowledged rejection from a missing response. Test source, clue and deferred-identity requests; never claim an unknown write was not saved. |
+| EXP-12 | P2 | At 320px the mobile shell labels shrink to 9px; utility labels wrap into one-character columns when the privacy action is present. The search target is 30px square and the account target is 35px wide. | Keep the four primary labels readable; preserve named utility destinations at narrow widths and verify all header targets at 320/390/430px. |
 
 ## First verified repair
 
@@ -73,6 +74,24 @@ These checks cover specific synthetic journeys. They do not establish native
 app quality, 200% browser text enlargement, production latency, or 98/100.
 Next's retained route DOM can contain hidden main elements; landmark checks
 must count visible/accessibility-exposed routes rather than hidden cache nodes.
+
+### Typography, entry focus and shell follow-up
+
+- Creating a contact no longer focuses the chat composer below the card. The
+  visible name input receives focus; the card heading remains on screen at
+  320px. See [entry and relative text-size proof](evidence/create-entry-and-text-size.json).
+- Enabled solid-color form text measured at least 4.61:1 in light mode and
+  7.74:1 in dark mode. Gradients, group opacity, disabled controls and assistive
+  technology remain outside that narrow calculation. See [contrast samples](evidence/create-text-contrast.json).
+- EXP-12: primary mobile navigation labels now measure 12px; the six header
+  targets each measure at least 44px in both axes. Compact utility icons keep
+  their accessible names. There is no horizontal page overflow at 320, 390 or
+  430px. Tab then Enter on the skip link focuses the single visible main while
+  preserving Person/context parameters.
+- Reloading the populated source archive confirms the self-link is absent.
+  The relationship page now uses the Chinese no-action fallback and does not
+  assert a manual identity decision without evidence. See [relationship and
+  shell readback](evidence/relationship-shell-readback.json).
 
 ## Coverage and remaining evidence
 

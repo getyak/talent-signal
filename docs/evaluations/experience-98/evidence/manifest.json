@@ -15,6 +15,16 @@
     "bytes": 94362
   },
   {
+    "file": "create-entry-and-text-size.json",
+    "sha256": "67ee78a08f4cf9b401faa892d586a462bef21bebfb4906c17030823e654128b7",
+    "bytes": 1238
+  },
+  {
+    "file": "create-entry-focus-after-320.png",
+    "sha256": "30df159aee16db3c4e5574ec800266f66c882bb33c0581095632ef662cf5c609",
+    "bytes": 108128
+  },
+  {
     "file": "create-error-before.png",
     "sha256": "c5a95f47b45c732420119d457cc85fc079aa2b70307371f18ae226a0565bd142",
     "bytes": 624681
@@ -28,6 +38,11 @@
     "file": "create-form-after-320.png",
     "sha256": "c61d838baac68b4bc81c7bc1da2f32975a3f1623ff4e1ae8ca775d5e862e5727",
     "bytes": 117271
+  },
+  {
+    "file": "create-light-focus-after.png",
+    "sha256": "af5f4e6ed7361568de23641c48bab03cf6bc92d1c91259ee65ec28984fb69283",
+    "bytes": 107534
   },
   {
     "file": "create-lost-response-duplicate.json",
@@ -55,6 +70,16 @@
     "bytes": 95835
   },
   {
+    "file": "create-text-200-probe.png",
+    "sha256": "36ef418d3ce1404f872dc10fc140b2c57a39a7aa59ba630b04cc9e55732eb059",
+    "bytes": 97948
+  },
+  {
+    "file": "create-text-contrast.json",
+    "sha256": "4e880bb57d1523c167495d794858b26ede9e6ef911daeca064d43e56095598da",
+    "bytes": 8600
+  },
+  {
     "file": "node-diagnostic-report-probe.json",
     "sha256": "6642e53e46f7ab65883f5b1d3256dbb74ab53a084c8f1df12f67f4682b9376ff",
     "bytes": 1201
@@ -70,6 +95,11 @@
     "bytes": 108050
   },
   {
+    "file": "person-brief-shell-after-320.png",
+    "sha256": "0187db3e663d4a8702b1640b679f3030fcb00574c08c260397c69bc637353554",
+    "bytes": 95879
+  },
+  {
     "file": "person-context-brief-top.png",
     "sha256": "9e7b1f61914970aa634c3b246cbec6158ca426f27db9c8817812c6ccf7bd91c6",
     "bytes": 102351
@@ -78,6 +108,11 @@
     "file": "person-memory-readback.png",
     "sha256": "ddd89d0390b49108cf2a377bb90a1eeab3992416f5664eb5f4c952bba8b3f93b",
     "bytes": 80575
+  },
+  {
+    "file": "relationship-shell-readback.json",
+    "sha256": "c9aa2f0bf865ffc46e51a35747d3dad893be97f778189316b00271c6ef75cc34",
+    "bytes": 4956
   },
   {
     "file": "retention-live.json",

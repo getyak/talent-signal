@@ -1037,12 +1037,13 @@
   .navLink {
     border-radius: 10px;
     flex-direction: column;
-    font-size: 0.625rem;
+    font-size: 0.75rem;
     gap: 2px;
     justify-content: center;
+    line-height: 1.25;
     min-height: 44px;
     min-width: 44px;
-    padding: 4px 6px;
+    padding: 3px 6px;
   }
 
   .navLink > span {
@@ -1066,6 +1067,9 @@
 
   .mobileHeader .brand {
     flex: 0 0 auto;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
     padding: 0 4px;
     width: auto;
   }
@@ -1080,6 +1084,12 @@
     gap: 4px;
   }
 
+  .mobileHeader .iconButton {
+    flex-shrink: 0;
+    height: 44px;
+    width: 44px;
+  }
+
   .mobileSources {
     align-items: center;
     border-radius: 9px;
@@ -1089,8 +1099,10 @@
     justify-content: center;
     min-height: 44px;
     min-width: 44px;
+    flex-shrink: 0;
     padding: 6px 9px;
     text-decoration: none;
+    white-space: nowrap;
   }
 
   .mobileSources:hover {
@@ -1100,6 +1112,7 @@
 
   .mobileAccount .accountTrigger {
     min-height: 44px;
+    min-width: 44px;
     padding: 4px 6px;
     width: auto;
   }
@@ -1132,8 +1145,12 @@
 }
 
 @media (max-width: 390px) {
-  .navLink {
-    font-size: 0.5625rem;
+  .mobileHeader {
+    padding-inline: 12px;
+  }
+
+  .mobileSources > span {
+    display: none;
   }
 }
 
