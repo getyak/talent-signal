@@ -52,9 +52,14 @@ independent review and fixed the confirmed findings.
   author research were read back. Quality remains incomplete; no release claim.
 - Complete: all 24 Studio cases synced and read back with source-hash-bound
   independent semantic findings; human decisions remain pending.
-- Remaining delivery checks: current PR validation and
-  owned-runtime cleanup. The nine semantic failures and K04 timeout remain
-  quality backlog, not completed outcomes.
+- Complete: independent review closed final evaluator cancellation/interruption
+  and receipt-binding findings. Agent 321 passed/1 skipped, backend targeted 68
+  passed, evaluator 46 passed; build/docs/architecture checks passed.
+- Complete: saved the isolated database including all 34 image rows, stopped
+  owned API/Web/Agent Host/container and removed the registered temporary
+  build artifact. Production, Studio and unrelated artifacts were preserved.
+- Remaining: current-head remote CI and quality work. The nine semantic
+  failures and K04 timeout remain open; the PR stays draft.
   [Detailed evidence](../docs/evaluations/2026-09-24-relationship-conversations.md)
   is authoritative; older targeted passes do not replace the final full run.
 
@@ -110,4 +115,8 @@ Selected product changes retain the original 60-second execution ceiling.
 responses. Source/clock/speaker and real-receipt assertions remain strict.
 Task-owned runtimes use registered artifact
 `/private/tmp/ai-test-relationship-eval-resume.c8JuWX`; isolated PostgreSQL container
-`ts-relationship-eval-resume-20260924`, API 55450, Web 55451. Cleanup is pending.
+`ts-relationship-eval-resume-20260924`, API 55450, Web 55451. All are stopped.
+The final private PostgreSQL dump retains 34 admitted image rows (1,315,007
+image bytes); queue images use database storage, so no media directory existed.
+The registered artifact and generated Next cache were removed after evidence
+backup. The storage audit found no out-of-pool devices; none were deleted.
