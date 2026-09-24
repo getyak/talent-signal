@@ -120,3 +120,10 @@ The final private PostgreSQL dump retains 34 admitted image rows (1,315,007
 image bytes); queue images use database storage, so no media directory existed.
 The registered artifact and generated Next cache were removed after evidence
 backup. The storage audit found no out-of-pool devices; none were deleted.
+
+Final CI exposed a calendar fixture using fixed September 1 creation timestamps
+with `now()+7 days` expiry, exceeding the 30-day retention bound on September 24.
+The fixture now uses DB-relative ordered timestamps. The real PostgreSQL
+calendar suite passed all 9 tests after this correction; no production code or
+retention guard changed. Independent review confirmed the original pagination
+and snapshot assertions remain intact.

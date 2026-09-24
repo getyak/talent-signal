@@ -462,11 +462,12 @@ suite("meeting draft source lifecycle", () => {
         const taskID = randomUUID();
         const draftID = randomUUID();
         ids.push(draftID);
+        // Keep ordering deterministic without outgrowing the 30-day retention bound.
         await pool!.query(
           `INSERT INTO agent_session_chat_tasks(
              account_id,task_id,actor_user_id,origin_session_id,created_at,expires_at
-           ) VALUES($1,$2,$3,$4,$5,now()+interval '7 days')`,
-          [accountID, taskID, userID, sessionID, new Date(Date.UTC(2026, 8, 1, 0, index))],
+           ) VALUES($1,$2,$3,$4,now()-interval '1 day'+$5*interval '1 minute',now()+interval '7 days')`,
+          [accountID, taskID, userID, sessionID, index],
         );
         await pool!.query(
           `SELECT record_meeting_draft(

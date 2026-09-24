@@ -159,7 +159,9 @@ are historical evidence, never pooled into a clean release claim.
 Final selected-source checks: Agent suite **321 passed, 1 skipped**;
 backend workspace/default-contact **68 passed**; evaluator/fixture integrity
 **46 passed**. Agent image inspection coverage includes opaque-ID handoff and
-revocation. Backend build and documentation/architecture checks passed. Earlier unchanged checks include research 27,
+revocation. Backend build and documentation/architecture checks passed. Current-date CI
+also exposed an expired fixed-date calendar fixture; relative timestamps
+restored all 9 real PostgreSQL calendar tests without changing retention rules. Earlier unchanged checks include research 27,
 Claude provider 33, Agent Host 20, web review/calendar 19, calendar PostgreSQL
 integration 9, selected Memory integration 5 and all 86 fresh migrations.
 Skipped tests are not passes; remote CI must be read against the current PR head.
