@@ -48,7 +48,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | Requirement | Required proof | Current state |
 | --- | --- | --- |
 | New email globally unique | PostgreSQL concurrent registration tests | pending |
-| Password email ownership | real delivery plus challenge/replay tests | transport configuration requested |
+| Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | pending |
 | Safe conflict and relay behavior | hostile/replay/ownership tests | pending |
 | Historical duplicates handled | classified inventory, preview, dual proof | pending |
@@ -57,6 +57,34 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | Interrupted/offline recovery | preserved draft and no duplicate write | pending |
 | Real Apple sign-in | provider callback and post-login readback | pending |
 | Review and delivery | independent P0/P1 closure and exact-head checks | pending |
+
+## Parent verification checkpoint — September 25
+
+- The first migration draft failed on PostgreSQL 18 because `min(uuid)` is not
+  supported. Pi repaired it; the actual migrate entry point then succeeded over
+  three synthetic legacy users, including a case-insensitive duplicate pair.
+- Seven independent database cases passed against that intermediate source:
+  preserved legacy collision, each of three first-provider orderings, concurrent
+  ownership, direct-insert rejection and atomic rollback. This is not final-head
+  acceptance and does not prove OAuth or UI behavior.
+- Empty-account classification failed because `harness_source_generations` was
+  counted as product data. Independent review also found that credentials were
+  misclassified and indirect Lab ownership was omitted. All findings were sent
+  to Pi together; safe credential-baseline handling must not expose the missing
+  historical-ownership check.
+- Read-only production inventory found a deleted Lab workspace owned by the
+  Google duplicate, with its target user retained. Zero ordinary product rows
+  therefore do not establish that this account has no historical relations.
+- Existing Resend configuration uses the sandbox sender domain `resend.dev`.
+  Sending-only key scope prevents a domain-list check; no email was sent and
+  delivery remains unverified. No user-supplied key is currently needed.
+- The installed macOS wrapper loses OAuth continuity when it opens the system
+  browser, and cancelling Apple leaves its login controls disabled. The separate
+  reviewed [handoff design](../docs/decisions/0019-macos-system-authentication-handoff.md)
+  will be a sequential Pi implementation after the shared account work.
+- Parent artifacts are under the registered task directory's `parent-db/`;
+  the isolated `account-sync-parent-pg` container is task-owned and must be
+  stopped after durable evidence is saved. No resident database was migrated.
 
 ## Execution boundaries
 
