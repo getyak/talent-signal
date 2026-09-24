@@ -235,6 +235,11 @@
     "bytes": 648
   },
   {
+    "file": "search-final-readback.json",
+    "sha256": "0c9696f86b4155cae4c1bc1064ded9e2568e4a73db4e019c757f685d5a63e155",
+    "bytes": 3960
+  },
+  {
     "file": "search-keyboard.json",
     "sha256": "d1a889081797d7e3129e08f6bf03a7793fbaf2b45565a26197ed1a00ab365c56",
     "bytes": 1422
