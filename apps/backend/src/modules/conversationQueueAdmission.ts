@@ -248,7 +248,13 @@ export async function mutateConversationQueueEntry(
     const snapshot = await readConversationQueueSnapshot(client, auth, sessionId);
     return { snapshot, applied, replayed: false };
   });
-  if (!outcome.replayed) publishConversationQueueChanged(auth.accountId, sessionId);
+  if (!outcome.replayed) {
+    const { applied } = outcome;
+    if (applied.kind === "stop" && applied.queue_entry_id && applied.run_id && applied.status === "running") {
+      publishConversationQueueStop(auth.accountId, sessionId, applied.run_id);
+    }
+    publishConversationQueueChanged(auth.accountId, sessionId);
+  }
   return outcome;
 }
 
@@ -289,7 +295,6 @@ async function applyMutation(
       };
     }
     await bumpConversationQueueState(client, auth.accountId, sessionId);
-    queueMicrotask(() => publishConversationQueueStop(auth.accountId, sessionId, request.run_id));
     return { kind: "stop", queue_entry_id: row.id, run_id: request.run_id, status: "running" };
   }
   const row = (

@@ -1049,6 +1049,102 @@ suite("durable conversation queue", () => {
     }
   });
 
+  it("retains a recovered stopped message when saving its history fails, then retries without a provider", async () => {
+    const seeded = await seedSession();
+    const messageId = randomUUID();
+    let rejectSave = true;
+    const failingPool = {
+      query: pool!.query.bind(pool),
+      connect: async () => {
+        const client = await pool!.connect();
+        return {
+          query: (sql: string, values?: unknown[]) => {
+            if (rejectSave && sql.includes("INSERT INTO agent_sessions(")) {
+              throw new Error("SYNTHETIC_HISTORY_SAVE_FAILURE");
+            }
+            return client.query(sql, values);
+          },
+          release: () => client.release(),
+        };
+      },
+    } as unknown as Pool;
+    const runner = new ConversationQueueRunner({ pool: failingPool, provider: null, logger: silentLogger });
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(), session_id: seeded.sessionId,
+        message_id: messageId, objective: "Keep my stopped message until its history is durable",
+      });
+      const claimed = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId, sessionId: seeded.sessionId, workerId: "history-failure-proof",
+      });
+      const before = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "stop", expected_revision: before.revision,
+        idempotency_key: randomUUID(), run_id: claimed!.runId,
+      });
+      const expireLease = () => pool!.query(
+        "UPDATE conversation_queue_entries SET lease_expires_at=now()-interval '1 second' WHERE account_id=$1 AND id=$2",
+        [seeded.accountId, claimed!.entryId],
+      );
+      await expireLease();
+      await runner.recover();
+      expect((await entryRow(seeded.sessionId, seeded.accountId))[0]).toMatchObject({
+        status: "running", cancel_requested: true,
+        objective: "Keep my stopped message until its history is durable",
+      });
+      expect((await getAgentSession(pool!, seeded.auth, seeded.sessionId)).payload?.turns).toEqual([]);
+      rejectSave = false;
+      await expireLease();
+      await runner.recover();
+      expect((await entryRow(seeded.sessionId, seeded.accountId))[0]?.status).toBe("cancelled");
+      expect((await getAgentSession(pool!, seeded.auth, seeded.sessionId)).payload?.turns).toEqual([
+        expect.objectContaining({ id: messageId, objective: "Keep my stopped message until its history is durable" }),
+      ]);
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("does not publish a stop when its transaction rolls back", async () => {
+    const seeded = await seedSession();
+    const stops: string[] = [];
+    const unsubscribe = subscribeConversationQueueLive(event => {
+      if (event.type === "stop" && event.sessionId === seeded.sessionId) stops.push(event.runId);
+    });
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(), session_id: seeded.sessionId,
+        message_id: randomUUID(), objective: "Rollback must preserve this run",
+      });
+      const claimed = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId, sessionId: seeded.sessionId, workerId: "rollback-proof",
+      });
+      const before = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      // Real PostgreSQL transaction, with a failure after the stop update but
+      // before its operation receipt can commit. This is not a mocked rollback.
+      const failingPool = { connect: async () => {
+        const client = await pool!.connect();
+        return {
+          query: (sql: string, values?: unknown[]) => {
+            if (sql.startsWith("INSERT INTO conversation_queue_operations")) throw new Error("SYNTHETIC_RECEIPT_FAILURE");
+            return client.query(sql, values);
+          },
+          release: () => client.release(),
+        };
+      } } as unknown as Pool;
+      await expect(mutateConversationQueueEntry(failingPool, seeded.auth, seeded.sessionId, {
+        kind: "stop", expected_revision: before.revision,
+        idempotency_key: randomUUID(), run_id: claimed!.runId,
+      })).rejects.toThrow("SYNTHETIC_RECEIPT_FAILURE");
+      expect((await entryRow(seeded.sessionId, seeded.accountId))[0]?.cancel_requested).toBe(false);
+      expect(stops).toEqual([]);
+    } finally {
+      unsubscribe();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
   it("accepts every mutation kind through the real Fastify route contract", async () => {
     const seeded = await seedSession();
     const app = Fastify();

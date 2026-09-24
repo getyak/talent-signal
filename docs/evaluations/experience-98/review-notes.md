@@ -21,12 +21,33 @@ worktree, then ran it against an isolated PostgreSQL 18 container on loopback
   read only the admitted image manifests. The stop marker, exact user message
   and attachment references now persist before queue scrubbing, with no provider
   replay. The strengthened regression includes an image attachment.
-- Retest: the same 45 tests passed. Full typecheck and final review of the
-  assembled changes remain required.
+- Retest: the same 45 tests passed; backend typecheck also passed.
+
+Further independent failure injection found and corrected two additional loss
+or false-state paths:
+
+- A real stop transaction rolled back after its operation receipt failed, but
+  the live stop event had already been emitted. The regression observed the
+  event while PostgreSQL correctly retained `cancel_requested=false`. Stop
+  publication now happens only after the transaction returns successfully,
+  and never when replaying an already recorded operation.
+- If saving a recovered stopped message to Session history failed, the runner
+  still finalized cancellation and erased its objective. A real transaction
+  with an injected Session-write failure reproduced `objective=null` and
+  `status=cancelled` despite empty Session history. Failed persistence now keeps
+  the admitted content and pending stop under the existing retention boundary.
+  Lease recovery retries persistence without calling a provider. The regression
+  verifies the source survives the failure and exactly one turn is saved after
+  recovery.
+- Combined retest: 47/47 tests passed across the real PostgreSQL queue suite,
+  system health and readiness. These tests use synthetic fixtures and do not
+  mutate the resident database.
 
 The original [Pi report](backend-audit.md) describes its own frozen first patch.
-Its F1 diff description is superseded by the correction above. Its F3/F4 risks
-remain open for focused reproduction. Health observation deadlines bound the
+Its F1 diff description is superseded by the correction above. F4 was reproduced
+and fixed. F3 currently has no observed UI exposure: the external read route
+returns scope rather than the inactive item body, and mutation rejects inactive
+items. Health observation deadlines bound the
 response, not the lifetime of the underlying pg query; connection-acquisition
 cancellation remains a separate reliability concern.
 

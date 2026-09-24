@@ -629,11 +629,15 @@ export class ConversationQueueRunner {
       });
     } catch (error) {
       if (error instanceof ConversationQueueLeaseLostError) return;
-      // Revocation or an expired Session must never store a partial answer.
+      // Never scrub the admitted message if its history was not saved. A
+      // transient failure can retry on lease recovery; revoked or expired
+      // context still cannot receive a partial answer and retains its existing
+      // expiry/deletion boundary.
       this.options.logger.warn(
         { queue_entry_id: claimed.entryId, err: error },
         "conversation queue stop could not persist a partial answer",
       );
+      return;
     }
     await finalizeConversationQueueEntry(this.options.pool, {
       fence,
