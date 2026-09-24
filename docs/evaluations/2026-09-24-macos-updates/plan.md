@@ -9,11 +9,12 @@ No real workspace data, signing-key creation, public feed or production install
 is authorized by this implementation alone. Original checkout remains untouched.
 
 Completed: live readiness audit, custom user driver, offer-bound installation,
-independent security review and fixes, eight native session tests, three Web
-component tests, and real synthetic old-to-new native-click upgrade.
+independent security review and fixes, 16 focused native tests, three Web
+component tests, real native and WebKit footer old-to-new upgrades, synthetic-click
+rejection, archive-tamper recovery and independent final review.
 
-Active: verify isolated WebKit trusted clicks and re-review final source; update
-execution evidence, commit and open a draft PR for full remote checks. Local disk
+Active: [draft PR 245](https://github.com/getyak/talent-signal/pull/245) is open;
+await final-head remote CI. The first full macOS check passed on 2396ab6a. Local disk
 is below the heavyweight build threshold, so no full Xcode build runs locally.
 
 Remaining acceptance: remote exact-head CI, Developer ID/notary/Sparkle credential

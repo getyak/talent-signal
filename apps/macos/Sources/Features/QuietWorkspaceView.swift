@@ -132,7 +132,9 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
                                                         userActivated: action.navigationType == .linkActivated) {
                 switch command {
                 case .settings: openSettings?()
-                case .updates: DesktopUpdater.shared.checkForUpdates()
+                case .updates:
+                    if DesktopUpdater.shared.presentation.canInstall { openSettings?() }
+                    else { DesktopUpdater.shared.checkForUpdates() }
                 // linkActivated also includes synthetic page clicks. Installation
                 // is accepted only through the isolated trusted-click handler.
                 case .installUpdate: break
