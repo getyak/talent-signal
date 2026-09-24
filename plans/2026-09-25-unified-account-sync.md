@@ -219,3 +219,35 @@ after unlink and complete reservation handling during reconciliation. This P1
 is queued for Pi after its current coherent client implementation checkpoint.
 Primary-email password lookup remains the chosen scope; a reservation alone is
 not an additional password identifier or authorization proof.
+
+### Actual client checkpoint at 06:07 local
+
+The independent Web consumer harness passes 10/10 with 13 source hashes stable:
+real start actions, JWT callbacks, LoginPage and completion handlers, with
+controlled provider/HTTP transport. The source-bound receipt is in
+`docs/evaluations/account-sync/web-completion-independent-2026-09-25.json`.
+This is not live OAuth/PKCE or a browser callback acceptance result.
+
+Repair12's normally signed native build succeeds. Actual iOS password login now
+passes the protected-storage gate and reads the same Web-created Person and
+Session IDs. A synthetic message committed through HTTP appeared in the open
+iOS Session after an observed 4.738 seconds; the visible unsent draft survived.
+Through the actual native import/review/save UI, the parent created one synthetic
+Person and its Session receipt; actual Chrome automatically displayed both
+records, and opening their links retained both exact IDs.
+
+This run exposed a real native write defect: `JSONEncoder.agentSession` drops
+fractional seconds. A Web-created Session retains creation time
+`2026-09-24T19:12:08.180281Z`, but iOS submits `2026-09-24T19:12:08Z`; the backend
+correctly rejects changing immutable creation time. Preserve canonical time and
+repair native roundtripping, rather than weakening that invariant. The same
+retained fixture must pass an actual native write after repair.
+
+Native repair12 tests are not green: request-body assertions failed and the
+second Session test deadlocked before a response was delivered. Independent
+review also found five P1 operation/lifetime/tombstone defects. After that
+coherent build/test checkpoint, the parent cancelled the hung task and resumed
+repair13 focused only on native implementation and real controller/consumer
+tests. Secondary-email ownership, remaining Web projection checks and the
+timestamp defect are queued separately for repair14. All source changes remain
+isolated; no production account, deployment or provider configuration changed.
