@@ -55,9 +55,10 @@ enter an unsupported protocol. Display metadata is never authorization.
    The Web server sets its normal HttpOnly cookie. Link preserves the original
    WKWebView login, account and drafts.
 
-Native may inject a fixed local form submission into the current trusted
-same-origin document; never a general credential bridge or arbitrary evaluator
-requested by Web content. Tokens, provider credentials, bearer sessions and
+Use `WKWebView.load(URLRequest)` for fixed prepare/consume POST requests with
+the precise Origin and Content-Type. Keep the verifier out of page DOM and the
+JavaScript bridge; never provide a general credential bridge or arbitrary
+evaluator requested by Web content. Tokens, provider credentials, bearer sessions and
 Auth.js cookies must not enter URLs, logs, metadata or JS bridge messages.
 Never copy the system browser's cookie jar into WKWebView.
 
