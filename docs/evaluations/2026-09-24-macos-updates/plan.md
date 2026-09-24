@@ -13,9 +13,12 @@ independent security review and fixes, 16 focused native tests, three Web
 component tests, real native and WebKit footer old-to-new upgrades, synthetic-click
 rejection, archive-tamper recovery and independent final review.
 
-Active: [draft PR 245](https://github.com/getyak/talent-signal/pull/245) is open;
-await final-head remote CI. The first full macOS check passed on 2396ab6a. Local disk
-is below the heavyweight build threshold, so no full Xcode build runs locally.
+Active: [PR 245](https://github.com/getyak/talent-signal/pull/245) was merged as
+`9d8d72ca` during credential recovery. Native checks passed on `98050058`; the
+original iOS check was still running at readback, so merge is not evidence that
+all checks finished. Credential recovery guidance is in
+[PR 246](https://github.com/getyak/talent-signal/pull/246). Local disk remains below
+the heavyweight build threshold; no full Xcode build runs locally.
 
 Remaining acceptance: remote exact-head CI, Developer ID/notary/Sparkle credential
 configuration, signed/notarized public release and feed readback, manual bootstrap
