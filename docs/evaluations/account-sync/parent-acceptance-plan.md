@@ -1,6 +1,7 @@
 # Unified account acceptance plan
 
-Status: planned. No row below is a claim of runtime success.
+Status: in progress. Matrix rows define required evidence, not runtime success;
+the [execution plan](../../../plans/2026-09-25-unified-account-sync.md) tracks results.
 
 Owner: parent agent. Implementation/test receipts from Pi are inputs to an
 independent review, not substitutes for the user-facing observations below.
@@ -33,6 +34,30 @@ Authentication session IDs must differ by device.
 For every mutation: test expiry, replay, wrong provider, wrong origin, revoked
 source session, stale credential revision, malformed input, rollback and retry.
 Sensitive public errors must not expose provider lists or account contents.
+
+## Test the production entry points
+
+An integration claim must name the product entry point actually exercised.
+Mock only the external boundary being controlled; do not manually manufacture
+the operation, round or registration that the product entry point must create.
+Retain a counterexample that fails before the corresponding repair.
+
+- Web credential changes start through the real Server Action, continue through
+  the Auth.js callback and completion Route Handler, and finish with backend
+  readback. A helper-only proof is not a complete login or binding flow.
+- Native operation tests invoke the same controller and request construction
+  used by the Settings view. A separate reducer or stub sequence cannot prove
+  Apple retry, frozen callback ownership, repeated operations or unknown outcomes.
+- Refresh tests drive the registered product consumer into the real store,
+  beginning with an existing Session and draft. Deliver new records, tombstones
+  and a delayed successful response after a scope change; an empty-store
+  deletion or a failed old request cannot establish those boundaries.
+- Timing tests exercise production defaults. Client acceptance uses a runnable,
+  normally signed Debug build with protected storage intact; a compile-only
+  unsigned artifact does not establish Keychain or login behavior.
+- Record unchanged source hashes or the exact commit for each receipt. Tests
+  with controlled provider assertions remain separate from live Apple consent,
+  mail delivery and observations in the actual clients.
 
 ## Real product synchronization
 
