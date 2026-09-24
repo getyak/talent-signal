@@ -1,0 +1,105 @@
+# macOS system authentication handoff
+
+Status: accepted for implementation, 2026-09-25. Complements
+[the unified identity decision](0018-unified-account-login-and-sync.md).
+
+## Problem and outcome
+
+The macOS app uses an origin-partitioned WKWebView cookie store. Its existing
+external-link policy cancels Apple/Google navigation and offers to open the URL
+in another browser. The callback cannot access the original attempt cookie.
+Cancelling the native prompt also leaves both Web OAuth buttons pending.
+
+Use ASWebAuthenticationSession from a first-party authorization entry, then
+redeem a short-lived proof inside the original WKWebView. Successful login must
+return that window to the canonical account. Cancellation restores usable
+controls. Google must never authenticate inside WKWebView.
+
+## Protocol
+
+New hosts publish display-only `authProtocolVersion: 1` metadata. Only capable
+hosts receive plain same-origin `/desktop-auth/request` links for provider
+login/link. Ordinary browsers keep their existing flow. Older hosts must not
+enter an unsupported protocol. Display metadata is never authorization.
+
+1. Native intercepts only the exact configured-origin main-frame request path,
+   with allowlisted provider and immutable purpose. It generates a random
+   verifier and state in native memory. It submits the S256 challenge and state
+   to `POST /api/desktop-auth/prepare` using the original WKWebView cookie jar.
+2. Prepare checks exact Origin, sets an HttpOnly pairing cookie, and redirects
+   to a fixed pending path. Link authorization scope, recent reauthentication,
+   session fingerprint and credential revision come from the server session.
+   Client-supplied account/user IDs are not accepted as proof.
+3. Native accepts pending navigation only for its active generation and state.
+   It starts ASWebAuthenticationSession at first-party
+   `/desktop-auth/authorize?attempt=<opaque-id>`. Provider state/nonce/PKCE
+   cookies are created there, in the system authentication browser.
+4. Provider completion retains the established Apple HTTPS form-post callback.
+   A confirmation view names the verified identity and intended effect. An
+   unrelated existing browser login is not fresh provider proof. Completion
+   approves the attempt; it does not yet attach a credential.
+5. A fixed `com.talentsignal.macos.auth://complete` callback carries only attempt,
+   one-time code and state. Native validates scheme, host, path, state, origin
+   and current attempt generation before submitting a same-origin
+   `POST /api/desktop-auth/consume` in the original WKWebView.
+6. Consume requires the pairing cookie, code and verifier. It atomically
+   rechecks all bindings and expiry, consumes the attempt and creates a separate
+   backend device session for login, or commits the existing linking transaction.
+   The Web server sets its normal HttpOnly cookie. Link preserves the original
+   WKWebView login, account and drafts.
+
+Native may inject a fixed local form submission into the current trusted
+same-origin document; never a general credential bridge or arbitrary evaluator
+requested by Web content. Tokens, provider credentials, bearer sessions and
+Auth.js cookies must not enter URLs, logs, metadata or JS bridge messages.
+Never copy the system browser's cookie jar into WKWebView.
+
+## Authority and lifecycle
+
+One backend `desktop_auth_attempts` state machine owns the durable protocol:
+
+`prepared -> authorizing -> approved -> consumed`, with terminal
+`cancelled` and `expired` states.
+
+Store opaque ID, provider, purpose, protocol version, exact Web origin/backend
+environment, challenge, state hash, pairing-secret hash, expiry, originating
+session fingerprint and scope (required for link), credential revision,
+reauthentication reference, approved verified proof reference, code hash and
+lifecycle timestamps. Use a five-minute attempt and at most a one-minute code.
+Consume is atomic, single-use and replay resistant. Hash opaque secrets at rest.
+
+Return paths and callback are fixed by purpose; reject arbitrary redirect URLs.
+Session revocation, account switch, origin change, window destruction and
+credential changes invalidate outstanding link attempts. Lab accounts cannot
+use the handoff to cross into real-account scope; include the new table in
+classified cleanup and data-inventory checks.
+
+Provider cancellation, timeout, offline failure and native window closure
+cancel the active attempt, clear pairing state and navigate to the fixed login
+or settings return path with a recoverable status. Controls become usable again.
+Ignore late callbacks after cancellation or generation change. Start at most
+one authentication session per native window.
+
+## Implementation ownership and acceptance
+
+Implement as a second bounded Pi phase after unified identity is reviewed, using
+the first phase's provider verification and credential commit primitives.
+Suggested files: a macOS `DesktopAuthenticationSession` service and tests,
+minimal `QuietWorkspaceView` integration, Web desktop-auth routes/server helper,
+backend handoff module/routes/migration and shared contracts. Avoid duplicating
+identity resolution or making a parallel credential store.
+
+Required tests include wrong verifier/state, callback tampering, stale generation,
+iframe entry, cross-origin request, replay, timeout, revoke, concurrent start,
+wrong browser identity and last-method linking constraints. Native cancellation
+must be exercised in the actual window. Live Apple/Google proof and returning
+to the original macOS window are separate from injected provider tests.
+
+After login, verify bidirectional People and conversation Session IDs between
+the macOS window, Web and iOS. Device authentication sessions remain independent.
+
+## Sources
+
+- [Apple ASWebAuthenticationSession](https://developer.apple.com/documentation/authenticationservices/aswebauthenticationsession)
+- [Google sign-in best practices](https://developers.google.com/identity/siwg/best-practices)
+- [OAuth for native apps, RFC 8252](https://www.rfc-editor.org/info/rfc8252/)
