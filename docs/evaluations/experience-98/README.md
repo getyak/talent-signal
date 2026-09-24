@@ -204,6 +204,12 @@ its deployment, Memory, accessibility and score-validity gaps remain open.
    must not enter the reviewed manifest and fail much later as a fictitious
    concurrent change. [EXP-13 regression](evidence/proposed-source-chat-regression.json)
    records two failing cases before repair and 32 passing related checks after.
+9. Explain Today's coverage in the relationship workflow. After People and
+   sources were populated, Today still showed zero because it projects the
+   separate Pursuit domain. This is not evidence that data was lost, nor that
+   every pending conversation is resolved. Test whether users understand how a
+   relationship becomes eligible for Today before adding automatic task
+   creation. [Observed state](evidence/today-with-existing-people.json)
 
 ## Reference standards
 
