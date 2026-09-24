@@ -237,6 +237,30 @@ struct PursuitActionRecoveryItem: Equatable, Identifiable {
 
 @MainActor
 final class PursuitWorkspaceStore: ObservableObject {
+    /// Shared active-refresh registration: the workspace directory (People
+    /// and pursuits) is refreshed on foreground, focus, network recovery and a
+    /// bounded active interval through one coordinator. Completions are fenced
+    /// by the captured scope generation and the store's own lifetime.
+    private var activeRefreshRegistration: WorkspaceActiveRefresh.Registration?
+
+    private func adoptActiveRefresh() {
+        guard readScopeActive, readScopeIsCurrent(), activeRefreshRegistration == nil else { return }
+        activeRefreshRegistration = WorkspaceActiveRefresh.shared.register(
+            scope: "pursuit-workspace-directory"
+        ) { [weak self] generation in
+            guard let self,
+                  WorkspaceActiveRefresh.shared.coordinator.isCurrent(generation)
+            else { return }
+            await self.load()
+        }
+    }
+
+    deinit {
+        if let activeRefreshRegistration {
+            WorkspaceActiveRefresh.shared.unregister(activeRefreshRegistration)
+        }
+    }
+
     enum Phase: Equatable {
         case preview(PursuitWorkspaceSnapshot)
         case loading
@@ -267,15 +291,19 @@ final class PursuitWorkspaceStore: ObservableObject {
     private let service: PursuitWorkspaceServing?
     var sessionSyncService: (any AgentSessionSyncServing)? { service as? any AgentSessionSyncServing }
     private let actionCompletions: PursuitActionCompletionPersisting
+    private let readScopeIsCurrent: () -> Bool
+    private var readScopeActive = true
     private let operationIDFactory: () -> UUID
 
     init(
         service: PursuitWorkspaceServing?,
         actionCompletions: PursuitActionCompletionPersisting = UserDefaultsPursuitActionCompletionStore(),
         operationIDFactory: @escaping () -> UUID = UUID.init,
-        previewSnapshot: PursuitWorkspaceSnapshot = .preview
+        previewSnapshot: PursuitWorkspaceSnapshot = .preview,
+        readScopeIsCurrent: @escaping () -> Bool = { true }
     ) {
         self.service = service
+        self.readScopeIsCurrent = readScopeIsCurrent
         self.actionCompletions = actionCompletions
         self.operationIDFactory = operationIDFactory
         isCanonical = service != nil
@@ -283,6 +311,7 @@ final class PursuitWorkspaceStore: ObservableObject {
     }
 
     func load() async {
+        adoptActiveRefresh()
         guard service != nil, !isReadInFlight else { return }
         await LabClientDiagnostics.observe(.workspaceRead) { await loadRecorded() }
     }
@@ -295,12 +324,32 @@ final class PursuitWorkspaceStore: ObservableObject {
         return verified
     }
 
+    /// Scope/lifetime change: a completed People fetch from the old scope must
+    /// never publish into the new one.
+    private var readEpoch = 0
+    func invalidateReadScope() {
+        readEpoch += 1
+        readScopeActive = false
+        isReadInFlight = false
+        if let activeRefreshRegistration {
+            WorkspaceActiveRefresh.shared.unregister(activeRefreshRegistration)
+            self.activeRefreshRegistration = nil
+        }
+    }
+
+    func activateReadScope() {
+        readScopeActive = true
+        adoptActiveRefresh()
+    }
+
     private func loadRecorded() async -> LabClientSpan.Outcome {
-        guard let service, !isReadInFlight else { return .skipped }
+        guard readScopeActive, readScopeIsCurrent(), let service, !isReadInFlight else { return .skipped }
         isReadInFlight = true
+        let epoch = readEpoch
+        // A stale read can never clear a newer read's ownership or publish.
         defer {
-            isReadInFlight = false
-            completedReadCount += 1
+            if epoch == readEpoch { isReadInFlight = false }
+            if epoch == readEpoch { completedReadCount += 1 }
         }
         let currentSnapshot = snapshot
         let isRetryingFailure: Bool
@@ -315,6 +364,7 @@ final class PursuitWorkspaceStore: ObservableObject {
         }
         do {
             let snapshot = try await service.loadWorkspace()
+            guard epoch == readEpoch, readScopeActive, readScopeIsCurrent() else { return .skipped }
             refreshNotice = nil
             let nextRevisions = Dictionary(
                 uniqueKeysWithValues: snapshot.pursuits.map { ($0.id, $0.revision) }
@@ -344,9 +394,11 @@ final class PursuitWorkspaceStore: ObservableObject {
                     ? .empty(snapshot)
                     : .loaded(snapshot)
             }
-            await restoreSavedActionCompletions(in: snapshot)
+            await restoreSavedActionCompletions(in: snapshot, epoch: epoch)
+            guard epoch == readEpoch, readScopeActive, readScopeIsCurrent() else { return .skipped }
             return .completed
         } catch {
+            guard epoch == readEpoch, readScopeActive, readScopeIsCurrent() else { return .skipped }
             let message = (error as? LocalizedError)?.errorDescription
                 ?? "The canonical workspace could not be loaded."
             if let currentSnapshot {
@@ -797,11 +849,13 @@ final class PursuitWorkspaceStore: ObservableObject {
     }
 
     func reconcileActionCompletion(actionID: String) async {
-        guard let service else { return }
+        guard readScopeActive, readScopeIsCurrent(), let service else { return }
+        let epoch = readEpoch
         let savedEntry: PersistedPursuitActionCompletion?
         do {
             savedEntry = try actionCompletions.entry(for: actionID)
         } catch {
+            guard epoch == readEpoch, readScopeActive, readScopeIsCurrent() else { return }
             actionCompletionPhases[actionID] = .failed(
                 "Protected action recovery could not be read. No retry was sent."
             )
@@ -812,6 +866,7 @@ final class PursuitWorkspaceStore: ObservableObject {
         actionCompletionPhases[actionID] = .unknownLocked(operationID: operationID)
         do {
             let readback = try await service.readOperation(id: operationID)
+            guard epoch == readEpoch, readScopeActive, readScopeIsCurrent() else { return }
             if readback.operation.status == "applied",
                let receipt = readback.receipt,
                trustedReconciliation(readback, entry: entry, receipt: receipt) {
@@ -863,6 +918,7 @@ final class PursuitWorkspaceStore: ObservableObject {
                 }
             }
         } catch let error as PursuitWorkspaceClientError {
+            guard epoch == readEpoch, readScopeActive, readScopeIsCurrent() else { return }
             if case let .backend(code, _) = error, code == "OPERATION_NOT_FOUND" {
                 entry.operationID = nil
                 entry.updatedAt = Date()
@@ -882,6 +938,7 @@ final class PursuitWorkspaceStore: ObservableObject {
                 )
             }
         } catch {
+            guard epoch == readEpoch, readScopeActive, readScopeIsCurrent() else { return }
             actionCompletionPhases[actionID] = .unknownLocked(operationID: operationID)
         }
     }
@@ -936,7 +993,7 @@ final class PursuitWorkspaceStore: ObservableObject {
     }
 
     private func restoreSavedActionCompletions(
-        in snapshot: PursuitWorkspaceSnapshot
+        in snapshot: PursuitWorkspaceSnapshot, epoch: Int
     ) async {
         let savedEntries: [PersistedPursuitActionCompletion]
         do {
@@ -949,6 +1006,7 @@ final class PursuitWorkspaceStore: ObservableObject {
             .filter { $0.workspaceID == snapshot.workspaceID }
             .sorted { $0.updatedAt > $1.updatedAt }
         for entry in entries {
+            guard epoch == readEpoch, readScopeActive, readScopeIsCurrent() else { return }
             guard let pursuit = snapshot.pursuit(id: entry.pursuitID),
                   let action = pursuit.actions.first(where: {
                       $0.id == entry.actionID

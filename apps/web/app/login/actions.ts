@@ -1,8 +1,8 @@
 "use server";
 
-import { TalentSignalClient } from "@talent-signal/contracts";
+import { TalentSignalClient, TalentSignalHttpError } from "@talent-signal/contracts";
 import { clearTestWorkspaceSession } from "@/lib/server/testWorkspaceSession";
-import { readPrimaryBackendSessionClaims, backendAuthBaseUrl } from "@/lib/server/backendAuth";
+import { readPrimaryBackendSessionClaims, backendAuthBaseUrl, registerBackendAccount } from "@/lib/server/backendAuth";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { prepareGoogleSignIn, bindGoogleNonce } from "@/lib/server/google-session";
@@ -29,6 +29,8 @@ export type SignInState = {
   error: string;
   code?: AuthFailureCode;
   retryable?: boolean;
+  /** Verified signup started: the code was sent, never returned. */
+  sent?: boolean;
   /** Non-secret values restored onto the form after a failed action. */
   values?: {
     displayName?: string;
@@ -158,28 +160,37 @@ export async function registerPasswordAccount(
   }
 
   try {
-    await signIn("password-account", {
+    // Verified signup: this only starts delivery. The response is generic and
+    // contains no code; the account activates when the owner confirms.
+    await registerBackendAccount({
       username: parsed.data.username,
       email: parsed.data.email,
-      displayName: deriveRegistrationDisplayName(
+      display_name: deriveRegistrationDisplayName(
         parsed.data.email,
         parsed.data.displayName,
       ),
       password: parsed.data.password,
-      mode: "register",
-      redirectTo: onboardingStartTarget(formData.get("redirectTo")),
     });
   } catch (error) {
-    if (error instanceof AuthError) {
-      const code = authFailureCodeFromCredentialsCode(
-        "code" in error ? String(error.code) : "",
-        "register",
-      );
-      return failedState(code, "register", values);
+    if (error instanceof TalentSignalHttpError) {
+      if (error.code === "PASSWORD_ACCOUNT_EXISTS") {
+        return failedState("account_exists", "register", values);
+      }
+      if (error.status === 503 || error.status === 502) {
+        return failedState(
+          "service_unavailable",
+          "register",
+          values,
+          "验证邮件暂时无法发送，账号未创建。请稍后重试。",
+        );
+      }
+      if (error.status === 429) {
+        return failedState("rate_limited", "register", values);
+      }
     }
-    throw error;
+    return failedState("registration_result_unknown", "register", values);
   }
-  return { error: "" };
+  return { error: "", sent: true, values: { email } };
 }
 
 export async function signInWithEmail(
@@ -264,4 +275,26 @@ export async function signOutOfWorkspace() {
   } catch { /* Local sign-out remains available during an outage. */ }
   await clearTestWorkspaceSession();
   await signOut({ redirectTo: "/" });
+}
+
+/** Intentional completion of the emailed verification link/code. */
+export async function confirmEmailVerification(
+  _previousState: SignInState,
+  formData: FormData,
+): Promise<SignInState> {
+  const secret = formString(formData, "verificationSecret");
+  const redirectTo = safeRedirectTarget(formData.get("redirectTo"));
+  try {
+    await signIn("email-verification", {
+      verificationSecret: secret,
+      redirectTo: onboardingStartTarget(redirectTo),
+    });
+  } catch (error) {
+    if (isNextRedirectError(error)) throw error;
+    if (error instanceof AuthError) {
+      return failedState("invalid_input", "register", undefined, "这个验证链接无效或已过期。请重新注册，获取新的验证邮件。");
+    }
+    throw error;
+  }
+  return { error: "" };
 }

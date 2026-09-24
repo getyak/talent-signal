@@ -38,7 +38,14 @@ describe("workspace connector presentation", () => {
         kind: "google_human",
         revision: 1,
         login_methods: ["google"],
+        email_verified_at: null,
       },
+      sign_in_methods: [
+        { provider: "google", state: "connected", hint: "owner@example.test", can_unlink: false },
+        { provider: "apple", state: "unconnected", hint: null, can_unlink: false },
+        { provider: "password", state: "unconnected", hint: null, can_unlink: false },
+      ],
+      email_ownership_state: "verified",
       workspace: {
         id: "20000000-0000-4000-8000-000000000002",
         name: "Workspace",

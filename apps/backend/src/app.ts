@@ -3,6 +3,7 @@ import {RunArtifactSchema} from "@talent-signal/contracts";
 import {listHarnessRunArtifacts,readHarnessRunArtifact} from "./modules/harnessRunFiles.js";
 import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAccountManagement } from "./modules/accountManagementRoutes.js";
+import type { MailDelivery } from "./lib/mail.js";
 import { registerAccountOnboarding } from "./modules/accountOnboardingRoutes.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerConversationQueueRoutes } from "./modules/conversationQueueRoutes.js";
@@ -118,7 +119,6 @@ import {
   CurrentSessionResponseSchema,
   LogoutResponseSchema,
   PasswordLoginRequestSchema,
-  PasswordRegistrationRequestSchema,
   PromoteRealityReceiptRequestSchema,
   RealityReceiptResponseSchema,
   ReviseActionRequestSchema,
@@ -170,7 +170,6 @@ import {
   type PersonMergeRequest,
   type PersonMergeReversalRequest,
   type PasswordLoginRequest,
-  type PasswordRegistrationRequest,
   type PromoteRealityReceiptRequest,
   type ReconcileEffectRequest,
   type PublicResearchRequest,
@@ -241,7 +240,6 @@ import {
   createPasswordSession,
   createSimulatedSession,
   currentSession,
-  registerPasswordSession,
   revokeCurrentSession,
 } from "./modules/auth.js";
 import {
@@ -494,6 +492,8 @@ export interface AppDependencies {
   conversationQueueWorkerEnabled?: boolean;
   labCIVerifier?: LabCIVerifying | null;
   personResearchProvider?: PersonResearchAgentProviding | null;
+  /** Isolated mail sink for evaluations; production uses the configured transport. */
+  mail?: MailDelivery;
   screenshotContact?: ScreenshotContactDependencies | null;
   /** Host-only reference clock for reproducible relative-date evaluations. */
   chatReferenceClock?: () => Date;
@@ -694,29 +694,8 @@ export async function buildApp(
     async (request) => createPasswordSession(pool, config, request.body),
   );
 
-  app.post<{ Body: PasswordRegistrationRequest }>(
-    "/v1/auth/password/register",
-    {
-      config: {
-        rateLimit: {
-          max: 6,
-          timeWindow: "1 hour",
-        },
-      },
-      schema: {
-        tags: ["auth"],
-        body: PasswordRegistrationRequestSchema,
-        response: {
-          201: SessionResponseSchema,
-          "4xx": ErrorResponseSchema,
-        },
-      },
-    },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(await registerPasswordSession(pool, config, request.body)),
-  );
+  // Verified password signup (start + confirm) is registered with the account
+  // credential routes so delivery configuration and verification stay together.
 
   app.post<{ Body: AppleLoginChallengeRequest }>(
     "/v1/auth/apple/challenges",
@@ -772,7 +751,7 @@ export async function buildApp(
   registerGoogleAuth(app, pool, config);
   const authenticate = createAuthGuard(pool, deploymentExposure?.workspaceIds);
   registerProductRunMonitoring(app, pool, authenticate);
-  registerAccountManagement(app, pool, authenticate, config.internalLabEnabled === true);
+  registerAccountManagement(app, pool, authenticate, config, dependencies.mail);
   registerAccountOnboarding(app, pool, authenticate);
   registerAgentSessionRoutes(app, pool, authenticate);
   registerMemoryReviewRoutes(

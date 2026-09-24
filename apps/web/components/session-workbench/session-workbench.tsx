@@ -15,6 +15,11 @@ import { useWorkspaceChat } from "../relationship-workspace/use-workspace-chat";
 import { ConversationResponse } from "../conversation-response";
 import { WorkspaceComposer } from "../workspace-composer";
 import { workspaceSessionFetch } from "@/components/workspace-session-request";
+import {
+  subscribeWorkspaceRefresh,
+  workspaceRefreshGeneration,
+} from "@/lib/workspace-refresh";
+import { applyOpenSessionRefresh } from "./session-open-refresh";
 
 import {
   applyDraftInput,
@@ -237,6 +242,44 @@ function LegacySessionWorkbench({
       node.removeEventListener("scroll", update);
     };
   }, []);
+
+  // Shared active refresh for the OPEN conversation: foreground, focus,
+  // network recovery and the bounded active interval merge newly committed
+  // remote turns and tombstones while the composing draft, IME composition,
+  // pending writes and the reader's scroll intent stay exactly as they are.
+  // Late completions are fenced by the scope generation and the mounted scope.
+  const detailIdentity = state.detail.session_id;
+  useEffect(() => {
+    if (state.detail.state !== "active" || !storageScope) return;
+    let disposed = false;
+    const unsubscribe = subscribeWorkspaceRefresh(storageScope, (_reason, generation) => {
+      void (async () => {
+        const activeBinding = bindingRef.current;
+        if (!activeBinding) return;
+        try {
+          const readback = await readSession(detailIdentity, activeBinding);
+          if (disposed || !mounted.current || !readback) return;
+          commitState((current) => {
+            const result = applyOpenSessionRefresh(current, readback, {
+              generation,
+              activeGeneration: workspaceRefreshGeneration(storageScope),
+              sessionId: detailIdentity,
+            });
+            // A stale scope drop keeps every byte of local state; a failed
+            // refresh keeps recovery state and never claims synchronization.
+            return result.kind === "stale" ? current : result.state;
+          });
+        } catch {
+          // Offline or failed read: the previous conversation and draft stay
+          // available with their existing recovery affordances.
+        }
+      })();
+    });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [storageScope, detailIdentity, state.detail.state, commitState]);
 
   const turnCount = state.detail.turns.length;
   useEffect(() => {

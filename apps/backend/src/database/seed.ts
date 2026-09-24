@@ -48,6 +48,16 @@ export async function seed(): Promise<void> {
            name = EXCLUDED.name`,
         [IDS.alphaAccount, IDS.betaAccount],
       );
+      // The fixture password identity owns its reserved normalized email like
+      // any real account; seeding remains explicit development-fixture data.
+      await client.query(
+        `INSERT INTO account_email_reservations(normalized_email, state, account_id, user_id)
+         VALUES ('cubxxw@talentsignal.local', 'owned', $1, $2)
+         ON CONFLICT (normalized_email) DO UPDATE SET
+           state = 'owned', account_id = EXCLUDED.account_id, user_id = EXCLUDED.user_id,
+           revision = account_email_reservations.revision + 1, updated_at = now()`,
+        [IDS.alphaAccount, IDS.alphaAdmin],
+      );
       await client.query(
         `INSERT INTO users(id, account_id, email, display_name, kind, status)
          VALUES

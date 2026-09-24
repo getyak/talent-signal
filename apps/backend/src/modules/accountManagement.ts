@@ -3,16 +3,18 @@ import type { Pool, PoolClient } from 'pg';
 import { inTransaction } from '../database/pool.js';
 import { ApiError } from '../lib/apiError.js';
 import { sha256 } from '../lib/hash.js';
+import { normalizeEmail, readEmailReservation } from './accountIdentity.js';
 import type { AuthContext } from './auth.js';
 
-type AccountRow = { id: string; name: string; slug: string; owner_user_id: string | null; settings_revision: number };
-type UserRow = { id: string; display_name: string; email: string; username: string | null;
+type AccountRow = { id: string; name: string; slug: string; owner_user_id: string | null; settings_revision: number; retired_at: Date | null };
+type UserRow = { id: string; display_name: string; email: string; username: string | null; email_verified_at: Date | null;
   kind: string; account_role: 'admin' | 'member'; status: 'active' | 'revoked'; profile_revision: number };
 const iso = (value: Date) => value.toISOString();
 const realUser = (kind: string) => ['password_human', 'google_human', 'apple_human'].includes(kind);
 
 async function context(client: PoolClient, auth: AuthContext, write = false) {
   const account = (await client.query<AccountRow>(`SELECT * FROM accounts WHERE id=$1 FOR ${write ? 'UPDATE' : 'SHARE'}`, [auth.accountId])).rows[0];
+  if (account?.retired_at) throw new ApiError(409, 'ACCOUNT_RETIRED', 'This account\'s sign-in methods were transferred to your canonical account. Nothing was written here.');
   const user = (await client.query<UserRow>('SELECT * FROM users WHERE account_id=$1 AND id=$2', [auth.accountId, auth.userId])).rows[0];
   const session = await client.query(`SELECT id FROM sessions WHERE id=$1 AND account_id=$2 AND user_id=$3
     AND revoked_at IS NULL AND expires_at>now() FOR SHARE`, [auth.sessionId, auth.accountId, auth.userId]);
@@ -24,8 +26,26 @@ async function context(client: PoolClient, auth: AuthContext, write = false) {
 
 async function read(client: PoolClient, auth: AuthContext, labEnabled: boolean): Promise<AccountSettings> {
   const { account, user, isOwner, canManage } = await context(client, auth);
-  const methods = (await client.query<{provider: 'google' | 'apple' | 'password'}>(`SELECT provider FROM auth_identities WHERE account_id=$1 AND user_id=$2
-    UNION SELECT 'password' FROM password_credentials WHERE account_id=$1 AND user_id=$2`, [auth.accountId, auth.userId])).rows;
+  const identities = (await client.query<{provider: 'google' | 'apple'; email_hint: string | null}>(`SELECT provider, email_hint FROM auth_identities WHERE account_id=$1 AND user_id=$2`, [auth.accountId, auth.userId])).rows;
+  const password = await client.query(`SELECT 1 FROM password_credentials WHERE account_id=$1 AND user_id=$2`, [auth.accountId, auth.userId]);
+  const methods = [...identities.map(row => row.provider), ...(password.rowCount ? ['password' as const] : [])];
+  const connectedCount = methods.length;
+  const reservation = await readEmailReservation(client, user.email);
+  const emailOwnership: AccountSettings['email_ownership_state'] = user.email_verified_at
+    ? 'verified'
+    : reservation?.state === 'conflict' ? 'conflict' : 'legacy_unverified';
+  const signInMethods: AccountSettings['sign_in_methods'] = (['apple', 'google', 'password'] as const).map(provider => {
+    const connected = methods.includes(provider);
+    const hint = provider === 'password'
+      ? (connected ? user.email : null)
+      : (identities.find(row => row.provider === provider)?.email_hint ?? null);
+    const state: 'connected' | 'unconnected' | 'legacy_unverified' = !connected
+      ? 'unconnected'
+      // Existing password logins stay explicitly legacy-unverified until real
+      // ownership proof is recorded; a verified email claim alone never counts.
+      : (provider === 'password' && !user.email_verified_at) ? 'legacy_unverified' : 'connected';
+    return { provider, state, hint, can_unlink: connected && connectedCount > 1 };
+  });
   const sessions = (await client.query<{id: string; client_label: string; created_at: Date; expires_at: Date}>(`SELECT id,client_label,created_at,expires_at FROM sessions
     WHERE account_id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 100`, [auth.accountId, auth.userId])).rows;
   const members = canManage ? (await client.query<UserRow>('SELECT * FROM users WHERE account_id=$1 ORDER BY created_at,id', [auth.accountId])).rows : [];
@@ -35,7 +55,10 @@ async function read(client: PoolClient, auth: AuthContext, labEnabled: boolean):
   return {
     contract_version: CONTRACT_VERSION,
     user: {id:user.id,email:user.email,display_name:user.display_name,username:user.username,kind:user.kind,
-      revision:user.profile_revision,login_methods:methods.map(m=>m.provider)},
+      revision:user.profile_revision,login_methods:methods,
+      email_verified_at:user.email_verified_at?iso(user.email_verified_at):null},
+    sign_in_methods: signInMethods,
+    email_ownership_state: emailOwnership,
     workspace: {id:account.id,name:account.name,slug:account.slug,owner_user_id:account.owner_user_id,
       revision:account.settings_revision,role:user.account_role,is_owner:isOwner,can_manage:canManage,
       is_test:user.kind==='lab_human'||user.kind==='simulated_human'||account.slug.startsWith('fixture-')},
@@ -48,6 +71,11 @@ async function read(client: PoolClient, auth: AuthContext, labEnabled: boolean):
 
 export function readAccountSettings(pool: Pool, auth: AuthContext, labEnabled: boolean) {
   return inTransaction(pool, client=>read(client,auth,labEnabled));
+}
+
+/** Readback inside a caller-owned transaction (credential-change receipts). */
+export function readAccountSettingsWith(client: PoolClient, auth: AuthContext, labEnabled: boolean) {
+  return read(client, auth, labEnabled);
 }
 
 export async function mutateAccountSettings(pool: Pool, auth: AuthContext, input: AccountMutation, labEnabled: boolean) {

@@ -4,13 +4,160 @@
 
 Use the account's configured Google, Apple, or email/password identity. A federated
 login does not create a default password. Web **Account and security** reports the
-actual configured methods and active sessions from the authenticated backend.
-Provider linking and password recovery are not implemented by this settings slice.
+actual configured methods and active sessions from the authenticated backend, and
+Settings manages sign-in methods: connecting Apple/Google, setting or changing a
+password, and removing a method. Every change first proves the current identity,
+and at least one usable login method always remains.
 
-Password registration accepts an email and one password. A display name is
-optional; when omitted the email local-part is used, bounded to 100 characters,
-with a neutral fallback. Password sign-in and registration are enforced on the
-server, not only by hiding the form.
+## One account, normalized email ownership
+
+One Talent Signal account is recognized by its primary email; Apple, Google and
+password are credentials for that account. Email lookup uses one shared
+trim/lowercase normalization. Gmail dots, plus tags, and distinct domains are not
+collapsed, and Apple relay addresses are never rewritten. Provider identity is
+the validated `(provider, issuer/subject)` pair; an email match is a collision to
+resolve, never authority over an existing account. Automatic email linking
+(`allowDangerousEmailAccountLinking`) is never used.
+
+PostgreSQL arbitrates normalized-email uniqueness across every provider through
+the `account_email_reservations` primary key plus a users-table trigger; all
+registration and linking paths claim their reservation in the same transaction.
+Revoking membership never frees an email or revives an old credential. Historical
+same-email accounts are reported and reserved as an explicit `conflict` state
+with a NULL owner; existing owners keep their authenticated access and no record
+is renamed, merged, or deleted. Authenticated recovery explains the exact
+conflict; the historical duplicate screen below resolves it.
+
+## Verified password signup
+
+Password registration starts a short-lived pending request that stores only a
+password hash and a verification-secret hash. Nothing reserves an email before
+verification, so an unverified signup can never pre-hijack an address or block a
+verified provider signup. The confirmation link requires an intentional button
+press (a GET or mail scanner never creates an account), ownership is arbitrated
+in the confirming transaction, and a concurrently created owner wins: the
+pending password is discarded, never inherited. Retrying the same unverified
+form rotates the code on the same pending request; a different password starts a
+separate request. Expired, replayed, or over-attempted codes fail generically.
+
+Delivery uses the server-configured Resend adapter (`RESEND_API_KEY`,
+`RESEND_FROM_EMAIL`, `POST https://api.resend.com/emails`) with a timeout,
+sanitized errors and idempotency keys. Tests inject an isolated mail sink.
+Production never returns or logs verification codes and never pretends an
+unconfigured or failed transport succeeded: it fails with an honest
+`EMAIL_DELIVERY_UNAVAILABLE`/`EMAIL_DELIVERY_FAILED` state and no account is
+created. Existing sign-in and authenticated linking keep working while delivery
+is unavailable. Existing password accounts remain explicitly legacy-unverified
+until real ownership proof is recorded.
+
+## Sign-in methods and step-up
+
+Each provider occupies one row (Apple, Google, Password) with its real state:
+Connected, Not connected, or Needs email verification; the provider account hint
+shows only after authenticated verification. Adding a method never creates a
+workspace, moves records, or overwrites the primary email, and linking never
+replaces the current session with the provider's session.
+
+Every credential change uses a short-lived, single-use attempt bound to the
+account, user, auth session, provider, intent, backend origin (derived from the
+actual request), nonce and the account/user revisions its step-up proof was
+checked against; commit rechecks all of them. Attempts fail recoverably on
+expiry, replay, cross-provider, cross-origin, stale-tab, revoked-session and
+concurrent use. Failed password step-ups persist their lockout bookkeeping and
+mint no attempt.
+
+Current identity is proven with the account password or a fresh assertion from
+an already linked provider. Provider-only accounts therefore reauthenticate
+with a linked provider; the new password, if any, is collected after
+reauthentication and never travels through redirects, URLs, or cookies.
+Current-provider proof and new-provider proof are distinct purposes with
+distinct challenges. Apple returns by cross-site form POST, so the transient
+operation cookie is deliberately `Secure; SameSite=None` while the long-lived
+session cookie keeps its existing policy; a short-lived one-use proof is staged
+at the callback and the operation completes on the fixed same-origin
+`/workspace/settings/link-complete` route after the original session and
+revisions are revalidated. A missing, cancelled, stale or wrong-purpose attempt
+fails closed to Settings and never falls through to ordinary login. Success
+requires authoritative backend settings readback.
+
+Unlink requires recent proof and cannot remove the final usable login method,
+including accounts with historical duplicate provider rows. Unbound OAuth with
+an existing email says to sign in with an existing method, then connect the new
+method in Settings; no empty second account is created. Public errors disclose
+no names, data counts, linked provider details, or workspace information.
+
+## Verified secondary emails
+
+A linked provider that verifies an address different from the primary email
+reserves that exact normalized address for the existing canonical account in
+the same transaction that links the provider, under the same email lock and
+uniqueness arbitration as registration. An already-linked subject that
+presents a newly verified address is arbitrated before its hint moves. The
+same owner's existing claim is idempotent and records explicit provenance
+(`verification_source`, `verified_at`); another owner or an unresolved
+historical conflict fails closed, and no second account is ever created for
+that address. Unverified or missing provider hints are labels, never claims,
+and historical hints are never backfilled as verified.
+
+Established issuer/subject credentials remain authoritative for sign-in when a
+provider changes its email: ordinary login never takes over a foreign address,
+moves an account, or revokes a valid credential. Unlinking retains the verified
+claims and their provenance; releasing or reassigning an address needs a
+separate, explicitly verified flow. Reservations never become password
+identifiers: sign-in stays the primary email or username plus the configured
+password, and signup or reset never inherits a password.
+
+## Historical duplicate resolution
+
+Historical same-email accounts keep separate data. Both credentials are freshly
+verified before any cross-account inventory is shown, and both parties'
+account/profile revisions and proof timestamps are frozen at prepare and
+rechecked under stable lock ordering at commit; removing or changing either
+proven credential invalidates the prepared request. The initiating auth session
+is revalidated inside the commit transaction, so a request admitted before a
+session revocation can never commit.
+
+The frozen dual-proof state also includes every email reservation related to
+both parties (normalized address, owner, state, revision and verification
+provenance), locked and rechecked in stable order at commit. Reservations
+unambiguously owned by the retiring user transfer with the credentials; a
+changed claim or an unexplained third-party claim refuses the transfer and
+requires renewed preparation. Unknown historical hints never become claims as
+a side effect of reconciliation, and resolving the primary collision never
+takes ownership away from an unproven third party.
+
+Only an entirely empty duplicate may transfer, and "empty" uses the full
+classified account-data inventory (Lab table manifest plus every `*_account_id`
+ownership column, Lab workspace entries/media receipts, and the system
+harness-generation baseline): extra users, product rows, retired-login
+tombstones, nonzero generations, associations, or unclassified tables all make
+the case review-required. An empty transfer moves the credentials to the
+explicitly selected canonical user, retires the redundant login with an auditable
+alias/tombstone, revokes its old sessions, resolves the email reservation to its
+single canonical owner, and marks the source account retired in one transaction.
+Non-empty duplicates stay a protected review-required state with a concrete
+inventory; nothing is merged or re-parented by generic SQL, and all data remains
+accessible through its original authenticated boundary.
+
+Account retirement is persistent state on the account row. Every governed write
+takes a shared lock on that existing account row and verifies it is active
+through commit; database guards cover direct and indirect ownership and both
+OLD/NEW scopes on scope changes. If a product write commits first, reconciliation
+sees that data and refuses the empty transfer; if retirement wins, the late write
+fails `ACCOUNT_RETIRED` and adds nothing to either account. Late writes are never
+redirected into the canonical account.
+
+## Cross-device synchronization
+
+People and conversation Sessions are canonical backend records shared by iOS,
+Web, and the macOS Web surface. On startup, foreground/focus, network recovery
+and relevant mutations, one shared refresh coordinator per surface refreshes
+People AND Session history together on a bounded active interval, pauses hidden
+polling, coalesces in-flight work, and drops late responses after an account or
+endpoint switch. Refresh preserves search, scroll, selection, composing text and
+pending writes; failed sync keeps recovery state instead of marking work
+synchronized; deletes propagate and offline resurrection is rejected. Private
+conversations keep their explicit privacy semantics and existing retention.
 
 ## Account onboarding
 
@@ -191,7 +338,27 @@ The account integration evaluation requires the disposable `account_proof`
 PostgreSQL database and `ACCOUNT_EVALUATION_DATABASE_URL`. Run migrations first,
 then `pnpm --filter @talent-signal/backend exec tsx src/evaluation/runAccountManagementEvaluation.ts`.
 It checks ownership, cross-account denial, replay/stale decisions, member
-revocation, transfer, and the full isolated test-workspace lifecycle.
+revocation, transfer, verified signup, and the full isolated test-workspace
+lifecycle.
+
+The account identity integration suite runs against a disposable loopback
+PostgreSQL database through `ACCOUNT_IDENTITY_TEST_DATABASE_URL`:
+
+```
+DATABASE_URL=<disposable> pnpm --filter @talent-signal/backend migrate
+ACCOUNT_IDENTITY_TEST_DATABASE_URL=<disposable>   pnpm --filter @talent-signal/backend exec vitest run accountIdentity
+```
+
+It covers provider registration orderings and concurrency, historical collision
+reservations, verified signup/replay/expiry/resend/transport failure, step-up
+lockout persistence, attempt binding (replay, cross-session, wrong origin),
+linking idempotency and conflicts, last-method protection including historical
+multiplicity, ambiguous legacy password login, dual-proof freshness, admitted
+late-write retirement fencing, and provider-only first-password/other-provider
+flows. Provider proofs in tests are injected verifier fixtures; they are never
+live Apple or Google evidence. The legacy backfill is separately applied over
+pre-migration fixtures (see `docs/evaluations/account-sync/`), and live provider,
+delivery and multi-client acceptance remain parent-owned checkpoints.
 
 Credentials for deployed services remain in [Infisical](secrets.md). The Notion
 home contains a short access reference; this document owns operational details.

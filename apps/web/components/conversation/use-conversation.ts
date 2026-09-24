@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { subscribeWorkspaceRefresh, workspaceRefreshGeneration } from "@/lib/workspace-refresh";
 import type {
   ConversationImageManifest,
   ConversationImageUpload,
@@ -66,6 +67,10 @@ export function useConversation(options: Options) {
   const attachmentsRef = useRef<ConversationAttachment[]>([]);
   const snapshotRef = useRef(snapshot); const lifecycle = useRef<AbortController | null>(null);
   const sender = useRef(false); const saving = useRef(false); const lastSaved = useRef(initial?.composer_draft ?? "");
+  // Separate draft baseline: the last remote composer draft this client has
+  // reconciled with. A refresh may merge committed turns freely, but a CHANGED
+  // remote draft triggers the conflict UI before any save can overwrite it.
+  const remoteDraftBaseline = useRef(initial?.composer_draft ?? "");
   const mutationBusy = useRef(false); const pendingHandoff = useRef<string | null>(null);
   const writer = useRef(""); const draftStamp = useRef(""); const loaded = useRef(false);
   const submitLock = useRef(false); const preparingRef = useRef(false); const prepareGeneration = useRef(0);
@@ -101,14 +106,46 @@ export function useConversation(options: Options) {
   }
   function applyDetail(next: SessionDetail) {
     if (next.session_id !== id || (detailRef.current && next.revision < detailRef.current.revision)) return;
+    // Concurrent remote draft: differ from our baseline and from the local
+    // value means another device wrote this draft. Surface the conflict and
+    // let the reader decide; nothing is overwritten silently.
+    const remoteDraft = next.composer_draft ?? "";
+    if (remoteDraft !== remoteDraftBaseline.current && remoteDraft !== draftRef.current) {
+      setDraftConflict(true);
+    }
     detailRef.current = next; setDetail(next); reconcile(snapshotRef.current, next);
     if (next.state !== "active") { clearConversationLocal(scope, id!); clearConversationImageStore(scope, id!); storeMessages([]); setPreview(null); setUnavailable(true); }
   }
-  async function refreshDetail() {
+  async function refreshDetail(generation?: number) {
     if (!id) return;
     const response = await request(`/api/workspace-sessions/${id}`, {}, detailBinding);
-    const body = await response.json(); if (body.detail && !lifecycle.current?.signal.aborted) applyDetail(body.detail);
+    const body = await response.json();
+    // Scope fencing: a late readback from a previous account, endpoint or
+    // scope generation is dropped instead of painting stale data.
+    if (generation !== undefined && generation !== workspaceRefreshGeneration(scope)) return;
+    if (body.detail && !lifecycle.current?.signal.aborted) applyDetail(body.detail);
   }
+
+  // Shared bounded active refresh for the OPEN conversation on the default
+  // path: foreground, focus, network recovery and relevant mutations merge
+  // newly committed remote turns and tombstones while the composing draft,
+  // IME composition, pending messages and reader position stay untouched.
+  useEffect(() => {
+    if (!id || !scope) return;
+    let disposed = false;
+    const unsubscribe = subscribeWorkspaceRefresh(scope, (_reason, generation) => {
+      if (disposed) return;
+      void refreshDetail(generation).catch(() => {
+        // Offline or failed read: keep the previous conversation and draft
+        // with their existing recovery affordances.
+      });
+    });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, scope, detailBinding]);
   function setAttachmentState(next: ConversationAttachment[]) {
     attachmentsRef.current = next;
     setAttachments(next);
@@ -450,7 +487,7 @@ export function useConversation(options: Options) {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const response = await request(`/api/workspace-sessions/${id}`, { method: "PUT", body: JSON.stringify({ expected_revision: detailRef.current!.revision, idempotency_key: crypto.randomUUID(), composer_draft: value, composer_draft_updated_at: new Date().toISOString() }) }, detailBinding);
-          const body = await response.json(); lastSaved.current = value; applyDetail(body.detail); return;
+          const body = await response.json(); lastSaved.current = value; remoteDraftBaseline.current = value; applyDetail(body.detail); return;
         } catch (caught) {
           if (!(caught instanceof RequestError) || caught.status !== 409) throw caught;
           await refreshDetail();
@@ -463,7 +500,14 @@ export function useConversation(options: Options) {
   useEffect(() => { if (!ready || !serverExists) return; const timer = setTimeout(() => { void saveDraft(); }, 750); return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, ready, serverExists, detail?.revision]);
-  async function keepDraft() { setDraftConflict(false); if (id) { const updatedAt = new Date().toISOString(); writeConversationDraft(scope, id, { value: draftRef.current, updatedAt, writer: writer.current, expiresAt: expiry() }); draftStamp.current = updatedAt; } await saveDraft(true); }
+  async function keepDraft() {
+    // The reader explicitly keeps THEIR draft: acknowledge the remote value as
+    // seen, then write deliberately.
+    remoteDraftBaseline.current = detailRef.current?.composer_draft ?? remoteDraftBaseline.current;
+    setDraftConflict(false);
+    if (id) { const updatedAt = new Date().toISOString(); writeConversationDraft(scope, id, { value: draftRef.current, updatedAt, writer: writer.current, expiresAt: expiry() }); draftStamp.current = updatedAt; }
+    await saveDraft(true);
+  }
   async function remove() {
     if (!detailRef.current || !id) return false;
     try { const response = await request(`/api/workspace-sessions/${id}`, { method: "DELETE", body: JSON.stringify({ expected_revision: detailRef.current.revision, idempotency_key: crypto.randomUUID() }) }, detailBinding); const body = await response.json(); applyDetail(body.detail); return true; }

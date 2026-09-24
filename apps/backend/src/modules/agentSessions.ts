@@ -16,6 +16,7 @@ import type { Pool } from "pg";
 import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import { digestValue, sha256 } from "../lib/hash.js";
+import { assertAccountActive } from "./accountIdentity.js";
 import type { AuthContext } from "./auth.js";
 import {
   inheritedSessionChatSources,
@@ -172,7 +173,7 @@ function sameImmutableTurn(
   return (
     sameID(candidate.id, turn.id) &&
     candidate.objective === turn.objective &&
-    candidate.createdAt === turn.createdAt &&
+    Date.parse(candidate.createdAt) === Date.parse(turn.createdAt) &&
     sameID(candidate.response.taskID, turn.response.taskID) &&
     sameID(
       candidate.response.contextManifestID,
@@ -226,16 +227,8 @@ function preserveExistingShareClassifications(
 ): void {
   if (!previous) return;
   for (const turn of payload.turns) {
-    const before = previous.turns.find(
-      (candidate) =>
-        sameID(candidate.id, turn.id) &&
-        candidate.objective === turn.objective &&
-        candidate.createdAt === turn.createdAt &&
-        sameID(candidate.response.taskID, turn.response.taskID) &&
-        sameID(
-          candidate.response.contextManifestID,
-          turn.response.contextManifestID,
-        ),
+    const before = previous.turns.find((candidate) =>
+      sameImmutableTurn(candidate, turn),
     );
     if (!before) continue;
     for (const collection of displayBlockCollections) {
@@ -709,6 +702,10 @@ async function validatePayload(
         Date.parse(previous.createdAt) !== Date.parse(payload.createdAt))
     )
       invalid("The original Session creation time cannot change.");
+    // Clients round-trip ISO timestamps at JavaScript millisecond precision.
+    // Equivalent representations must retain the server's original immutable
+    // value, including any greater precision recorded by the originating client.
+    if (previous.createdAt != null) payload.createdAt = previous.createdAt;
     if (
       previous.scopeKind === "relationship" &&
       (payload.scopeKind !== previous.scopeKind ||
@@ -727,18 +724,9 @@ async function validatePayload(
     for (let index = 0; index < previous.turns.length; index++) {
       const before = previous.turns[index]!;
       const after = payload.turns[index];
-      if (
-        !after ||
-        !sameID(after.id, before.id) ||
-        after.objective !== before.objective ||
-        after.createdAt !== before.createdAt ||
-        !sameID(after.response.taskID, before.response.taskID) ||
-        !sameID(
-          after.response.contextManifestID,
-          before.response.contextManifestID,
-        )
-      )
+      if (!after || !sameImmutableTurn(after, before))
         invalid("Existing message identity and order must be preserved.");
+      after.createdAt = before.createdAt;
     }
   }
   if (payload.originKind && !payload.originSessionID)
@@ -923,6 +911,8 @@ export async function mutateAgentSession(
   const hash = digestValue({ session_id: id.toLowerCase(), deleted, request });
   const performMutation = () =>
     inTransaction(pool, async (client) => {
+      // Governed Session writes fence the account for the whole transaction.
+      await assertAccountActive(client, auth.accountId);
       // Fail and release held locks before a reverse-ordered source transition can
       // form a deadlock. The complete database-only operation can safely retry.
       await client.query("SET LOCAL lock_timeout = '100ms'");

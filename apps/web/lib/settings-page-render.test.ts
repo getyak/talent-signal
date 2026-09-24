@@ -29,7 +29,14 @@ const account = {
     kind: "human",
     revision: 1,
     login_methods: ["password"],
+    email_verified_at: null,
   },
+  sign_in_methods: [
+    { provider: "apple", state: "unconnected", hint: null, can_unlink: false },
+    { provider: "google", state: "unconnected", hint: null, can_unlink: false },
+    { provider: "password", state: "legacy_unverified", hint: null, can_unlink: false },
+  ],
+  email_ownership_state: "legacy_unverified",
   workspace: {
     id: "22222222-2222-4222-8222-222222222222",
     name: "Alpha 寻访测试",

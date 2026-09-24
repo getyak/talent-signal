@@ -35,10 +35,10 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 
 1. Complete: design and independent identity-safety review; review identified
    unverified password email claims and the design now requires verification.
-2. Active: Pi implements uniqueness, settings binding and sync lifecycle; runs relevant
-   TypeScript/PostgreSQL/Swift tests and documents exact limitations.
-3. Parent performs independent security/correctness review and real UI
-   acceptance on Primary iPhone, Web and macOS; fix and re-review confirmed bugs.
+2. Shared implementation integrated: Pi completed uniqueness, settings binding
+   and sync lifecycle. Parent closed review defects and verified actual clients.
+3. Active: finish integrated native checks, then delegate the separate macOS
+   system authentication handoff and independently verify live provider flows.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
    and review; no automatic database merge during implementation.
@@ -47,14 +47,14 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 
 | Requirement | Required proof | Current state |
 | --- | --- | --- |
-| New email globally unique | PostgreSQL concurrent registration tests | intermediate independent DB proof passed; final revision pending |
+| New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
-| Apple/Google/password same account/user | backend receipts and settings UI | synthetic backend identity proof and actual Web settings; native/live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | pending |
-| Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10 and reconciliation boundary8/8 at intermediate source; recovery UI fixes pending |
-| People sync both directions | real iOS/Web/macOS IDs after refresh | pending |
-| Session history sync both directions | same session/message IDs and deletion | actual Web open-history update, draft preservation and remote tombstone observed; native/bidirectional pending |
-| Interrupted/offline recovery | preserved draft and no duplicate write | pending |
+| Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | backend tests and independent review passed; live relay proof pending |
+| Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
+| People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
+| Session history sync both directions | same session/message IDs and deletion | actual iOS/Web/macOS history and draft writes passed; native remote deletion preserved draft |
+| Interrupted/offline recovery | preserved draft and no duplicate write | stale-scope native tests and actual draft conflict/deletion passed; live offline-provider flow pending |
 | Real Apple sign-in | provider callback and post-login readback | pending |
 | Review and delivery | independent P0/P1 closure and exact-head checks | pending |
 
@@ -355,3 +355,48 @@ remain saved. These controlled-provider tests use production entrypoints and
 real PostgreSQL locks; no live provider assertion is claimed. Review separately
 identified JSONB key-order comparison in reconciliation; Pi's own new alias
 transfer test also exposes stale-proof rejection and repair is still underway.
+
+
+### 2026-09-25 07:29 reviewed shared implementation integrated
+
+Pi repair16 completed backend42/42, Web216/216 focused and1334/1 skipped
+full tests, backend814/326 skipped full tests, and both typechecks. Automatic
+repair17 tried to address parent-owned native hotspot checks; parent officially
+cancelled at turn635 before any extraction edit persisted. All94 source and
+operations files were integrated, preserving parent decisions, plan, evidence,
+and build-origin configuration. No source checkout or production mutation.
+
+Parent fixed same-owner verified email reassertion so existing provenance and
+claim revision remain unchanged. Real prepare/reassert/confirm now succeeds,
+while a genuinely new alias still invalidates a frozen claim inventory. The
+integrated PostgreSQL account suite passed43/43. Six existing presentation
+components were mechanically extracted from the native hotspot files, without
+changing bodies. Integrated docs/architecture checks passed; normally signed
+native build and focused tests are running. Final native proof remains pending
+until those complete. Parent timestamp/image/share integration3/3 and fresh
+HTTP9/9 closed the final helper-refactor gap.
+
+Independent frozen Web consumer tests now pass16/16 with stable source hashes,
+including five independent current-identity/revision drifts and real cancel GET
+scoping. Repository Web focused tests pass29/29; provider-only form exercises
+the actual React action and completion tests invoke real GET handlers. Parent
+Web source matches this reviewed snapshot byte-for-byte. This is controlled
+provider evidence, not a live OAuth completion claim.
+
+Mac system authentication remains a separate planned Pi phase. Existing actual
+macOS password login and bidirectional draft proof do not establish Apple or
+Google handoff. No Tailnet routes, provider settings, installed app, production
+accounts, or release state have been changed.
+
+Integrated source verification completed at07:29: normally signed native test
+build passed and all26 selected tests passed with0 failures. Backend and Web
+typechecks passed. Independent native extraction review found no P0/P1 and
+confirmed unchanged component bodies/remainder/tests plus project inclusion.
+Test host emitted SwiftUI frame/AppShortcuts helper warnings; no selected test
+failed. See integrated-phase-one-r17.json for source hashes and exact boundaries.
+The guarded session ended and only its task-started Primary device was stopped.
+
+Final independent secondary-email review closed the no-op claim P2 against
+parent source73e75f47 and test4014f13f. No confirmed P0/P1 remains in the
+reviewed shared-account scope. Existing production conflicts are still
+unresolved by design; no data reconciliation has been executed.

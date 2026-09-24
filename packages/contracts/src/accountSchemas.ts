@@ -11,7 +11,17 @@ export const AccountSettingsSchema = Type.Object({
   contract_version: Type.Literal(CONTRACT_VERSION),
   user: Type.Object({ id: ID, email: Type.String(), display_name: Type.String(),
     username: Type.Union([Type.String(), Type.Null()]), kind: Type.String(), revision: Revision,
-    login_methods: Type.Array(Type.Union([Type.Literal("google"), Type.Literal("apple"), Type.Literal("password")])) }),
+    login_methods: Type.Array(Type.Union([Type.Literal("google"), Type.Literal("apple"), Type.Literal("password")])),
+    email_verified_at: Type.Union([Time, Type.Null()]) }),
+  sign_in_methods: Type.Array(Type.Object({
+    provider: Type.Union([Type.Literal("apple"), Type.Literal("google"), Type.Literal("password")]),
+    state: Type.Union([Type.Literal("connected"), Type.Literal("unconnected"), Type.Literal("legacy_unverified")]),
+    hint: Type.Union([Type.String(), Type.Null()]),
+    can_unlink: Type.Boolean(),
+  }, { additionalProperties: false })),
+  email_ownership_state: Type.Union([
+    Type.Literal("verified"), Type.Literal("legacy_unverified"), Type.Literal("conflict"),
+  ]),
   workspace: Type.Object({ id: ID, name: Type.String(), slug: Type.String(), revision: Revision,
     owner_user_id: Type.Union([ID, Type.Null()]), role: Role, is_owner: Type.Boolean(),
     can_manage: Type.Boolean(), is_test: Type.Boolean() }),
@@ -92,3 +102,131 @@ export const AccountMutationSchema = Type.Union([
 ]);
 export type AccountSettings = Static<typeof AccountSettingsSchema>;
 export type AccountMutation = Static<typeof AccountMutationSchema>;
+
+// --- Sign-in methods: step-up bound credential changes (ADR 0018) -----------
+
+export const SignInMethodProviderSchema = Type.Union([
+  Type.Literal("apple"), Type.Literal("google"), Type.Literal("password"),
+]);
+export const CredentialChangeIntentSchema = Type.Union([
+  Type.Literal("link_provider"), Type.Literal("unlink_provider"),
+  Type.Literal("set_password"), Type.Literal("change_password"),
+]);
+export const StepUpProofSchema = Type.Union([
+  Type.Object({ kind: Type.Literal("password"),
+    password: Type.String({ minLength: 1, maxLength: 128 }) }, { additionalProperties: false }),
+  Type.Object({ kind: Type.Literal("provider"),
+    provider: Type.Union([Type.Literal("apple"), Type.Literal("google")]),
+    challenge_id: ID,
+    identity_token: Type.String({ minLength: 100, maxLength: 20_000 }) }, { additionalProperties: false }),
+]);
+export const StartCredentialChangeRequestSchema = Type.Object({
+  id: ID,
+  intent: CredentialChangeIntentSchema,
+  provider: Type.Optional(SignInMethodProviderSchema),
+  origin: Type.String({ minLength: 1, maxLength: 500 }),
+  client_label: Type.String({ minLength: 1, maxLength: 80 }),
+  step_up: StepUpProofSchema,
+  // The revisions the operation was authorized against. The backend compares
+  // them transactionally before minting an attempt, so an old proof can never
+  // bind to settings that changed after authorization.
+  expected_account_revision: Revision,
+  expected_user_revision: Revision,
+}, { additionalProperties: false });
+export const ProviderChallengeSchema = Type.Object({
+  challenge_id: ID,
+  nonce: Type.String({ minLength: 32, maxLength: 128 }),
+  expires_at: Time,
+}, { additionalProperties: false });
+export const CredentialChangeAttemptSchema = Type.Object({
+  contract_version: Type.Literal(CONTRACT_VERSION),
+  attempt_id: ID,
+  // Returned exactly once at start. Web keeps it server-side in an HttpOnly
+  // attempt cookie; native holds it in memory for the current attempt only.
+  attempt_secret: Type.String({ minLength: 32, maxLength: 200 }),
+  intent: CredentialChangeIntentSchema,
+  provider: Type.Union([SignInMethodProviderSchema, Type.Null()]),
+  expires_at: Time,
+  provider_challenge: Type.Union([ProviderChallengeSchema, Type.Null()]),
+}, { additionalProperties: false });
+export const CompleteCredentialChangeRequestSchema = Type.Object({
+  attempt_id: ID,
+  attempt_secret: Type.String({ minLength: 32, maxLength: 200 }),
+  origin: Type.String({ minLength: 1, maxLength: 500 }),
+  identity_token: Type.Optional(Type.String({ minLength: 100, maxLength: 20_000 })),
+  password: Type.Optional(Type.String({ minLength: 8, maxLength: 128 })),
+}, { additionalProperties: false });
+export const CredentialChangeResultSchema = Type.Object({
+  contract_version: Type.Literal(CONTRACT_VERSION),
+  status: Type.Union([
+    Type.Literal("linked"), Type.Literal("already_linked"),
+    Type.Literal("password_set"), Type.Literal("unlinked"),
+  ]),
+  settings: AccountSettingsSchema,
+}, { additionalProperties: false });
+
+// --- Verified password signup -----------------------------------------------
+
+export const PasswordRegistrationStartResponseSchema = Type.Object({
+  contract_version: Type.Literal(CONTRACT_VERSION),
+  status: Type.Literal("verification_sent"),
+}, { additionalProperties: false });
+export const PasswordVerificationConfirmRequestSchema = Type.Object({
+  verification_secret: Type.String({ minLength: 32, maxLength: 200 }),
+  client_label: Type.String({ minLength: 1, maxLength: 80 }),
+}, { additionalProperties: false });
+
+// --- Reviewed historical duplicate resolution -------------------------------
+
+export const ReconciliationProofSchema = Type.Union([
+  Type.Object({ kind: Type.Literal("password"),
+    identifier: Type.String({ minLength: 1, maxLength: 320 }),
+    password: Type.String({ minLength: 1, maxLength: 128 }) }, { additionalProperties: false }),
+  Type.Object({ kind: Type.Literal("provider"),
+    provider: Type.Union([Type.Literal("apple"), Type.Literal("google")]),
+    challenge_id: ID,
+    identity_token: Type.String({ minLength: 100, maxLength: 20_000 }) }, { additionalProperties: false }),
+]);
+export const ReconciliationPrepareRequestSchema = Type.Object({
+  id: ID,
+  proof: ReconciliationProofSchema,
+  // Canonical-side step-up: dual proof is required before any cross-account
+  // inventory is shown or proposed.
+  step_up: StepUpProofSchema,
+  // The revisions the recovery screen was rendered from. The backend compares
+  // them under its own transaction locks before freezing anything.
+  expected_account_revision: Revision,
+  expected_user_revision: Revision,
+}, { additionalProperties: false });
+export const ReconciliationRecordSchema = Type.Object({
+  contract_version: Type.Literal(CONTRACT_VERSION),
+  id: ID,
+  kind: Type.Union([Type.Literal("empty_duplicate_transfer"), Type.Literal("review_required")]),
+  state: Type.Union([
+    Type.Literal("prepared"), Type.Literal("confirmed"),
+    Type.Literal("committed"), Type.Literal("cancelled"),
+  ]),
+  frozen_revision: Revision,
+  inventory: Type.Unknown(),
+  result: Type.Optional(Type.Unknown()),
+  expires_at: Time,
+  created_at: Time,
+}, { additionalProperties: false });
+export const ReconciliationActionRequestSchema = Type.Object({
+  id: ID,
+}, { additionalProperties: false });
+
+export type SignInMethodProvider = Static<typeof SignInMethodProviderSchema>;
+export type CredentialChangeIntent = Static<typeof CredentialChangeIntentSchema>;
+export type StepUpProof = Static<typeof StepUpProofSchema>;
+export type StartCredentialChangeRequest = Static<typeof StartCredentialChangeRequestSchema>;
+export type ProviderChallenge = Static<typeof ProviderChallengeSchema>;
+export type CredentialChangeAttempt = Static<typeof CredentialChangeAttemptSchema>;
+export type CompleteCredentialChangeRequest = Static<typeof CompleteCredentialChangeRequestSchema>;
+export type CredentialChangeResult = Static<typeof CredentialChangeResultSchema>;
+export type PasswordRegistrationStartResponse = Static<typeof PasswordRegistrationStartResponseSchema>;
+export type PasswordVerificationConfirmRequest = Static<typeof PasswordVerificationConfirmRequestSchema>;
+export type ReconciliationProof = Static<typeof ReconciliationProofSchema>;
+export type ReconciliationPrepareRequest = Static<typeof ReconciliationPrepareRequestSchema>;
+export type ReconciliationRecord = Static<typeof ReconciliationRecordSchema>;
+export type ReconciliationActionRequest = Static<typeof ReconciliationActionRequestSchema>;

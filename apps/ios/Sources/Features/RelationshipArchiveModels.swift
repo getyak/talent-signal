@@ -1080,6 +1080,8 @@ final class AgentSessionStore: ObservableObject {
     @Published private(set) var sessionSyncNotices: [UUID: String] = [:]
     private var hasGlobalSyncFailure = false
     private var syncGeneration = UUID()
+    private var synchronizationScopeActive = true
+    private var synchronizationScopeIsCurrent: () -> Bool = { true }
     private var drafts: [AgentSessionDraft]
     private var storedGlobalDraft: AgentGlobalDraft?
     private var storedContactProposals: [AgentContactProposalDraft] = []
@@ -2852,6 +2854,8 @@ extension AgentSessionStore {
         let remoteSession = try remote.value()
         guard let local else { return remoteSession }
         var merged = local.updatedAt >= remoteSession.updatedAt ? local : remoteSession
+        // Server immutable time repairs legacy whole-second local encodings.
+        merged.createdAt = remoteSession.originalCreatedAt
         var turns = local.turns
         for incoming in remoteSession.turns {
             if let index = turns.firstIndex(where: { $0.id == incoming.id }) {
@@ -2861,7 +2865,12 @@ extension AgentSessionStore {
                     throw AgentSessionSyncError.transcriptConflict
                 }
                 // A newer server revision may have invalidated evidence-backed display text.
-                let old = turns[index]
+                let existing = turns[index]
+                let old = AgentSessionTurn(
+                    id: existing.id, objective: existing.objective, response: existing.response,
+                    createdAt: incoming.createdAt, requiresRefresh: existing.requiresRefresh,
+                    feedback: existing.feedback, feedbackUpdatedAt: existing.feedbackUpdatedAt
+                )
                 let unchangedDisplay = AgentSessionContextPolicy.readOnlyResponse(old.response)
                     == AgentSessionContextPolicy.readOnlyResponse(incoming.response)
                 turns[index] = unchangedDisplay ? old : incoming
@@ -2915,7 +2924,33 @@ extension AgentSessionStore {
             return
         }
         guard let payload = record.payload, payload.id == record.sessionID else { return }
-        if record.revision == syncRevisions[key] { return }
+        if record.revision == syncRevisions[key] {
+            // Older clients persisted whole-second dates after recording this
+            // revision. Repair those immutable fields even when the server
+            // revision has not changed, without replacing local draft/state.
+            guard let index = storedSessions.firstIndex(where: { $0.id == record.sessionID }) else { return }
+            let remote = try payload.value()
+            var repaired = storedSessions[index]
+            guard abs(repaired.originalCreatedAt.timeIntervalSince(remote.originalCreatedAt)) < 1 else {
+                throw AgentSessionSyncError.transcriptConflict
+            }
+            repaired.createdAt = remote.originalCreatedAt
+            repaired.turns = try repaired.turns.map { existing in
+                guard let incoming = remote.turns.first(where: { $0.id == existing.id }) else { return existing }
+                guard existing.objective == incoming.objective,
+                      existing.response.taskID == incoming.response.taskID,
+                      abs(existing.createdAt.timeIntervalSince(incoming.createdAt)) < 1 else {
+                    throw AgentSessionSyncError.transcriptConflict
+                }
+                return AgentSessionTurn(
+                    id: existing.id, objective: existing.objective, response: existing.response,
+                    createdAt: incoming.createdAt, requiresRefresh: existing.requiresRefresh,
+                    feedback: existing.feedback, feedbackUpdatedAt: existing.feedbackUpdatedAt
+                )
+            }
+            storedSessions[index] = repaired
+            return
+        }
         syncDigests[key] = Self.syncDigest(payload)
         let local = storedSessions.first { $0.id == record.sessionID }
         var merged = try mergeRemote(payload, into: local)
@@ -2974,24 +3009,46 @@ extension AgentSessionStore {
         }
     }
 
-    @discardableResult
+
+    func activateSynchronizationScope(isCurrent: @escaping () -> Bool) {
+        syncGeneration = UUID()
+        isSynchronizing = false
+        synchronizationScopeIsCurrent = isCurrent
+        synchronizationScopeActive = true
+    }
+
+    /// Account/endpoint/token/workspace lifetime change: advance the sync
+    /// generation so every in-flight request drops its completion BEFORE any
+    /// applyRemote/persist/put/delete. No stored user data is deleted here.
+    func invalidateSynchronizationScope() {
+        syncGeneration = UUID()
+        synchronizationScopeActive = false
+        isSynchronizing = false
+    }
+
     func synchronize(using client: AgentSessionSyncServing, requiredSessionID: UUID? = nil) async -> Bool {
-        guard !isSynchronizing else { return false }
+        guard synchronizationScopeActive, synchronizationScopeIsCurrent(), !isSynchronizing else { return false }
         isSynchronizing = true
         sessionSyncNotices = [:]
         hasGlobalSyncFailure = false
         let generation = syncGeneration
         var syncedIDs = Set<UUID>()
-        defer { isSynchronizing = false }
+        // A stale task can never clear a newer task's in-flight ownership.
+        defer { if generation == syncGeneration && synchronizationScopeActive && synchronizationScopeIsCurrent() { isSynchronizing = false } }
         do {
             var cursor: String? = nil
             var visited = Set<String>()
             repeat {
                 let page = try await client.list(after: cursor)
-                guard generation == syncGeneration, !Task.isCancelled else { return false }
+                guard generation == syncGeneration && synchronizationScopeActive && synchronizationScopeIsCurrent(), !Task.isCancelled else { return false }
                 for record in page.sessions {
                     do { try applyRemote(record) }
-                    catch { sessionSyncNotices[record.sessionID] = error.localizedDescription }
+                    catch {
+                        // Failure publication is fenced like success.
+                        if generation == syncGeneration && synchronizationScopeActive && synchronizationScopeIsCurrent() {
+                            sessionSyncNotices[record.sessionID] = error.localizedDescription
+                        }
+                    }
                 }
                 sortSessions()
                 guard persist() else { throw AgentSessionSyncError.invalidResponse }
@@ -3003,21 +3060,24 @@ extension AgentSessionStore {
             } while true
 
             for (key, revision) in syncTombstones.sorted(by: { $0.key < $1.key }) {
-                guard generation == syncGeneration, !Task.isCancelled else { return false }
+                guard generation == syncGeneration && synchronizationScopeActive && synchronizationScopeIsCurrent(), !Task.isCancelled else { return false }
                 guard let id = UUID(uuidString: key), revision < 0 else { continue }
                 do {
                     let result = try await client.delete(id: id, expectedRevision: -revision - 1, idempotencyKey: UUID())
-                    guard generation == syncGeneration else { return false }
+                    guard generation == syncGeneration && synchronizationScopeActive && synchronizationScopeIsCurrent() else { return false }
                     try applyRemote(result)
                     guard persist() else { throw AgentSessionSyncError.invalidResponse }
                 } catch {
+                    guard generation == syncGeneration, synchronizationScopeActive, synchronizationScopeIsCurrent(), !Task.isCancelled else { return false }
                     if Self.isGlobalSyncError(error) { throw error }
-                    sessionSyncNotices[id] = error.localizedDescription
+                    if generation == syncGeneration && synchronizationScopeActive && synchronizationScopeIsCurrent() {
+                        sessionSyncNotices[id] = error.localizedDescription
+                    }
                 }
             }
             let ids = storedSessions.map(\.id)
             for id in ids {
-                guard generation == syncGeneration, !Task.isCancelled else { return false }
+                guard generation == syncGeneration && synchronizationScopeActive && synchronizationScopeIsCurrent(), !Task.isCancelled else { return false }
                 guard sessionSyncNotices[id] == nil,
                       let current = storedSessions.first(where: { $0.id == id }) else { continue }
                 let key = id.uuidString.lowercased()
@@ -3032,13 +3092,14 @@ extension AgentSessionStore {
                 }
                 do {
                     let result = try await client.put(payload, expectedRevision: syncRevisions[key] ?? 0, idempotencyKey: UUID())
-                    guard generation == syncGeneration else { return false }
+                    guard generation == syncGeneration && synchronizationScopeActive && synchronizationScopeIsCurrent() else { return false }
                     try applyRemote(result)
                     guard persist() else { throw AgentSessionSyncError.invalidResponse }
                     if storedSessions.contains(where: { $0.id == id }), syncTombstones[key] == nil {
                         syncedIDs.insert(id)
                     }
                 } catch {
+                    guard generation == syncGeneration, synchronizationScopeActive, synchronizationScopeIsCurrent(), !Task.isCancelled else { return false }
                     if Self.isGlobalSyncError(error) { throw error }
                     sessionSyncNotices[id] = error.localizedDescription
                 }
@@ -3055,6 +3116,7 @@ extension AgentSessionStore {
             }
             return sessionSyncNotices.isEmpty
         } catch {
+            guard generation == syncGeneration, synchronizationScopeActive, synchronizationScopeIsCurrent(), !Task.isCancelled else { return false }
             hasGlobalSyncFailure = true
             syncNotice = error.localizedDescription
             return false
@@ -3090,9 +3152,18 @@ enum AgentSessionPersistenceError: LocalizedError, Equatable {
 }
 
 extension JSONEncoder {
+    /// Fractional-second ISO-8601: the backend enforces Date.parse equality
+    /// for immutable creation times, so encoding MUST preserve the
+    /// millisecond precision the decoder accepted (legacy whole seconds and
+    /// longer fractional fractions both round-trip within Date precision).
     static let agentSession: JSONEncoder = {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var container = encoder.singleValueContainer()
+            try container.encode(formatter.string(from: date))
+        }
         return encoder
     }()
 }

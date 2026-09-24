@@ -360,6 +360,44 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
       }),
     ).rejects.toMatchObject({ code: "AGENT_SESSION_IDEMPOTENCY_CONFLICT" });
   });
+  it("accepts equivalent creation timestamps while retaining canonical strings and immutable messages", async () => {
+    const value = payload();
+    const original = new Date().toISOString().replace(/Z$/, "281Z");
+    const native = new Date(original).toISOString();
+    value.createdAt = original;
+    value.turns[0]!.createdAt = original;
+    const second = structuredClone(value.turns[0]!);
+    second.id = randomUUID();
+    second.objective = "Second retained message";
+    second.response.taskID = randomUUID();
+    value.turns.push(second);
+    const first = await create(value);
+    const equivalent = structuredClone(value);
+    equivalent.createdAt = native;
+    equivalent.turns.forEach(turn => { turn.createdAt = native; });
+    equivalent.composerDraft = "Draft from another client";
+    const saved = await mutateAgentSession(pool!, auth, value.id, mutation(equivalent, first.revision));
+    expect(saved.payload?.createdAt).toBe(original);
+    expect(saved.payload?.turns.map(turn => turn.createdAt)).toEqual([original, original]);
+    expect(saved.payload?.composerDraft).toBe(equivalent.composerDraft);
+    for (const change of [
+      (p: AgentSessionPayload) => { p.createdAt = new Date(Date.parse(original) + 1).toISOString(); },
+      (p: AgentSessionPayload) => { p.turns[0]!.createdAt = new Date(Date.parse(original) + 1).toISOString(); },
+      (p: AgentSessionPayload) => { p.turns[0]!.id = randomUUID(); },
+      (p: AgentSessionPayload) => { p.turns.reverse(); },
+      (p: AgentSessionPayload) => { p.turns[0]!.objective = "Changed message"; },
+      (p: AgentSessionPayload) => { p.turns[0]!.response.taskID = randomUUID(); },
+      (p: AgentSessionPayload) => { p.turns[0]!.response.contextManifestID = randomUUID(); },
+    ]) {
+      const changed = structuredClone(saved.payload!);
+      change(changed);
+      await expect(mutateAgentSession(pool!, auth, value.id, mutation(changed, saved.revision)))
+        .rejects.toMatchObject({ code: "AGENT_SESSION_INVALID" });
+    }
+    const readback = await getAgentSession(pool!, auth, value.id);
+    expect(readback.revision).toBe(saved.revision);
+    expect(readback.payload).toEqual(saved.payload);
+  });
   it("isolates another account and another user on reads and writes", async () => {
     const first = await create();
     for (const actor of [otherUser, otherAccount]) {
@@ -2700,6 +2738,8 @@ describe.skipIf(!pool)("Agent Session PostgreSQL authority", () => {
           allows_static_share?: boolean;
         }
       ).allows_static_share;
+      // Native clients may use an equivalent fractional-second representation.
+      oldClientUpdate.turns[0]!.createdAt = value.turns[0]!.createdAt.replace(/Z$/, "000Z");
       oldClientUpdate.contextDisplayLabel = "Conversation renamed by old client";
       oldClientUpdate.updatedAt = now();
       const savedByOldClient = await app.inject({

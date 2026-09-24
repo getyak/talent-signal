@@ -11,6 +11,7 @@ import {
 import type { Pool, PoolClient } from "pg";
 
 import { inTransaction } from "../database/pool.js";
+import { assertAccountActive } from "./accountIdentity.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
 import { sha256 } from "../lib/hash.js";
@@ -777,6 +778,8 @@ export async function createResourceCaptureInTransaction(
   auth: AuthContext,
   request: ResourceCaptureRequest,
 ): Promise<ResourceIntakeMutationResult> {
+  // Governed Person writes fence the account for the whole transaction.
+  await assertAccountActive(client, auth.accountId);
   validateResourceRequest(request);
     const idempotency = await claimIdempotency(
       client,

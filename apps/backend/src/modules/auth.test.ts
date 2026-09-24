@@ -6,7 +6,6 @@ import {
   createAppleLoginChallenge,
   createAppleSession,
   createPasswordSession,
-  registerPasswordSession,
   type AppleIdentityToken,
   type AppleTokenVerifying,
 } from "./auth.js";
@@ -135,7 +134,7 @@ describe("Apple authentication", () => {
     const query = vi.fn(async (sql: string, parameters?: unknown[]) => {
       if (sql.includes("UPDATE apple_login_challenges")) return { rows: [{ id: request.challenge_id }] };
       if (sql.includes("INSERT INTO consumed_auth_assertions")) return { rows: [{ id: "assertion" }] };
-      if (sql.includes("lower(email)")) {
+      if (sql.includes("lower(btrim(email))")) {
         expect(parameters?.[0]).toBe("recruiter@example.test");
         return { rows: [{ id: "existing-user" }], rowCount: 1 };
       }
@@ -173,6 +172,9 @@ describe("Apple authentication", () => {
           };
         }
         if (sql.includes("UPDATE auth_identities")) return { rows: [] };
+        if (sql.includes("SELECT retired_at FROM accounts")) {
+          return { rows: [{ retired_at: null }] };
+        }
         if (sql.includes("INSERT INTO sessions")) {
           insertedSession.push(parameters ?? []);
           return { rows: [] };
@@ -229,12 +231,16 @@ describe("password authentication", () => {
                 password_scrypt: passwordScrypt,
                 user_email: "cubxxw@talentsignal.local",
                 user_id: "10000000-0000-4000-8000-000000000013",
+                user_kind: "password_human",
                 username: "cubxxw",
               },
             ],
           };
         }
         if (sql.includes("UPDATE password_credentials")) return { rows: [] };
+        if (sql.includes("SELECT retired_at FROM accounts")) {
+          return { rows: [{ retired_at: null }] };
+        }
         if (sql.includes("INSERT INTO sessions")) return { rows: [] };
         throw new Error(`Unexpected query: ${sql}`);
       }),
@@ -313,33 +319,47 @@ describe("password authentication", () => {
     ).toBe(true);
   });
 
-  it("rejects duplicate registration without creating a second account", async () => {
+  it("fails closed when several password-bearing accounts share the identifier", async () => {
+    const passwordScrypt = await encodePasswordCredential(
+      "quiet-context",
+      "00112233445566778899aabbccddeeff",
+    );
+    const row = {
+      account_id: "10000000-0000-4000-8000-000000000001",
+      account_name: "Legacy workspace",
+      account_role: "member",
+      account_slug: "personal-legacy",
+      display_name: "Legacy",
+      failed_attempts: 0,
+      locked_until: null,
+      password_scrypt: passwordScrypt,
+      user_email: "shared@example.test",
+      user_id: "10000000-0000-4000-8000-000000000013",
+      user_kind: "google_human",
+      username: null,
+    };
     const client = {
       query: vi.fn(async (sql: string) => {
-        if (sql === "BEGIN" || sql === "ROLLBACK") return { rows: [] };
-        if (sql.includes("SELECT 1") && sql.includes("FROM users")) {
-          return { rows: [{ exists: 1 }] };
+        if (sql === "BEGIN" || sql === "COMMIT") return { rows: [] };
+        if (sql.includes("FROM users") && sql.includes("password_credentials")) {
+          return { rows: [row, { ...row, user_id: "10000000-0000-4000-8000-000000000014" }] };
         }
         throw new Error(`Unexpected query: ${sql}`);
       }),
       release: vi.fn(),
     } as unknown as PoolClient;
-    const pool = {
-      connect: vi.fn().mockResolvedValue(client),
-    } as unknown as Pool;
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
 
     await expect(
-      registerPasswordSession(pool, config, {
-        username: "cubxxw",
-        email: "other@example.test",
-        display_name: "Other",
+      createPasswordSession(pool, config, {
+        identifier: "shared@example.test",
         password: "quiet-context",
         client_label: "web",
       }),
-    ).rejects.toMatchObject({ code: "PASSWORD_ACCOUNT_EXISTS" });
+    ).rejects.toMatchObject({ code: "PASSWORD_SIGN_IN_AMBIGUOUS" });
     expect(
       (client.query as ReturnType<typeof vi.fn>).mock.calls.some(([sql]) =>
-        String(sql).includes("INSERT INTO accounts"),
+        String(sql).includes("INSERT INTO sessions"),
       ),
     ).toBe(false);
   });

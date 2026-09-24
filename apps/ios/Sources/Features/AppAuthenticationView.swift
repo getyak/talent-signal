@@ -258,6 +258,47 @@ final class AppSessionStore: ObservableObject {
         }
     }
 
+    /// Verified signup: start delivery only. The generic response never
+    /// contains a code; the owner confirms from their email.
+    func startRegistration(email: String, password: String) async -> Bool {
+        guard authenticationAllowed, !isWorking, let client else { return false }
+        let generation = contextGeneration
+        isWorking = true; notice = nil
+        defer { if generation == contextGeneration { isWorking = false } }
+        do {
+            try await client.startRegistration(email: email, password: password)
+            return generation == contextGeneration
+        } catch {
+            guard generation == contextGeneration else { return false }
+            notice = signInNotice(error)
+            return false
+        }
+    }
+
+    /// Intentional completion of the emailed verification opens the verified
+    /// account session; a scanner or a plain link never signs in.
+    func confirmRegistration(secret: String) async {
+        guard authenticationAllowed, !isWorking, let client, let baseURL else { return }
+        let generation = contextGeneration
+        isWorking = true; notice = nil
+        defer { if generation == contextGeneration { isWorking = false } }
+        do {
+            let session = try await client.confirmRegistration(secret: secret)
+            guard generation == contextGeneration else { return }
+            try verify(session, endpoint: baseURL)
+            let validated = try await client.validate(session)
+            guard generation == contextGeneration else { return }
+            try verify(validated, endpoint: baseURL)
+            guard validated.account.id == session.account.id, validated.user.id == session.user.id else { throw AppSessionError.scopeMismatch }
+            guard try !endingPersistence.load().contains(where: { $0.credentialFingerprint == AppSessionEnding.fingerprint(validated) }) else { throw AppSessionError.scopeMismatch }
+            try persistence.save(validated)
+            phase = .signedIn(validated); challenge = nil
+        } catch {
+            guard generation == contextGeneration else { return }
+            notice = signInNotice(error)
+        }
+    }
+
     private func signInNotice(_ error: Error) -> String {
         guard case let AppSessionError.backend(_, code, _) = error else { return error.localizedDescription }
         switch code {
@@ -265,6 +306,8 @@ final class AppSessionStore: ObservableObject {
         case "PASSWORD_ACCOUNT_EXISTS": return "This email already has an account. Please sign in."
         case "GOOGLE_ACCOUNT_LINK_REQUIRED": return "This email already has a workspace. Use its existing sign-in method."
         case "GOOGLE_CHALLENGE_INVALID", "GOOGLE_TOKEN_REPLAYED", "GOOGLE_TOKEN_INVALID": return "Google sign-in expired. Please try again."
+        case "VERIFICATION_INVALID": return "This verification code is invalid or has expired. Start again to get a new email."
+        case "EMAIL_DELIVERY_UNAVAILABLE", "EMAIL_DELIVERY_FAILED": return "Verification email could not be sent. No account was created. Try again shortly."
         default: return "Sign-in is temporarily unavailable. Please try again."
         }
     }

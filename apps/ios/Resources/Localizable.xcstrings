@@ -30398,6 +30398,356 @@
           }
         }
       }
+    },
+    "Cancelled. Nothing changed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消，没有任何更改。"
+          }
+        }
+      }
+    },
+    "Change password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更换密码"
+          }
+        }
+      }
+    },
+    "Confirm and sign in": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认并登录"
+          }
+        }
+      }
+    },
+    "Connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绑定"
+          }
+        }
+      }
+    },
+    "Current password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前密码"
+          }
+        }
+      }
+    },
+    "Keep at least one sign-in method": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "至少保留一种登录方式"
+          }
+        }
+      }
+    },
+    "New password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新密码"
+          }
+        }
+      }
+    },
+    "One account, several ways to sign in. Adding or removing a method verifies your current identity first.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一个账户，多种登录方式。添加或移除前会先验证当前身份。"
+          }
+        }
+      }
+    },
+    "Remove": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解除绑定"
+          }
+        }
+      }
+    },
+    "Save password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存密码"
+          }
+        }
+      }
+    },
+    "Saved and verified.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存并核验。"
+          }
+        }
+      }
+    },
+    "Set password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置密码"
+          }
+        }
+      }
+    },
+    "Sign-in methods": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录方式"
+          }
+        }
+      }
+    },
+    "This email is linked to two historical accounts with separate data. Resolve it in Account settings on the web; nothing is merged automatically.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个邮箱关联了两个历史账户，数据各自独立。请在网页端的账号设置中完成核对；系统不会自动合并。"
+          }
+        }
+      }
+    },
+    "Verification code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证码"
+          }
+        }
+      }
+    },
+    "Verify current identity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证当前身份"
+          }
+        }
+      }
+    },
+    "We sent a verification link to your email. Open it and confirm to finish creating your account. Nothing is created until you confirm.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我们已把验证链接发送到你的邮箱。打开并确认后才会创建账户；在确认之前不会创建任何内容。"
+          }
+        }
+      }
+    },
+    "Account recovery needs the configured web address for this connection, which this build does not have. Retry after configuration.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这次连接缺少已配置的网页地址，无法打开账户核对。配置完成后可以重试。"
+          }
+        }
+      }
+    },
+    "Contacts and conversations sync automatically to your devices.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "联系人与对话会自动同步到你的设备。"
+          }
+        }
+      }
+    },
+    "Current session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前会话"
+          }
+        }
+      }
+    },
+    "Devices": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录设备"
+          }
+        }
+      }
+    },
+    "I have verified, continue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我已验证，继续"
+          }
+        }
+      }
+    },
+    "Last successful readback: ": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近一次成功读取："
+          }
+        }
+      }
+    },
+    "Loading or offline. Retry when connected.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载或离线，恢复连接后重试。"
+          }
+        }
+      }
+    },
+    "Open account recovery in your browser": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在浏览器中打开账户核对"
+          }
+        }
+      }
+    },
+    "Sign in there with THIS account: ": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在浏览器中使用当前这个账户登录："
+          }
+        }
+      }
+    },
+    "This email is linked to two historical accounts with separate data. Nothing is merged automatically.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个邮箱关联了两个历史账户，数据各自独立。系统不会自动合并。"
+          }
+        }
+      }
+    },
+    "Verify with Google": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Google 验证当前身份"
+          }
+        }
+      }
+    },
+    "Check result again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再次核对结果"
+          }
+        }
+      }
+    },
+    "Apple verification needs its challenge. Retry.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 验证需要先获取挑战，请重试。"
+          }
+        }
+      }
+    },
+    "Sync runs in the background on this device; no per-message confirmation is shown here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步在本机后台自动进行；这里不逐条显示同步确认。"
+          }
+        }
+      }
+    },
+    "Operation completed but its result is awaiting confirmation. Review the method states; nothing was written twice.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作已提交，但结果等待确认。请核对登录方式状态；不会重复写入。"
+          }
+        }
+      }
+    },
+    "This conversation was deleted. Start a new Session to continue; your draft is kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这段对话已被删除。开始新的会话继续；草稿已保留。"
+          }
+        }
+      }
+    },
+    "Start new Session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始新会话"
+          }
+        }
+      }
+    },
+    "This request was rejected as invalid and no change was written.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请求无效，已被拒绝，没有任何更改被写入。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

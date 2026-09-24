@@ -2035,6 +2035,8 @@ suite("conversation image compatibility and followups", () => {
 
       const legacy = structuredClone(original) as unknown as { turns: Array<Record<string, unknown>>; composerDraft?: string; updatedAt: string };
       delete legacy.turns[0]!.images;
+      // Equivalent timestamps must still restore the server-owned manifest.
+      legacy.turns[0]!.createdAt = original.turns[0]!.createdAt.replace(/Z$/, "000Z");
       legacy.composerDraft = "edited draft";
       legacy.updatedAt = new Date().toISOString();
       await mutateAgentSession(pool!, seeded.auth, seeded.sessionId, {
@@ -2045,6 +2047,8 @@ suite("conversation image compatibility and followups", () => {
       expect(after.payload?.composerDraft).toBe("edited draft");
 
       const forged = structuredClone(original) as unknown as { turns: Array<{ images: Array<{ content_hash: string }> }>; updatedAt: string };
+      (forged.turns[0]! as { images: Array<{ content_hash: string }>; createdAt?: string }).createdAt =
+        original.turns[0]!.createdAt.replace(/Z$/, "000Z");
       forged.turns[0]!.images[0]!.content_hash = "f".repeat(64);
       forged.updatedAt = new Date().toISOString();
       await expect(mutateAgentSession(pool!, seeded.auth, seeded.sessionId, {

@@ -1599,6 +1599,19 @@ struct RelationshipAskView: View {
         let controlSize = composerControlSize
 
         return VStack(spacing: 8) {
+            if originalSessionUnavailable {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(appLanguage.text("This conversation was deleted. Your draft is kept here.", zhHans: "这条对话已删除。草稿仍保留在这里。"))
+                        .font(.caption).foregroundStyle(Color.tsMutedInk)
+                    Button(appLanguage.text("Start new Session", zhHans: "开始新对话")) {
+                        startNewSessionAfterTombstone()
+                    }
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("ask-start-new-after-deletion")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("ask-session-deleted")
+            }
             askSubmissionStatus
             if !voiceInput.isRecording && voiceInput.phase != .transcribing {
                 voiceInputStatus
@@ -2990,10 +3003,23 @@ struct RelationshipAskView: View {
         return selectedScope?.person.id != preferredPersonID
     }
 
+    /// The original durable Session was removed (tombstoned): the draft is
+    /// preserved for the user's decision and sending is disabled. Only the
+    /// explicit Start-new-Session action may create or rebind a conversation.
+    private var originalSessionUnavailable: Bool {
+        return AskSendAvailability.originalSessionUnavailable(
+            activeSessionID: activeSessionID,
+            sessionExists: activeSessionID.map { sessionStore.session(id: $0) != nil } ?? false
+        )
+    }
+
     private var canSendDraft: Bool {
-        return hasComposerInput
-            && !operationState.isSending
-            && !isSavingContact
+        return AskSendAvailability.canSendDraft(
+            hasComposerInput: hasComposerInput,
+            isSending: operationState.isSending,
+            isSavingContact: isSavingContact,
+            originalSessionUnavailable: originalSessionUnavailable
+        )
             && mediaDrafts.allSatisfy {
                 if case .failed = $0.phase { return false }
                 return $0.phase != .removing
@@ -3298,7 +3324,26 @@ struct RelationshipAskView: View {
         "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif",
     ]
 
+    /// Explicit Start-new-Session: release the tombstoned durable Session so
+    /// the next send may create a new one with the preserved draft. Nothing is
+    /// sent or created until the user acts.
+    func startNewSessionAfterTombstone() {
+        guard originalSessionUnavailable else { return }
+        activeSessionID = nil
+        errorMessage = nil
+    }
+
     private func send(_ objective: String) {
+        // Unified tombstone guard: FIRST action of every send path (local
+        // answers, media, screenshots, scoped/unscoped, retry, IME commit,
+        // pending sends). Nothing is cleared, created, uploaded or sent.
+        if originalSessionUnavailable {
+            if draft.isEmpty { draft = objective }
+            operationState.pendingObjective = nil
+            operationState.isSending = false
+            errorMessage = appLanguage.text("This conversation was deleted. Start a new Session to continue; your draft is kept.")
+            return
+        }
         if hasPendingScreenshotAdmission, mediaDrafts.isEmpty {
             mediaNotice = appLanguage.text("Reattach the same screenshots to continue")
             return
@@ -3372,6 +3417,15 @@ struct RelationshipAskView: View {
         }
 
         if let selectedScope {
+            // A tombstoned original Session never silently forks into a new
+            // one: the draft stays and the user chooses explicitly.
+            if originalSessionUnavailable {
+                draft = trimmed
+                operationState.pendingObjective = nil
+                operationState.isSending = false
+                errorMessage = appLanguage.text("This conversation was deleted. Start a new Session to continue; your draft is kept.")
+                return
+            }
             if activeSessionID.flatMap({ sessionStore.session(id: $0) })?.scope.matches(
                 personID: selectedScope.person.id,
                 relationshipContextID: selectedScope.context.id
@@ -7298,75 +7352,6 @@ private struct AskPendingTurnView: View {
     }
 }
 
-private struct AskPendingMediaStrip: View {
-    let drafts: [AskMediaDraft]
-    let language: AppLanguage
-
-    private var visibleDrafts: [AskMediaDraft] { Array(drafts.prefix(3)) }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(Array(visibleDrafts.enumerated()), id: \.element.id) { index, draft in
-                Image(uiImage: draft.preview)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 58, height: 58)
-                    .clipShape(RoundedRectangle(cornerRadius: 13))
-                    .overlay {
-                        if index == 2, drafts.count > 3 {
-                            RoundedRectangle(cornerRadius: 13)
-                                .fill(Color.black.opacity(0.48))
-                            Text(verbatim: "+\(drafts.count - 3)")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                        }
-                    }
-            }
-        }
-        .padding(3)
-        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.tsLine, lineWidth: 1)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            String(drafts.count) + " · "
-                + language.text("Task images, not evidence")
-        )
-        .accessibilityIdentifier("ask-pending-media")
-    }
-}
-
-private struct AskUserMessageBubble: View {
-    let message: String
-    var accessibilityIdentifier = "ask-user-message"
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            bubble(fixesWidth: true)
-            bubble(fixesWidth: false)
-                .frame(maxWidth: 330, alignment: .trailing)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(message)
-        .accessibilityIdentifier(accessibilityIdentifier)
-    }
-
-    private func bubble(fixesWidth: Bool) -> some View {
-        Text(message)
-            .font(.body)
-            .foregroundStyle(Color.tsInk)
-            .fixedSize(horizontal: fixesWidth, vertical: true)
-            .padding(.horizontal, 15)
-            .padding(.vertical, 11)
-            .background(
-                Color.tsSurfaceMuted,
-                in: RoundedRectangle(cornerRadius: 17, style: .continuous)
-            )
-    }
-}
-
 private struct AgentContactReceiptTurn: View {
     let receipt: AgentContactReceipt
     let language: AppLanguage
@@ -8791,5 +8776,24 @@ private struct AskCitationDetailView: View {
                 .foregroundStyle(Color.tsInk)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+
+/// The exact send availability decision used by the Ask view. A tombstoned
+/// original durable Session disables sending while keeping the draft; only an
+/// explicit Start-new-Session may rebind.
+enum AskSendAvailability {
+    static func originalSessionUnavailable(activeSessionID: UUID?, sessionExists: Bool) -> Bool {
+        activeSessionID != nil && !sessionExists
+    }
+
+    static func canSendDraft(
+        hasComposerInput: Bool,
+        isSending: Bool,
+        isSavingContact: Bool,
+        originalSessionUnavailable: Bool
+    ) -> Bool {
+        hasComposerInput && !isSending && !isSavingContact && !originalSessionUnavailable
     }
 }

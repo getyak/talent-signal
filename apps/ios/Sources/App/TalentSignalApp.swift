@@ -265,7 +265,16 @@ struct TalentSignalApp: App {
                 .onChange(of: appSessionStore.phase) { _ in
                     Task { await labRuntimeStore.workspaceStore.reconcile() }
                 }
+                .environmentObject(appSessionStore)
                 .onChange(of: scenePhase) { phase in
+                    // Shared People + open-Session active refresh: foreground
+                    // wakes it, background pauses bounded polling.
+                    if phase == .active {
+                        WorkspaceActiveRefresh.shared.noteSceneActive()
+                        WorkspaceActiveRefresh.shared.noteForeground()
+                    } else {
+                        WorkspaceActiveRefresh.shared.noteSceneBackground()
+                    }
                     if phase == .active { labMetricKitStore.refresh() }
                     if phase == .background { labMetricKitStore.closeExport() }
                     guard phase == .active else { return }
@@ -347,12 +356,18 @@ struct TalentSignalApp: App {
                             onSignOut: {
                                 await appSessionStore.signOut()
                                 return appSessionStore.phase == .signedOut
+                            },
+                            currentIdentity: { [weak appSessionStore] in
+                                guard let appSessionStore,
+                                      case let .signedIn(current) = appSessionStore.phase else { return nil }
+                                return .init(baseURL: current.baseURL, accessToken: current.accessToken,
+                                             accountID: current.account.id, userID: current.user.id)
                             }
                         )
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .id(RuntimeEndpoint.scope(session.baseURL, accountID: session.account.id, userID: session.user.id))
+                .id(AccountOperationScope(baseURL: session.baseURL, accessToken: session.accessToken, accountID: session.account.id, userID: session.user.id))
             } else {
                 LabWorkspaceRecoveryView(store: labRuntimeStore.workspaceStore,
                     sessionStore: appSessionStore)

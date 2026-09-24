@@ -179,6 +179,11 @@ protocol AppAuthenticationServing {
     func googleChallenge() async throws -> AppleLoginChallenge
     func signInGoogle(identityToken: String, challengeID: String) async throws -> TalentSignalSession
     func signInEmail(email: String, password: String, registering: Bool) async throws -> TalentSignalSession
+    /// Verified signup: starts delivery only. The response is generic and the
+    /// code never leaves the server; the owner confirms from their email.
+    func startRegistration(email: String, password: String) async throws
+    /// The intentional confirmation of the emailed verification code.
+    func confirmRegistration(secret: String) async throws -> TalentSignalSession
     func challenge() async throws -> AppleLoginChallenge
     func signIn(
         identityToken: String,
@@ -194,6 +199,8 @@ extension AppAuthenticationServing {
     func googleChallenge() async throws -> AppleLoginChallenge { throw GoogleSignInError.unavailable }
     func signInGoogle(identityToken: String, challengeID: String) async throws -> TalentSignalSession { throw GoogleSignInError.unavailable }
     func signInEmail(email: String, password: String, registering: Bool) async throws -> TalentSignalSession { throw GoogleSignInError.unavailable }
+    func startRegistration(email: String, password: String) async throws { throw GoogleSignInError.unavailable }
+    func confirmRegistration(secret: String) async throws -> TalentSignalSession { throw GoogleSignInError.unavailable }
 }
 
 actor AppAuthenticationClient: AppAuthenticationServing {
@@ -225,6 +232,41 @@ actor AppAuthenticationClient: AppAuthenticationServing {
             : ["identifier": normalized, "password": password, "client_label": "ios"]
         let envelope: AppSessionEnvelope = try await request(path: registering ? "v1/auth/password/register" : "v1/auth/password/login",
             method: "POST", token: nil, body: body)
+        return try session(from: envelope)
+    }
+
+    struct AppRegistrationStartReceipt: Decodable {
+        let contractVersion: String
+        let status: String
+    }
+
+    func startRegistration(email: String, password: String) async throws {
+        let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let receipt: AppRegistrationStartReceipt = try await request(
+            path: "v1/auth/password/register",
+            method: "POST",
+            token: nil,
+            body: [
+                "username": "u" + UUID().uuidString.replacingOccurrences(of: "-", with: ""),
+                "email": normalized,
+                "display_name": String(normalized.split(separator: "@").first ?? "Talent Signal"),
+                "password": password,
+                "client_label": "ios",
+            ]
+        )
+        guard receipt.status == "verification_sent" else { throw AppSessionError.invalidResponse }
+    }
+
+    func confirmRegistration(secret: String) async throws -> TalentSignalSession {
+        let envelope: AppSessionEnvelope = try await request(
+            path: "v1/auth/password/register/confirm",
+            method: "POST",
+            token: nil,
+            body: [
+                "verification_secret": secret.trimmingCharacters(in: .whitespacesAndNewlines),
+                "client_label": "ios",
+            ]
+        )
         return try session(from: envelope)
     }
 

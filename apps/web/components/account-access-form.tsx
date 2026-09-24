@@ -32,10 +32,13 @@ export function AccountAccessForm({ callbackUrl, registrationEnabled, initialMod
   const pending = signInPending || registrationPending || oauthPending;
   const state = mode === "sign-in" ? signInState : registrationState;
   const register = mode === "register";
+  const [showSent, setShowSent] = useState(true);
+  const sent = register && Boolean(state.sent) && showSent;
   const [showError, setShowError] = useState(true);
   const error = showError ? state.error : "";
   function switchMode() {
     if (pending) return;
+    setShowSent(true);
     setMode(register ? "sign-in" : "register");
     setPassword("");
     setShowError(false);
@@ -50,6 +53,15 @@ export function AccountAccessForm({ callbackUrl, registrationEnabled, initialMod
       {notice && <p className={styles.error} role="alert">{notice}</p>}
       <OAuthPendingContext.Provider value={setOAuthPending}><fieldset className={styles.providerBoundary} disabled={signInPending || registrationPending}>{children}</fieldset></OAuthPendingContext.Provider>
       {children && <div className={styles.divider}><span>或使用邮箱</span></div>}
+      {sent ? (
+        <section className={styles.form} aria-live="polite">
+          <h2>验证邮件已发送</h2>
+          <p>我们把验证链接发到了 <strong>{state.values?.email ?? email}</strong>。打开邮件，点击链接并确认，就能完成注册。没有创建过任何账号，直到你完成验证。</p>
+          <p className={styles.hintText}>没收到？检查垃圾邮件，或重新发送。链接只对这次注册有效。</p>
+          <button type="button" className={styles.submit} onClick={() => setShowSent(false)}>重新发送验证邮件</button>
+        </section>
+      ) : null}
+      {!sent ? (
       <form className={styles.form} action={register ? registrationAction : signInAction} onSubmit={event => {
         if (pending) { event.preventDefault(); return; }
         setShowError(true);
@@ -81,7 +93,8 @@ export function AccountAccessForm({ callbackUrl, registrationEnabled, initialMod
           <SubmitButton mode={mode} />
         </fieldset>
       </form>
-      {registrationEnabled && <p className={styles.switchMode}>{register ? "已有账号？" : "第一次来？"}
+      ) : null}
+      {registrationEnabled && !sent && <p className={styles.switchMode}>{register ? "已有账号？" : "第一次来？"}
         <button type="button" onClick={switchMode} disabled={pending}>{register ? "登录" : "创建账号"}</button>
       </p>}
     </section>

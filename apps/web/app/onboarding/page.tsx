@@ -23,7 +23,12 @@ export default async function OnboardingPage({ searchParams }: {
   const edit = parameters.edit === "true";
   const claims = await readBackendSessionClaims().catch(() => null);
   if (!claims || backendSessionIsExpired(claims.backendExpiresAt)) {
-    redirect(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    // The backend-bound session failed or expired even though the primary
+    // auth session may still exist. Send the EXISTING recovery reason so the
+    // login page renders its recovery form instead of bouncing back here.
+    redirect(
+      `/login?reason=backend_session_expired&callbackUrl=${encodeURIComponent(callbackUrl)}`,
+    );
   }
   const data = await (async () => {
     try { const client = await authenticatedBackendClient(); return client ? await withAuthRequestTimeout(signal => client.accountOnboarding(signal), { timeoutMs: 5_000 }) : null; }
