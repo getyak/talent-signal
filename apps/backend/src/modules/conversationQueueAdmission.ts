@@ -250,7 +250,10 @@ export async function mutateConversationQueueEntry(
   });
   if (!outcome.replayed) {
     const { applied } = outcome;
-    if (applied.kind === "stop" && applied.queue_entry_id && applied.run_id && applied.status === "running") {
+    const stopsLiveRun =
+      (applied.kind === "stop" && applied.status === "running") ||
+      (applied.kind === "prioritize" && applied.status === "queued");
+    if (stopsLiveRun && applied.queue_entry_id && applied.run_id) {
       publishConversationQueueStop(auth.accountId, sessionId, applied.run_id);
     }
     publishConversationQueueChanged(auth.accountId, sessionId);
@@ -366,9 +369,6 @@ async function applyMutation(
          SET cancel_requested=true, cancel_auto_continue=true, updated_at=now(), revision=revision+1
          WHERE account_id=$1 AND id=$2 AND status='running'`,
         [auth.accountId, live.id],
-      );
-      queueMicrotask(() =>
-        publishConversationQueueStop(auth.accountId, sessionId, live.run_id),
       );
     }
     await client.query(

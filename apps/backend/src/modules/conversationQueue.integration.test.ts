@@ -1328,7 +1328,7 @@ suite("durable conversation queue", () => {
     }
   });
 
-  it("does not publish a stop when its transaction rolls back", async () => {
+  it.each(["stop", "prioritize"] as const)("does not publish a stop when its %s transaction rolls back", async (kind) => {
     const seeded = await seedSession();
     const stops: string[] = [];
     const unsubscribe = subscribeConversationQueueLive(event => {
@@ -1341,6 +1341,10 @@ suite("durable conversation queue", () => {
       });
       const claimed = await claimNextConversationQueueEntry(pool!, {
         accountId: seeded.accountId, sessionId: seeded.sessionId, workerId: "rollback-proof",
+      });
+      const queued = await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(), session_id: seeded.sessionId,
+        message_id: randomUUID(), objective: "A waiting supplement",
       });
       const before = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
       // Real PostgreSQL transaction, with a failure after the stop update but
@@ -1356,8 +1360,8 @@ suite("durable conversation queue", () => {
         };
       } } as unknown as Pool;
       await expect(mutateConversationQueueEntry(failingPool, seeded.auth, seeded.sessionId, {
-        kind: "stop", expected_revision: before.revision,
-        idempotency_key: randomUUID(), run_id: claimed!.runId,
+        ...(kind === "stop" ? { kind, run_id: claimed!.runId } : { kind, queue_entry_id: queued.response.queue_entry_id }),
+        expected_revision: before.revision, idempotency_key: randomUUID(),
       })).rejects.toThrow("SYNTHETIC_RECEIPT_FAILURE");
       expect((await entryRow(seeded.sessionId, seeded.accountId))[0]?.cancel_requested).toBe(false);
       expect(stops).toEqual([]);

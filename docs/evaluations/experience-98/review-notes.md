@@ -43,6 +43,15 @@ or false-state paths:
   system health and readiness. These tests use synthetic fixtures and do not
   mutate the resident database.
 
+The audit branch then incorporated current `origin/main` at `88eb33b3`
+(GET-49, PR #242). Its new prioritize operation used the same pre-commit stop
+publication pattern. Extending the real rollback regression to both stop and
+prioritize reproduced an emitted stop for the rolled-back prioritize operation.
+Both operations now publish only after commit; prioritize retains its explicit
+auto-continue behavior. Retest after migration 082: 52/52 queue, system-health
+and readiness checks passed against the disposable database, and backend
+typecheck passed.
+
 The original [Pi report](backend-audit.md) describes its own frozen first patch.
 Its F1 diff description is superseded by the correction above. F4 was reproduced
 and fixed. F3 currently has no observed UI exposure: the external read route
