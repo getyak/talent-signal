@@ -52,9 +52,9 @@ for suffix in dmg zip; do
   [[ ! -e "$OUTPUT/$BASE.$suffix" ]] || { echo 'Refusing to overwrite an existing package' >&2; exit 1; }
 done
 ln -s /Applications "$STAGING/dmg/Applications"
-cp "$ROOT/docs/operations/macos-install.txt" "$STAGING/dmg/READ ME.txt"
+cp "$ROOT/docs/operations/macos-install.txt" "$STAGING/dmg/Install.txt"
 if [[ "$MODE" == preview ]]; then
-  printf '\nPREVIEW: This build is ad-hoc signed and has NOT been notarized by Apple.\n' >> "$STAGING/dmg/READ ME.txt"
+  printf '\nPREVIEW: ad-hoc signed, not notarized by Apple.\n' >> "$STAGING/dmg/Install.txt"
 fi
 hdiutil create -quiet -volname 'Talent Signal' -srcfolder "$STAGING/dmg" -ov -format UDZO "$OUTPUT/$BASE.dmg"
 if [[ "$MODE" == signed ]]; then

@@ -52,10 +52,19 @@ struct WorkspaceDesktopSettings: View {
     var body: some View {
         TabView {
             ScrollView {
-                WorkspaceConnectionForm {
-                    openWindow(id: "workspace")
+                VStack(alignment: .leading, spacing: 0) {
+                    WorkspaceConnectionForm(mode: .settings) {
+                        openWindow(id: "workspace")
+                    }
+                    .frame(maxWidth: 400)
+                    Spacer(minLength: 0)
                 }
-            }.tabItem { Label("连接", systemImage: "network") }
+                .padding(.horizontal, 28)
+                .padding(.top, 24)
+                .padding(.bottom, 28)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .tabItem { Label("连接", systemImage: "network") }
             Form {
                 Section {
                     LabeledContent("当前版本", value: updater.appVersion)
@@ -88,7 +97,7 @@ struct WorkspaceDesktopSettings: View {
                 Toggle("窗口保持在其他窗口上方", isOn: $floating)
                 LabeledContent("新对话", value: "⌘ N")
                 LabeledContent("人物 / 日程", value: "⌘ 1 / ⌘ 2")
-                LabeledContent("连接与调试", value: "⌘ ,")
+                LabeledContent("连接", value: "⌘ ,")
                 LabeledContent("重新载入", value: "⌘ R")
             }.formStyle(.grouped).tabItem { Label("外观", systemImage: "textformat.size") }
         }

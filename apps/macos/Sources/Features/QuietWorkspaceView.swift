@@ -346,7 +346,7 @@ private struct ConnectedQuietWorkspace: View {
                     Image(systemName: "network.slash").font(.title)
                     Text("工作区暂不可用").font(.title2)
                     Text(failure).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    Button("重新载入", action: browser.retry).buttonStyle(.borderedProminent)
+                    Button("重新载入", action: browser.retry).buttonStyle(TSPrimaryButtonStyle())
                 }
                 .padding(40).frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(TSBrand.canvas)
@@ -388,6 +388,23 @@ private struct ConnectedQuietWorkspace: View {
     }
 }
 
+/// First-run install stays a compact, content-sized window instead of an empty workspace canvas.
+private struct FirstRunWindowFit: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            let size = NSSize(width: 480, height: 500)
+            window.setContentSize(size)
+            window.center()
+            window.toolbar = nil
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
 struct QuietWorkspaceView: View {
     @ObservedObject private var connection = WorkspaceConnection.shared
     @Environment(\.openSettings) private var openSettings
@@ -397,14 +414,21 @@ struct QuietWorkspaceView: View {
             ConnectedQuietWorkspace(origin: origin).id(origin.url)
                 .toolbar {
                     ToolbarItem {
-                        Button("连接与调试", systemImage: "slider.horizontal.3") { openSettings() }
+                        Button("连接", systemImage: "slider.horizontal.3") { openSettings() }
+                            .help("连接")
                     }
                 }
         } else {
-            WorkspaceConnectionForm(onConnected: {})
-                .frame(maxWidth: 560)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(TSBrand.canvas)
+            VStack(spacing: 0) {
+                Spacer(minLength: 28)
+                WorkspaceConnectionForm(mode: .firstRun, onConnected: {})
+                    .frame(maxWidth: 400)
+                    .padding(.horizontal, 44)
+                Spacer(minLength: 28)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(TSBrand.canvas)
+            .background(FirstRunWindowFit())
         }
     }
 }

@@ -2,6 +2,12 @@ import AppKit
 import SwiftUI
 
 struct WorkspaceConnectionForm: View {
+    enum Mode {
+        case firstRun
+        case settings
+    }
+
+    var mode: Mode = .settings
     var onConnected: () -> Void
     @ObservedObject private var connection = WorkspaceConnection.shared
     @State private var address = ""
@@ -15,83 +21,106 @@ struct WorkspaceConnectionForm: View {
     @State private var confirmSwitch = false
     @State private var copied = false
 
+    private var isFirstRun: Bool { mode == .firstRun }
     private var parsed: WorkspaceOrigin? { WorkspaceConnection.parseInput(address, allowLocalDevelopment: localDevelopment) }
+    private var trimmedAddress: String { address.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 8) {
-                Label(connection.origin == nil ? "连接你的工作区" : "连接与调试", systemImage: "network")
-                    .font(.title2.weight(.semibold))
-                Text("在这台 Mac 上继续同一份对话、人物和日程。")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                Text("工作区服务").font(.callout.weight(.medium))
-                TextField("https://你的工作区地址", text: $address)
-                    .textFieldStyle(.roundedBorder).accessibilityIdentifier("connection.address")
-                    .onSubmit { requestSave() }
-                Text("可以粘贴完整工作区链接。API 由该工作区的服务端配置。")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let parsed, parsed.url.absoluteString != address.trimmingCharacters(in: .whitespacesAndNewlines) {
-                    Text("将连接 \(parsed.url.absoluteString)").font(.caption).foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.bottom, isFirstRun ? 32 : 24)
+
+            Text("工作区地址")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(TSBrand.ink)
+
+            TextField("https://workspace.example.com", text: $address)
+                .textFieldStyle(.plain)
+                .font(.body)
+                .foregroundStyle(TSBrand.ink)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 11)
+                .background(TSBrand.raisedSurface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(TSBrand.hairline.opacity(0.9), lineWidth: 1)
                 }
-                HStack(spacing: 12) {
-                    Button(action: testConnection) {
-                        HStack(spacing: 6) {
-                            if probing { ProgressView().controlSize(.mini) }
-                            Text(probing ? "检查中…" : "测试连接")
+                .accessibilityIdentifier("connection.address")
+                .onSubmit { requestSave() }
+                .padding(.top, 8)
+
+            if let parsed, parsed.url.absoluteString != trimmedAddress {
+                Text("将使用：\(parsed.url.absoluteString)")
+                    .font(.caption)
+                    .foregroundStyle(TSBrand.secondaryInk)
+                    .textSelection(.enabled)
+                    .padding(.top, 8)
+            } else if isFirstRun {
+                Text("可粘贴完整工作区链接。仅 HTTPS，不含账号或密码。")
+                    .font(.caption)
+                    .foregroundStyle(TSBrand.secondaryInk)
+                    .padding(.top, 8)
+            }
+
+            if parsed != nil {
+                Button(action: testConnection) {
+                    HStack(spacing: 5) {
+                        if probing {
+                            ProgressView().controlSize(.mini)
+                                .accessibilityLabel("正在检查连接")
                         }
-                    }.disabled(parsed == nil || probing).accessibilityIdentifier("connection.test")
-                    Spacer()
-                    Button(connection.origin == nil ? "打开工作区" : "保存连接", action: requestSave)
-                        .buttonStyle(.borderedProminent).disabled(parsed == nil)
-                        .accessibilityIdentifier("connection.save")
+                        Text(probing ? "检查中…" : (isFirstRun ? "先测试连接" : "测试连接"))
+                            .underline(!probing, color: TSBrand.hairline)
+                    }
+                    .font(.subheadline.weight(.medium))
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(TSBrand.ink.opacity(0.72))
+                .disabled(probing)
+                .padding(.top, 6)
+                .accessibilityIdentifier("connection.test")
+                .accessibilityHint("可选：先检查服务是否可访问，再打开工作区。")
             }
-            if let error { Text(error).font(.callout).foregroundStyle(.red) }
-            else if !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && parsed == nil {
-                Text("请使用 HTTPS 地址或工作区链接。本机 HTTP 需在开发与诊断中启用；地址不能包含账号、查询参数或片段。")
-                    .font(.caption).foregroundStyle(.secondary)
+
+            if let error {
+                Text(error)
+                    .font(.callout)
+                    .foregroundStyle(TSBrand.seam)
+                    .padding(.top, 14)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if !trimmedAddress.isEmpty && parsed == nil {
+                Text(isFirstRun ? "需要 HTTPS 工作区地址。" : "请输入 HTTPS 工作区地址。")
+                    .font(.caption)
+                    .foregroundStyle(TSBrand.secondaryInk)
+                    .padding(.top, 12)
             }
+
             if let result {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: result.reachable ? "checkmark.circle" : "exclamationmark.circle")
-                        .foregroundStyle(result.reachable ? Color.secondary : Color.orange)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(result.summary).font(.callout.weight(.medium))
-                        Text(result.detail).font(.caption).foregroundStyle(.secondary)
-                    }
-                }.accessibilityElement(children: .combine).accessibilityIdentifier("connection.result")
+                probeResult(result)
+                    .padding(.top, 14)
             }
-            Divider()
-            DisclosureGroup("开发与诊断", isExpanded: $advanced) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Toggle("允许本机开发服务", isOn: $localDevelopment)
-                    Text("仅允许 localhost、127.0.0.1 或 ::1 使用 HTTP；远端始终使用 HTTPS。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Button("填入本机开发地址") { localDevelopment = true; address = "http://127.0.0.1:3000" }
-                    Toggle("启用网页检查器", isOn: $connection.inspectorEnabled)
-                    Text("开启后，可通过 Safari 的开发菜单检查此窗口。仅在调试时开启。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Text("客户端 \(DesktopUpdater.shared.appVersion)").font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        Button(copied ? "已复制" : "复制诊断摘要") {
-                            let summary = "Talent Signal \(DesktopUpdater.shared.appVersion)\nmacOS \(ProcessInfo.processInfo.operatingSystemVersionString)\nConnection: \(result?.summary ?? "Not checked")\n\(result?.detail ?? "")\nLocal development: \(localDevelopment)\nInspector: \(connection.inspectorEnabled)\nWorkspace address, cookies and content omitted."
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(summary, forType: .string)
-                            copied = true
-                        }
-                    }
-                    Text("摘要不包含服务地址、账号、登录凭据或对话内容。")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(.top, 14)
-            }.font(.callout)
-            Text("切换服务后会重新载入页面。不同服务的登录状态单独保存。")
-                .font(.caption).foregroundStyle(.secondary)
+
+            HStack {
+                Spacer(minLength: 0)
+                Button(isFirstRun ? "打开工作区" : "保存连接", action: requestSave)
+                    .buttonStyle(TSPrimaryButtonStyle())
+                    .disabled(parsed == nil)
+                    .accessibilityIdentifier("connection.save")
+            }
+            .padding(.top, 22)
+
+            if isFirstRun {
+                Text("私有工作区需先连接 Tailscale。向工作区所有者获取地址。")
+                    .font(.caption)
+                    .foregroundStyle(TSBrand.secondaryInk)
+                    .padding(.top, 18)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                advancedBlock
+                    .padding(.top, 28)
+            }
         }
-        .padding(28)
+        .padding(isFirstRun ? 0 : 4)
         .onAppear {
             address = connection.origin?.url.absoluteString ?? ""
             localDevelopment = connection.allowsLocalDevelopment
@@ -107,10 +136,112 @@ struct WorkspaceConnectionForm: View {
         }
     }
 
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if isFirstRun {
+                HStack(alignment: .center, spacing: 12) {
+                    TSBrandMark(size: 28)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Talent Signal")
+                    Text("连接你的工作区")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(TSBrand.ink)
+                        .tracking(-0.3)
+                }
+            } else {
+                Text("连接与调试")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(TSBrand.ink)
+                    .tracking(-0.25)
+            }
+            Text(isFirstRun ? "同一份对话、人物和日程，在这台 Mac 上继续。" : "查看或更改本机连接到的工作区服务。")
+                .font(.body)
+                .foregroundStyle(TSBrand.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, isFirstRun ? 40 : 0)
+        }
+    }
+
+    private func probeResult(_ result: ConnectionProbeResult) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: result.reachable ? "checkmark.circle" : "exclamationmark.circle")
+                .foregroundStyle(result.reachable ? TSBrand.evidence : TSBrand.seam)
+                .font(.body)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.summary)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(TSBrand.ink)
+                Text(result.detail)
+                    .font(.caption)
+                    .foregroundStyle(TSBrand.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            result.reachable ? TSBrand.evidenceTint : TSBrand.seamTint,
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("connection.result")
+    }
+
+    private var advancedBlock: some View {
+        DisclosureGroup(isExpanded: $advanced) {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("允许本机开发服务", isOn: $localDevelopment)
+                Text("仅允许 localhost、127.0.0.1 或 ::1 使用 HTTP；远端始终使用 HTTPS。")
+                    .font(.caption)
+                    .foregroundStyle(TSBrand.secondaryInk)
+                Button("填入本机开发地址") {
+                    localDevelopment = true
+                    address = "http://127.0.0.1:3000"
+                }
+                Toggle("启用网页检查器", isOn: $connection.inspectorEnabled)
+                Text("开启后，可通过 Safari 的开发菜单检查此窗口。仅在调试时开启。")
+                    .font(.caption)
+                    .foregroundStyle(TSBrand.secondaryInk)
+                HStack {
+                    Text("客户端 \(DesktopUpdater.shared.appVersion)")
+                        .font(.caption)
+                        .foregroundStyle(TSBrand.secondaryInk)
+                    Spacer()
+                    Button("复制诊断摘要") {
+                        let summary = "Talent Signal \(DesktopUpdater.shared.appVersion)\nmacOS \(ProcessInfo.processInfo.operatingSystemVersionString)\nConnection: \(result?.summary ?? "Not checked")\n\(result?.detail ?? "")\nLocal development: \(localDevelopment)\nInspector: \(connection.inspectorEnabled)\nWorkspace address, cookies and content omitted."
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(summary, forType: .string)
+                        copied = true
+                    }
+                }
+                if copied {
+                    Text("已复制 · 摘要不含服务地址、账号、凭据或对话内容。")
+                        .font(.caption)
+                        .foregroundStyle(TSBrand.secondaryInk)
+                }
+                Text("切换服务后会重新载入页面。不同服务的登录状态单独保存。")
+                    .font(.caption)
+                    .foregroundStyle(TSBrand.secondaryInk)
+            }
+            .padding(.top, 14)
+            .padding(.horizontal, 4)
+        } label: {
+            Text("开发与诊断")
+                .font(.callout.weight(.medium))
+                .foregroundStyle(TSBrand.secondaryInk)
+        }
+        .font(.callout)
+        .tsSurface()
+        .padding(.horizontal, 2)
+    }
+
     private func invalidateProbe() {
         probeTask?.cancel(); probeTask = nil
         probeID = UUID(); probing = false; result = nil; error = nil; copied = false
     }
+
     private func testConnection() {
         guard let origin = parsed else { return }
         invalidateProbe(); probing = true
@@ -121,11 +252,16 @@ struct WorkspaceConnectionForm: View {
             result = observed; probing = false
         }
     }
+
     private func requestSave() {
-        guard let parsed else { error = "请输入 HTTPS 工作区地址；本机 HTTP 需要启用开发服务。"; return }
-        if let current = connection.origin, current != parsed { confirmSwitch = true }
+        guard parsed != nil else {
+            error = "请输入 HTTPS 工作区地址。"
+            return
+        }
+        if let current = connection.origin, let parsed, current != parsed { confirmSwitch = true }
         else { save() }
     }
+
     private func save() {
         guard connection.save(address, allowLocalDevelopment: localDevelopment) else { return }
         onConnected()

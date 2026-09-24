@@ -97,6 +97,9 @@ updated.
   source imports and bundled releases with Opik version mirroring.
 - [Private Opik improvement](operations/opik-phase-one.md) covers corrections,
   bounded search, independent verification, release readback and source removal.
+- [Local iOS testing](operations/ios-local-testing.md) defines the primary,
+  compact, and iPad simulator profiles, the session lock, and when each device
+  is justified.
 - [Internal TestFlight backend on Tailscale](operations/testflight-local-backend.md)
   defines the owner-operated Mac, loopback, tailnet, and no-seed testing
   boundary.
