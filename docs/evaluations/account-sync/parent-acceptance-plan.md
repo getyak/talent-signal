@@ -27,6 +27,8 @@ Authentication session IDs must differ by device.
 | Historical duplicate with governed data or unclassified table | No generic reparent or deletion; exact protected reconciliation gap |
 | Historical duplicate with indirect ownership or audit tombstone | Inventory sees differently named foreign keys; provenance retained |
 | Historical truly empty duplicate, dual proof and current preview | Explicit canonical choice, atomic transfer, obsolete sessions revoked, audit/readback preserved |
+| Old request passes authentication, pauses, then resumes after source retirement | Database rejects the late Person/Session write; neither account receives redirected data; receipt and credential transfer occur exactly once |
+| Old product write commits while reconciliation waits on the shared account lock | Reconciliation observes the new data and refuses an empty transfer |
 
 For every mutation: test expiry, replay, wrong provider, wrong origin, revoked
 source session, stale credential revision, malformed input, rollback and retry.

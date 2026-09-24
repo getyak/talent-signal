@@ -130,6 +130,26 @@ full classified account-data inventory, not only People and agent_sessions.
 Recheck emptiness and identity ownership inside the transaction. Never transfer
 roles/owner privileges from an unrelated multi-member workspace.
 
+Retirement must also close the in-flight-write race. Revoking an auth session
+does not revoke an already admitted request, and retaining an account/user
+tombstone leaves ordinary foreign keys valid. Keep a persistent active/retired
+state on the account row. Every governed write transaction must take a shared
+row lock on that same existing account row and verify it is active before the
+mutation, retaining the lock until commit. Database guards must cover classified
+direct and indirect ownership and background writes, checking both OLD and NEW
+account scopes when applicable; unknown coverage fails closed. Do not lock only
+an optional retirement record. Existing retention/maintenance exceptions, if
+needed, must be narrow and explicit, not a general bypass.
+
+The reconciliation transaction locks both account rows exclusively in a stable
+order, then repeats the complete inventory. If a product write acquired its lock
+first, reconciliation sees that committed data and refuses the empty transfer.
+If retirement wins, the late write sees retired state after waiting and fails
+without changing either account. Transfer credentials, revoke old sessions,
+write the receipt, and finally mark the source retired in one transaction. Never
+silently redirect an old product write to the canonical account. New source
+sessions and credential changes must also be rejected after retirement.
+
 If both accounts contain governed data, do not implement a generic account_id
 SQL rewrite. Present a protected review-required state and a concrete inventory
 for a separately reviewed migration. All data remains accessible through its
