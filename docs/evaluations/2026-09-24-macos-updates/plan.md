@@ -13,14 +13,20 @@ independent security review and fixes, 16 focused native tests, three Web
 component tests, real native and WebKit footer old-to-new upgrades, synthetic-click
 rejection, archive-tamper recovery and independent final review.
 
-Active: [draft PR 245](https://github.com/getyak/talent-signal/pull/245) is open;
-await final-head remote CI. The first full macOS check passed on 2396ab6a. Local disk
-is below the heavyweight build threshold, so no full Xcode build runs locally.
+Active: [PR 245](https://github.com/getyak/talent-signal/pull/245) was merged as
+`9d8d72ca` during credential recovery. Native checks passed on `98050058`; the
+original iOS check was still running at readback, so merge is not evidence that
+all checks finished. Credential recovery guidance is in
+[PR 246](https://github.com/getyak/talent-signal/pull/246). Local disk remains below
+the heavyweight build threshold; no full Xcode build runs locally.
 
 Remaining acceptance: remote exact-head CI, Developer ID/notary/Sparkle credential
 configuration, signed/notarized public release and feed readback, manual bootstrap
 of the current unconfigured preview, and a second physical Mac update. The user
-has been asked where existing credentials are stored; no answer yet.
+identified the previously saved Apple credentials. They were recovered from
+Infisical staging:/release and passed real notary authentication; see the
+verification report. Do not ask for that location again. Developer ID Application
+was not found in the checked stores; no new certificate has been created.
 
 Source of truth: [verification report](README.md), [runtime evidence](runtime-proof.txt)
 and [distribution contract](../../operations/macos-distribution.md).

@@ -7,9 +7,19 @@ Native Settings showed an unconfigured updater and a disabled Check for Updates
 button. The disabled automatic-check toggle nevertheless appeared enabled.
 The bundle contained an empty `SUPublicEDKey`; the fixed production appcast
 returned HTTP 404. Repository and `macos-release` environment variables were
-empty. Presence-only checks found none of the documented macOS signing,
-Sparkle, or notarization credentials in Infisical `staging:/release`.
-No credentials or workspace contents are included in this report.
+empty. The initial name-only check found no `MACOS_*` credentials in
+Infisical `staging:/release`; that did not establish that notarization credentials
+were absent. The owner identified that Apple release credentials had already
+been saved. A follow-up read found the existing `APP_STORE_CONNECT_API_*` and
+issuer entries in `talent-signal` project `staging:/release`. A real read-only
+`notarytool history` request authenticated successfully, with zero submissions.
+The private Match certificate store contained only a distribution certificate,
+confirmed as `IOS_DISTRIBUTION` by the authenticated Apple certificate inventory.
+Neither local identities nor that API inventory contained Developer ID Application.
+No replacement key was created or existing credential rewritten. The remaining
+signing gap is Developer ID Application plus macOS-specific release wiring and
+Sparkle trust-key provisioning. No credential values or workspace contents are
+included in this report.
 
 The existing [release workflow](../../../.github/workflows/release-macos.yml)
 accepts successful trusted push CI for the exact current `main` revision,

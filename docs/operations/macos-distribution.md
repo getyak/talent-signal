@@ -92,6 +92,20 @@ identity restricted to this repository's `macos-release` environment, audience
 Set `INFISICAL_MACOS_IDENTITY_ID` as a repository variable. Restrict the GitHub
 `macos-release` environment to the default branch.
 
+Before requesting new credentials, resolve the existing release contract. A
+missing `MACOS_*` name does not prove the underlying credential is absent.
+The same folder may already contain `APP_STORE_CONNECT_API_KEY_CONTENT`,
+`APP_STORE_CONNECT_API_KEY_ID`, and `APP_STORE_CONNECT_ISSUER_ID`. Validate those
+credentials with a read-only `notarytool history` request before provisioning
+new ones or binding them to the macOS names below. Keep any transient key file
+mode `0600` and remove it immediately; never print its value. Authentication
+success proves access, not notarization of a release.
+
+Check the certificate type separately: an encrypted Fastlane Match distribution
+certificate or an installed Apple Distribution identity is not a Developer ID
+Application identity. Inspect the local signing identities and the existing
+certificate inventory before asking the owner to locate or create another key.
+
 The scoped release environment needs:
 
 - `MACOS_CERTIFICATE_P12_BASE64`: Developer ID Application certificate with its private key;
