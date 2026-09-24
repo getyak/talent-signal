@@ -12225,13 +12225,13 @@ p {
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   display: grid;
-  gap: 11px;
+  gap: 12px;
   margin: 0 14px 12px;
   max-height: min(560px, calc(100dvh - 270px));
   order: 3;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px;
+  padding: 14px;
 }
 
 .context-agent-thread .context-agent-create {
@@ -12258,18 +12258,18 @@ p {
 
 .context-agent-create > header > div {
   display: grid;
-  gap: 3px;
+  gap: 4px;
 }
 
 .context-agent-create > header strong {
-  font-size: 0.7rem;
+  font-size: 1rem;
 }
 
 .context-agent-create > header p,
 .context-agent-create > footer p {
   color: var(--muted);
-  font-size: 0.58rem;
-  line-height: 1.45;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .context-agent-create > header .context-icon-button {
@@ -12279,13 +12279,31 @@ p {
 
 .context-agent-create label {
   display: grid;
-  gap: 5px;
+  gap: 6px;
 }
 
 .context-agent-create label > span {
   color: var(--muted-strong);
-  font-size: 0.59rem;
+  font-size: 0.875rem;
   font-weight: 710;
+}
+
+.context-agent-create label small,
+.context-agent-create__draft-summary small {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.context-agent-create__draft-summary small {
+  color: var(--muted-strong);
+}
+
+.context-agent-create__draft-summary i {
+  color: var(--accent-strong);
+  font-size: 0.875rem;
+  font-style: normal;
+  font-weight: 690;
 }
 
 .context-agent-create input,
@@ -12295,9 +12313,9 @@ p {
   border-radius: 8px;
   color: var(--foreground);
   font-family: inherit;
-  font-size: 0.68rem;
+  font-size: 1rem;
   line-height: 1.5;
-  min-height: 38px;
+  min-height: 44px;
   outline: 0;
   padding: 8px 9px;
   resize: vertical;
@@ -12321,7 +12339,7 @@ p {
 .context-agent-create__footer-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
@@ -12619,15 +12637,40 @@ p {
 
 .context-agent-create__error {
   color: var(--error);
-  font-size: 0.62rem;
-  line-height: 1.45;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.context-agent-create__error:focus {
+  outline: 2px solid var(--error);
+  outline-offset: 2px;
+}
+
+.context-agent-create__committed {
+  background: var(--surface-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.context-agent-create__committed strong {
+  color: var(--muted-strong);
+  font-size: 0.875rem;
+}
+
+.context-agent-create__committed p {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .context-agent-identity-check {
   border-block: 1px solid var(--line);
   display: grid;
-  gap: 9px;
-  padding-block: 10px;
+  gap: 10px;
+  padding-block: 12px;
 }
 
 .context-agent-identity-check > header {
@@ -12638,13 +12681,13 @@ p {
 
 .context-agent-identity-check > header span {
   color: var(--muted-strong);
-  font-size: 0.59rem;
+  font-size: 0.875rem;
   font-weight: 720;
 }
 
 .context-agent-identity-check > header i {
   color: var(--muted);
-  font-size: 0.52rem;
+  font-size: 0.875rem;
   font-style: normal;
   font-weight: 760;
   letter-spacing: 0.05em;
@@ -12661,7 +12704,7 @@ p {
   align-items: center;
   color: var(--muted);
   display: flex;
-  font-size: 0.58rem;
+  font-size: 0.875rem;
   gap: 6px;
   line-height: 1.5;
 }
@@ -12718,7 +12761,7 @@ p {
   color: var(--accent-strong);
   display: flex;
   flex: 0 0 auto;
-  font-size: 0.58rem;
+  font-size: 0.875rem;
   font-weight: 780;
   height: 27px;
   justify-content: center;
@@ -12732,7 +12775,7 @@ p {
 }
 
 .context-agent-person-matches > article > header strong {
-  font-size: 0.65rem;
+  font-size: 1rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -12740,7 +12783,7 @@ p {
 
 .context-agent-person-matches > article > header small {
   color: var(--muted);
-  font-size: 0.53rem;
+  font-size: 0.875rem;
 }
 
 .context-agent-temporal-status {
@@ -12751,7 +12794,7 @@ p {
   color: var(--muted-strong);
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: 0.48rem;
+  font-size: 0.875rem;
   font-style: normal;
   font-weight: 760;
   gap: 4px;
@@ -12788,7 +12831,7 @@ article[data-temporal-role="historical"]
   border-radius: 999px;
   color: var(--muted);
   display: inline-flex;
-  font-size: 0.5rem;
+  font-size: 0.875rem;
   gap: 4px;
   line-height: 1.35;
   padding: 4px 7px;
@@ -12806,8 +12849,8 @@ article[data-temporal-role="historical"]
 
 .context-agent-temporal-note {
   color: var(--muted-strong);
-  font-size: 0.53rem;
-  line-height: 1.45;
+  font-size: 0.875rem;
+  line-height: 1.5;
   margin: 0;
 }
 
@@ -12831,7 +12874,7 @@ article[data-temporal-role="historical"]
   border-radius: 7px;
   color: var(--muted-strong);
   display: inline-flex;
-  font-size: 0.55rem;
+  font-size: 0.875rem;
   font-weight: 680;
   gap: 5px;
   min-height: 30px;
@@ -12870,13 +12913,13 @@ article[data-temporal-role="historical"]
 }
 
 .context-agent-handle-owner strong {
-  font-size: 0.58rem;
+  font-size: 0.875rem;
 }
 
 .context-agent-handle-owner small {
   color: var(--muted-strong);
-  font-size: 0.53rem;
-  line-height: 1.4;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .context-agent-distinct-person {
@@ -12900,15 +12943,15 @@ article[data-temporal-role="historical"]
 .context-agent-distinct-person > span {
   color: var(--muted-strong);
   display: grid;
-  font-size: 0.58rem;
+  font-size: 0.875rem;
   font-weight: 690;
-  gap: 2px;
-  line-height: 1.35;
+  gap: 4px;
+  line-height: 1.5;
 }
 
 .context-agent-distinct-person small {
   color: var(--muted);
-  font-size: 0.52rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
@@ -13776,6 +13819,18 @@ article[data-state="unresolved"]
   .context-agent-identity-review__contexts button,
   .context-agent-create-distinct {
     min-height: 44px;
+  }
+
+  .context-agent-create input,
+  .context-agent-create textarea,
+  .context-agent-create .context-primary-button,
+  .context-agent-create .context-secondary-button {
+    min-height: 44px;
+  }
+
+  .context-agent-create > header .context-icon-button {
+    height: 44px;
+    width: 44px;
   }
 
   .context-chat__composer {

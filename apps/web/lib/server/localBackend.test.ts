@@ -8,6 +8,7 @@ vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 import { parseScreenshotCaptureDraft } from "../screenshot-capture";
 import { issueScreenshotAnalysisReceipt } from "./screenshot-analysis-receipt";
 import {
+  commitRelationshipResource,
   commitScreenshotCapture,
   compileRelationshipKnowledge,
   deleteBackendCapture,
@@ -484,5 +485,69 @@ describe("local reversible person merge workflow", () => {
       `http://127.0.0.1:4317/v1/person-merges/${mergeOperationId}/reversal`,
       expect.objectContaining({ method: "GET" }),
     );
+  });
+});
+
+describe("governed resource observation time validation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function noteInput(capturedAt: unknown) {
+    return {
+      request_id: "11111111-1111-4111-8111-111111111111",
+      captured_at: capturedAt,
+      person_id: personId,
+      relationship_context_id: contextId,
+      channel: "chat",
+      kind: "personal_note",
+      display_name: "Synthetic note",
+      media_type: "text/plain",
+      fragments: [
+        {
+          client_resource_id:
+            "web-resource:11111111-1111-4111-8111-111111111111",
+          kind: "note_revision",
+          sequence: 0,
+          text: "Synthetic note body",
+          locator: { kind: "note_revision", revision: 1 },
+          attribution: { actor_kind: "recruiter", status: "confirmed" },
+          review_status: "reviewed",
+          parser: { name: "direct-note-input", version: "1.0.0" },
+        },
+      ],
+    } as unknown as Parameters<typeof commitRelationshipResource>[0];
+  }
+
+  it("rejects a missing captured_at with a friendly validation error before any backend call", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      commitRelationshipResource(noteInput(undefined)),
+    ).rejects.toThrow(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed captured_at without a raw RangeError and never invents one", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const caught = await commitRelationshipResource(
+      noteInput("Friday, August 7"),
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).name).not.toBe("RangeError");
+    expect((caught as Error).message).toBe(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
+    // Product copy must not expose internal format names or request plumbing.
+    expect((caught as Error).message).not.toMatch(/ISO|时间戳|request/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

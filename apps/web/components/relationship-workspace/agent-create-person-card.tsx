@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  type AgentPersonOutcome,
   type AgentPersonTarget,
   agentPersonOutcome,
   agentPersonScopeFields,
@@ -35,6 +36,31 @@ import {
 } from "@/lib/agent-person-resolution";
 import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
 import type { AgentContactDraft } from "@/lib/agent-contact-intake";
+
+// Every resource POST keeps its own stable request identity: the request ID
+// (server idempotency) and the client-attested observation time travel
+// together. Both survive same-intent retries and reset together when the
+// draft intent changes, so a retry can never invent a new observation time or
+// duplicate an already-committed person or note.
+type ResourceRequestIdentity = { requestId: string; capturedAt: string };
+// Frozen after the first source commits: partial-success recovery may only
+// complete the missing confirmed clue against this exact saved identity and
+// these frozen labels — never create another person or note, and never
+// retarget the committed person from a later directory search.
+type CommittedPersonSource = {
+  scope: RelationshipScope;
+  receipt: ResourceCaptureResponse;
+  outcome: AgentPersonOutcome;
+};
+function ensureRequestIdentity(ref: {
+  current: ResourceRequestIdentity | null;
+}): ResourceRequestIdentity {
+  ref.current ??= {
+    requestId: crypto.randomUUID(),
+    capturedAt: new Date().toISOString(),
+  };
+  return ref.current;
+}
 
 function identityHandleLabel(type: IdentityHandleType) {
   switch (type) {
@@ -86,8 +112,15 @@ export function AgentCreatePersonCard({
   onDeferred: (caseId: string) => void;
   onReviewDuplicates?: () => void;
 }) {
-  const requestIdRef = useRef<string | null>(null);
-  const handleRequestIdRef = useRef<string | null>(null);
+  const sourceRequestRef = useRef<ResourceRequestIdentity | null>(null);
+  const handleRequestRef = useRef<ResourceRequestIdentity | null>(null);
+  const deferRequestRef = useRef<ResourceRequestIdentity | null>(null);
+  function resetDraftRequests() {
+    sourceRequestRef.current = null;
+    handleRequestRef.current = null;
+    deferRequestRef.current = null;
+  }
+  const errorRef = useRef<HTMLParagraphElement | null>(null);
   const [name, setName] = useState(initialDraft?.name ?? "");
   const [identityClue, setIdentityClue] = useState(
     initialDraft?.identityClue ?? "",
@@ -119,8 +152,15 @@ export function AgentCreatePersonCard({
       !initialDraft.sourceNote,
   );
   const [showAllMatches, setShowAllMatches] = useState(false);
+  const [committedSource, setCommittedSource] =
+    useState<CommittedPersonSource | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.focus();
+    }
+  }, [error]);
   const parsedIdentityClue = useMemo(
     () => parseIdentityHandleQuery(identityClue),
     [identityClue],
@@ -235,6 +275,13 @@ export function AgentCreatePersonCard({
   ]);
 
   async function commitPersonSource() {
+    // After the first source committed, retries only complete the missing
+    // confirmed clue against that exact saved identity: never a second
+    // person or note, never a person retargeted by a later search.
+    if (committedSource) {
+      await completeSavedPerson();
+      return;
+    }
     if (!ready) {
       setError(
         lookupState === "error"
@@ -243,7 +290,7 @@ export function AgentCreatePersonCard({
       );
       return;
     }
-    requestIdRef.current ??= crypto.randomUUID();
+    const sourceRequest = ensureRequestIdentity(sourceRequestRef);
     setBusy(true);
     setError("");
     try {
@@ -254,7 +301,8 @@ export function AgentCreatePersonCard({
           cache: "no-store",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-          request_id: requestIdRef.current,
+          request_id: sourceRequest.requestId,
+          captured_at: sourceRequest.capturedAt,
           ...agentPersonScopeFields(target, name, contextLabel),
           type: "note",
           title:
@@ -284,40 +332,6 @@ export function AgentCreatePersonCard({
           "打开人物页面前，此来源仍需完成身份审阅。",
         );
       }
-      const receipts = [...payload.receipts];
-      if (identityClueConfirmed && parsedIdentityClue) {
-        handleRequestIdRef.current ??= crypto.randomUUID();
-        const handleResponse = await relationshipIntegrationFetch(
-          "/api/local-integration/resources",
-          {
-            method: "POST",
-            cache: "no-store",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              request_id: handleRequestIdRef.current,
-              scope_mode: "existing",
-              person_id: first.identity.person_id,
-              relationship_context_id:
-                first.identity.relationship_context_id,
-              type: "contact",
-              value: identityClue.trim(),
-              identity_clue_confirmed: true,
-            }),
-          },
-        );
-        const handlePayload = (await handleResponse.json()) as
-          | { receipts: ResourceCaptureResponse[] }
-          | { message?: string };
-        if (
-          !handleResponse.ok ||
-          !("receipts" in handlePayload)
-        ) {
-          throw new Error(
-            "关系来源已保存，但已确认身份线索未保存。请审阅线索并重试。",
-          );
-        }
-        receipts.push(...handlePayload.receipts);
-      }
       const personLabel =
         target.mode === "new_person"
           ? name.trim()
@@ -326,21 +340,27 @@ export function AgentCreatePersonCard({
         target.mode === "existing_context"
           ? target.relationshipContext.display_label
           : contextLabel.trim();
-      onCommitted(
-        {
-          contract_version: first.contract_version,
-          person: {
-            id: first.identity.person_id,
-            display_label: personLabel,
-          },
-          relationship_context: {
-            id: first.identity.relationship_context_id,
-            display_label: savedContextLabel,
-          },
+      const scope: RelationshipScope = {
+        contract_version: first.contract_version,
+        person: {
+          id: first.identity.person_id,
+          display_label: personLabel,
         },
-        receipts,
-        agentPersonOutcome(target),
-      );
+        relationship_context: {
+          id: first.identity.relationship_context_id,
+          display_label: savedContextLabel,
+        },
+      };
+      const outcome = agentPersonOutcome(target);
+      const receipts = [...payload.receipts];
+      if (identityClueConfirmed && parsedIdentityClue) {
+        // Freeze the committed person, scope and labels before the clue
+        // attempt: a clue failure is only ever recoverable as a clue retry
+        // against this identity.
+        setCommittedSource({ scope, receipt: first, outcome });
+        receipts.push(...(await saveConfirmedClue(scope)));
+      }
+      onCommitted(scope, receipts, outcome);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -352,6 +372,74 @@ export function AgentCreatePersonCard({
     }
   }
 
+  async function saveConfirmedClue(scope: RelationshipScope): Promise<
+    ResourceCaptureResponse[]
+  > {
+    const handleRequest = ensureRequestIdentity(handleRequestRef);
+    const handleResponse = await relationshipIntegrationFetch(
+      "/api/local-integration/resources",
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: handleRequest.requestId,
+          captured_at: handleRequest.capturedAt,
+          scope_mode: "existing",
+          person_id: scope.person.id,
+          relationship_context_id: scope.relationship_context.id,
+          type: "contact",
+          value: identityClue.trim(),
+          identity_clue_confirmed: true,
+        }),
+      },
+    );
+    const handlePayload = (await handleResponse.json()) as
+      | { receipts: ResourceCaptureResponse[] }
+      | { message?: string };
+    if (!handleResponse.ok || !("receipts" in handlePayload)) {
+      throw new Error(
+        "关系来源已保存，但已确认身份线索未保存。请审阅或修改线索后重试，也可直接打开已保存的人物。",
+      );
+    }
+    return handlePayload.receipts;
+  }
+
+  async function completeSavedPerson() {
+    const saved = committedSource;
+    if (!saved) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const receipts = [saved.receipt];
+      if (identityClueConfirmed && parsedIdentityClue) {
+        receipts.push(...(await saveConfirmedClue(saved.scope)));
+      }
+      onCommitted(saved.scope, receipts, saved.outcome);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "无法保存关系来源。",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openSavedPerson() {
+    if (!committedSource) {
+      return;
+    }
+    onCommitted(
+      committedSource.scope,
+      [committedSource.receipt],
+      committedSource.outcome,
+    );
+  }
+
   async function deferIdentityReview() {
     if (!reviewReady) {
       setError(
@@ -359,7 +447,7 @@ export function AgentCreatePersonCard({
       );
       return;
     }
-    requestIdRef.current ??= crypto.randomUUID();
+    const deferRequest = ensureRequestIdentity(deferRequestRef);
     setBusy(true);
     setError("");
     try {
@@ -370,7 +458,8 @@ export function AgentCreatePersonCard({
           cache: "no-store",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-          request_id: requestIdRef.current,
+          request_id: deferRequest.requestId,
+          captured_at: deferRequest.capturedAt,
           scope_mode: "identity_candidates",
           candidate_person_ids: matches.map((person) => person.id),
           contact_name: name.trim(),
@@ -446,10 +535,35 @@ export function AgentCreatePersonCard({
             <span>{contextLabel || "需要关系背景"}</span>
           </p>
           <small>{firstNote}</small>
-          <i>仅为提议 · 尚未发生任何变化</i>
+          <i>
+            {committedSource
+              ? "人物与首条来源已保存 · 身份线索仍待处理"
+              : "仅为提议 · 尚未发生任何变化"}
+          </i>
         </div>
       ) : null}
-      {error ? <p className="context-agent-create__error">{error}</p> : null}
+      {error ? (
+        <p
+          className="context-agent-create__error"
+          ref={errorRef}
+          role="alert"
+          tabIndex={-1}
+        >
+          {error}
+        </p>
+      ) : null}
+      {committedSource ? (
+        <div className="context-agent-create__committed" role="status">
+          <strong>
+            已保存：{committedSource.scope.person.display_label} ·{" "}
+            {committedSource.scope.relationship_context.display_label}
+          </strong>
+          <p>
+            人物与首条来源已保存，不会重复创建或合并。
+            下面仅剩尚未保存的已确认身份线索，可修改、取消确认或放弃。
+          </p>
+        </div>
+      ) : null}
       <details
         className="context-agent-create__details"
         onToggle={(event) =>
@@ -462,6 +576,7 @@ export function AgentCreatePersonCard({
         <span>人物</span>
         <input
           autoComplete="off"
+          disabled={Boolean(committedSource)}
           maxLength={200}
           onChange={(event) => {
             const nextName = event.target.value;
@@ -477,8 +592,7 @@ export function AgentCreatePersonCard({
             setTarget({ mode: "new_person" });
             setDifferentPersonConfirmed(false);
             setShowAllMatches(false);
-            requestIdRef.current = null;
-            handleRequestIdRef.current = null;
+            resetDraftRequests();
           }}
           placeholder="例如：陈雅宁"
           value={name}
@@ -505,8 +619,7 @@ export function AgentCreatePersonCard({
             setTarget({ mode: "new_person" });
             setDifferentPersonConfirmed(false);
             setShowAllMatches(false);
-            requestIdRef.current = null;
-            handleRequestIdRef.current = null;
+            resetDraftRequests();
           }}
           placeholder="邮箱、电话、LinkedIn 网址或 wechat:ID"
           value={identityClue}
@@ -523,21 +636,29 @@ export function AgentCreatePersonCard({
       </details>
       <div
         className="context-agent-identity-check"
-        data-state={lookupState}
+        data-state={committedSource ? "resolved" : lookupState}
       >
         <header>
           <span>身份检查</span>
           <i>
-            {lookupState === "loading"
-              ? "检查中"
-              : lookupState === "ready"
-                ? `${matches.length} 个可能匹配`
-                : lookupState === "error"
-                  ? "不可用"
-                  : "必需"}
+            {committedSource
+              ? "已确定"
+              : lookupState === "loading"
+                ? "检查中"
+                : lookupState === "ready"
+                  ? `${matches.length} 个可能匹配`
+                  : lookupState === "error"
+                    ? "不可用"
+                    : "必需"}
           </i>
         </header>
-        {lookupState === "idle" ? (
+        {committedSource ? (
+          <p>
+            身份已确定为 {committedSource.scope.person.display_label} ·{" "}
+            {committedSource.scope.relationship_context.display_label}
+            。不会再根据新的查找结果更改、合并或重新绑定此人物。
+          </p>
+        ) : lookupState === "idle" ? (
           <p>
             选择新建或现有身份前，请输入姓名或已知身份线索。
           </p>
@@ -676,8 +797,7 @@ export function AgentCreatePersonCard({
                         setName(person.display_label);
                         setContextLabel(context.display_label);
                         setDifferentPersonConfirmed(false);
-                        requestIdRef.current = null;
-                        handleRequestIdRef.current = null;
+                        resetDraftRequests();
                       }}
                       type="button"
                     >
@@ -698,8 +818,7 @@ export function AgentCreatePersonCard({
                       });
                       setName(person.display_label);
                       setDifferentPersonConfirmed(false);
-                      requestIdRef.current = null;
-                      handleRequestIdRef.current = null;
+                      resetDraftRequests();
                     }}
                     type="button"
                   >
@@ -745,7 +864,8 @@ export function AgentCreatePersonCard({
             没有现有人才匹配所提供的姓名或已确认身份线索，可以创建新身份。
           </p>
         )}
-        {lookupState === "ready" &&
+        {!committedSource &&
+        lookupState === "ready" &&
         (exactMatches.length > 0 || expiredHandleMatches.length > 0) &&
         confirmedHandleMatches.length === 0 &&
         target.mode === "new_person" ? (
@@ -754,8 +874,7 @@ export function AgentCreatePersonCard({
               checked={differentPersonConfirmed}
               onChange={(event) => {
                 setDifferentPersonConfirmed(event.target.checked);
-                requestIdRef.current = null;
-                handleRequestIdRef.current = null;
+                resetDraftRequests();
               }}
               type="checkbox"
             />
@@ -771,7 +890,7 @@ export function AgentCreatePersonCard({
         ) : null}
         {lookupState === "ready" &&
         confirmedHandleMatches.length > 0 &&
-        target.mode === "new_person" ? (
+        (Boolean(committedSource) || target.mode === "new_person") ? (
           <div
             className="context-agent-handle-owner"
             role="note"
@@ -785,12 +904,15 @@ export function AgentCreatePersonCard({
                   .join(", ")}
               </strong>
               <small>
-                请选择当前人物、移除线索，或将此来源保留为未解决。历史归属者仍可用于对比，但不能接收此来源。
+                {committedSource
+                  ? `人物已固定为 ${committedSource.scope.person.display_label}。请核对这条线索是否属于此人；不确定时请取消确认，直接打开已保存的人物。`
+                  : "请选择当前人物、移除线索，或将此来源保留为未解决。历史归属者仍可用于对比，但不能接收此来源。"}
               </small>
             </p>
           </div>
         ) : null}
-        {lookupState === "ready" &&
+        {!committedSource &&
+        lookupState === "ready" &&
         matches.length > 0 &&
         confirmedHandleMatches.length === 0 &&
         target.mode !== "new_person" ? (
@@ -800,8 +922,7 @@ export function AgentCreatePersonCard({
               setTarget({ mode: "new_person" });
               setContextLabel("");
               setDifferentPersonConfirmed(false);
-              requestIdRef.current = null;
-              handleRequestIdRef.current = null;
+              resetDraftRequests();
             }}
             type="button"
           >
@@ -814,11 +935,12 @@ export function AgentCreatePersonCard({
           <input
             checked={identityClueConfirmed}
             disabled={
-              lookupState !== "ready" || identityChoiceNeedsReview
+              !committedSource &&
+              (lookupState !== "ready" || identityChoiceNeedsReview)
             }
             onChange={(event) => {
               setIdentityClueConfirmed(event.target.checked);
-              handleRequestIdRef.current = null;
+              handleRequestRef.current = null;
             }}
             type="checkbox"
           />
@@ -826,9 +948,11 @@ export function AgentCreatePersonCard({
             将 {maskedIdentityClue} 保存为已确认的
             {identityHandleLabel(parsedIdentityClue.type)}线索
             <small>
-              {identityChoiceNeedsReview
-                ? "确认这条线索前，请先选择身份。"
-                : "仅保存哈希、遮蔽提示、受治理来源和审阅期限，不保存原始值。邮箱、电话与微信线索每年复核。"}
+              {committedSource
+                ? "身份已确定。这条线索只会附加到上面已保存的人物。"
+                : identityChoiceNeedsReview
+                  ? "确认这条线索前，请先选择身份。"
+                  : "仅保存哈希、遮蔽提示、受治理来源和审阅期限，不保存原始值。邮箱、电话与微信线索每年复核。"}
             </small>
           </span>
         </label>
@@ -843,12 +967,14 @@ export function AgentCreatePersonCard({
           <span>关系背景</span>
           <input
             autoComplete="off"
-            disabled={target.mode === "existing_context"}
+            disabled={
+              Boolean(committedSource) ||
+              target.mode === "existing_context"
+            }
             maxLength={200}
             onChange={(event) => {
               setContextLabel(event.target.value);
-              requestIdRef.current = null;
-              handleRequestIdRef.current = null;
+              resetDraftRequests();
             }}
             placeholder="例如：产品副总裁寻访"
             value={contextLabel}
@@ -857,10 +983,11 @@ export function AgentCreatePersonCard({
         <label>
           <span>首个来源</span>
           <textarea
+            disabled={Boolean(committedSource)}
             maxLength={8_000}
             onChange={(event) => {
               setFirstNote(event.target.value);
-              requestIdRef.current = null;
+              resetDraftRequests();
             }}
             placeholder="粘贴由你提供、可说明为何创建此关系的备注。"
             rows={3}
@@ -870,15 +997,17 @@ export function AgentCreatePersonCard({
       </details>
       <footer>
         <p>
-          {target.mode === "existing_context"
-            ? "这会将备注附到所选的现有关系。"
-            : target.mode === "existing_person_new_context"
-              ? "这会保留现有人物，仅创建独立的关系背景。"
-              : "只有完成账号范围内的身份检查后，才会创建一个独立人物。"}{" "}
+          {committedSource
+            ? "人物与首条来源已保存，不会重复写入；线索可修改、取消确认或放弃。"
+            : target.mode === "existing_context"
+              ? "这会将备注附到所选的现有关系。"
+              : target.mode === "existing_person_new_context"
+                ? "这会保留现有人物，仅创建独立的关系背景。"
+                : "只有完成账号范围内的身份检查后，才会创建一个独立人物。"}{" "}
           它不会合并人物或联系任何人。
         </p>
         <div className="context-agent-create__footer-actions">
-          {reviewReady ? (
+          {reviewReady && !committedSource ? (
             <button
               className="context-secondary-button"
               disabled={busy}
@@ -888,9 +1017,27 @@ export function AgentCreatePersonCard({
               保存待身份审阅
             </button>
           ) : null}
+          {committedSource ? (
+            <button
+              className="context-secondary-button"
+              disabled={busy}
+              onClick={() => openSavedPerson()}
+              type="button"
+            >
+              打开已保存的人物
+            </button>
+          ) : null}
           <button
             className="context-primary-button context-primary-button--compact"
-            disabled={!ready || busy}
+            disabled={
+              busy ||
+              (committedSource
+                ? !(
+                    identityClue.trim().length === 0 ||
+                    parsedIdentityClue !== null
+                  )
+                : !ready)
+            }
             onClick={() => void commitPersonSource()}
             type="button"
           >
@@ -901,11 +1048,15 @@ export function AgentCreatePersonCard({
             )}
             {busy
               ? "保存中"
-              : target.mode === "existing_context"
-                ? "附加来源"
-                : target.mode === "existing_person_new_context"
-                  ? "添加关系"
-                  : "创建新人物"}
+              : committedSource
+                ? identityClueConfirmed && parsedIdentityClue
+                  ? "保存线索并完成"
+                  : "完成并打开人物"
+                : target.mode === "existing_context"
+                  ? "附加来源"
+                  : target.mode === "existing_person_new_context"
+                    ? "添加关系"
+                    : "创建新人物"}
           </button>
         </div>
       </footer>

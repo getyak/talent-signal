@@ -59,6 +59,18 @@ type ScopeFields = Pick<
   | "relationship_context_label"
 >;
 
+// `captured_at` is client-attested observation evidence. Validate it without
+// calling Date.toISOString on an invalid value (that would throw a raw
+// RangeError) and never fall back to server time.
+function validCapturedAt(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !Number.isNaN(Date.parse(value)) &&
+    new Date(value).toISOString() === value
+  );
+}
+
 function response(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
@@ -282,6 +294,11 @@ async function commitText(
   ) {
     throw new Error("来源请求 ID 无效。");
   }
+  if (!validCapturedAt(input.captured_at)) {
+    throw new Error(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
+  }
   const clientResourceId = `web-resource:${input.request_id}`;
   const scope = personScope(input);
   if (input.type === "contact") {
@@ -400,11 +417,15 @@ async function commitFile(
   const file = form.get("file");
   if (
     !UUID.test(requestId) ||
-    new Date(capturedAt).toISOString() !== capturedAt ||
     !(file instanceof File) ||
     !["resume", "document"].includes(documentKind)
   ) {
     throw new Error("文档接收信息不完整。");
+  }
+  if (!validCapturedAt(capturedAt)) {
+    throw new Error(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
   }
 
   const clientResourceId = `web-resource:${requestId}`;

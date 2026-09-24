@@ -125,3 +125,114 @@ describe("governed conversation resource intake", () => {
     expect(commitRelationshipResourceMock).not.toHaveBeenCalled();
   });
 });
+
+describe("observation time validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isIntegrationModeMock.mockReturnValue(true);
+    authMock.mockResolvedValue({ user: { id: "recruiter" } });
+    commitRelationshipResourceMock.mockResolvedValue({
+      contract_version: "2026-08-07.1",
+      identity: {
+        status: "bound",
+        person_id: PERSON_ID,
+        relationship_context_id: CONTEXT_ID,
+      },
+      resource: { id: "44444444-4444-4444-8444-444444444444" },
+    });
+  });
+
+  function noteBody(overrides: Record<string, unknown>) {
+    return {
+      request_id: REQUEST_ID,
+      person_id: PERSON_ID,
+      relationship_context_id: CONTEXT_ID,
+      type: "note",
+      title: "Synthetic note",
+      value: "Synthetic note body",
+      ...overrides,
+    };
+  }
+
+  it("rejects a missing captured_at with a friendly validation error before commit", async () => {
+    const result = await POST(request(noteBody({})));
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toMatchObject({
+      code: "resource_intake_failed",
+      message:
+        "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    });
+    expect(commitRelationshipResourceMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed captured_at with concise actionable copy, never a raw error", async () => {
+    const result = await POST(
+      request(noteBody({ captured_at: "Friday, August 7" })),
+    );
+
+    expect(result.status).toBe(422);
+    const body = (await result.json()) as { message: string };
+    expect(body.message).toBe(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
+    // Product copy must not expose internal format names or request plumbing.
+    expect(body.message).not.toMatch(/ISO|时间戳|request/i);
+    expect(body.message).not.toMatch(/invalid time value|rangeerror/i);
+    expect(commitRelationshipResourceMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a confirmed clue submission without an observation time", async () => {
+    const result = await POST(
+      request({
+        request_id: REQUEST_ID,
+        person_id: PERSON_ID,
+        relationship_context_id: CONTEXT_ID,
+        scope_mode: "existing",
+        type: "contact",
+        value: "wechat:synthetic-handle",
+        identity_clue_confirmed: true,
+      }),
+    );
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toMatchObject({
+      code: "resource_intake_failed",
+      message:
+        "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    });
+    expect(commitRelationshipResourceMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a document intake with an invalid observation time before extraction", async () => {
+    const form = new FormData();
+    form.set("request_id", REQUEST_ID);
+    form.set("captured_at", "not-a-timestamp");
+    form.set("person_id", PERSON_ID);
+    form.set("relationship_context_id", CONTEXT_ID);
+    form.set("document_kind", "document");
+    form.set(
+      "file",
+      new File(["synthetic"], "synthetic.txt", { type: "text/plain" }),
+    );
+    const result = await POST(
+      new Request("http://127.0.0.1:3000/api/local-integration/resources", {
+        method: "POST",
+        headers: {
+          host: "127.0.0.1:3000",
+          origin: "http://127.0.0.1:3000",
+        },
+        body: form,
+      }),
+    );
+
+    expect(result.status).toBe(422);
+    const body = (await result.json()) as { message: string };
+    expect(body.message).toBe(
+      "无法确认该来源的观察时间，未保存任何内容。请刷新页面后重新提交。",
+    );
+    expect(body.message).not.toMatch(/ISO|时间戳|request/i);
+    expect(body.message).not.toMatch(/invalid time value|rangeerror/i);
+    expect(commitRelationshipResourceMock).not.toHaveBeenCalled();
+  });
+});

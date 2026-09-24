@@ -747,4 +747,17 @@
   .dialogFooter button {
     width: 100%;
   }
+
+  /* The project's mobile control target is 44px (not WCAG's 24px AA
+     minimum). Stated on the same module classes as the desktop heights and
+     placed after them, so no base or nested sub-selector keeps the smaller
+     target on narrow viewports. */
+  .addButton,
+  .primary,
+  .quiet,
+  .danger,
+  .error button,
+  .dialogFooter button {
+    min-height: 44px;
+  }
 }

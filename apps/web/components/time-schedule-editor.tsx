@@ -29,7 +29,10 @@ export function TimeScheduleEditor({ record: initial, draftId, day, zone, person
   const [dirty, setDirty] = useState(Boolean(restored)), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [conflict, setConflict] = useState<TimeScheduleRecord | null>(restored && initial && restored.base_revision !== initial.revision ? initial : null);
   const [unknown, setUnknown] = useState(false), [notice, setNotice] = useState(restored ? "已恢复上次未保存的输入，请核对后保存。" : "");
-  const [unavailable, setUnavailable] = useState(false), [readbackError, setReadbackError] = useState("");
+  // A deleted or inaccessible arrangement is terminal: one compact view with
+  // heading, explanation and Close replaces the whole form, so a deep link can
+  // never render a blank disabled editor with the notice offscreen.
+  const [terminal, setTerminal] = useState<{ kind: "deleted" | "unavailable"; message: string } | null>(null), [readbackError, setReadbackError] = useState("");
   const [storageError, setStorageError] = useState("");
   const [readbackRetry, setReadbackRetry] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -54,9 +57,9 @@ export function TimeScheduleEditor({ record: initial, draftId, day, zone, person
   const acceptReadback = useEffectEvent((current: TimeScheduleRecord) => {
     setReadbackError("");
     if (!current.content_available || current.status === "deleted") {
-      replaceFields(fields(null, day, zone, "")); setRecord(current); setDirty(false); setUnknown(false); setConflict(null); setUnavailable(true);
+      replaceFields(fields(null, day, zone, "")); setRecord(current); setDirty(false); setUnknown(false); setConflict(null);
       clearTimeOperation(binding, { id: id.current }); clearTimeEditorDraft(binding, id.current); attempt.current = null;
-      setNotice("这条安排已删除，旧内容已清除。已导出的日历文件不会自动撤回。");
+      setTerminal({ kind: "deleted", message: "这条安排已删除，旧内容已清除。已导出的日历文件不会自动撤回。" });
     } else if (record && current.revision < record.revision) {
       setReadbackError("读取结果早于刚刚保存的版本，请重新核实后继续。");
     } else if (current.revision !== record?.revision) {
@@ -66,8 +69,8 @@ export function TimeScheduleEditor({ record: initial, draftId, day, zone, person
   });
   const rejectReadback = useEffectEvent((caught: unknown) => {
     if (caught instanceof TimeRequestError && ([401, 403, 404, 410].includes(caught.status) || caught.code === "session_stale")) {
-      replaceFields(fields(null, day, zone, "")); setDirty(false); setUnknown(false); setConflict(null); setUnavailable(true); clearTimeOperation(binding, { id: id.current }); clearTimeEditorDraft(binding, id.current); attempt.current = null;
-      setNotice("这条安排已不可访问，旧内容已清除。");
+      replaceFields(fields(null, day, zone, "")); setDirty(false); setUnknown(false); setConflict(null); clearTimeOperation(binding, { id: id.current }); clearTimeEditorDraft(binding, id.current); attempt.current = null;
+      setTerminal({ kind: "unavailable", message: "这条安排已不可访问，旧内容已清除。" });
     } else setReadbackError("当前安排暂时无法重新核实。你的输入仍保留，请重新读取后继续。");
   });
   useEffect(() => {
@@ -92,8 +95,8 @@ export function TimeScheduleEditor({ record: initial, draftId, day, zone, person
     if (!mounted.current) return;
     clearTimeOperation(binding, { id: id.current, ...(attempt.current ? { key: attempt.current.body.idempotency_key } : {}) }); clearTimeEditorDraft(binding, id.current); attempt.current = null; setUnknown(false); setDirty(false); setConflict(null); setError(""); setRecord(next);
     replaceFields(fields(next.content_available ? next : null, day, zone, next.content_available ? personId : ""));
-    setUnavailable(!next.content_available);
-    setNotice(next.status === "deleted" ? "内容已删除。已导出的日历事件需在日历应用中处理。" : "已保存到时间工作台。"); onSaved(next);
+    setTerminal(next.content_available ? null : { kind: next.status === "deleted" ? "deleted" : "unavailable", message: next.status === "deleted" ? "内容已删除，旧内容已清除。已导出的日历事件需在日历应用中处理。" : "这条安排已不可访问，旧内容已清除。" });
+    setNotice(next.content_available ? "已保存到时间工作台。" : ""); onSaved(next);
   }
   async function reconcile() {
     if (!attempt.current) return;
@@ -110,7 +113,7 @@ export function TimeScheduleEditor({ record: initial, draftId, day, zone, person
     } finally { setBusy(false); }
   }
   async function mutate(method: "PUT" | "DELETE") {
-    if (locked.current || conflict || unavailable || readbackError || mutationBlocked) return;
+    if (locked.current || conflict || terminal || readbackError || mutationBlocked) return;
     setError(""); setNotice("");
     try {
       if (!id.current) id.current = crypto.randomUUID();
@@ -158,7 +161,12 @@ export function TimeScheduleEditor({ record: initial, draftId, day, zone, person
     } catch (caught) { setError(caught instanceof Error ? caught.message : "日历文件生成失败。"); }
     finally { setBusy(false); }
   }
-  const disabled = busy || unknown || Boolean(conflict) || unavailable || Boolean(readbackError) || mutationBlocked || record?.status === "deleted";
+  const disabled = busy || unknown || Boolean(conflict) || Boolean(terminal) || Boolean(readbackError) || mutationBlocked || record?.status === "deleted";
+  if (terminal) return <section className={styles.editor} aria-label={terminal.kind === "deleted" ? "已删除的安排" : "不可访问的安排"}>
+    <div className={styles.inspectorHeading}><div><span className={styles.eyebrow}>你的安排</span><h2>{terminal.kind === "deleted" ? "这条安排已删除" : "这条安排已不可访问"}</h2></div></div>
+    <p className={styles.muted} role="status">{terminal.message}</p>
+    <button className={styles.primary} type="button" onClick={onClose}>关闭</button>
+  </section>;
   return <section className={styles.editor} aria-label={record ? "编辑安排" : "新建安排"}>
     <div className={styles.inspectorHeading}><div><span className={styles.eyebrow}>{record ? "你的安排" : "留一个时间"}</span><h2>{record ? "编辑安排" : "新建安排"}</h2></div><button type="button" aria-label="关闭编辑" onClick={() => { if ((!dirty && !unknown) || window.confirm(unknown ? "操作结果尚未核实，关闭后可继续核实。" : "离开会放弃尚未保存的修改。")) onClose(); }}>×</button></div>
     <p className={styles.muted}>保存在工作台。系统日历提醒需下载文件并确认导入。</p>
@@ -178,8 +186,8 @@ export function TimeScheduleEditor({ record: initial, draftId, day, zone, person
     </form>
     {unknown ? <button disabled={busy} onClick={() => void reconcile()} type="button">重新核实操作结果</button> : null}
     {conflict ? <div role="alert" className={styles.notice}><strong>{conflict.content_available ? "这条安排已有另一个版本" : "这条安排已删除"}</strong><p>{conflict.title} · 修订 {conflict.revision}。你的编辑仍保留在输入框中。</p><button onClick={() => applied(conflict)} type="button">使用服务器版本</button>{conflict.content_available ? <button onClick={() => { setRecord(conflict); setConflict(null); setDirty(true); setUnknown(false); clearTimeOperation(binding, { id: id.current }); rememberTimeEditorDraft(binding, { id: id.current, existing: true, base_revision: conflict.revision, fields: latestFields.current, expires: Date.now() + 86400000 }); attempt.current = null; setError(""); }} type="button">保留我的输入，再次核对保存</button> : null}</div> : null}
-    {record?.status === "planned" && !conflict && !unknown && !unavailable && !readbackError ? <button disabled={busy || dirty} onClick={() => void exportFile()} type="button">下载日历文件</button> : null}
-    {record?.content_available && !unknown && !unavailable && !readbackError ? <div className={styles.deleteArea}>{deleteConfirm ? <><p>删除将清除标题和备注。已导出的系统日历事件需自行处理。</p><button disabled={busy || Boolean(conflict)} onClick={() => void mutate("DELETE")} type="button">确认删除内容</button><button onClick={() => setDeleteConfirm(false)} type="button">保留</button></> : <button disabled={busy} onClick={() => setDeleteConfirm(true)} type="button">删除安排</button>}</div> : null}
+    {record?.status === "planned" && !conflict && !unknown && !terminal && !readbackError ? <button disabled={busy || dirty} onClick={() => void exportFile()} type="button">下载日历文件</button> : null}
+    {record?.content_available && !unknown && !terminal && !readbackError ? <div className={styles.deleteArea}>{deleteConfirm ? <><p>删除将清除标题和备注。已导出的系统日历事件需自行处理。</p><button disabled={busy || Boolean(conflict)} onClick={() => void mutate("DELETE")} type="button">确认删除内容</button><button onClick={() => setDeleteConfirm(false)} type="button">保留</button></> : <button disabled={busy} onClick={() => setDeleteConfirm(true)} type="button">删除安排</button>}</div> : null}
     {mutationBlocked ? <p className={styles.notice}>请先核实另一条安排的操作结果，再修改此安排。</p> : null}
     {readbackError ? <div role="alert" className={styles.notice}><p>{readbackError}</p><button type="button" onClick={() => setReadbackRetry((v) => v + 1)}>重新读取安排</button></div> : null}
     {storageError ? <div role="alert" className={styles.notice}><p>{storageError}</p><button type="button" onClick={() => persistDraft()}>重试保留输入</button></div> : null}
