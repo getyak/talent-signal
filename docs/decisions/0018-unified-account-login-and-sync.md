@@ -103,6 +103,39 @@ Setting/changing a password uses the existing password policy and hashing;
 changing an existing password requires current-password or equivalent verified
 step-up. At least one usable login method must remain under concurrent removal.
 
+### Web reauthentication without a password
+
+A provider-only account must be able to add its first password, connect the
+other provider, or remove a method after reauthenticating with a currently
+linked provider. A mandatory "current password" field is not a usable fallback.
+Offer the available current methods and name the operation being authorized.
+For password setup, collect the new password after provider reauthentication;
+do not carry a new password through OAuth redirects, URLs, or cookies.
+
+Treat current-provider proof and new-provider proof as distinct purposes. Bind
+each OAuth attempt to the original account, user, backend, session fingerprint,
+operation and current credential/profile revisions before leaving Settings.
+Retain the original proof time and revisions; a second transaction must not
+rebind an old proof to new settings or grant it a fresh validity period.
+
+Apple returns a cross-site form POST. Its transient operation-intent/proof
+cookies must have a deliberately reviewed Secure/SameSite policy, while the
+normal long-lived session cookie keeps its existing policy. Do not assume a
+SameSite=Lax login or linking cookie accompanies that POST. Preserve explicit
+operation purpose through the callback and stage a short-lived, one-use proof
+without creating/replacing a login session or attaching a credential. Redirect
+to a fixed same-origin completion route where the normal session is available,
+then recheck the unchanged original session and revisions before consuming the
+proof and creating/completing the credential attempt. Store any staged provider
+proof encrypted and bounded on the server or in an appropriate HttpOnly sealed
+transport; only opaque references may appear in a URL. No bearer tokens or raw
+provider tokens enter page state or URLs.
+
+A missing, cancelled, stale or wrong-purpose linking/reauthentication attempt
+must fail closed and return to Settings. It must never fall through to ordinary
+login, replace the account, or report success because a callback URL contains a
+success flag. Success requires authoritative backend settings readback.
+
 Unbound OAuth with an existing email says to sign in with an existing method,
 then connect the new method in Settings. Do not create an empty second account.
 Public errors must not disclose names, data counts, linked provider details or
@@ -129,6 +162,13 @@ an auditable alias/tombstone and revoking its old sessions. "Empty" must use the
 full classified account-data inventory, not only People and agent_sessions.
 Recheck emptiness and identity ownership inside the transaction. Never transfer
 roles/owner privileges from an unrelated multi-member workspace.
+
+Freeze both parties' account/profile revisions and proof timestamps during
+prepare. Under the commit transaction's stable lock ordering, compare them and
+recheck the initiating session's current validity before any transfer. Removing
+or changing either proven credential invalidates the prepared request, even if
+the duplicate remains empty. A request that passed the HTTP authentication
+guard before session revocation cannot use its cached context to commit later.
 
 Retirement must also close the in-flight-write race. Revoking an auth session
 does not revoke an already admitted request, and retaining an account/user
