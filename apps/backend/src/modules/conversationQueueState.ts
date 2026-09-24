@@ -307,7 +307,7 @@ export async function claimNextConversationQueueEntry(
         `UPDATE conversation_queue_entries
          SET status='running', run_id=$3, lease_owner=$4, lease_generation=$5,
              lease_expires_at=now()+($6::int * interval '1 millisecond'),
-             attempt=attempt+1, revision=revision+1, claimed_at=now(), updated_at=now(), cancel_requested=false
+             attempt=attempt+1, revision=revision+1, claimed_at=now(), updated_at=now(), cancel_requested=false, cancel_auto_continue=false
          WHERE account_id=$1 AND id=$2 AND status='queued'
          RETURNING *`,
         [
@@ -447,7 +447,8 @@ export async function readConversationQueueResult(
  * Finalize a run. `completed` requires an un-cancelled, still-live fence; if a
  * stop or refusal won the race the caller must finalize the truthful state
  * instead. Failed/interrupted states pause the queue; completion never clears a
- * concurrent pause.
+ * concurrent pause. A GET-49 prioritize stop is the only cancel that keeps the
+ * queue running so the chosen supplement is processed next.
  */
 export async function finalizeConversationQueueEntry(
   pool: Pool,
@@ -465,13 +466,23 @@ export async function finalizeConversationQueueEntry(
     const objectiveClause = scrub ? "objective=NULL," : "";
     const predicate =
       input.status === "cancelled" ? fencePredicateAllowCancel(1) : fencePredicate(1);
-    const updated = await client.query(
-      `UPDATE conversation_queue_entries
+    // One statement: lock the fenced row, clear the prioritize auto-continue
+    // flag, and still return the pre-write flag so cancel finalize can leave
+    // the queue running for the chosen supplement.
+    const updated = await client.query<{ id: string; prior_cancel_auto_continue: boolean }>(
+      `WITH prior AS (
+         SELECT id, cancel_auto_continue
+         FROM conversation_queue_entries
+         WHERE ${predicate}
+         FOR UPDATE
+       )
+       UPDATE conversation_queue_entries e
        SET status=$6, content_state=$7, ${objectiveClause} stage=NULL, ${resultClause},
            lease_owner=NULL, lease_expires_at=NULL, cancel_requested=false,
-           failure_code=$8, completed_at=now(), updated_at=now(), revision=revision+1
-       WHERE ${predicate}
-       RETURNING id`,
+           cancel_auto_continue=false, failure_code=$8, completed_at=now(), updated_at=now(), revision=revision+1
+       FROM prior
+       WHERE e.id = prior.id
+       RETURNING e.id, prior.cancel_auto_continue AS prior_cancel_auto_continue`,
       [...fenceValues(fence), input.status, scrub ? "scrubbed" : "retained", input.failureCode ?? null],
     );
     if (updated.rowCount !== 1) {
@@ -486,7 +497,14 @@ export async function finalizeConversationQueueEntry(
         effectiveStatus: (current?.status ?? "interrupted") as ConversationQueueTerminalStatus,
       };
     }
-    await bumpConversationQueueState(client, fence.accountId, fence.sessionId, input.status === "completed" ? {} : { paused: true });
+    const autoContinue =
+      input.status === "cancelled" && (updated.rows[0]?.prior_cancel_auto_continue ?? false);
+    await bumpConversationQueueState(
+      client,
+      fence.accountId,
+      fence.sessionId,
+      input.status === "completed" || autoContinue ? {} : { paused: true },
+    );
     return { applied: true, effectiveStatus: input.status };
   });
   publishConversationQueueChanged(fence.accountId, fence.sessionId);
@@ -506,7 +524,7 @@ export async function markConversationQueuePersistencePending(
     const updated = await client.query(
       `UPDATE conversation_queue_entries
        SET status='failed', content_state='retained', stage=NULL, failure_code=$6,
-           lease_owner=NULL, lease_expires_at=NULL, cancel_requested=false,
+           lease_owner=NULL, lease_expires_at=NULL, cancel_requested=false, cancel_auto_continue=false,
            completed_at=now(), updated_at=now(), revision=revision+1
        WHERE ${fencePredicate(1)} AND result IS NOT NULL
        RETURNING id`,
@@ -629,7 +647,7 @@ export async function markConversationQueueEntryInterrupted(
     await client.query(
       `UPDATE conversation_queue_entries
        SET status='interrupted', content_state='retained', stage=NULL, result=NULL, result_recorded_at=NULL,
-           lease_owner=NULL, lease_expires_at=NULL, cancel_requested=false, failure_code=$3,
+           lease_owner=NULL, lease_expires_at=NULL, cancel_requested=false, cancel_auto_continue=false, failure_code=$3,
            completed_at=now(), updated_at=now(), revision=revision+1
        WHERE account_id=$1 AND id=$2 AND status='running'
          AND (lease_expires_at IS NULL OR lease_expires_at<=now())`,
