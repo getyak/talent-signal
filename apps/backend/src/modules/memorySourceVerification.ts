@@ -102,7 +102,9 @@ export async function verifyPendingSourceAuthority(
 ): Promise<PendingVerification> {
   const unavailableItemIds = new Set<string>();
   const lock = options.lock === true;
-  let proposalSourceAvailable = true;
+  // Empty contact-only proposals carry provenance at the Session/message level.
+  // Without that binding there are no item sources to verify: fail closed.
+  let proposalSourceAvailable = items.length > 0 || Boolean(proposal.session_id && proposal.source_message_id);
   let currentAuthority: MemorySourceAuthority | null = null;
 
   if (proposal.session_id) {
@@ -128,7 +130,7 @@ export async function verifyPendingSourceAuthority(
     }
   } else if (proposal.source_capture_version !== null) {
     // Capture-sourced proposals verify the bound epoch below via their items.
-    proposalSourceAvailable = true;
+    proposalSourceAvailable = items.length > 0;
   } else if (items.length > 0 && items.every((item) => !item.source_session_id && !item.capture_id)) {
     proposalSourceAvailable = false;
   }

@@ -42,6 +42,58 @@ async function removeProofAccount(accountID: string): Promise<void> {
 }
 
 suite("meeting draft source lifecycle", () => {
+  it.each(["delete", "hash", "expiry", "revoke", "concurrent_delete", "concurrent_revoke"])("withdraws image-backed drafts when image changes: %s", async change => {
+    const account=randomUUID(), user=randomUUID(), session=randomUUID(), task=randomUUID(), message=randomUUID(), queue=randomUUID(), attachment=randomUUID(), draft=randomUUID();
+    const auth={accountId:account,accountSlug:account,userId:user,userEmail:`${user}@example.test`,sessionId:randomUUID(),userKind:"simulated_human" as const};
+    const hash="2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"; // sha256('x')
+    const evidence={artifact_id:`conversation-image-${message}-0-${attachment}`,content_hash:hash,inspection_request_id:"doubao-synthetic-receipt"};
+    try {
+      await pool!.query("INSERT INTO accounts(id,slug,name) VALUES($1::uuid,$1::text,'Image lifecycle')",[account]);
+      await pool!.query("INSERT INTO users(id,account_id,email,display_name,kind) VALUES($1,$2,$3,'Image lifecycle','simulated_human')",[user,account,auth.userEmail]);
+      await pool!.query(`INSERT INTO agent_sessions(account_id,id,created_by_user_id,revision,payload,created_at,expires_at) VALUES($1,$2,$3,1,'{"turns":[]}',now(),now()+interval '7 days')`,[account,session,user]);
+      await pool!.query(`INSERT INTO agent_session_chat_tasks(account_id,task_id,actor_user_id,origin_session_id,expires_at) VALUES($1,$2,$3,$4,now()+interval '7 days')`,[account,task,user,session]);
+      await pool!.query(`INSERT INTO conversation_queue_entries(account_id,session_id,id,message_id,created_by_user_id,sequence,status,objective,idempotency_key,expires_at) VALUES($1,$2,$3,$4,$5,1,'queued','synthetic',$6,now()+interval '7 days')`,[account,session,queue,message,user,queue]);
+      await pool!.query(`INSERT INTO conversation_message_images(account_id,session_id,message_id,queue_entry_id,image_index,attachment_id,file_name,media_type,byte_size,content_hash,content,expires_at) VALUES($1,$2,$3,$4,0,$5,'synthetic.png','image/png',1,$6,convert_to('x','UTF8'),now()+interval '7 days')`,[account,session,message,queue,attachment,hash]);
+      const record=(value:unknown)=>pool!.query(`SELECT record_meeting_draft_with_image($1,$2,$3,$4,$5,$6,'Review',now()+interval '1 day',now()+interval '1 day 1 hour','UTC','source',now(),now()+interval '6 days',$7::jsonb)`,[account,draft,user,task,session,message,JSON.stringify(value)]);
+      if(change.startsWith("concurrent_")){
+        const writer=await pool!.connect(), withdrawer=await pool!.connect();
+        try {
+          await writer.query("BEGIN");
+          // Pause admission at the same authority lock, before the validation
+          // and insert. The second connection must not cross this boundary.
+          await writer.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[account+":meeting-image-authority"]);
+          const withdrawerPID=(await withdrawer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+          const writerPID=(await writer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+          const withdrawal=change==="concurrent_delete"
+            ? withdrawer.query("DELETE FROM conversation_message_images WHERE account_id=$1",[account])
+            : withdrawer.query("INSERT INTO memory_source_revocations(id,account_id,source_kind,source_id,reason) VALUES($1,$2,'artifact',$3,'source_revoked')",[randomUUID(),account,evidence.artifact_id]);
+          let blocked=false;
+          for(let poll=0;poll<30&&!blocked;poll++) blocked=(await writer.query("SELECT $2::int=ANY(pg_blocking_pids($1)) AS blocked",[withdrawerPID,writerPID])).rows[0].blocked;
+          expect(blocked).toBe(true);
+          await writer.query(`SELECT record_meeting_draft_with_image($1,$2,$3,$4,$5,$6,'Review',now()+interval '1 day',now()+interval '1 day 1 hour','UTC','source',now(),now()+interval '6 days',$7::jsonb)`,[account,draft,user,task,session,message,JSON.stringify(evidence)]);
+          await writer.query("COMMIT");
+          await withdrawal;
+          const row=(await pool!.query("SELECT status,source_image,title,source_excerpt FROM meeting_drafts WHERE account_id=$1",[account])).rows[0];
+          expect(row).toEqual({status:"redacted",source_image:null,title:null,source_excerpt:null});
+          return;
+        } finally {await writer.query("ROLLBACK");writer.release();withdrawer.release();}
+      }
+      await record(evidence);
+      await expect(getMeetingDraft(pool!,auth,draft)).resolves.toMatchObject({source_image:evidence,status:"needs_review"});
+      await record(evidence); // same identity replay
+      for(const changed of [{...evidence,artifact_id:"other"},{...evidence,content_hash:"b".repeat(64)},{...evidence,inspection_request_id:"other"},null]) {
+        await expect(record(changed)).rejects.toThrow("MEETING_DRAFT_IMAGE_IDENTITY_CONFLICT");
+      }
+      if(change==="delete")await pool!.query("DELETE FROM conversation_message_images WHERE account_id=$1",[account]);
+      if(change==="hash")await pool!.query("UPDATE conversation_message_images SET content_hash=$2 WHERE account_id=$1",[account,"b".repeat(64)]);
+      if(change==="expiry")await pool!.query("UPDATE conversation_message_images SET expires_at=now()-interval '1 second' WHERE account_id=$1",[account]);
+      if(change==="revoke")await pool!.query("INSERT INTO memory_source_revocations(id,account_id,source_kind,source_id,reason) VALUES($1,$2,'artifact',$3,'source_revoked')",[randomUUID(),account,evidence.artifact_id]);
+      await expect(getMeetingDraft(pool!,auth,draft)).resolves.toMatchObject({status:"redacted"});
+      const row=(await pool!.query("SELECT source_image,title,source_excerpt FROM meeting_drafts WHERE account_id=$1",[account])).rows[0];
+      expect(row).toEqual({source_image:null,title:null,source_excerpt:null});
+    } finally {await removeProofAccount(account);}
+  });
+
   it("persists edits idempotently, rejects stale intent, then blocks revoked-source export", async () => {
     const accountID = randomUUID();
     const userID = randomUUID();
@@ -348,6 +400,8 @@ suite("meeting draft source lifecycle", () => {
         status: "redacted",
         title: null,
       });
+      const imageTombstone=await pool!.query("SELECT source_image FROM meeting_drafts WHERE account_id=$1 AND id=$2",[accountID,draftID]);
+      expect(imageTombstone.rows[0].source_image).toBeNull();
       const keys = (
         await pool!.query<{
           edit_idempotency_key: string | null;
@@ -408,11 +462,12 @@ suite("meeting draft source lifecycle", () => {
         const taskID = randomUUID();
         const draftID = randomUUID();
         ids.push(draftID);
+        // Keep ordering deterministic without outgrowing the 30-day retention bound.
         await pool!.query(
           `INSERT INTO agent_session_chat_tasks(
              account_id,task_id,actor_user_id,origin_session_id,created_at,expires_at
-           ) VALUES($1,$2,$3,$4,$5,now()+interval '7 days')`,
-          [accountID, taskID, userID, sessionID, new Date(Date.UTC(2026, 8, 1, 0, index))],
+           ) VALUES($1,$2,$3,$4,now()-interval '1 day'+$5*interval '1 minute',now()+interval '7 days')`,
+          [accountID, taskID, userID, sessionID, index],
         );
         await pool!.query(
           `SELECT record_meeting_draft(

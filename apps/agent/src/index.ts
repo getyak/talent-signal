@@ -39,6 +39,9 @@ export * from "./claudeHarnessContinuation.js";
 export * from "./claudeHarnessWorkspace.js";
 
 export * from "./calendarDraft.js";
+export * from "./currentImageInspection.js";
+export * from "./publicSubjectRegistry.js";
+export * from "./workspaceResearchToolSchemas.js";
 export * from "./productRunCapture.js";
 
 export type {RunFile,RunArtifact,RunFileAdmission} from "./runFileTools.js";

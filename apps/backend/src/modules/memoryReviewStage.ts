@@ -211,6 +211,9 @@ export async function stageMemoryProposal(
   const sourceRevision = sourceRevisionHash(authority);
   const effectiveSessionId = authority.sessionId ?? request.session_id ?? null;
   const effectiveMessageId = authority.messageId ?? request.source_message_id ?? null;
+  // Without item provenance, source readback must be reconstructible from the
+  // host-owned Session/message manifest. Capture-only entries retain items.
+  if (request.items.length === 0 && (!authority.sessionId || !authority.messageId)) return null;
 
   // Host task identity replays only for the same creator, surface, and exact
   // source. A different user's task reference reveals nothing.
@@ -475,7 +478,9 @@ export async function stageMemoryProposal(
     });
   }
 
-  if (prepared.length === 0) return null;
+  // A source-grounded counterparty is itself a reviewable contact change.
+  // Do not manufacture Memory items merely to expose the Add contact card.
+  if (prepared.length === 0 && !(request.items.length === 0 && contactDecision === "new" && newContactLabel)) return null;
 
   const proposalId = randomUUID();
   await client.query(

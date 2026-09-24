@@ -106,7 +106,7 @@ describe("workspace conversation Agent", () => {
   it.each([false, true])("bounds the visual round-trip budget without widening other limits (image=%s)", async image => {
     const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Ready", body: "Ready" });
     const run = vi.fn<AgentProvider["run"]>(async request => {
-      expect(request.budget).toMatchObject({ maxTaskTokens: image ? 64_000 : 32_000,
+      expect(request.budget).toMatchObject({ maxTaskTokens: image ? 96_000 : 32_000,
         maxEstimatedUsd: 1, maxTurns: 6, maxToolCalls: 6, maxDurationMs: 60_000 });
       return { structuredOutput: { outcome: "reply", title: "Ready", body: "Ready" },
         inputTokens: 0, outputTokens: 0, estimatedUsd: 0, turns: 1, permissionDenials: [] };
@@ -1165,7 +1165,7 @@ describe("conversation-only context and proactive contact drafts", () => {
       }),
     );
 
-    // An explicit source-supported label is preserved as-is.
+    // An ungrounded model label cannot contaminate a new identity.
     const explicitStage = vi.fn(async () => stagedProposal);
     await executeWorkspaceConversationAgentCore({
       workspaceID: auth.accountId,
@@ -1202,7 +1202,7 @@ describe("conversation-only context and proactive contact drafts", () => {
     });
     expect(explicitStage).toHaveBeenCalledWith(
       expect.objectContaining({
-        newContact: expect.objectContaining({ relationship_context: "设计交流" }),
+        newContact: expect.objectContaining({ relationship_context: "与陈宇的交流" }),
       }),
     );
   });
@@ -1364,7 +1364,7 @@ describe("shared screenshot relationship review", () => {
         identityAuthority: "tentative",
         newContact: expect.objectContaining({
           display_label: "周明",
-          relationship_context: "松风9月读书群（南街）",
+          relationship_context: "与周明的交流",
           source_locator: expect.objectContaining({ kind: "image_region", artifact_id: artifactId }),
         }),
       }),

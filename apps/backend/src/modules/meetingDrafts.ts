@@ -27,6 +27,7 @@ interface MeetingDraftRow {
   time_zone: string | null;
   source_excerpt: string | null;
   reference_time: Date | null;
+  source_image: CalendarDraft["source_image"] | null;
   status: MeetingDraftRecord["status"];
   external_effect: "none";
   revision: number;
@@ -140,6 +141,7 @@ function record(row: MeetingDraftRow): MeetingDraftRecord {
     time_zone: row.time_zone!,
     source_excerpt: row.source_excerpt!,
     reference_time: row.reference_time!.toISOString(),
+    ...(row.source_image ? {source_image:row.source_image} : {}),
     redacted_at: null,
   } as const;
   return row.status === "dismissed"
@@ -251,7 +253,7 @@ export async function recordMeetingDraftsForTask(
       );
     }
     await client.query(
-      `SELECT record_meeting_draft($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      `SELECT record_meeting_draft_with_image($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)`,
       [
         auth.accountId,
         draft.id,
@@ -266,8 +268,10 @@ export async function recordMeetingDraftsForTask(
         draft.source_excerpt,
         draft.reference_time,
         expiresAt,
+        draft.source_image ? JSON.stringify(draft.source_image) : null,
       ],
     );
+
   }
 }
 

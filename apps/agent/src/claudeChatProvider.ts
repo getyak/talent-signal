@@ -319,7 +319,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
           return { content: [{ type: "text", text: JSON.stringify(result) }], isError: !result.ok };
         } }));
     });
-    tools.push(...responsePreferenceTool(request.responsePreference), ...calendar.tools);
+    tools.push(...responsePreferenceTool(request.responsePreference), ...calendar.tools, ...(request.supplementalTools ?? []));
     // Host-observed partial text is a forming response only. A host callback
     // exception or abort must never trigger a fallback model execution here.
     const onText = request.outputMode !== "json" && request.onVisibleText
@@ -342,7 +342,7 @@ export class ClaudeChatProvider implements RemoteChatAnswerProviding, AgentProvi
         response_preference_available: Boolean(request.responsePreference),
         assistant_service_preference: responsePreferenceContext(request.responsePreference),
         private_self_memory: request.selfMemoryContext }),
-      effort: "medium", budget: request.budget, assertCurrent: async () => { signal.throwIfAborted(); await request.assertCurrent?.(); },
+      effort: "low", budget: request.budget, assertCurrent: async () => { signal.throwIfAborted(); await request.assertCurrent?.(); },
     }, signal);
     observed?.(outcome);
     if (request.outputMode === "json") {

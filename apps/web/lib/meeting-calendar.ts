@@ -115,6 +115,7 @@ export function meetingDraftCalendarValue(
     external_effect: "none",
     reference_time: draft.reference_time,
     source_excerpt: draft.source_excerpt,
+    ...(draft.source_image ? {source_image:draft.source_image} : {}),
     source_request_id: draft.source_task_id,
     starts_at: draft.starts_at,
     status: "needs_review",

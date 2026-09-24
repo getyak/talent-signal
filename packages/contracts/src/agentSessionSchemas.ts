@@ -106,6 +106,8 @@ const response = Type.Object(
         obj,
       ),
     ),
+    // Display-only link; review/export always rereads the governed projection.
+    meetingDraft: optional(Type.Object({id,title:text(200)},obj)),
   },
   obj,
 );

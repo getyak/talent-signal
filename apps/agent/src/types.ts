@@ -381,6 +381,8 @@ export type AgentVisibleProgressStage =
   (typeof AGENT_VISIBLE_PROGRESS_STAGES)[number];
 
 export interface AgentProviderRequest {
+  /** Host-owned optional tools, with closures limited to the current Run. */
+  supplementalTools?: readonly import("./claudeHarness.js").HarnessTool[];
   calendarContext?: import("./calendarDraft.js").CalendarDraftContext;
   /** Trusted host source lineage for opt-in private observation; never model authority. */
   observation?: import("./runtimeObservation.js").RuntimeObservationContext;

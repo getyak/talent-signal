@@ -905,9 +905,9 @@ export function MemoryReviewCard(props: MemoryReviewCardProps) {
       ) : null}
 
       <footer className={styles.footer}>
-        <p>
+        {totalVisible > 0 ? <p>
           已选 {count} 条{effect.keptOld > 0 ? ` · 其中判断 ${effect.keptOld} 条` : ""}{totalVisible > 0 ? ` · 包含折叠内容` : ""}
-        </p>
+        </p> : null}
         {shouldDismiss ? (
           <button
             className={styles.primary}
@@ -937,7 +937,7 @@ export function MemoryReviewCard(props: MemoryReviewCardProps) {
           </button>
         )}
         <p className={styles.secondaryLine}>
-          保存所选内容及必要依据
+          {totalVisible === 0 && newContactEnabled ? "先保存姓名，其他信息可以以后补充" : "保存所选内容及必要依据"}
           {!shouldDismiss ? (
             <button
               className={styles.textButton}

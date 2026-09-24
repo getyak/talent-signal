@@ -246,7 +246,7 @@ export const MemoryProposalStageRequestSchema = Type.Object(
       obj,
     ),
     items: Type.Array(MemoryProposalCandidateSchema, {
-      minItems: 1,
+      minItems: 0,
       maxItems: 40,
     }),
   },

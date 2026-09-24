@@ -141,7 +141,7 @@ export class ExaProvider implements AgentWebSearchProvider {
       const item = record(raw);
       const url = publicExaUrl(item?.url);
       if (!item || !url || seen.has(url)) continue;
-      const title = typeof item.title === "string" ? item.title.trim().slice(0, 500) : url;
+      const title = (typeof item.title === "string" ? item.title.trim() : "").slice(0, 500) || url.slice(0, 500);
       const highlights = Array.isArray(item.highlights)
         ? item.highlights.filter((value): value is string => typeof value === "string").join("\n") : "";
       const text = (typeof item.text === "string" ? item.text : highlights).trim().slice(0, MAX_TEXT_CHARACTERS);

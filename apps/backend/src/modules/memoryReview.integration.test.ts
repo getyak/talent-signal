@@ -1864,20 +1864,12 @@ describe.skipIf(!pool)("Memory review integration", () => {
     expect(first.body.receipt.item_count).toBe(1);
   });
 
-  it("records contact-only commits as valid receipts", async () => {
+  it("stages a name-only contact with zero Memory items and records its confirmed receipt", async () => {
     const auth = await makeAuth("contact-only");
     const sessionId = randomUUID();
     const messageId = randomUUID();
     const staged = await stage(auth, {
-      items: [
-        candidate({
-          scope: "person",
-          statement_kind: "source_statement",
-          speaker: "陈宇",
-          display_text: "陈宇负责设计系统",
-          source_excerpt: "陈宇负责设计系统",
-        }),
-      ],
+      items: [],
       contactDecision: "new",
       newContact: { display_label: "陈宇", relationship_context: "" },
       authorityText: "陈宇负责设计系统",
@@ -1899,6 +1891,21 @@ describe.skipIf(!pool)("Memory review integration", () => {
     );
     expect(readback.state).toBe("applied");
     expect(readback.receipt?.created_person_id).toBe(result.body.receipt.created_person_id);
+  });
+
+  it.each(["deleted", "expired", "image_changed", "image_deleted"])("rejects a zero-item contact when its source is %s", async (change) => {
+    const auth=await makeAuth(`zero-${change}`),sessionId=randomUUID(),messageId=randomUUID();
+    const staged=await stage(auth,{items:[],contactDecision:"new",newContact:{display_label:"阿禾",relationship_context:""},authorityText:"阿禾",sessionId,messageId,
+      images:[{attachmentId:randomUUID(),contentHash:"a".repeat(64)}]});
+    expect(staged?.proposal.item_count).toBe(0);
+    if(change==="deleted")await pool!.query("UPDATE agent_sessions SET deleted_at=now(),payload=NULL WHERE account_id=$1 AND id=$2",[auth.accountId,sessionId]);
+    if(change==="expired")await pool!.query("UPDATE agent_sessions SET expires_at=now()-interval '1 day' WHERE account_id=$1 AND id=$2",[auth.accountId,sessionId]);
+    if(change==="image_changed")await pool!.query("UPDATE conversation_message_images SET content_hash=$4 WHERE account_id=$1 AND session_id=$2 AND message_id=$3",[auth.accountId,sessionId,messageId,"b".repeat(64)]);
+    if(change==="image_deleted")await pool!.query("DELETE FROM conversation_message_images WHERE account_id=$1 AND session_id=$2 AND message_id=$3",[auth.accountId,sessionId,messageId]);
+    const opened=await open(auth,staged!.proposal.proposal_id,"chat");
+    await expect(commit(auth,opened.review,opened.review_credential!,{selected:[],contactDecision:"new",newContact:{display_label:"阿禾",relationship_context:""}})).rejects.toThrow(/source/i);
+    const people=await pool!.query("SELECT count(*)::int AS count FROM subjects WHERE account_id=$1 AND display_label='阿禾'",[auth.accountId]);
+    expect(people.rows[0].count).toBe(0);
   });
 
   it("dismisses only the visible business subset", async () => {
