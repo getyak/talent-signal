@@ -1,0 +1,226 @@
+<!-- AI生成 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Talent Signal · 安装与首次启动</title>
+  <link rel="stylesheet" href="css/opening.css" />
+</head>
+<body>
+<p data-aigc-mark="1" style="margin:0 0 8px;font-size:10px;line-height:1.3;color:#6b6560;font-weight:400;">AI生成</p>
+
+  <div class="desk" data-scene="install">
+    <header class="lab-bar" aria-label="设计预览控制">
+      <div class="lab-brand">
+        <svg class="lab-mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M38 10.5c-4.3-2.1-9.2-2.8-14-1.6C12.1 11.8 5.7 24.2 9.9 35.6c3.8 10.2 14.8 15.8 25.2 12.9" fill="none" stroke="#171715" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M43.8 15.6c7.4 6.1 8.6 17 2.7 24.5" fill="none" stroke="#d5533d" stroke-width="5.5" stroke-linecap="round"/>
+        </svg>
+        <span>Talent Signal · 开场设计</span>
+      </div>
+      <nav class="scene-tabs" role="tablist" aria-label="三幕场景">
+        <button type="button" role="tab" id="tab-install" aria-controls="scene-install" aria-selected="true" data-scene="install">安装</button>
+        <button type="button" role="tab" id="tab-launch" aria-controls="scene-launch" aria-selected="false" data-scene="launch">首次启动</button>
+        <button type="button" role="tab" id="tab-deep" aria-controls="scene-deep" aria-selected="false" data-scene="deep">看懂了</button>
+      </nav>
+      <div class="lab-actions">
+        <button type="button" class="lab-chip" id="demo-drag" hidden>演示安装手势</button>
+        <button type="button" class="lab-notes-toggle" id="notes-toggle" aria-expanded="false" aria-controls="design-notes">设计说明</button>
+      </div>
+    </header>
+
+    <main class="stage" id="main">
+      <!-- ========== ACT 1 · DMG install window (static artwork) ========== -->
+      <section id="scene-install" class="scene scene-install" role="tabpanel" aria-labelledby="tab-install" tabindex="0">
+        <div class="finder" role="img" aria-label="Talent Signal 磁盘安装窗口：暖纸背景，上方标语「让每一次重要对话，都有下文。」，左侧应用图标，右侧 Applications，中间拖动指引，下方「拖入 Applications 安装」">
+          <div class="finder-chrome">
+            <div class="traffic" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="finder-title">Talent Signal</div>
+          </div>
+
+          <div class="volume" id="install-volume">
+            <header class="invite-head">
+              <div class="invite-brand">
+                <svg class="brand-symbol" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                  <path d="M38 10.5c-4.3-2.1-9.2-2.8-14-1.6C12.1 11.8 5.7 24.2 9.9 35.6c3.8 10.2 14.8 15.8 25.2 12.9" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/>
+                  <path d="M43.8 15.6c7.4 6.1 8.6 17 2.7 24.5" fill="none" stroke="#d5533d" stroke-width="5.5" stroke-linecap="round"/>
+                </svg>
+                <span class="invite-brand-name">Talent Signal</span>
+              </div>
+              <p class="invite-tagline">让每一次重要对话，都有下文。</p>
+            </header>
+
+            <div class="gesture-unit">
+              <div class="drag-stage" id="drag-stage">
+                <div class="icon-slot">
+                  <img class="app-glyph" id="app-glyph" src="assets/app-icon.png" width="88" height="88" alt="" draggable="false" />
+                  <span class="icon-label">Talent Signal</span>
+                </div>
+
+                <!-- Held interval: two open strokes, two deliberate gaps, one quiet chevron -->
+                <svg class="drag-path" viewBox="0 0 210 48" aria-hidden="true" focusable="false">
+                  <circle class="path-gap-mark" cx="8" cy="24" r="2.2" />
+                  <path class="path-stroke" d="M18 24 H64" />
+                  <path class="path-stroke" d="M90 24 H136" />
+                  <path class="path-chevron" d="M164 14 L178 24 L164 34" />
+                </svg>
+
+                <div class="icon-slot">
+                  <svg class="folder-glyph" id="apps-glyph" viewBox="0 0 104 84" aria-hidden="true" focusable="false">
+                    <path d="M4 20c0-3.866 3.134-7 7-7h24.2c1.76 0 3.42.68 4.66 1.89L43.2 18H93c3.866 0 7 3.134 7 7v42c0 3.866-3.134 7-7 7H11c-3.866 0-7-3.134-7-7V20z" fill="#5aaaef"/>
+                    <path d="M4 32h96v35c0 3.866-3.134 7-7 7H11c-3.866 0-7-3.134-7-7V32z" fill="#7fc1f7"/>
+                    <path d="M4 32h96v3.5H4z" fill="#3f8fd4"/>
+                  </svg>
+                  <span class="icon-label">Applications</span>
+                </div>
+              </div>
+
+              <footer class="invite-foot">
+                <p class="install-step">拖入 <span class="latin">Applications</span> 安装</p>
+                <p class="after-step">完成后，从 <span class="latin">Applications</span> 打开 Talent Signal</p>
+              </footer>
+            </div>
+          </div>
+        </div>
+
+        <p class="scene-note">磁盘安装窗口 · 静态背景与图标布局 · 约 720 × 460</p>
+      </section>
+
+      <!-- ========== ACT 2 · First launch ========== -->
+      <section id="scene-launch" class="scene scene-launch" role="tabpanel" aria-labelledby="tab-launch" tabindex="0" hidden>
+        <div class="app-window">
+          <div class="app-surface" id="launch-surface">
+            <div class="launch-welcome" id="launch-welcome" data-phase="in">
+              <div class="invite-brand">
+                <svg class="brand-symbol" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                  <path d="M38 10.5c-4.3-2.1-9.2-2.8-14-1.6C12.1 11.8 5.7 24.2 9.9 35.6c3.8 10.2 14.8 15.8 25.2 12.9" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/>
+                  <path d="M43.8 15.6c7.4 6.1 8.6 17 2.7 24.5" fill="none" stroke="#d5533d" stroke-width="5.5" stroke-linecap="round"/>
+                </svg>
+                <span class="invite-brand-name">Talent Signal</span>
+              </div>
+              <h1 class="launch-title">欢迎。</h1>
+              <p class="launch-sub">同一份对话、人物和日程，在这台 Mac 上继续。</p>
+            </div>
+
+            <div class="launch-entries" id="launch-entries" hidden>
+              <div class="invite-brand compact">
+                <svg class="brand-symbol" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                  <path d="M38 10.5c-4.3-2.1-9.2-2.8-14-1.6C12.1 11.8 5.7 24.2 9.9 35.6c3.8 10.2 14.8 15.8 25.2 12.9" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/>
+                  <path d="M43.8 15.6c7.4 6.1 8.6 17 2.7 24.5" fill="none" stroke="#d5533d" stroke-width="5.5" stroke-linecap="round"/>
+                </svg>
+                <span class="invite-brand-name">Talent Signal</span>
+              </div>
+
+              <h1 class="entry-title">连接你的工作区</h1>
+              <p class="entry-sub">主入口。填入 HTTPS 工作区地址，登录后在同一份关系上下文里继续。</p>
+
+              <form class="connect-form" id="connect-form" novalidate>
+                <label class="field-label" for="workspace-url">工作区地址</label>
+                <input id="workspace-url" name="workspace-url" type="url" inputmode="url" autocomplete="url"
+                       placeholder="https://workspace.example.com" spellcheck="false" />
+                <p class="field-hint" id="url-hint">可粘贴完整工作区链接。仅 HTTPS，不含账号或密码。</p>
+                <p class="field-error" id="url-error" role="alert" hidden></p>
+                <div class="form-actions">
+                  <button type="submit" class="btn-primary" id="connect-submit">打开工作区</button>
+                  <button type="button" class="btn-quiet" id="test-connection">先测试连接</button>
+                </div>
+                <p class="probe-result" id="probe-result" hidden></p>
+              </form>
+
+              <div class="entry-divider" aria-hidden="true"></div>
+
+              <div class="secondary-entry">
+                <button type="button" class="btn-secondary" id="try-example">先体验一个示例</button>
+                <p class="secondary-note">虚构内容，只读演示。不会发送消息，也不会写入真实工作区。</p>
+              </div>
+
+              <p class="future-note">后续支持从受信任的工作区链接带入地址，再由你确认、登录。<span class="badge-new">新设计</span></p>
+            </div>
+          </div>
+        </div>
+        <p class="scene-note">首次启动 · 600–900ms 转场 · 减少动态时直接显示终态</p>
+      </section>
+
+      <!-- ========== ACT 3 · Wow: evidence unfolds ========== -->
+      <section id="scene-deep" class="scene scene-deep" role="tabpanel" aria-labelledby="tab-deep" tabindex="0" hidden>
+        <div class="demo-frame">
+          <div class="demo-meta">
+            <span class="badge-fixture">虚构示例</span>
+            <span class="demo-meta-copy">只读演示 · 不发送消息 · 解释可修改</span>
+          </div>
+
+          <article class="source-card" id="source-card">
+            <header class="source-head">
+              <span class="source-label">原话</span>
+              <span class="source-scope">示例对话片段</span>
+            </header>
+            <blockquote class="source-quote" id="source-quote">
+              <span data-span="all">「<span data-span="budget">方案我看过了，预算还要和合伙人确认。</span><span data-span="thu">周四我们再聊。</span>」</span>
+            </blockquote>
+            <div class="source-actions">
+              <button type="button" class="btn-primary" id="unfold">看看下一步</button>
+              <p class="control-note">点结果可回到对应原话。没有悄悄发送消息。</p>
+            </div>
+          </article>
+
+          <div class="insight-list" id="insight-list" hidden>
+            <article class="insight" data-span-target="budget" tabindex="0">
+              <header><span class="insight-kind">当前阻碍</span></header>
+              <p class="insight-body" contenteditable="true" role="textbox" aria-label="当前阻碍，可修改">预算尚待确认。</p>
+              <button type="button" class="source-link">回到原话</button>
+            </article>
+            <article class="insight" data-span-target="thu" tabindex="0">
+              <header><span class="insight-kind">约定</span></header>
+              <p class="insight-body" contenteditable="true" role="textbox" aria-label="约定，可修改">周四再沟通，具体日期仍需确认。</p>
+              <button type="button" class="source-link">回到原话</button>
+            </article>
+            <article class="insight" data-span-target="all" tabindex="0">
+              <header><span class="insight-kind">建议</span></header>
+              <p class="insight-body" contenteditable="true" role="textbox" aria-label="建议，可修改">准备一次跟进，等待用户决定。</p>
+              <button type="button" class="source-link">回到原话</button>
+            </article>
+          </div>
+
+          <p class="edit-note" id="edit-note" hidden>解释已更新。来源仍指向原话；建议保持「等待用户决定」。</p>
+        </div>
+        <p class="scene-note">惊艳时刻留给「看懂了」 · 三个有来源结果 · 回到原话</p>
+      </section>
+
+      <aside class="design-notes" id="design-notes" hidden>
+        <h2>设计说明</h2>
+        <section>
+          <h3>两个设计空间</h3>
+          <table>
+            <thead><tr><th>环节</th><th>能做什么</th><th>做到什么程度</th></tr></thead>
+            <tbody>
+              <tr><td>DMG 安装窗口</td><td>背景、窗口尺寸、图标位置、拖动指引</td><td>一张有记忆点、操作一眼明白的作品</td></tr>
+              <tr><td>App 首次启动</td><td>动画、交互、演示、连接工作区</td><td>承担真正的惊艳和价值展示</td></tr>
+            </tbody>
+          </table>
+          <p class="notes-caution">普通 Finder 背景不具备网页交互。涟漪、拖动跟随、复制后变形不作为安装窗口能力；预览栏「演示安装手势」仅用于设计沟通。</p>
+        </section>
+        <section>
+          <h3>安装窗口方向</h3>
+          <ul>
+            <li>锚点：安静的邀请函 / 字母印刷卡片，放在 macOS 卷宗窗口里。</li>
+            <li>色：暖纸 <code>#f4f1e9</code> · 墨 <code>#171715</code> · 朱红 <code>#d5533d</code> 仅出现在品牌标志。</li>
+            <li>字：标语用宋体系作邀请语气；操作文案用苹方，清楚、不促销。</li>
+            <li>签名记忆点：中间拖动路径借用品牌「开放间隙」——两段开放墨线 + 两处留白 + 安静箭头。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>三幕</h3>
+          <ol>
+            <li>安装：安静邀请函，一眼明白拖动安装。</li>
+            <li>首次启动：同底色同标志，600–900ms 进入连接入口；主入口连接工作区，次入口示例。</li>
+            <li>看懂了：一句原话展开为阻碍 / 约定 / 建议，均可点回来源、可修改、不静默发送。</li>
+          </ol>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script src="js/opening.js"></script>
+</body>
+</html>
