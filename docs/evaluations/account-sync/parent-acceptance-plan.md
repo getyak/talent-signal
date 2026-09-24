@@ -81,6 +81,18 @@ test results.
 
 ## Delivery evidence
 
+### Apple configuration readback, September 25
+
+The existing authenticated Apple Developer page was inspected read-only through
+the native Chrome accessibility surface. Services ID `com.talentsignal.web`
+(`5FVS238KRK`) has Sign in with Apple enabled and is associated with primary App
+ID `6RG2F8YY59.com.talentsignal.app`. Its website configuration contains the
+existing tailnet domain and only the `:10443/api/auth/callback/apple` HTTPS return
+URL. No Apple configuration was edited or saved. This verifies the intended
+native/Web grouping, not actual provider callback or canonical-account continuity.
+An isolated candidate origin needs an explicitly registered return URL before
+its real Web/macOS Apple flow can pass.
+
 Independent review must close confirmed P0/P1 findings. Bind test/CI evidence to
 the final source revision. Deployment, registered Apple grouping, real mail
 delivery, historical conflict resolution and live platform acceptance each keep
