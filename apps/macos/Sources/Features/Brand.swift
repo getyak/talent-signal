@@ -149,17 +149,19 @@ struct TSPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.semibold))
-            .foregroundStyle(Color.white)
             .padding(.horizontal, 15)
             .padding(.vertical, 9)
             .background(
-                isEnabled ? TSBrand.seam : Color.secondary.opacity(0.30),
+                isEnabled ? TSBrand.seam : TSBrand.selection,
                 in: RoundedRectangle(cornerRadius: 9, style: .continuous)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(Color.white.opacity(isEnabled ? 0.12 : 0), lineWidth: 0.5)
+                if isEnabled {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                }
             }
+            .foregroundStyle(isEnabled ? Color.white : TSBrand.secondaryInk)
             .shadow(color: isEnabled ? TSBrand.seam.opacity(0.14) : .clear, radius: 5, y: 2)
             .opacity(configuration.isPressed ? 0.78 : 1)
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
