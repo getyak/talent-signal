@@ -26,6 +26,7 @@ Status: in progress. No 98/100 acceptance claim has been issued.
 | EXP-10 | P1 | Source confirmation/deletion can submit a stale terminal revision after the runner's last save. The page displays raw `CONTACT_TASK_REVISION_CHANGED` and retains the stale action state; a full page reload was needed to proceed. | Reload current task on conflict, retain editable input, explain the changed state and require a fresh human decision. Do not automatically replay identity/deletion writes. |
 | EXP-11 | P1 | After the first resource POST returned a real 201, a synthetic transport failure hid the receipt from the form. Editing the note and pressing Create sent another `new_person` request; the backend created a second Person with a distinct ID. | Lock an unknown outcome to its exact submitted payload and request identity, reconcile before edits, and distinguish an acknowledged rejection from a missing response. Test source, clue and deferred-identity requests; never claim an unknown write was not saved. |
 | EXP-12 | P2 | At 320px the mobile shell labels shrink to 9px; utility labels wrap into one-character columns when the privacy action is present. The search target is 30px square and the account target is 35px wide. | Keep the four primary labels readable; preserve named utility destinations at narrow widths and verify all header targets at 320/390/430px. |
+| EXP-13 | P1 | A Person with unchanged proposed source fragments enters relationship chat, waits for model processing, then gets `CHAT_COMPLETION_SOURCE_CHANGED`. The reviewed-manifest filter only ran when Session screenshot sources were present, while the final completion guard always required reviewed/attributed evidence. Both Session and no-Session synthetic PostgreSQL cases reproduced 409 before repair. | Filter proposed evidence from every reviewed manifest before provider work; preserve its unconfirmed state and the late revocation guard. Repeat against the deployed runtime. |
 
 ## First verified repair
 
@@ -132,6 +133,11 @@ to passes.
    states of the same mutation. Correcting one field must never silently
    recreate an already-saved Person, note or arrangement; missing receipts
    require reconciliation before another intent.
+8. Apply one evidence-admission policy across direct relationship chat and
+   Session chat. A pending review must remain an explicit pending state; it
+   must not enter the reviewed manifest and fail much later as a fictitious
+   concurrent change. [EXP-13 regression](evidence/proposed-source-chat-regression.json)
+   records two failing cases before repair and 32 passing related checks after.
 
 ## Reference standards
 

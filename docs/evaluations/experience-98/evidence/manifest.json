@@ -110,6 +110,16 @@
     "bytes": 80575
   },
   {
+    "file": "proposed-source-chat-regression.json",
+    "sha256": "2be7e13851c2942a1e6271034d5851b110bbc3bd1c278a4396c7318019cf913d",
+    "bytes": 1900
+  },
+  {
+    "file": "relationship-chat-source-changed.png",
+    "sha256": "581d13da6499fafd68ba70d9ec5189d1c541dabb06de369fd231412600f4523e",
+    "bytes": 110295
+  },
+  {
     "file": "relationship-shell-readback.json",
     "sha256": "c9aa2f0bf865ffc46e51a35747d3dad893be97f778189316b00271c6ef75cc34",
     "bytes": 4956

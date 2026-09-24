@@ -940,9 +940,13 @@ export async function createChatTask(
           index,
       )
       .slice(0, 20);
-    if (sessionConversation.sources?.length) {
-      // Screenshot dialogue is unconfirmed context. It must not pull proposed
-      // OCR into the separate manifest of reviewed relationship evidence.
+    {
+      // Every relationship manifest contains only reviewed, attributed
+      // evidence. A Person can have proposed source fragments even without
+      // Session screenshot context; including those fragments would both
+      // expose them as reviewed context and fail the final availability guard
+      // despite no concurrent source change. Screenshot dialogue remains in
+      // its separate, explicitly unconfirmed Session context.
       const fragmentIDs = unique(selectedBlocks.flatMap((item) => item.dependencies.filter((dependency) => dependency.type === "evidence_fragment").map((dependency) => dependency.id)));
       const reviewed = new Set((await client.query<{ id: string }>(
         "SELECT id FROM evidence_fragments WHERE account_id=$1 AND id=ANY($2::uuid[]) AND status='active' AND review_status='reviewed' AND attribution_status='confirmed'",
