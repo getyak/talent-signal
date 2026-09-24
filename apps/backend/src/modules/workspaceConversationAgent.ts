@@ -85,6 +85,7 @@ export interface WorkspaceMemoryStagedProposal {
   contactStatus: "resolved" | "ambiguous" | "pending";
   personID: string | null;
   personDisplayLabel: string | null;
+  relationshipDisplayLabel?: string | null;
 }
 
 type WorkspaceMemoryProposeInput = Extract<
@@ -727,6 +728,7 @@ const declinedContact = /(?:不要|不用|别|不需要).{0,12}(?:添加|建|保
           scope_counts: staged.scopeCounts,
           contact_status: staged.contactStatus,
           person_display_label: staged.personDisplayLabel,
+          relationship_display_label: staged.relationshipDisplayLabel ?? null,
           ...(staged.contactStatus === "ambiguous" ? { instruction: "A same-name contact needs human identity review in the card. Do not bind or create a duplicate automatically; explain the choice briefly." } : {}),
           consequence: "No Memory or contact changed; a human review card was staged.",
         },
@@ -1484,6 +1486,7 @@ export async function executeWorkspaceConversationAgent(input: {
         contactStatus: staged.proposal.contact_status,
         personID: staged.proposal.person_id ?? null,
         personDisplayLabel: staged.proposal.person_display_label ?? null,
+        relationshipDisplayLabel: staged.proposal.relationship_display_label ?? null,
       };
     }),
   };

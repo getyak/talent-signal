@@ -78,7 +78,7 @@ async function runCase(c) {
       calendarContext:{sourceRequestID:messageID,referenceTime:c.referenceTime,timeZone:c.timeZone},
       contacts:{search:async query=>contactRows.filter(p=>p.displayLabel.toLowerCase().includes(query.toLowerCase())),read:async()=>{throw Error('No name-only identity authority');}},
       memory:{recall:async()=>({items:[],nextCursor:null,hasMore:false}),stage:async input=>{
-        report.staged=input;const receipt={proposalID:randomUUID(),proposalRevision:1,itemCount:input.items.length,defaultSelectedCount:0,scopeCounts:{self:input.items.filter(i=>i.scope==='self').length,person:input.items.filter(i=>i.scope==='person').length,relationship:input.items.filter(i=>i.scope==='relationship').length},contactStatus:contactRows.length?'ambiguous':'pending',personID:null,personDisplayLabel:input.newContact?.display_label??null};
+        report.staged=input;const receipt={proposalID:randomUUID(),proposalRevision:1,itemCount:input.items.length,defaultSelectedCount:0,scopeCounts:{self:input.items.filter(i=>i.scope==='self').length,person:input.items.filter(i=>i.scope==='person').length,relationship:input.items.filter(i=>i.scope==='relationship').length},contactStatus:contactRows.length?'ambiguous':'pending',personID:null,personDisplayLabel:input.newContact?.display_label??null,relationshipDisplayLabel:input.newContact?.relationship_context??null};
         report.stagedReceipt=receipt;return receipt;
       }} });
   } catch(e) {report.error={name:e.name,message:e.message};}

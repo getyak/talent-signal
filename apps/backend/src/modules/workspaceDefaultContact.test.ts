@@ -8,7 +8,7 @@ const artifactID="conversation-image-10000000-0000-4000-8000-000000000001-0-sour
 const image={kind:"image" as const,artifactID,mimeType:"image/png",byteSize:bytes.length,contentHash:createHash("sha256").update(bytes).digest("hex"),dataBase64:bytes.toString("base64")};
 const observation:CurrentImageObservation={conversation_kind:"direct",counterparty_name:"小雨",visible_text:["小雨","最近在读 Andrew 写的东西。"],description:"Two person chat",uncertainties:[],model:"doubao",request_id:"test-receipt"};
 async function run(options:{observation?:CurrentImageObservation;objective?:string;current?:()=>boolean;bound?:boolean;multiple?:boolean;provider?:ScriptedAgentProvider}={}) {
- const stage=vi.fn(async()=>({proposalID:"10000000-0000-4000-8000-000000000002",proposalRevision:1,itemCount:0,defaultSelectedCount:0,scopeCounts:{self:0,person:0,relationship:0},contactStatus:"ambiguous" as const,personID:null,personDisplayLabel:"小雨"}));
+ const stage=vi.fn(async()=>({proposalID:"10000000-0000-4000-8000-000000000002",proposalRevision:1,itemCount:0,defaultSelectedCount:0,scopeCounts:{self:0,person:0,relationship:0},contactStatus:"ambiguous" as const,personID:null,personDisplayLabel:"小雨",relationshipDisplayLabel:"已暂存的关系标签"}));
  const inspector={inspect:vi.fn(async()=>options.observation??observation)};
  const provider=options.provider??new ScriptedAgentProvider([],{outcome:"reply",title:"需要确认",body:"Andrew 是哪一位，需要链接确认。"});
  const result=await executeWorkspaceConversationAgentCore({workspaceID:"test",objective:options.objective??"了解聊天里讨论的 Andrew",provider,
@@ -50,6 +50,16 @@ describe("default direct-chat contact review",()=>{
 
 const contactInput=(name="小雨")=>({operation:"propose",contact_decision:"new",person_display_label:name,new_contact_source_locator:{kind:"image_region",artifact_id:artifactID,image_index:0},items:[]});
 describe("model and host use the same contact boundary",()=>{
+ it("reports the staged relationship label even when a replay differs from this request",async()=>{
+  const provider=new ScriptedAgentProvider([],{outcome:"reply",title:"说明",body:"可核对"});
+  vi.spyOn(provider,"run").mockImplementation(async(_request,invoke)=>{
+   const result=await invoke("memory_review",contactInput());
+   expect(result.ok).toBe(true);
+   expect(result.data).toMatchObject({relationship_display_label:"已暂存的关系标签"});
+   return {structuredOutput:{outcome:"reply",title:"说明",body:"可核对"},inputTokens:0,outputTokens:0,estimatedUsd:0,turns:1,permissionDenials:[]};
+  });
+  await run({provider});
+ });
  it("rejects a model-created contact when the user declined it",async()=>{
   const provider=new ScriptedAgentProvider([{tool:"memory_review",input:contactInput()}],{outcome:"reply",title:"说明",body:"图片内容"});
   expect((await run({objective:"不要添加联系人，先看图片",provider})).stage).not.toHaveBeenCalled();

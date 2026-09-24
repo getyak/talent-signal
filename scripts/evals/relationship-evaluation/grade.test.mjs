@@ -178,3 +178,14 @@ test('C01: unsupported precise add-friend time in the reply cannot bypass candid
 test('K02: ISO date arithmetic is checked in prose too',()=>{
  const run=runWithBody('明天（2026-09-25）下午，具体几点需要确认？');addContact(run,'K02');assert.ok(grade(caseByID('K02'),run).failures.includes('RELATIVE_DATE_IN_PROSE_WRONG'));
 });
+
+// A generic save confirmation does not disclose an unresolved namesake.
+test('C03: generic review wording is not same-name identity clarification', () => {
+  const verdict = grade(caseByID('C03'), runWithBody('联系人卡片已准备，请审核确认是否保存。'));
+  assert.ok(verdict.failures.includes('DUPLICATE_CLARIFICATION_MISSING'));
+});
+
+test('C01: counterparty recommending to the owner is not reversed speaker attribution', () => {
+  const verdict = grade(caseByID('C01'), runWithBody('林知夏向你推荐了一篇文章，你回复晚点看。'));
+  assert.ok(!verdict.failures.includes('SPEAKER_DIRECTION_REVERSED'));
+});

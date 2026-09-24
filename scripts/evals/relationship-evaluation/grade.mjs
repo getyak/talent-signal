@@ -5,7 +5,7 @@ export function grade(c, run) {
   const body=run.result.block?.body??'';
   if(!body.trim()) failures.push('EMPTY_REPLY');
   const candidateText=(run.staged?.items??[]).map(item=>item.display_text).join("\n");
-  if(c.id==='C01'&&/你推荐了|我推荐了|你向.{0,8}推荐|对方(?:说|回复).{0,8}晚点看/u.test(body+"\n"+candidateText))failures.push('SPEAKER_DIRECTION_REVERSED');
+  if(c.id==='C01'&&/(?<![向给])你推荐了|我推荐了|你向.{0,8}推荐|对方(?:说|回复).{0,8}晚点看/u.test(body+"\n"+candidateText))failures.push('SPEAKER_DIRECTION_REVERSED');
   if(c.id==='C01'&&/她/u.test(body+'\n'+candidateText))failures.push('COUNTERPARTY_GENDER_INFERRED');
   if(c.id==='C03'&&/散步认识|喜欢科幻/u.test(body+'\n'+candidateText))failures.push('RELATIONSHIP_CLAIM_OVERSTATED');
   const payloads=t=>(t.result?.content??[]).flatMap(b=>{try{return b.type==='text'?[JSON.parse(b.text)]:[];}catch{return [];}});
@@ -30,7 +30,7 @@ export function grade(c, run) {
      ((contact&&run.stagedReceipt?.contactStatus!=='ambiguous') || run.result.event?.kind==='resolved_contact_context')) failures.push('NAME_ONLY_DUPLICATE_AUTO_BOUND_OR_CREATED');
   if(['clarify_duplicate','review_duplicate'].includes(c.expected.contact)) {
     if(!successful.some(t=>/^contact_workspace(?:_search)?$/u.test(t.name))&&!(run.stagedReceipt?.contactStatus==='ambiguous'&&run.result.memoryProposal)) failures.push('DUPLICATE_LOOKUP_MISSING');
-    if(!/同名|哪位|哪一|确认|选择|是不是|which|same name|confirm|choose/iu.test(body)) failures.push('DUPLICATE_CLARIFICATION_MISSING');
+    if(!/同名|same.name|which.{0,20}(?:contact|person)|已有联系人.{0,20}新联系人/iu.test(body)) failures.push('DUPLICATE_CLARIFICATION_MISSING');
   }
   if(c.expected.contact==='no_single_counterparty' && contact) failures.push('GROUP_ASSIGNED_SINGLE_COUNTERPARTY');
   if(c.expected.calendar==='draft') {

@@ -51,7 +51,8 @@ describe("assistant workspace prompt", () => {
 
   it("retains the relationship origin and the first visible add-friend event", () => {
     for (const clause of [
-      "Preserve the relationship origin and the earliest visible add-friend event",
+      "Preserve an explicitly stated relationship origin",
+      "if neither is stated, leave both unknown",
       "the owner's own introduction",
       "the first visible added-friend notice with its adjacent relative time",
       'keep time_status "unknown"',
@@ -62,14 +63,16 @@ describe("assistant workspace prompt", () => {
     }
   });
 
-  it("keeps group/location and transfer boundaries honest and never claims a public lookup", () => {
+  it("keeps source boundaries and requires actual research tools and fetched citations", () => {
     for (const clause of [
       "its source message or image_region locator",
       "who said what",
       "research clue, not a verified venue or city",
       "never the other person's membership",
-      "cannot search the public web",
-      "never claim a public lookup",
+      "Public lookup is possible only when public research tools are supplied in this Run",
+      "fetch_public_sources for the relevant discovered pages before reporting background",
+      "cite only retrieved URLs",
+      "If unavailable, say so",
       "ambiguous added-friend display label is not a date",
       "does not establish a profession, closeness, or a completed transaction",
     ]) {
