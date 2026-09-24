@@ -20,6 +20,8 @@ Authentication session IDs must differ by device.
 | Google first, then password or Apple email match | Verified existing-account flow; adding password works despite historical user kind |
 | Apple first, then password or Google email match | Same canonical user after explicit binding |
 | Apple relay differs from primary email | Primary email stays stable; independently verified subject can bind |
+| Provider verifies secondary email B, then B attempts verified signup | B remains reserved to the same canonical account; no second account or inherited password |
+| Secondary-email claim races signup, changes on rebind, or survives unlink | Shared atomic arbitration, truthful verification provenance and retained ownership |
 | Concurrent first signup, case/outer whitespace variants | One canonical owner; transaction loser gets recoverable conflict |
 | Pending password registration, then verified provider signup | Unverified password cannot reserve indefinitely or become inherited login |
 | Legacy password email unverified | Provider equality cannot promote or inherit its password |
@@ -28,6 +30,7 @@ Authentication session IDs must differ by device.
 | Historical duplicate with governed data or unclassified table | No generic reparent or deletion; exact protected reconciliation gap |
 | Historical duplicate with indirect ownership or audit tombstone | Inventory sees differently named foreign keys; provenance retained |
 | Historical truly empty duplicate, dual proof and current preview | Explicit canonical choice, atomic transfer, obsolete sessions revoked, audit/readback preserved |
+| Empty duplicate owns several verified emails | All frozen owned reservations transfer atomically; changed or third-party claims refuse without partial movement |
 | Old request passes authentication, pauses, then resumes after source retirement | Database rejects the late Person/Session write; neither account receives redirected data; receipt and credential transfer occur exactly once |
 | Old product write commits while reconciliation waits on the shared account lock | Reconciliation observes the new data and refuses an empty transfer |
 
