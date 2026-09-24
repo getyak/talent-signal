@@ -47,13 +47,13 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 
 | Requirement | Required proof | Current state |
 | --- | --- | --- |
-| New email globally unique | PostgreSQL concurrent registration tests | pending |
+| New email globally unique | PostgreSQL concurrent registration tests | intermediate independent DB proof passed; final revision pending |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
-| Apple/Google/password same account/user | backend receipts and settings UI | pending |
+| Apple/Google/password same account/user | backend receipts and settings UI | synthetic backend identity proof and actual Web settings; native/live providers pending |
 | Safe conflict and relay behavior | hostile/replay/ownership tests | pending |
-| Historical duplicates handled | classified inventory, preview, dual proof | pending |
+| Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10 and reconciliation boundary8/8 at intermediate source; recovery UI fixes pending |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | pending |
-| Session history sync both directions | same session/message IDs and deletion | pending |
+| Session history sync both directions | same session/message IDs and deletion | actual Web open-history update and draft preservation observed; native/bidirectional/deletion pending |
 | Interrupted/offline recovery | preserved draft and no duplicate write | pending |
 | Real Apple sign-in | provider callback and post-login readback | pending |
 | Review and delivery | independent P0/P1 closure and exact-head checks | pending |
@@ -85,6 +85,38 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 - Parent artifacts are under the registered task directory's `parent-db/`;
   the isolated `account-sync-parent-pg` container is task-owned and must be
   stopped after durable evidence is saved. No resident database was migrated.
+
+## Independent client checkpoint at 04:18 local
+
+Pi task `20260925-013010-76d8a6ad` continues in the same isolated worktree,
+repair9, with the complete client review. Parent has not integrated implementation
+or changed resident services/accounts. The macOS handoff remains a sequential
+second phase after the shared implementation is coherent and reviewed.
+
+- Independent backend expected-revision tests passed7/7 through helpers and7/7
+  through actual loopback HTTP. Prior reconciliation lock-boundary8/8 and
+  classified inventory10/10 remain intermediate receipts, not final-source proof.
+- Actual Web received a committed remote message while its original Session
+  stayed open, preserving the unsent draft. Source hashes stayed unchanged.
+  Observation upper bound16.460seconds includes tool dispatch and does not prove
+  the15-second target. A separate remote-draft overwrite race still needs fixing.
+- Independent Web review found stale direct password forms can target another
+  account with matching revisions, provider recovery challenge-label mismatch,
+  absent duplicate-provider proof flow, and the draft-baseline race. Recovery
+  must additionally bind original session/revisions and support cancel/retry.
+- Independent native review found the initial Settings/provider and refresh
+  types were not wired to real workflows. Pi must complete provider-only
+  step-up, binding/unlink completion, actual People/open-Session subscriptions,
+  scope invalidation and accessible account/sync/device controls before handoff.
+- Native registration may use the existing trusted HTTPS email confirmation
+  followed by an explicit return-to-app continuation with pending credentials
+  held only in memory. Raw secret copying is not the primary product flow;
+  unconfigured universal links must not be invented.
+- Parent stopped a broad native script before it could uninstall the shared
+  simulator app. Verified orphaned task build processes were terminated. All
+  shared simulators remained shutdown;142GiB was free. Subsequent verification
+  uses guarded focused Debug build-for-testing/test-without-building, explicit
+  task DerivedData and preserved shared application data.
 
 ## Execution boundaries
 
