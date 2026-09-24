@@ -295,3 +295,63 @@ This follow-up has not yet been handed to running Pi repair15 (no inline steerin
 API). Do not rewrite the fixture to hide the failure. Native manual guard was
 released and the task-started Primary iPhone was shut down. No production data,
 provider configuration, installed macOS app, or saved preferences changed.
+
+
+### 2026-09-25 07:03 actual same-Session write and deletion acceptance
+
+Parent owns agentSessions.ts and its timestamp integration regressions in
+addition to native files. Pi repair16 owns secondary email aliases and Web
+completion scope/form/copy fixes; cumulative counters/session retained.
+
+Real signed iOS startup PUT returned200 and advanced retained Web Session
+ e904c65d-d51d-486e-8ad6-4ce79cb30fa0 from7to8 while restoring the old local
+draft. Typing a new draft in the actual iOS composer advanced to9; actual Chrome
+at the same Session URL displayed the identical draft. A real HTTP static
+history append advanced to10; both native and Chrome showed new message299a9764
+while preserving the draft. Original five message IDs and high-precision
+creation strings stayed unchanged. Separate disposable SessionC1140259 deletion
+showed a native deletion notice, kept the draft, disabled Send, and offered Start
+new Session; tapping it restored Send without reviving the deleted Session.
+An accessibility identifier wait timed out because the container ID overrides
+the button ID; its real label/action and resulting UI were verified. No model
+request was sent. Primary iPhone guard released and task-started device shut down.
+
+Server time comparison now uses one sameImmutableTurn predicate for validation,
+image preservation and share classification preservation. The server retains
+original immutable time strings after checking equivalent JS millisecond
+instants. Independent review closed an initial image-preservation ordering P1.
+Real HTTP9/9 passed before the helper refactor. Focused PostgreSQL image/share
+regressions passed2/2 after it. Added canonical timestamp/tamper integration case;
+its suite passed2 cases but the concurrent image suite compile encountered Pi's
+in-progress auth.ts edit. Repeat the targeted3 cases on frozen source, and reload
+the final runtime before treating helper-refactor live proof as complete.
+
+These are actual iOS Simulator/Chrome/password/synthetic-data proofs; live Apple,
+Google and macOS system authentication remain separate incomplete checkpoints.
+A normally signed isolated macOS baseline build is underway for WebKit password
+and same-account readback; no installed app replacement or preference mutation.
+
+### 2026-09-25 07:09 macOS password baseline
+
+Normally signed isolated macOS build succeeded; strict codesign verification
+passed for com.talentsignal.macos. Per-process NSArgumentDomain origin/local
+flags selected127.0.0.1:4608, verified in actual WKWebView URL. Actual password
+login displayed both exact People IDs and the retained Session; its six static
+history turns and iOS-authored draft appeared. Editing the actual macOS composer
+persisted the new draft at revision12. Chrome displayed a remote draft conflict
+notice and preserved its local text. This is intentional conflict handling, not
+an automatic overwrite claim. Saved connection-origin/local/inspector defaults
+were unchanged; the installed app was not replaced. Candidate quit normally.
+Apple/Google system handoff remains phase2. This baseline does not prove OAuth.
+
+### 2026-09-25 07:11 independent secondary-email proof
+
+Fresh parent PostgreSQL database account_sync_alias_parent_r16 migrated through
+084. The existing independent five-case linked-email proof now passes5/5 with
+source hashes unchanged across execution: same-subject newly verified aliases,
+unlink retention, foreign collision with ordinary subject-login continuity,
+and both real signup/link commit orders. Earlier before-fix5/5 counterexamples
+remain saved. These controlled-provider tests use production entrypoints and
+real PostgreSQL locks; no live provider assertion is claimed. Review separately
+identified JSONB key-order comparison in reconciliation; Pi's own new alias
+transfer test also exposes stale-proof rejection and repair is still underway.
