@@ -31,6 +31,7 @@ Status: in progress. No 98/100 acceptance claim has been issued.
 | EXP-15 | P2 | Global search's Person result opens `/workspace?person=…`, which displayed the source-intake surface in the real synthetic Lab instead of that Person's page. | Open the canonical `/workspace/people/:id` destination with the matching Person heading, including keyboard activation. |
 | EXP-16 | P2 | An extension-free browser caught Session list hydration replacing `59 分钟前` with `1 小时前`; server and client independently used the current time. | A clock-boundary SSR/hydration regression must pass with a shared server timestamp; relative labels may refresh after hydration. |
 | EXP-17 | P2 | A single confirmed identity owner exposed “save for identity review” although its request contract requires at least two candidates. | Keep the single-owner choice truthful and withhold an impossible deferred submission; preserve the multi-candidate review path. |
+| EXP-18 | P2 | Quickly closing and reopening global search lets a queued native close event disable the newly open directory; an existing Person is falsely shown as absent. The extension-free browser reproduced an open dialog, the correct query and zero results. | Ignore stale close events after reopening; the same browser sequence must retain one correct result and normal close must still restore focus. |
 
 ## Independent review and navigation follow-up
 
@@ -50,6 +51,17 @@ failure's cause is still unknown; an old deployment is a fact, not a diagnosis.
   repair without suppressing hydration errors.
 - EXP-17: the single-owner component regression failed before the UI contract
   correction. Multiple candidates retain their existing review action.
+- EXP-18: both a component regression and the real browser failed before the
+  stale-close guard. The [same browser sequence](evidence/search-reopen-after.json)
+  now retains its result; [before evidence](evidence/search-reopen-before.json)
+  records the false absence. All 37 focused search/cache checks pass.
+- Search typography/targets: measured input 14px/33px high, name 13px and
+  context 11px before; now 16px/44px high, 14px and 13px respectively. Close is
+  at least 44px square; full names may wrap. At 320/390/1440px, with both themes
+  sampled at 320px, there is no horizontal overflow and keyboard navigation
+  still reaches the canonical Person. See [before](evidence/search-type-before.json)
+  and [after](evidence/search-type-after.json). Native iOS keyboard zoom is not
+  claimed from these desktop Chrome measurements.
 - EXP-11 history traversal: a delayed first-source receipt could still start
   the clue POST before the old card unmounted. A failing regression reproduced
   two writes; the history event now revokes continuation immediately. A

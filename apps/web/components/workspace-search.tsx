@@ -276,7 +276,14 @@ export function WorkspaceGlobalSearchDialog({
       <dialog
         aria-label="搜索人物与对话"
         className={styles.searchDialog}
-        onClose={() => { setOpen(false); setQuery(""); trigger.current?.focus(); }}
+        onClose={() => {
+          // Native close events are queued. Ignore an older close if the user
+          // has already reopened search, or its authorized directory disappears.
+          if (dialog.current?.open) return;
+          setOpen(false);
+          setQuery("");
+          trigger.current?.focus();
+        }}
         ref={dialog}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 ||

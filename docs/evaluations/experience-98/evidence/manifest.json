@@ -190,9 +190,29 @@
     "bytes": 3521
   },
   {
+    "file": "search-1440-dark.png",
+    "sha256": "73846986a3bc55bffd2c0a5cd238aa9ba589eee00613c425975faab0398844de",
+    "bytes": 498512
+  },
+  {
     "file": "search-1440.png",
     "sha256": "9f3f4b0cf8836c3f96b3b80a3af80df46c7dfb838ec4904adc7cdd22535d0cc9",
     "bytes": 501306
+  },
+  {
+    "file": "search-320-dark.png",
+    "sha256": "7ecc81cf2ad5f3a4d2c33e3c2db5e3cfc1a9af790778b5194052165503903a02",
+    "bytes": 58140
+  },
+  {
+    "file": "search-320-light.png",
+    "sha256": "085d423456a02d0c091041b4ed0bf182db8365623e26295fa5b628998bb5ba51",
+    "bytes": 56733
+  },
+  {
+    "file": "search-390-dark.png",
+    "sha256": "ae73c600eda06ef0c86f8eafcb17cbc1ed612bbb80d7b385954d311a23e8a382",
+    "bytes": 61702
   },
   {
     "file": "search-390.png",
@@ -208,6 +228,26 @@
     "file": "search-keyboard.json",
     "sha256": "d1a889081797d7e3129e08f6bf03a7793fbaf2b45565a26197ed1a00ab365c56",
     "bytes": 1422
+  },
+  {
+    "file": "search-reopen-after.json",
+    "sha256": "819e3f334b91178bfcadcedf3f254ecee7c2ab56e031e7043d83e7dcbf1226f7",
+    "bytes": 253
+  },
+  {
+    "file": "search-reopen-before.json",
+    "sha256": "1b9575306efc1b43b57f4f99aacacc21e3681c3429c1998f8336f62172cb5ad2",
+    "bytes": 332
+  },
+  {
+    "file": "search-type-after.json",
+    "sha256": "a50a77b464318fb8ac0466ea8aac9c87ac1a993e9033a4c145323d3be1e3efc4",
+    "bytes": 3827
+  },
+  {
+    "file": "search-type-before.json",
+    "sha256": "8e9ec30bdc59cafa0fd58397a2a0b673c7c1328406e7bd8466e9c0355450dd93",
+    "bytes": 3827
   },
   {
     "file": "settings-narrow-dark-baseline.png",
