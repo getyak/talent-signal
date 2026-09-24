@@ -1,0 +1,37 @@
+[
+  {
+    "file": "create-error-before.png",
+    "sha256": "c5a95f47b45c732420119d457cc85fc079aa2b70307371f18ae226a0565bd142",
+    "bytes": 624681
+  },
+  {
+    "file": "time-narrow-baseline.png",
+    "sha256": "39b334603528e4b2cf3c38acf561d4746e1e5ae41054a03030c9ee5d468f2dc0",
+    "bytes": 90792
+  },
+  {
+    "file": "captures-narrow-baseline.png",
+    "sha256": "cfc235b8535552933528659e85d6ff591a789659ba2be3064fa2876dd62a4b99",
+    "bytes": 92534
+  },
+  {
+    "file": "settings-narrow-dark-baseline.png",
+    "sha256": "f6a2a869b562a3f8e377362f6426c62ea105e33ff5f15f2b471d7aa57707d6ef",
+    "bytes": 95961
+  },
+  {
+    "file": "chat-stopped-queue.png",
+    "sha256": "7ab3a7e868582ab5b3afa05dd04aa36c57d19c86162abb4f8ee5d4cf9ce59c4c",
+    "bytes": 103817
+  },
+  {
+    "file": "page-baseline.json",
+    "sha256": "95f6658d06ef17998d6ad8524477047dd79c030e7ad14b9ea5c156567d39017e",
+    "bytes": 107641
+  },
+  {
+    "file": "page-dark-baseline.json",
+    "sha256": "1218c44dc709f860b02f6afe982880a931b652e912814be072f7df44b2427d63",
+    "bytes": 108050
+  }
+]

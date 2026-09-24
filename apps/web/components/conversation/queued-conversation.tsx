@@ -133,7 +133,7 @@ export function QueuedConversation(props: Props) {
   }
   async function applyEdit(entry: string) { if (await chat.mutate({ kind: "edit", queue_entry_id: entry, objective: editValue.trim() })) setEditing(null); }
 
-  return <section className={styles.canvas} aria-label="对话" data-conversation-canvas data-empty={!hasContent}>
+  return <main id="main-content" tabIndex={-1} className={styles.canvas} aria-label="对话" data-conversation-canvas data-empty={!hasContent}>
     {admitted && <header className={styles.header}><h1>{chat.detail?.title || "新对话"}</h1><details className={styles.details}><summary>对话详情</summary><div className={styles.detailPanel}>
       <p>历史回复保留当时的判断，执行前请核对当前信息。</p>
       {chat.detail && <p>保留至 {new Date(chat.detail.expires_at).toLocaleDateString("zh-CN")}</p>}
@@ -176,5 +176,5 @@ export function QueuedConversation(props: Props) {
       {!hasContent && <div className={styles.starters} aria-label="开始一个话题">{["你可以帮我做什么？", "梳理今天需要跟进的人"].map(text => <button key={text} onClick={() => { chat.changeDraft(text); document.getElementById("queued-conversation-composer")?.focus(); }}>{text}<ArrowUp size={13} aria-hidden="true"/></button>)}</div>}
       <div className={styles.footer}><span role="status" aria-live="polite" aria-atomic="true">{status || ""}</span><span>Enter 发送 · Shift+Enter 换行</span></div>
     </div>
-  </section>;
+  </main>;
 }

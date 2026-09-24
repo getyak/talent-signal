@@ -150,7 +150,7 @@ export function SessionDirectory({
   });
 
   return (
-    <section aria-labelledby="sessions-title" className={styles.page}>
+    <main id="main-content" tabIndex={-1} aria-labelledby="sessions-title" className={styles.page}>
       <header className={styles.header}>
         <div>
           <h1 className={styles.title} id="sessions-title">
@@ -247,6 +247,6 @@ export function SessionDirectory({
           </button>
         </div>
       ) : null}
-    </section>
+    </main>
   );
 }
