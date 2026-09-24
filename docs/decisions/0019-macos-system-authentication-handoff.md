@@ -26,7 +26,7 @@ enter an unsupported protocol. Display metadata is never authorization.
    with allowlisted provider and immutable purpose. It generates a random
    verifier and state in native memory. It submits the S256 challenge and state
    to `POST /api/desktop-auth/prepare` using the original WKWebView cookie jar.
-2. Prepare checks exact Origin, sets an HttpOnly pairing cookie, and redirects
+2. Prepare checks exact Origin, sets an attempt-specific HttpOnly pairing cookie, and redirects
    to a fixed pending path. Link authorization scope, recent reauthentication,
    session fingerprint and credential revision come from the server session.
    Every purpose captures the initiating authentication fingerprint, including
@@ -75,6 +75,12 @@ authenticated for link), credential revision,
 reauthentication reference, approved verified proof reference, code hash and
 lifecycle timestamps. Use a five-minute attempt and at most a one-minute code.
 Consume is atomic, single-use and replay resistant. Hash opaque secrets at rest.
+
+Pairing cookies have an attempt-specific name and bounded lifetime/count. A
+consume/cancel response clears only its own attempt cookie. A late response
+from an older generation must never replace or remove a newer pairing cookie,
+including across windows sharing one origin store. Serialize native starts,
+but do not rely on that alone to prevent HTTP response races.
 
 Return paths and callback are fixed by purpose; reject arbitrary redirect URLs.
 Session revocation, account switch, origin change and window destruction
