@@ -20,7 +20,10 @@ is below the heavyweight build threshold, so no full Xcode build runs locally.
 Remaining acceptance: remote exact-head CI, Developer ID/notary/Sparkle credential
 configuration, signed/notarized public release and feed readback, manual bootstrap
 of the current unconfigured preview, and a second physical Mac update. The user
-has been asked where existing credentials are stored; no answer yet.
+identified the previously saved Apple credentials. They were recovered from
+Infisical staging:/release and passed real notary authentication; see the
+verification report. Do not ask for that location again. Developer ID Application
+was not found in the checked stores; no new certificate has been created.
 
 Source of truth: [verification report](README.md), [runtime evidence](runtime-proof.txt)
 and [distribution contract](../../operations/macos-distribution.md).
