@@ -71,6 +71,10 @@ The TestFlight Compose boundary differs from synthetic development:
   `/v1/person-research/tasks` route accepts one bounded base64 image, redacts it
   from logs, verifies its hash/size, and retains only the zero-retention
   receipt and normalized result;
+- workspace conversation public research has its own explicit
+  `TALENT_SIGNAL_WORKSPACE_PUBLIC_RESEARCH_ENABLED` flag in `staging:/backend`.
+  It defaults to false. Enabling it passes the gate into the API container;
+  public search credentials remain in the existing Agent Host sidecar;
 - recruiter dictation has its own admission gate and server-only provider
   credential boundary;
 - Docker logs rotate locally.
