@@ -140,6 +140,11 @@
     "bytes": 96868
   },
   {
+    "file": "native-browser-zoom-observations.json",
+    "sha256": "b96d8ce46037e6a2f4ee601390fd254fd7057f795b0847ab44e6dd488596e6ed",
+    "bytes": 2112
+  },
+  {
     "file": "node-diagnostic-report-probe.json",
     "sha256": "6642e53e46f7ab65883f5b1d3256dbb74ab53a084c8f1df12f67f4682b9376ff",
     "bytes": 1201

@@ -66,6 +66,15 @@ failure's cause is still unknown; an old deployment is a fact, not a diagnosis.
   and exposes a 44px retry target. Explicit retry against the real backend
   restores the correct Person result and clears the alert without a page error.
   See [search read-failure recovery](evidence/search-directory-recovery.json).
+- Native Chrome readback now confirms actual 200% zoom in a new tab without
+  device emulation. The populated Session list remains visible; search input,
+  result focus and Enter reach the exact Person page. Tab traversal scrolls
+  the short sidebar to Time and Enter opens it. Time's heading and main controls
+  remain visible. The outer navigation focus outline is partly clipped at the
+  scroll edge and needs a visual follow-up. Zoom was restored to 100%, the new
+  test tab closed, and the previous foreground tab restored. This is limited
+  native keyboard/AX coverage, not screen-reader speech or all-state acceptance.
+  See [authored native zoom observations](evidence/native-browser-zoom-observations.json).
 - EXP-11 history traversal: a delayed first-source receipt could still start
   the clue POST before the old card unmounted. A failing regression reproduced
   two writes; the history event now revokes continuation immediately. A
