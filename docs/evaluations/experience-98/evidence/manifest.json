@@ -120,6 +120,16 @@
     "bytes": 9499
   },
   {
+    "file": "memory-fresh-session.json",
+    "sha256": "ba5f9307565084d7be298ed26ae253e6ccf36c886e99f069b7edc1db872d78d6",
+    "bytes": 1469
+  },
+  {
+    "file": "memory-fresh-session.png",
+    "sha256": "f80d1eefe2f6c34523750578ae16c098d5a07ebac77d410fbdcb0c0d31b889bd",
+    "bytes": 45965
+  },
+  {
     "file": "memory-live-failure.json",
     "sha256": "42597d64fd7a6cf1dca1a93826aedf3ac0737015247495d4eb2a8f6bad4271a9",
     "bytes": 984

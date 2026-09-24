@@ -122,6 +122,13 @@ excluded. The SDK's local pinned source and Node's official
 [diagnostic-report documentation](https://nodejs.org/api/report.html) support the
 reverse-DNS mechanism; actual resident improvement remains unverified.
 
+A bounded [fresh Session Memory probe](evidence/memory-fresh-session.json)
+also failed: the queue recorded `MODEL_RUN_FAILED` after about 62 seconds,
+retained the synthetic message, and paused. The Session had no prior turns;
+PostgreSQL readback found zero Memory proposals. This rules out the old
+conversation as the sole cause. The underlying runtime/provider failure
+remains unresolved; no further automatic retry was attempted.
+
 Rendered all eight primary page families at both widths: conversation home, Today, People, Time, Sources, Extensions, Settings and Sessions. No horizontal page overflow was observed in those empty states. This does not establish populated-page, keyboard, error, theme or native-app quality. The initial automated capture attempt sampled loading states; those samples were discarded and the harness now waits for content and source/time reads to settle.
 
 Still required: deployed acceptance and finish populated Person/Memory acceptance;
