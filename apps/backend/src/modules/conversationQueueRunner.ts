@@ -6,7 +6,7 @@ import type { Pool } from "pg";
 
 import type { AuthContext } from "./auth.js";
 import type { RemoteChatAnswerProviding } from "./chatAnswerProvider.js";
-import { readConversationRunImages } from "./conversationMessageImages.js";
+import { readConversationMessageImageManifests, readConversationRunImages } from "./conversationMessageImages.js";
 import { executeUnscopedChatTask } from "./unscopedChat.js";
 import {
   CONVERSATION_QUEUE_MAX_CONCURRENT_RUNS,
@@ -234,11 +234,26 @@ export class ConversationQueueRunner {
             }
           }
         }
-        await finalizeConversationQueueEntry(this.options.pool, {
+        const interrupted = await finalizeConversationQueueEntry(this.options.pool, {
           fence,
           status: "interrupted",
           failureCode: "RUNNER_INTERRUPTED",
         });
+        if (!interrupted.applied && interrupted.effectiveStatus === "running") {
+          // Recheck the owned stop through the normal cancellation path. Keep
+          // the admitted message and attachment references in Session history
+          // before terminal finalization scrubs the queue's source text. This
+          // reads metadata only and never replays the provider after a stop.
+          const images = await readConversationMessageImageManifests(
+            this.options.pool, reclaimed.accountId, [reclaimed.entryId],
+          );
+          await this.finalizeCancelled(auth, reclaimed, fence, "", images.get(reclaimed.entryId) ?? []);
+          this.options.logger.warn(
+            { queue_entry_id: reclaimed.entryId },
+            "conversation queue attempted settlement of a recovered stop",
+          );
+          continue;
+        }
         this.options.logger.warn(
           { queue_entry_id: reclaimed.entryId },
           "conversation queue recovered an interrupted run and paused its queue",

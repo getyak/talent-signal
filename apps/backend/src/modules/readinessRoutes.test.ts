@@ -22,3 +22,20 @@ describe.each(["072_mcp_extensions", "073_conversation_queue", "073_account_onbo
     }
   });
 });
+
+describe("readiness bounded failure", () => {
+  it("settles a hanging readiness probe with 503 within its observation budget", async () => {
+    const query = vi.fn().mockReturnValue(new Promise(() => undefined));
+    const app = Fastify();
+    registerReadinessRoutes(app, { query } as unknown as Pool, 25);
+    try {
+      const startedAt = Date.now();
+      const response = await app.inject({ method: "GET", url: "/health/ready" });
+      expect(Date.now() - startedAt).toBeLessThan(2_000);
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toMatchObject({ status: "not_ready" });
+    } finally {
+      await app.close();
+    }
+  });
+});

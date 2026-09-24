@@ -20,6 +20,7 @@ Status: in progress. No 98/100 acceptance claim has been issued.
 | EXP-04 | P2 | The narrow Time view uses 38px-high controls for creating an arrangement, time navigation, view selection and filtering. Extensions uses a 34px add button. These miss the project's 44px mobile target. | Applicable mobile controls meet the project target without excess wrapping; test keyboard and 320px reflow. Do not mislabel the project's target as WCAG's 24px AA minimum. |
 | EXP-05 | P2 | In the synthetic saved Session, asking the Agent to explain `no_action` produced a statement that related information is not persisted, while the same conversation is persisted and reloadable. | Product explanations distinguish no domain/external mutation from conversation retention. Test an actual provider reply plus reload, without claiming prompt tests guarantee every reply. |
 | EXP-06 | P2 | Activating the skip link before sending leaves `#main-content` in the URL. The admitted conversation stays on `/workspace?draft_session=...#main-content` because the admission navigation rejects every hash; opening history reaches the saved canonical Session. | Preserve the valid main-content anchor while replacing the admitted route, and keep unrelated navigation protected. |
+| EXP-07 | P2 | After deleting an internal arrangement and reloading its deep link at 390 × 844, Time still opens a full blank disabled “Edit arrangement” form. The deletion explanation is below the visible viewport, so the terminal state is unclear. The disabled fieldset does prevent writes; this is a presentation defect, not an observed authorization bypass. | Show an immediately visible compact deleted/unavailable state with a clear close action; no misleading blank editor or leaked old content. |
 
 ## First verified repair
 
@@ -28,6 +29,12 @@ EXP-02: parent changed only the outer containers of `QueuedConversation` and `Se
 ## Conversation runtime observations
 
 The synthetic first reply persisted and was readable after entering the Session through history. A second explanation replied successfully. A third run was stopped while a fourth message was queued; the UI showed the stopped incomplete reply, a paused queue containing exactly one pending message, and an explicit Continue action. These are observed lifecycle checks, not an overall model-quality claim. The runtime images were `talent-signal-backend-local:973e7913-platform`; readiness reported migration `079_memory_source_authority`.
+
+The pending message was edited, reloaded with its exact text and paused state, resumed, and completed once. Reloading the canonical Session retained the stopped marker and the final “测试完成。” reply. The diagnostics page independently reported Web, backend, PostgreSQL and required migrations healthy; it explicitly excludes external providers from that claim.
+
+## Time lifecycle observations
+
+Created one synthetic internal arrangement for September 25, 14:00–14:30 Asia/Shanghai. The next-30-days list and a reload retained the title, time and private note. An end time before the start produced an announced validation error and preserved input. Updating the title and end to 14:45 persisted after reload. The explicit delete confirmation explained its effect; confirming removed the item from the list and cleared its title/note on deep-link reload. No calendar file was exported and no invitation was sent. EXP-07 records the remaining deleted-state presentation defect.
 
 GET-49 has separate uncommitted work for in-place send/supplement UI and queue prioritization. Keep ownership separate; do not overwrite or claim delivery of that task in this audit.
 

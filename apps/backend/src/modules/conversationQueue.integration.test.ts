@@ -981,6 +981,74 @@ suite("durable conversation queue", () => {
     }
   });
 
+  it("settles a stop that survived a crashed worker instead of blocking the Session queue", async () => {
+    const seeded = await seedSession();
+    const runner = new ConversationQueueRunner({ pool: pool!, provider: null, logger: silentLogger });
+    const stoppedMessageId = randomUUID();
+    const followupMessageId = randomUUID();
+    const stoppedImage = pngUpload(pngBytes(12));
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: stoppedMessageId,
+        objective: "崩溃后遗留的停止请求",
+        images: [stoppedImage],
+      });
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: followupMessageId,
+        objective: "恢复后应继续的下一条",
+      });
+      const claimed = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        workerId: "audit-crashed-worker",
+      });
+      expect(claimed).not.toBeNull();
+      const beforeStop = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "stop",
+        expected_revision: beforeStop.revision,
+        idempotency_key: randomUUID(),
+        run_id: claimed!.runId,
+      });
+      // The worker dies before it can settle the committed stop; only the
+      // durable lease remains and now reads as expired.
+      await pool!.query(
+        "UPDATE conversation_queue_entries SET lease_expires_at = now() - interval '1 second' WHERE account_id=$1 AND id=$2",
+        [seeded.accountId, claimed!.entryId],
+      );
+      await runner.recover();
+      const rows = await entryRow(seeded.sessionId, seeded.accountId);
+      expect(rows[0]?.status).toBe("cancelled");
+      expect((await queueState(seeded.sessionId, seeded.accountId))!.paused).toBe(true);
+      const stoppedSession = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(stoppedSession.payload?.turns).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: stoppedMessageId, objective: "崩溃后遗留的停止请求",
+          images: [expect.objectContaining({ attachment_id: stoppedImage.attachment_id })] }),
+      ]));
+      // A settled stop pauses like every other stop; Continue resumes the queue
+      // instead of the stopped row blocking its Session forever.
+      const paused = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "continue",
+        expected_revision: paused.revision,
+        idempotency_key: randomUUID(),
+      });
+      const next = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        workerId: "audit-followup-worker",
+      });
+      expect(next?.messageId).toBe(followupMessageId);
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
   it("accepts every mutation kind through the real Fastify route contract", async () => {
     const seeded = await seedSession();
     const app = Fastify();
