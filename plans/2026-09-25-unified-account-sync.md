@@ -272,3 +272,26 @@ foreign email collision during rebind. The source-bound before-fix receipt is
 `docs/evaluations/account-sync/linked-email-boundaries-before-fix-2026-09-25.json`.
 Backend ownership and the remaining Web projection/form checks are queued for
 repair15 after native repair14 reaches a coherent review checkpoint.
+
+
+### 2026-09-25 06:52 native parent acceptance checkpoint
+
+Native ownership transferred from Pi to the parent before repair15. Backend/Web
+remain Pi-owned. Normally signed iOS build and 25 focused tests passed at06:40;
+independent native review found no remaining P0/P1. Actual retained-fixture UI
+then exposed a same-revision legacy-cache timestamp gap. The parent repaired
+only canonical immutable time fields, preserving local draft/state; five focused
+Session tests passed, including old ISO8601 persisted-envelope restore -> same
+revision read -> upload -> persistence reload. Independent delta review found no
+P0/P1. Receipts and both reviews are saved under docs/evaluations/account-sync.
+
+Actual iOS now sends the Web Session creation time as .180Z, matching the
+backend's millisecond instant, but the server rejects immutable turn time via
+string comparison (.180Z versus .180281Z). Same-Session native write acceptance
+therefore remains OPEN. The backend must compare equivalent timestamp instants
+consistently while retaining the original stored creation strings, preserving
+message IDs/order/objectives/task/context, and rejecting actual time changes.
+This follow-up has not yet been handed to running Pi repair15 (no inline steering
+API). Do not rewrite the fixture to hide the failure. Native manual guard was
+released and the task-started Primary iPhone was shut down. No production data,
+provider configuration, installed macOS app, or saved preferences changed.
