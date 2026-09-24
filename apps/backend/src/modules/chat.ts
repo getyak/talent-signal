@@ -941,18 +941,40 @@ export async function createChatTask(
       )
       .slice(0, 20);
     {
-      // Every relationship manifest contains only reviewed, attributed
-      // evidence. A Person can have proposed source fragments even without
-      // Session screenshot context; including those fragments would both
-      // expose them as reviewed context and fail the final availability guard
-      // despite no concurrent source change. Screenshot dialogue remains in
-      // its separate, explicitly unconfirmed Session context.
+      // Every relationship manifest contains only evidence the final
+      // availability guard can still admit. A Person can have proposed source
+      // fragments even without Session screenshot context; including fragments
+      // that are unreviewed, unattributed, empty, out of the manifest's scope,
+      // deleted, or whose source authorization is revoked or already expired
+      // would both expose them as reviewed context and spend provider work only
+      // to fail the final availability guard despite no concurrent source
+      // change. The fragment predicate therefore mirrors the evidence clause
+      // of agent_session_task_available (051_agent_sessions.sql, canonicalized
+      // by 054_agent_session_identifier_canonicalization.sql); the final
+      // locked guard still revalidates any change during execution. Screenshot
+      // dialogue remains in its separate, explicitly unconfirmed Session
+      // context.
       const fragmentIDs = unique(selectedBlocks.flatMap((item) => item.dependencies.filter((dependency) => dependency.type === "evidence_fragment").map((dependency) => dependency.id)));
-      const reviewed = new Set((await client.query<{ id: string }>(
-        "SELECT id FROM evidence_fragments WHERE account_id=$1 AND id=ANY($2::uuid[]) AND status='active' AND review_status='reviewed' AND attribution_status='confirmed'",
-        [auth.accountId, fragmentIDs],
+      const admitted = new Set((await client.query<{ id: string }>(
+        `SELECT f.id FROM evidence_fragments f
+         WHERE f.account_id=$1 AND f.id=ANY($2::uuid[])
+           AND NOT EXISTS (
+             SELECT 1 FROM evidence_fragments x
+             LEFT JOIN source_resources r ON r.account_id=x.account_id AND r.id=x.resource_id
+             LEFT JOIN captures c ON c.account_id=r.account_id AND c.id=r.capture_id
+             LEFT JOIN source_retention_receipts sr ON sr.account_id=c.account_id AND sr.capture_id=c.id
+             WHERE x.account_id=f.account_id AND x.id=f.id
+               AND (x.status IS DISTINCT FROM 'active' OR x.review_status IS DISTINCT FROM 'reviewed'
+                 OR x.attribution_status IS DISTINCT FROM 'confirmed' OR x.text_content IS NULL OR length(trim(x.text_content))=0
+                 OR c.subject_id IS DISTINCT FROM $3::uuid OR c.assignment_id IS DISTINCT FROM $4::uuid
+                 OR r.processing_state IS NOT DISTINCT FROM 'deleted' OR c.status IS DISTINCT FROM 'active'
+                 OR sr.source_access_state IS NULL OR sr.source_access_state='deleted'
+                 OR sr.authorization_state IS DISTINCT FROM 'authorized'
+                 OR sr.authorization_expires_at<=statement_timestamp())
+           )`,
+        [auth.accountId, fragmentIDs, request.person_id, request.relationship_context_id],
       )).rows.map((item) => item.id));
-      selectedBlocks = selectedBlocks.filter((item) => item.dependencies.every((dependency) => dependency.type !== "evidence_fragment" || reviewed.has(dependency.id)));
+      selectedBlocks = selectedBlocks.filter((item) => item.dependencies.every((dependency) => dependency.type !== "evidence_fragment" || admitted.has(dependency.id)));
     }
     const taskId = randomUUID();
     const manifestId = randomUUID();

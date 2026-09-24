@@ -149,6 +149,9 @@ class ScriptedConversationProvider implements RemoteChatAnswerProviding {
   failWith: Error | null = null;
   lastSignal: AbortSignal | null = null;
   lastInputParts: readonly AgentProviderInputPart[] = [];
+  /** Emits no preview or progress callbacks, so a racing stop stays unobserved
+   * until the failure/shutdown finalization path re-checks it. */
+  silent = false;
 
   async answer(_request: RemoteChatAnswerRequest): Promise<RemoteChatAnswerResult> {
     throw new Error("The governed agent path is required for this synthetic provider.");
@@ -168,9 +171,9 @@ class ScriptedConversationProvider implements RemoteChatAnswerProviding {
     try {
       for (const delta of this.preGateDeltas) {
         if (!ignoreAbort) signal.throwIfAborted();
-        request.onVisibleText?.(delta);
+        if (!this.silent) request.onVisibleText?.(delta);
       }
-      request.onProgress?.("answer");
+      if (!this.silent) request.onProgress?.("answer");
       const held = this.gateForObjective?.(request.objective);
       if (held) {
         if (ignoreAbort) {
@@ -188,7 +191,7 @@ class ScriptedConversationProvider implements RemoteChatAnswerProviding {
       if (!ignoreAbort) signal.throwIfAborted();
       for (const delta of this.postGateDeltas) {
         if (!ignoreAbort) signal.throwIfAborted();
-        request.onVisibleText?.(delta);
+        if (!this.silent) request.onVisibleText?.(delta);
       }
       await this.onBeforeReturn?.();
       if (this.failWith) throw this.failWith;
@@ -251,6 +254,17 @@ async function queueState(sessionId: string, accountId: string) {
       [accountId, sessionId],
     )
   ).rows[0];
+}
+
+/** Models a stop committed through the API on another process: the durable
+ * `cancel_requested` write lands while this runner's in-process live
+ * publication never arrives. That lost-event window is exactly what the lease
+ * heartbeat's cancel recheck bounds. */
+async function commitUnpublishedStop(sessionId: string, accountId: string): Promise<void> {
+  await pool!.query(
+    "UPDATE conversation_queue_entries SET cancel_requested=true, cancel_auto_continue=false, updated_at=now(), revision=revision+1 WHERE account_id=$1 AND session_id=$2 AND status='running'",
+    [accountId, sessionId],
+  );
 }
 
 suite("durable conversation queue", () => {
@@ -1558,6 +1572,210 @@ suite("durable conversation queue", () => {
       expect(invalidStop.statusCode).toBe(400);
     } finally {
       await app.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  }, 20000);
+
+  it("persists the admitted turn and a truthful stopped marker when a model failure races a committed stop", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    provider.silent = true;
+    provider.failWith = new Error("synthetic provider failure");
+    provider.onBeforeReturn = () => commitUnpublishedStop(seeded.sessionId, seeded.accountId);
+    const messageId = randomUUID();
+    const objective = "失败与停止竞争时必须保留原消息";
+    const stoppedImage = pngUpload(pngBytes(21));
+    const runner = new ConversationQueueRunner({
+      pool: pool!, provider, logger: silentLogger, workerId: `w-${randomUUID()}`,
+      pollIntervalMs: 10, heartbeatMs: 100_000, recoveryIntervalMs: 10_000,
+    });
+    runner.start();
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(), session_id: seeded.sessionId,
+        message_id: messageId, objective, images: [stoppedImage],
+      });
+      await waitFor(() => provider.calls.length === 1);
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "cancelled");
+      const rows = await entryRow(seeded.sessionId, seeded.accountId);
+      expect(rows[0]?.status).toBe("cancelled");
+      expect(rows[0]?.content_state).toBe("scrubbed");
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(session.payload?.turns).toEqual([
+        expect.objectContaining({
+          id: messageId, objective,
+          images: [expect.objectContaining({ attachment_id: stoppedImage.attachment_id })],
+          response: expect.objectContaining({
+            unboundConversationBlocks: [expect.objectContaining({
+              title: "已停止", body: "已停止生成，本次尚未形成回复。", status: "failed",
+            })],
+          }),
+        }),
+      ]);
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  }, 20000);
+
+  it("persists the admitted turn and a truthful stopped marker when shutdown races a committed stop", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    provider.silent = true;
+    const held = gate();
+    provider.gateForObjective = () => held.promise;
+    const messageId = randomUUID();
+    const objective = "关闭与停止竞争时必须保留原消息";
+    const stoppedImage = pngUpload(pngBytes(22));
+    const runner = new ConversationQueueRunner({
+      pool: pool!, provider, logger: silentLogger, workerId: `w-${randomUUID()}`,
+      pollIntervalMs: 10, heartbeatMs: 100_000, recoveryIntervalMs: 10_000,
+    });
+    runner.start();
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(), session_id: seeded.sessionId,
+        message_id: messageId, objective, images: [stoppedImage],
+      });
+      await waitFor(() => provider.calls.length === 1);
+      await commitUnpublishedStop(seeded.sessionId, seeded.accountId);
+      await runner.close();
+      const rows = await entryRow(seeded.sessionId, seeded.accountId);
+      expect(rows[0]?.status).toBe("cancelled");
+      expect(rows[0]?.content_state).toBe("scrubbed");
+      const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
+      expect(session.payload?.turns).toEqual([
+        expect.objectContaining({
+          id: messageId, objective,
+          images: [expect.objectContaining({ attachment_id: stoppedImage.attachment_id })],
+          response: expect.objectContaining({
+            unboundConversationBlocks: [expect.objectContaining({
+              title: "已停止", body: "已停止生成，本次尚未形成回复。", status: "failed",
+            })],
+          }),
+        }),
+      ]);
+    } finally {
+      held.release();
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  }, 20000);
+
+  it("retains a recoverable fenced row when a raced stop cannot save its history, then settles it intact", async () => {
+    const seeded = await seedSession();
+    const messageId = randomUUID();
+    const objective = "保存失败时保留可恢复队列行";
+    let rejectSave = true;
+    let saveAttempts = 0;
+    const failingPool = {
+      query: pool!.query.bind(pool),
+      connect: async () => {
+        const client = await pool!.connect();
+        return {
+          query: (sql: string, values?: unknown[]) => {
+            if (rejectSave && sql.includes("INSERT INTO agent_sessions(")) {
+              saveAttempts += 1;
+              throw new Error("SYNTHETIC_HISTORY_SAVE_FAILURE");
+            }
+            return client.query(sql, values);
+          },
+          release: () => client.release(),
+        };
+      },
+    } as unknown as Pool;
+    const provider = new ScriptedConversationProvider();
+    provider.silent = true;
+    provider.failWith = new Error("synthetic provider failure");
+    provider.onBeforeReturn = () => commitUnpublishedStop(seeded.sessionId, seeded.accountId);
+    const cancellationWarnings: Record<string, unknown>[] = [];
+    const runner = new ConversationQueueRunner({
+      pool: failingPool, provider, logger: {
+        ...silentLogger,
+        warn(metadata, message) {
+          if (message === "conversation queue stop racing a failure could not persist the admitted message") {
+            cancellationWarnings.push(metadata);
+          }
+        },
+      }, workerId: `w-${randomUUID()}`,
+      pollIntervalMs: 10, heartbeatMs: 100_000, recoveryIntervalMs: 10_000,
+    });
+    runner.start();
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(), session_id: seeded.sessionId,
+        message_id: messageId, objective,
+      });
+      await waitFor(() => provider.calls.length === 1);
+      await waitFor(() => saveAttempts >= 1);
+      await waitFor(() => cancellationWarnings.length === 1);
+      // Database errors can include private row details. This new diagnostic
+      // records only the queue identity and a fixed classification.
+      expect(cancellationWarnings).toEqual([{
+        queue_entry_id: expect.any(String),
+        failure_code: "CANCELLATION_PERSISTENCE_FAILED",
+      }]);
+      // Never scrub and never claim saved: the fenced row keeps the message.
+      expect((await entryRow(seeded.sessionId, seeded.accountId))[0]).toMatchObject({
+        status: "running", cancel_requested: true, content_state: "retained", objective,
+      });
+      expect((await getAgentSession(pool!, seeded.auth, seeded.sessionId)).payload?.turns).toEqual([]);
+      rejectSave = false;
+      await pool!.query(
+        "UPDATE conversation_queue_entries SET lease_expires_at=now()-interval '1 second' WHERE account_id=$1 AND session_id=$2",
+        [seeded.accountId, seeded.sessionId],
+      );
+      await runner.recover();
+      expect((await entryRow(seeded.sessionId, seeded.accountId))[0]).toMatchObject({
+        status: "cancelled", content_state: "scrubbed",
+      });
+      expect((await getAgentSession(pool!, seeded.auth, seeded.sessionId)).payload?.turns).toEqual([
+        expect.objectContaining({ id: messageId, objective }),
+      ]);
+    } finally {
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  }, 20000);
+
+  it("keeps an ordinary failure retained without a stopped marker and retries the exact message", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    provider.postGateDeltas = ["第一次的回答"];
+    provider.failWith = new Error("synthetic provider failure");
+    const runner = await startRunner(provider);
+    const messageId = randomUUID();
+    const objective = "普通失败不得伪造停止标记";
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(), session_id: seeded.sessionId,
+        message_id: messageId, objective,
+      });
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "failed");
+      // Negative control: without a stop nothing is scrubbed and no stopped
+      // marker may claim the message was saved.
+      expect((await entryRow(seeded.sessionId, seeded.accountId))[0]).toMatchObject({
+        status: "failed", content_state: "retained", failure_code: "MODEL_RUN_FAILED", objective,
+      });
+      expect((await getAgentSession(pool!, seeded.auth, seeded.sessionId)).payload?.turns).toEqual([]);
+      provider.failWith = null;
+      const failed = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "retry", queue_entry_id: failed.queued[0]!.queue_entry_id,
+        expected_revision: failed.revision, idempotency_key: randomUUID(),
+      });
+      const continued = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "continue", expected_revision: continued.revision, idempotency_key: randomUUID(),
+      });
+      await waitFor(async () => (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "completed");
+      // Retry re-runs the model and only then persists the exact admitted text.
+      expect(provider.calls).toHaveLength(2);
+      expect((await getAgentSession(pool!, seeded.auth, seeded.sessionId)).payload?.turns).toEqual([
+        expect.objectContaining({ id: messageId, objective }),
+      ]);
+    } finally {
+      await runner.close();
       await removeProofAccount(seeded.accountId);
     }
   }, 20000);

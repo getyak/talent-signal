@@ -155,6 +155,11 @@
   color: var(--ink);
 }
 
+/* Keep the keyboard indicator inside short-window scroll boundaries. */
+.navLink:focus-visible {
+  outline-offset: -2px;
+}
+
 .navLink[aria-current="page"] {
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-soft);

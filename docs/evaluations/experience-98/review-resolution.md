@@ -7,9 +7,9 @@ below are not an independent approval of later commits.
 | Finding | Parent disposition | Proof and remaining gate |
 | --- | --- | --- |
 | P1-1 uncertain upstream result becomes 422 | Confirmed, already repaired in `b4757a40` | Two failing route regressions became passing; 42 affected route/card checks passed. Unknown upstream failure or partial multipart persistence remains 503/unknown; genuine pre-write rejection remains correctable. Re-review required. |
-| P1-2 stop races failure/shutdown finalization | Confirmed code path; repair in progress | Pi task `20260924-185321-0dd275eb` owns the bounded backend repair and real-database regression. Its predecessor was cancelled before edits; no resolution or deployment claimed yet. |
+| P1-2 stop races failure/shutdown finalization | Confirmed and repaired locally | Pi repair `20260924-185321-0dd275eb` reproduced lost admitted text/attachments and missing persistence; governed save now precedes scrub. Its 69 PostgreSQL checks passed twice, then passed independently in the parent worktree. Re-review and deployment remain open. |
 | P2-1 impossible single-owner deferred review | Confirmed; local repair | One-owner regression failed before repair; the action is now withheld and the copy offers current-owner selection or removal of the clue. Multi-candidate review remains covered. Re-review required. |
-| P2-2 admission/completion source validity diverges | Confirmed predicate divergence; repair in progress | Same Pi task must prove expired authorization is handled before provider exposure, retaining the final change/revocation guard. Do not infer privacy safety only from a late rejection. |
+| P2-2 admission/completion source validity diverges | Confirmed predicate divergence; repaired locally | Deleted-resource, empty-text and wrong-scope regressions now exclude evidence before provider work. Expired authorization already failed early through loadSnapshot; the original review trigger was corrected. Final locked validity guard remains intact. Re-review required. |
 | P2-3 history traversal bypasses warning | Confirmed limitation, plus a reproduced continuation race | Persistent copy states that history traversal loses in-memory reconciliation. `popstate` ends follow-up admission before delayed unmount; regression failed with two writes before repair. No cancelable Back prompt or durable recovery is claimed. Re-review and durable design remain open. |
 
 Parent browser work additionally found EXP-15 (search Person destination) and
@@ -27,3 +27,5 @@ must use that corrected fixture.
 The newest local fixes have not been deployed. Storage, live Memory acceptance,
 native/assistive coverage and final scores remain open. No overall 98/100 result
 or release acceptance is supported by this checkpoint.
+
+Parent backend follow-up removes raw exception data from the newly added raced-stop warning; only queue identity and a fixed failure classification are logged. The existing injected history-save-failure regression now asserts the complete log metadata shape. Other historical logger paths were not audited by this narrow change.

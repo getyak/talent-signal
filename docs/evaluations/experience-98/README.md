@@ -38,7 +38,7 @@ Status: in progress. No 98/100 acceptance claim has been issued.
 The [independent report](independent-code-review.md) reviewed `01cb7aa8` and
 reported two P1 and three P2 findings. The parent verified the mechanisms;
 the [resolution ledger](review-resolution.md) separates fixed local paths from
-pending database repair, independent re-review and deployment. The live Memory
+completed local database repair, pending independent re-review and deployment. The live Memory
 failure's cause is still unknown; an old deployment is a fact, not a diagnosis.
 
 - EXP-15: [search readback](evidence/search-keyboard.json) now reaches the exact
@@ -280,3 +280,9 @@ its deployment, Memory, accessibility and score-validity gaps remain open.
 - [Contrast minimum](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum) for ordinary text contrast. Pixel font size alone does not establish WCAG conformance.
 
 The project plan owns the current milestones and per-journey scoring method: [experience quality plan](../../../plans/2026-09-24-experience-98.md).
+
+## Backend repair follow-up
+
+The [backend proof](review-backend-repair.md) records Pi reproduction and repair of EXP-14 and the remaining EXP-13 admission predicate divergence. The parent independently ran all 69 focused PostgreSQL tests successfully after integration. Expired authorization was already refused by loadSnapshot, so that part of the initial review trigger is corrected rather than credited as a new repair. Parent review also limits the new persistence warning to a fixed classification and queue ID; no raw exception is logged on this new path. These are local correctness checks, not deployment or live Memory acceptance.
+
+The native-zoom sidebar finding has a local `outline-offset: -2px` repair for navigation links. Its attempted browser follow-up did not reach the expected heading; therefore the new rendering is not yet accepted. No new account session was opened to bypass that boundary.

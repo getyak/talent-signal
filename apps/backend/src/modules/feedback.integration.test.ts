@@ -221,6 +221,63 @@ describe.skipIf(!pool)("Authenticated product feedback learning PostgreSQL loop"
       .toEqual({ review_status: "proposed", attribution_status: "unknown" });
   }, 30_000);
 
+  it("admits currently authorized evidence to provider work as the positive control", async () => {
+    const f = await fixture();
+    const response = await app.inject({ method: "POST", url: "/v1/chat/tasks", headers, payload: {
+      idempotency_key: randomUUID(), person_id: f.person, relationship_context_id: f.context,
+      objective: "Explain what must be clarified before planning a meeting." } });
+    expect(response.statusCode, response.body).toBe(201);
+    expect(requests.at(-1)!.allowed_citation_ids).toContain(f.fragment);
+    expect(JSON.stringify(requests.at(-1))).toContain("Wednesday is tentative");
+    expect((await pool!.query("SELECT evidence_fragment_id FROM context_manifest_evidence WHERE account_id=$1 AND manifest_id=$2",
+      [auth.accountId, response.json().context_manifest_id])).rows).toEqual([{ evidence_fragment_id: f.fragment }]);
+  }, 30_000);
+
+  it("fails early and truthfully when the source-authorization deadline elapsed before provider work", async () => {
+    const f = await fixture();
+    await pool!.query("UPDATE source_retention_receipts SET authorization_expires_at=now()-interval '1 second' WHERE capture_id=$1", [f.capture]);
+    const calls = requests.length;
+    const response = await app.inject({ method: "POST", url: "/v1/chat/tasks", headers, payload: {
+      idempotency_key: randomUUID(), person_id: f.person, relationship_context_id: f.context,
+      objective: "Explain what must be clarified before planning a meeting." } });
+    // The elapsed authorization is decided before provider work with a truthful
+    // error; the unauthorized text never reaches a model.
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe("WIKI_SOURCE_AUTHORIZATION_STALE");
+    expect(requests.length).toBe(calls);
+    expect(response.body).not.toContain("Wednesday is tentative");
+  }, 30_000);
+
+  it.each<[
+    string,
+    (f: Awaited<ReturnType<typeof fixture>>) => Promise<unknown>,
+  ]>([
+    ["a deleted source resource", (f) =>
+      pool!.query("UPDATE source_resources SET processing_state='deleted' WHERE account_id=$1 AND id=$2", [auth.accountId, f.resource])],
+    ["empty reviewed text", (f) =>
+      pool!.query("UPDATE evidence_fragments SET text_content='   ' WHERE id=$1", [f.fragment])],
+    ["a capture bound to a different scope", async (f) => {
+      const other = await fixture();
+      await pool!.query("UPDATE captures SET subject_id=$2, assignment_id=$3 WHERE id=$1", [f.capture, other.person, other.context]);
+    }],
+  ])("excludes evidence with %s before provider work instead of a false source-change error", async (_label, exclude) => {
+    const f = await fixture();
+    await exclude(f);
+    const calls = requests.length;
+    const response = await app.inject({ method: "POST", url: "/v1/chat/tasks", headers, payload: {
+      idempotency_key: randomUUID(), person_id: f.person, relationship_context_id: f.context,
+      objective: "Explain what must be clarified before planning a meeting." } });
+    // The outcome is decided before provider work: the unauthorized fragment
+    // never reaches the model and no post-provider source-change error fires.
+    expect(response.statusCode, response.body).toBe(201);
+    expect(requests.length).toBe(calls + 1);
+    expect(requests.at(-1)!.allowed_citation_ids).not.toContain(f.fragment);
+    expect(requests.at(-1)!.context_blocks.every((block) => !JSON.stringify(block).includes(f.fragment))).toBe(true);
+    expect(JSON.stringify(requests.at(-1))).not.toContain("Wednesday is tentative");
+    expect((await pool!.query("SELECT evidence_fragment_id FROM context_manifest_evidence WHERE account_id=$1 AND manifest_id=$2",
+      [auth.accountId, response.json().context_manifest_id])).rows).toEqual([]);
+  }, 30_000);
+
   it("rejects a prior answer that expires while its correction is being generated", async () => {
     const f=await fixture();
     const ask=(payload:Record<string,unknown>)=>app.inject({method:"POST",url:"/v1/chat/tasks",headers,payload});
