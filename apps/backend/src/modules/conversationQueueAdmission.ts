@@ -265,10 +265,12 @@ async function applyMutation(
     return { kind: "continue", queue_entry_id: null, run_id: null, status: null };
   }
   if (request.kind === "stop") {
+    // A plain stop must never inherit prioritize's auto-continue: clearing the
+    // flag here keeps "stop" truthful even if prioritize raced first.
     const row = (
       await client.query<{ id: string }>(
         `UPDATE conversation_queue_entries
-         SET cancel_requested=true, updated_at=now(), revision=revision+1
+         SET cancel_requested=true, cancel_auto_continue=false, updated_at=now(), revision=revision+1
          WHERE account_id=$1 AND session_id=$2 AND run_id=$3 AND status='running'
          RETURNING id`,
         [auth.accountId, sessionId, request.run_id],
@@ -319,6 +321,73 @@ async function applyMutation(
     );
     await bumpConversationQueueState(client, auth.accountId, sessionId);
     return { kind: "edit", queue_entry_id: row.id, run_id: row.run_id, status: "queued" };
+  }
+  if (request.kind === "prioritize") {
+    // GET-49 controllable supplement: stop a live run when needed, move this
+    // queued message to the front, and leave the queue ready to claim it next.
+    // Other queued items keep their relative order behind it. A plain stop
+    // still pauses; only this path sets cancel_auto_continue.
+    if (row.status !== "queued") {
+      throw new ApiError(
+        409,
+        "CONVERSATION_QUEUE_ENTRY_NOT_PRIORITIZABLE",
+        "Only a waiting message can be processed next.",
+      );
+    }
+    // Same gate as Continue: unfinished failed/interrupted work must be retried
+    // or withdrawn first so prioritize cannot run later messages past a hole.
+    const blocked = await client.query(
+      "SELECT 1 FROM conversation_queue_entries WHERE account_id=$1 AND session_id=$2 AND status IN ('failed','interrupted') LIMIT 1",
+      [auth.accountId, sessionId],
+    );
+    if (blocked.rowCount) {
+      throw new ApiError(
+        409,
+        "CONVERSATION_QUEUE_RETRY_REQUIRED",
+        "Retry or remove the unfinished message before continuing.",
+      );
+    }
+    const live = (
+      await client.query<{ id: string; run_id: string }>(
+        `SELECT id, run_id FROM conversation_queue_entries
+         WHERE account_id=$1 AND session_id=$2 AND status='running'
+         LIMIT 1`,
+        [auth.accountId, sessionId],
+      )
+    ).rows[0];
+    if (live && live.id !== row.id) {
+      await client.query(
+        `UPDATE conversation_queue_entries
+         SET cancel_requested=true, cancel_auto_continue=true, updated_at=now(), revision=revision+1
+         WHERE account_id=$1 AND id=$2 AND status='running'`,
+        [auth.accountId, live.id],
+      );
+      queueMicrotask(() =>
+        publishConversationQueueStop(auth.accountId, sessionId, live.run_id),
+      );
+    }
+    await client.query(
+      `UPDATE conversation_queue_entries e
+       SET sequence = ranked.new_sequence, updated_at=now(), revision=revision+1
+       FROM (
+         SELECT id, row_number() OVER (
+           ORDER BY (id = $3::uuid) DESC, sequence ASC, created_at ASC
+         ) AS new_sequence
+         FROM conversation_queue_entries
+         WHERE account_id=$1 AND session_id=$2 AND status IN ('queued','failed','interrupted')
+       ) ranked
+       WHERE e.account_id=$1 AND e.id=ranked.id`,
+      [auth.accountId, sessionId, row.id],
+    );
+    await bumpConversationQueueState(client, auth.accountId, sessionId, {
+      paused: false,
+    });
+    return {
+      kind: "prioritize",
+      queue_entry_id: row.id,
+      run_id: live?.run_id ?? null,
+      status: "queued",
+    };
   }
   if (request.kind === "withdraw") {
     if (!["queued", "failed", "interrupted"].includes(row.status)) {
