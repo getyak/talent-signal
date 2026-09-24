@@ -21,6 +21,9 @@ Status: in progress. No 98/100 acceptance claim has been issued.
 | EXP-05 | P2 | In the synthetic saved Session, asking the Agent to explain `no_action` produced a statement that related information is not persisted, while the same conversation is persisted and reloadable. | Product explanations distinguish no domain/external mutation from conversation retention. Test an actual provider reply plus reload, without claiming prompt tests guarantee every reply. |
 | EXP-06 | P2 | Activating the skip link before sending leaves `#main-content` in the URL. The admitted conversation stays on `/workspace?draft_session=...#main-content` because the admission navigation rejects every hash; opening history reaches the saved canonical Session. | Preserve the valid main-content anchor while replacing the admitted route, and keep unrelated navigation protected. |
 | EXP-07 | P2 | After deleting an internal arrangement and reloading its deep link at 390 × 844, Time still opens a full blank disabled “Edit arrangement” form. The deletion explanation is below the visible viewport, so the terminal state is unclear. The disabled fieldset does prevent writes; this is a presentation defect, not an observed authorization bypass. | Show an immediately visible compact deleted/unavailable state with a clear close action; no misleading blank editor or leaked old content. |
+| EXP-08 | P2 | A source archive's “Open profile” links back to the same source archive; empty task histories still expose an empty processing disclosure. The separate relationship page displays an English no-action fallback in Chinese and a manual-identity badge based only on absence of a capture object. | Meaningful destinations and empty states; localized system copy; never claim a human identity decision without its receipt. |
+| EXP-09 | P1 | Starting a synthetic text-source run stalled the whole API: liveness and readiness each exceeded 8 seconds in three consecutive probes. The source list/detail took about 35 seconds. SDK 0.3.266 synchronously calls `process.report.getReport()` to detect Linux libc before spawning its executable. Node diagnostic reports perform reverse DNS on active sockets by default. An isolated server reproduced a 3,118ms report versus 2.4ms with network collection disabled. | Disable network lookups in runtime diagnostics before SDK admission, preserve required libc detection, and repeat a real source run while measuring API liveness/readiness. The isolated pair is not yet resident-runtime acceptance. |
+| EXP-10 | P1 | Source confirmation/deletion can submit a stale terminal revision after the runner's last save. The page displays raw `CONTACT_TASK_REVISION_CHANGED` and retains the stale action state; a full page reload was needed to proceed. | Reload current task on conflict, retain editable input, explain the changed state and require a fresh human decision. Do not automatically replay identity/deletion writes. |
 
 ## First verified repair
 
@@ -40,6 +43,23 @@ GET-49 has separate uncommitted work for in-place send/supplement UI and queue p
 
 ## Coverage and remaining evidence
 
+Source lifecycle: the first explicitly no-person synthetic text saved a no-person
+receipt; deleting it eventually returned an unavailable state after readback.
+A second synthetic source created one Person and retained the exact statement
+that participation and meeting time remain undecided. Its Person Memory page
+correctly stayed empty because source material is not confirmed Memory. A third
+source naming the same Person asked for explicit identity selection. A resumed
+run asked for identity confirmation again; request/selection provenance still
+needs inspection before attributing that repeated question to the model.
+Public research remained unchecked; no external messages were sent.
+
+Runtime evidence: [source health probe](evidence/source-health-probe.json) and
+[isolated Node diagnostic experiment](evidence/node-diagnostic-report-probe.json).
+The initial CPU sample mistakenly observed Docker init rather than Node and is
+excluded. The SDK's local pinned source and Node's official
+[diagnostic-report documentation](https://nodejs.org/api/report.html) support the
+reverse-DNS mechanism; actual resident improvement remains unverified.
+
 Rendered all eight primary page families at both widths: conversation home, Today, People, Time, Sources, Extensions, Settings and Sessions. No horizontal page overflow was observed in those empty states. This does not establish populated-page, keyboard, error, theme or native-app quality. The initial automated capture attempt sampled loading states; those samples were discarded and the harness now waits for content and source/time reads to settle.
 
 Still required: repair EXP-01 before judging populated Person/Memory; complete send/queue/stop/reconnect tests; review sources and deletion; theme and enlarged-text passes; independent review; any relevant database integration and native-surface acceptance. Preserve deductions instead of upgrading unknowns to passes.
@@ -51,6 +71,8 @@ Still required: repair EXP-01 before judging populated Person/Memory; complete s
 3. Give every route a consistent main landmark, heading, recoverable navigation state and focus destination. Keep successful empty states quiet while errors remain actionable.
 4. Treat admission, provider work, persistence and verified readback as distinct lifecycle states throughout front and back ends. Measure latency by stage and test interrupted/partial outcomes.
 5. Maintain a compact realistic synthetic journey set covering ambiguity, source withdrawal, long labels, no-action and retries; use it as recurring evidence, never as a substitute for human field feedback.
+6. Connect the source archive, relationship brief and Person Memory with explicit destinations and status language. A reader should understand what was imported, what is inferred, what has been confirmed and where to act without guessing between three Person surfaces.
+7. Make partial success a visible state with a stable saved identity. Correcting one unsaved field must never silently recreate an already-saved person, note or arrangement.
 
 ## Reference standards
 

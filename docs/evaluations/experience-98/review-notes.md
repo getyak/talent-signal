@@ -71,3 +71,35 @@ The first harness attempt used a disallowed zero tool-call budget and failed
 before network execution; the corrected harness has a positive budget and an
 empty tool manifest. The failed harness run is excluded from model-quality
 claims. Durable successful output: [retention live experiment](evidence/retention-live.json).
+
+## Runtime diagnostic latency
+
+The API and Agent host entry points now disable Node diagnostic-report network
+lookups and environment inclusion before serving tasks. SDK 0.3.266 probes Linux
+libc through a synchronous `getReport()` call. Its required glibc field remains
+available with network collection disabled. Both entry points passed typecheck;
+resident deployment and a new source-flow health probe remain required.
+
+The disposable [probe](../../../scripts/evals/diagnostic-report-probe.mjs)
+exposes `/baseline` and `/safe` in a process containing an active HTTP socket.
+Only durations and libc availability are returned; no report, stack or
+environment is printed or retained. The isolated Linux measurement was 3,118ms
+versus 2.4ms. An empty process and a process with only a local PostgreSQL socket
+were already fast, which is consistent with socket-dependent reverse DNS cost.
+This evidence supports the mechanism but does not quantify the entire 35-second
+resident stall or certify a production SLO.
+
+## Frontend Pi packet: first review
+
+The first packet passed web typecheck/lint and 1,229 tests (one skipped). It is
+not yet accepted. Independent review returned two issues for repair:
+
+- After first-source success and clue failure, correcting the clue resets the
+  first source request identity while keeping `new_person` scope. The repair
+  must retain the committed identity and only finish the unsaved clue, including
+  when the user omits that clue instead. An unchanged-input retry alone does not
+  prove this user-directed recovery path.
+- Admission accepts a matching `draft_session` even alongside unrelated query
+  parameters. Mixed and duplicate query parameters must preserve navigation.
+
+Real browser acceptance of the revised packet remains pending.

@@ -20,6 +20,11 @@
     "bytes": 624681
   },
   {
+    "file": "node-diagnostic-report-probe.json",
+    "sha256": "6642e53e46f7ab65883f5b1d3256dbb74ab53a084c8f1df12f67f4682b9376ff",
+    "bytes": 1201
+  },
+  {
     "file": "page-baseline.json",
     "sha256": "95f6658d06ef17998d6ad8524477047dd79c030e7ad14b9ea5c156567d39017e",
     "bytes": 107641
@@ -30,6 +35,16 @@
     "bytes": 108050
   },
   {
+    "file": "person-context-brief-top.png",
+    "sha256": "9e7b1f61914970aa634c3b246cbec6158ca426f27db9c8817812c6ccf7bd91c6",
+    "bytes": 102351
+  },
+  {
+    "file": "person-memory-readback.png",
+    "sha256": "ddd89d0390b49108cf2a377bb90a1eeab3992416f5664eb5f4c952bba8b3f93b",
+    "bytes": 80575
+  },
+  {
     "file": "retention-live.json",
     "sha256": "704c07a4540b9550b77ad4c860bbcc187104479779140ef8038a1cc6fbb2beff",
     "bytes": 3521
@@ -38,6 +53,46 @@
     "file": "settings-narrow-dark-baseline.png",
     "sha256": "f6a2a869b562a3f8e377362f6426c62ea105e33ff5f15f2b471d7aa57707d6ef",
     "bytes": 95961
+  },
+  {
+    "file": "source-contact-created.png",
+    "sha256": "25e7e5973f5898bf49fdcec841f98941933a98185b08307e7dd0f632d032e30d",
+    "bytes": 95767
+  },
+  {
+    "file": "source-deleted.png",
+    "sha256": "772107efdb689d2c9e08300df551c0212d9e92a7aa62c922eb4d24cbf62fe769",
+    "bytes": 85447
+  },
+  {
+    "file": "source-health-probe.json",
+    "sha256": "c0f895256550ae2fafb89e9bfb62cfaf395b551518d88343330a473d6db4a6c3",
+    "bytes": 8645
+  },
+  {
+    "file": "source-identity-ambiguity.png",
+    "sha256": "88e373a54abe594ae932abed8f0870dcaed7d0ecec06c54ccfa5ea91af9b25c4",
+    "bytes": 89164
+  },
+  {
+    "file": "source-no-person-outcome.png",
+    "sha256": "187f11b33d4f8ac46c526cf91cebea0093ec5106736ed301d3a1915c6d1a826b",
+    "bytes": 90694
+  },
+  {
+    "file": "source-repeat-confirmation.png",
+    "sha256": "e975a25d7c73185f334b95f9721e7c772e17f75ceec8b23a73fdef623196743e",
+    "bytes": 103004
+  },
+  {
+    "file": "source-stale-revision.json",
+    "sha256": "8c0df1199ed7d9ddd235d773e071533b36abc38821e0c2ad8923383607f7de8f",
+    "bytes": 302
+  },
+  {
+    "file": "source-stale-revision.png",
+    "sha256": "c1e8488b1ad74457d5df4fdb51d86eccf4ebcc83a5ee5bf5184b4f2d1a6b1498",
+    "bytes": 111093
   },
   {
     "file": "time-deleted-reload.png",
