@@ -9,6 +9,8 @@ sidebar. A general JavaScript-to-native bridge would grant excessive authority.
 
 ## Decision
 
+The installation-consent portion is amended by [one-click desktop updates](2026-09-24-one-click-desktop-updates.md). Other capability and distribution boundaries remain unchanged.
+
 Retain the Web product and separate native capability tools from ADR 0016. Permit
 one narrow exception: the host injects only a protocol version and optional update
 version into its exact-origin main frame. The Web renders a compact update link

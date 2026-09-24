@@ -1045,6 +1045,18 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testPreviewSessionsUseTheirClockAndStillExpireNormally() {
+        var currentTime = Date(timeIntervalSince1970: 2_051_222_400)
+        let store = AgentSessionStore.preview(snapshot: .preview, now: { currentTime })
+
+        XCTAssertEqual(store.sessions.count, 2)
+        XCTAssertTrue(store.sessions.allSatisfy { $0.retentionDeadline > currentTime })
+
+        currentTime = currentTime.addingTimeInterval(AgentSession.retentionInterval + 1)
+        XCTAssertTrue(store.sessions.isEmpty)
+    }
+
+    @MainActor
     func testPreviewSessionsCanExposeUnreadAgentWorkWithoutChangingWorkspaceTruth() {
         let store = AgentSessionStore.preview(snapshot: .preview)
 

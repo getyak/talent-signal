@@ -1,0 +1,6 @@
+Synthetic signed-feed rehearsal; ad-hoc app, not notarized.
+Initial UI: 0.2.1 (900001), 0.2.2 (900002) available.
+Before click HTTP: GET /appcast.xml 200; no archive request.
+One native update click, no second confirmation.
+Relaunched UI: 0.2.2 (900002), current version is latest.
+Installed CFBundleVersion readback: 900002

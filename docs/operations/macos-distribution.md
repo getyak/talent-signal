@@ -33,11 +33,16 @@ Building from the tagged source is another option for preview evaluation.
 
 ## Update and rollback
 
-Signed builds use Sparkle 2.10.0. A scheduled check shows a compact update button
-beside the account avatar; clicking it opens native version review. The application
-menu also offers **Check for Updates**, including when the Web server is unavailable
-or still runs an older Web version. Download and restart require a user decision;
-automatic download/installation is disabled. **Settings → Updates** controls
+Signed builds use Sparkle 2.10.0. Launch and hourly scheduled checks show a compact **Update and Restart** button
+beside the account avatar only after a verified, applicable update is found. One
+click authorizes that specific offer: download, verification, installation and
+relaunch continue without a second application confirmation. Progress replaces
+the button; failure keeps the current app usable and offers another check.
+Checking alone never authorizes installation. The application menu and native
+settings also offer checks and installation when the Web server is unavailable
+or still runs an older Web version. Background download/installation is disabled.
+Settings show the installed version, check status and last verified feed check.
+A failed network or signature check is never reported as up to date. **Settings → Updates** controls
 scheduled checks and opt-in preview releases. Production feeds contain only signed,
 notarized packages, including packages in the optional preview channel.
 
@@ -149,7 +154,9 @@ Run the Web development server on loopback port 4399, then
 Open `<output>/installed/Talent Signal Rehearsal.app`, enable local development,
 and connect to `http://127.0.0.1:4399`. The Debug rehearsal opens the real account-footer
 components with synthetic content at `/dev/desktop-chrome`; production returns
-404 for that page. Verify the quiet indicator, native review, download, signature
-check, explicit restart, new installed build and preserved connection. Corrupt a
+404 for that page. Verify the quiet indicator, one explicit update click, download, signature
+check, automatic relaunch without another confirmation, new installed build and
+preserved connection. A scripted `.click()` must not install; the native host
+accepts only a trusted main-frame click through an isolated content world. Corrupt a
 copy of the served archive to verify rejection and continued use of the old build.
 Only Debug rehearsal bundles admit a loopback update feed; production does not.

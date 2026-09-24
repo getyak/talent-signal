@@ -23,7 +23,7 @@ The system has five conceptual layers:
 
 ### Surfaces
 
-Web and macOS share one Web product surface; native tools retain separate authorization ([ADR 0016](decisions/0016-shared-desktop-workspace-surface.md)). A bounded desktop maintenance surface exposes only update display state and links to native review/settings; it grants no configuration, capture or installation authority ([ADR 0017](decisions/0017-desktop-maintenance-controls.md)).
+Web and macOS share one Web product surface; native tools retain separate authorization ([ADR 0016](decisions/0016-shared-desktop-workspace-surface.md)). A bounded desktop maintenance surface exposes update display state and bounded maintenance controls. One trusted user click may authorize the displayed signed update through an isolated content world; the page has no native execution API ([ADR 0017](decisions/0017-desktop-maintenance-controls.md), [one-click update amendment](decisions/2026-09-24-one-click-desktop-updates.md)).
 
 iOS, Web, browser capture, channels, and external agents provide different
 interaction modes while sharing identity, evidence, review, and action state through one backend.
