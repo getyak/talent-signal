@@ -3,15 +3,28 @@ Talent Signal — relationship workspace
 macOS 14 or later · Apple silicon and Intel
 
 1. Drag Talent Signal to Applications, then open it.
-2. Paste the HTTPS workspace address from your workspace owner.
+2. Paste the HTTPS workspace address from your workspace owner. Use the origin
+   only (scheme, hostname and optional port), without /workspace or other paths.
 3. Sign in with your own account.
 
-The download includes no server, account, or private workspace address.
-Private workspaces need the Mac on the same Tailscale network first.
+The download includes no server, account, credentials, or private workspace
+address. Installing it does not grant access to anyone else's data. A private
+workspace requires an authorized Mac on the same Tailnet with Tailscale connected.
 
-Preview packages are ad-hoc signed and not Apple-notarized. Gatekeeper may
-block them; do not disable Gatekeeper or strip quarantine. Use a signed,
-notarized release for ordinary distribution.
+Use the network button in the workspace toolbar to change the server. Settings >
+Talent Signal links to release downloads and installation help.
+
+Signed releases check at launch and periodically while running. A verified update
+appears beside the account avatar. Click Update and Restart once to download,
+verify and restart; there is no second application confirmation. Settings >
+Updates shows the installed version and check status. Offline checks retry later.
+Unconfigured previews need one manual trusted installation to enable updates:
+quit the app and replace it in Applications. Preferences and workspace accounts
+are retained. Keep the prior download for operator rollback.
+
+Preview packages are ad-hoc signed and not Apple-notarized. Gatekeeper may block
+them; do not disable Gatekeeper or strip quarantine. Use a signed, notarized
+release for ordinary distribution.
 
 Downloads and instructions:
 https://github.com/getyak/talent-signal/blob/main/docs/operations/macos-distribution.md

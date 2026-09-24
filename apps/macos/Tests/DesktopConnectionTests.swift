@@ -64,4 +64,17 @@ final class DesktopConnectionTests: XCTestCase {
         XCTAssertFalse(DesktopUpdateConfiguration.isValid(feed: "https://evil.test/appcast.xml", publicKey: key))
         XCTAssertFalse(DesktopUpdateConfiguration.isValid(feed: "http://127.0.0.1:9999/appcast.xml", publicKey: key))
     }
+
+    func testInstallLinkRequiresAnExactOfferAndTheSameOriginHumanGesture() throws {
+        let origin = try XCTUnwrap(WorkspaceOrigin("https://work.example:10443"))
+        let offer = UUID()
+        let target = try XCTUnwrap(URL(string: "talentsignal-desktop://install-update?offer=\(offer.uuidString)"))
+        XCTAssertEqual(DesktopChromeAction.resolve(target, source: origin.entryURL, origin: origin, mainFrame: true, userActivated: true), .installUpdate(offer))
+        XCTAssertNil(DesktopChromeAction.resolve(target, source: origin.entryURL, origin: origin, mainFrame: false, userActivated: true))
+        XCTAssertNil(DesktopChromeAction.resolve(target, source: origin.entryURL, origin: origin, mainFrame: true, userActivated: false))
+        XCTAssertNil(DesktopChromeAction.resolve(target, source: URL(string: "https://elsewhere.example"), origin: origin, mainFrame: true, userActivated: true))
+        for suffix in ["", "?offer=invalid", "?offer=\(offer.uuidString)&offer=\(offer.uuidString)", "?offer=\(offer.uuidString)&url=https://elsewhere.example"] {
+            XCTAssertNil(DesktopChromeAction.resolve(URL(string: "talentsignal-desktop://install-update\(suffix)")!, source: origin.entryURL, origin: origin, mainFrame: true, userActivated: true))
+        }
+    }
 }

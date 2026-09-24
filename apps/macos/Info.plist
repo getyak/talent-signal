@@ -24,6 +24,8 @@
     <string>https://github.com/getyak/talent-signal/releases/download/macos-updates/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>$(MACOS_SPARKLE_PUBLIC_KEY)</string>
+    <key>SUScheduledCheckInterval</key>
+    <integer>3600</integer>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUAllowsAutomaticUpdates</key>

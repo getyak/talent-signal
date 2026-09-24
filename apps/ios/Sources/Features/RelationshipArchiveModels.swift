@@ -3114,12 +3114,13 @@ extension JSONDecoder {
 extension AgentSessionStore {
     static func preview(
         snapshot: PursuitWorkspaceSnapshot,
-        sessionCount: Int = 2
+        sessionCount: Int = 2,
+        now: @escaping () -> Date = Date.init
     ) -> AgentSessionStore {
         let people = snapshot.people
         guard let first = people.first,
               let firstContext = first.contexts.first else {
-            return AgentSessionStore()
+            return AgentSessionStore(now: now)
         }
 
         let response = RelationshipAskResponse(
@@ -3169,7 +3170,9 @@ extension AgentSessionStore {
                 ),
             ]
         )
-        let now = Date(timeIntervalSince1970: 1_787_645_400)
+        // Synthetic sessions must age from this preview's clock, not a fixed
+        // fixture date that eventually expires under the real retention policy.
+        let previewDate = now()
         let primary = AgentSession(
             id: UUID(uuidString: "90000000-0000-4000-8000-000000000001")!,
             scope: .relationship(
@@ -3184,18 +3187,18 @@ extension AgentSessionStore {
                     id: UUID(uuidString: "91000000-0000-4000-8000-000000000001")!,
                     objective: "What changed with the location model?",
                     response: response,
-                    createdAt: now,
+                    createdAt: previewDate,
                     requiresRefresh: false
                 ),
             ],
             contactReceipts: [],
-            updatedAt: now,
+            updatedAt: previewDate,
             isUnread: false
         )
 
         guard people.count > 1,
               let secondContext = people[1].contexts.first else {
-            return AgentSessionStore(sessions: [primary])
+            return AgentSessionStore(sessions: [primary], now: now)
         }
         let secondary = AgentSession(
             id: UUID(uuidString: "90000000-0000-4000-8000-000000000002")!,
@@ -3208,7 +3211,7 @@ extension AgentSessionStore {
             title: "Prepare the next conversation",
             turns: [],
             contactReceipts: [],
-            updatedAt: now.addingTimeInterval(-7_200),
+            updatedAt: previewDate.addingTimeInterval(-7_200),
             isUnread: false
         )
         var sessions = [primary, secondary]
@@ -3226,12 +3229,12 @@ extension AgentSessionStore {
                     title: String(format: "Continuity session %02d", sequence),
                     turns: [],
                     contactReceipts: [],
-                    updatedAt: now.addingTimeInterval(Double(-3_600 * sequence)),
+                    updatedAt: previewDate.addingTimeInterval(Double(-3_600 * sequence)),
                     isUnread: sequence.isMultiple(of: 3)
                 )
             })
         }
-        return AgentSessionStore(sessions: sessions)
+        return AgentSessionStore(sessions: sessions, now: now)
     }
 }
 

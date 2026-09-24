@@ -46,4 +46,30 @@ describe("native desktop chrome", () => {
     expect(desktopVersion({ protocolVersion: 1, availableVersion: "a".repeat(41) })).toBeNull();
     expect(desktopVersion({ protocolVersion: 1, availableVersion: "0.2.0 (12)" })).toBe("0.2.0 (12)");
   });
+
+  it("names one-click restart, prevents repeat clicks during progress and exposes failure recovery", async () => {
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    await act(async () => root!.render(createElement(DesktopUpdateButton)));
+    async function show(phase: "available" | "downloading" | "installing" | "failed" | "idle", progress: number | null = null) {
+      await act(async () => {
+        window.talentSignalDesktop = { protocolVersion: 1, availableVersion: "0.2.0 (12)", phase, progress, offerID: "b75e9546-2b27-4ee6-bdb2-bcb11f882652" };
+        window.dispatchEvent(new Event("talent-signal-desktop"));
+      });
+    }
+    await show("available");
+    expect(host.querySelector("a")?.textContent).toBe("更新并重启");
+    expect(host.querySelector("a")?.getAttribute("href")).toContain("install-update?offer=b75e9546");
+    expect(host.querySelector("a")?.getAttribute("aria-label")).toContain("0.2.0 (12) 并重启");
+    await show("downloading", 41);
+    expect(host.querySelector("a")).toBeNull();
+    expect(host.querySelector('[role="status"]')?.getAttribute("aria-label")).toContain("41%");
+    await show("installing");
+    expect(host.querySelector("a")).toBeNull();
+    expect(host.textContent).toBe("更新中");
+    await show("failed");
+    expect(host.querySelector("a")?.getAttribute("aria-label")).toContain("重新检查");
+    await show("idle");
+    expect(host.textContent).toBe("");
+  });
 });
