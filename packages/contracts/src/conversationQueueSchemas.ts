@@ -218,6 +218,15 @@ export const ConversationQueueMutationRequestSchema = Type.Union([
     },
     obj,
   ),
+  Type.Object(
+    {
+      kind: Type.Literal("prioritize"),
+      queue_entry_id: id,
+      expected_revision: Type.Integer({ minimum: 0 }),
+      idempotency_key: Type.String({ minLength: 1, maxLength: 128 }),
+    },
+    obj,
+  ),
 ], { $id: "ConversationQueueMutationRequest" });
 
 export type ConversationQueueMutationRequest = Static<
@@ -232,6 +241,7 @@ export const ConversationQueueAppliedSchema = Type.Object(
       Type.Literal("retry"),
       Type.Literal("continue"),
       Type.Literal("stop"),
+      Type.Literal("prioritize"),
     ]),
     queue_entry_id: Type.Union([id, Type.Null()]),
     run_id: Type.Union([id, Type.Null()]),

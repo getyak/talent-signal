@@ -235,8 +235,10 @@ async function entryRow(sessionId: string, accountId: string) {
       run_id: string | null;
       lease_generation: number;
       cancel_requested: boolean;
+      cancel_auto_continue: boolean;
+      sequence: string;
     }>(
-      "SELECT status,content_state,failure_code,result,objective,run_id,lease_generation,cancel_requested FROM conversation_queue_entries WHERE account_id=$1 AND session_id=$2 ORDER BY sequence",
+      "SELECT status,content_state,failure_code,result,objective,run_id,lease_generation,cancel_requested,cancel_auto_continue,sequence FROM conversation_queue_entries WHERE account_id=$1 AND session_id=$2 ORDER BY sequence",
       [accountId, sessionId],
     )
   ).rows;
@@ -615,6 +617,226 @@ suite("durable conversation queue", () => {
       });
     } finally {
       await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("prioritizes a waiting supplement: stops the live run, reorders, and continues without pause", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const held = gate();
+    provider.gateForObjective = (objective) => (objective === "正在处理的补充来源" ? held.promise : null);
+    const runner = await startRunner(provider);
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "正在处理的补充来源",
+      });
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "默认排队的补充",
+      });
+      const prioritizedMessageId = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: prioritizedMessageId,
+        objective: "应优先处理的补充",
+      });
+      await waitFor(async () => {
+        const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+        return snapshot.active !== null && snapshot.queued.length === 2;
+      });
+      let snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      const prioritized = snapshot.queued.find((entry) => entry.message_id === prioritizedMessageId);
+      expect(prioritized).toBeDefined();
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "prioritize",
+        queue_entry_id: prioritized!.queue_entry_id,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+      // The live run is stop-requested for auto-continue; the chosen supplement
+      // is first among waiting work and the queue is ready to claim it next.
+      await waitFor(async () => {
+        const rows = await entryRow(seeded.sessionId, seeded.accountId);
+        return rows[0]?.cancel_requested === true && rows[0]?.cancel_auto_continue === true;
+      });
+      snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      expect(snapshot.queued.map((entry) => entry.objective)).toEqual([
+        "应优先处理的补充",
+        "默认排队的补充",
+      ]);
+      expect(snapshot.paused).toBe(false);
+
+      held.release();
+      await waitFor(async () => {
+        const rows = await entryRow(seeded.sessionId, seeded.accountId);
+        return rows.filter((row) => row.status === "cancelled").length === 1;
+      });
+      // Prioritize's stop must not re-pause; the chosen supplement runs next.
+      expect((await queueState(seeded.sessionId, seeded.accountId))!.paused).toBe(false);
+      await waitFor(async () => {
+        const rows = await entryRow(seeded.sessionId, seeded.accountId);
+        return rows.some((row) => row.objective === "应优先处理的补充" && row.status === "running")
+          || rows.some((row) => row.objective === "应优先处理的补充" && row.status === "completed");
+      });
+    } finally {
+      held.release();
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("prioritize without a live run only reorders waiting work and unpauses", async () => {
+    const seeded = await seedSession();
+    try {
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "continue",
+        expected_revision: 0,
+        idempotency_key: randomUUID(),
+      });
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "先排队",
+      });
+      const second = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: second,
+        objective: "后到但优先",
+      });
+      let snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      const target = snapshot.queued.find((entry) => entry.message_id === second);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "prioritize",
+        queue_entry_id: target!.queue_entry_id,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+      snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      expect(snapshot.queued.map((entry) => entry.objective)).toEqual(["后到但优先", "先排队"]);
+      expect(snapshot.active).toBeNull();
+      expect(snapshot.paused).toBe(false);
+    } finally {
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("plain stop after prioritize still pauses and never inherits auto-continue", async () => {
+    const seeded = await seedSession();
+    const provider = new ScriptedConversationProvider();
+    const held = gate();
+    provider.gateForObjective = (objective) => (objective === "会被再次停止" ? held.promise : null);
+    const runner = await startRunner(provider);
+    try {
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "会被再次停止",
+      });
+      const second = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: second,
+        objective: "停止后不得自动执行",
+      });
+      await waitFor(async () => {
+        const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+        return snapshot.active !== null && snapshot.queued.length === 1;
+      });
+      let snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      // Prioritize first (sets auto-continue on the live run)…
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "prioritize",
+        queue_entry_id: snapshot.queued[0]!.queue_entry_id,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+      // …then a plain Stop must win and keep the queue paused after cancel.
+      snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "stop",
+        run_id: snapshot.active!.run_id!,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+      held.release();
+      await waitFor(async () => {
+        const rows = await entryRow(seeded.sessionId, seeded.accountId);
+        return rows.some((row) => row.status === "cancelled");
+      });
+      expect((await queueState(seeded.sessionId, seeded.accountId))!.paused).toBe(true);
+      await sleep(80);
+      expect(provider.calls).toHaveLength(1);
+    } finally {
+      held.release();
+      await runner.close();
+      await removeProofAccount(seeded.accountId);
+    }
+  });
+
+  it("refuses prioritize while a failed message still needs retry or removal", async () => {
+    const seeded = await seedSession();
+    try {
+      await mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+        kind: "continue",
+        expected_revision: 0,
+        idempotency_key: randomUUID(),
+      });
+      const failedMessage = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: failedMessage,
+        objective: "未完成的消息",
+      });
+      const next = randomUUID();
+      await admitConversationQueueEntry(pool!, seeded.auth, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: next,
+        objective: "不得越过失败继续",
+      });
+      const claimed = await claimNextConversationQueueEntry(pool!, {
+        accountId: seeded.accountId,
+        sessionId: seeded.sessionId,
+        workerId: "prioritize-gate",
+      });
+      expect(claimed).not.toBeNull();
+      await finalizeConversationQueueEntry(pool!, {
+        fence: {
+          accountId: claimed!.accountId,
+          sessionId: claimed!.sessionId,
+          entryId: claimed!.entryId,
+          runId: claimed!.runId,
+          leaseOwner: claimed!.leaseOwner,
+          leaseGeneration: claimed!.leaseGeneration,
+        },
+        status: "failed",
+        failureCode: "RUN_FAILED",
+      });
+      const snapshot = await readConversationQueueSnapshot(pool!, seeded.auth, seeded.sessionId);
+      const target = snapshot.queued.find((entry) => entry.message_id === next);
+      expect(target).toBeDefined();
+      await expect(
+        mutateConversationQueueEntry(pool!, seeded.auth, seeded.sessionId, {
+          kind: "prioritize",
+          queue_entry_id: target!.queue_entry_id,
+          expected_revision: snapshot.revision,
+          idempotency_key: randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: "CONVERSATION_QUEUE_RETRY_REQUIRED" });
+    } finally {
       await removeProofAccount(seeded.accountId);
     }
   });
@@ -1304,6 +1526,25 @@ suite("durable conversation queue", () => {
       });
       expect(withdraw.statusCode, withdraw.body).toBe(200);
       expect(withdraw.json().applied.kind).toBe("withdraw");
+
+      // prioritize is accepted through the same non-mutating mutation union.
+      const prioritizeTarget = await inject("POST", url, {
+        idempotency_key: randomUUID(),
+        session_id: seeded.sessionId,
+        message_id: randomUUID(),
+        objective: "HTTP 优先目标",
+      });
+      expect(prioritizeTarget.statusCode).toBe(202);
+      const prioritizeEntryID = (prioritizeTarget.json() as { queue_entry_id: string }).queue_entry_id;
+      snapshot = await readRevision();
+      const prioritize = await post({
+        kind: "prioritize",
+        queue_entry_id: prioritizeEntryID,
+        expected_revision: snapshot.revision,
+        idempotency_key: randomUUID(),
+      });
+      expect(prioritize.statusCode, prioritize.body).toBe(200);
+      expect(prioritize.json().applied.kind).toBe("prioritize");
 
       const invalidStop = await post({
         kind: "stop",
