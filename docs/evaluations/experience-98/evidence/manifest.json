@@ -95,6 +95,11 @@
     "bytes": 8600
   },
   {
+    "file": "identity-review-upper-bound.json",
+    "sha256": "497d880c424f446347bb9ce717391eacbc026fd74048fe8ec8568467781b82a1",
+    "bytes": 1995
+  },
+  {
     "file": "lost-contact-readback.png",
     "sha256": "24eaa27299d7d465482145054d07e4b7f48e2f0b5b20d56e4aae353ce8614834",
     "bytes": 64529
@@ -158,6 +163,11 @@
     "file": "page-dark-baseline.json",
     "sha256": "1218c44dc709f860b02f6afe982880a931b652e912814be072f7df44b2427d63",
     "bytes": 108050
+  },
+  {
+    "file": "parent-verification-7a99f873.json",
+    "sha256": "b01ba6d933ab6ceb44ed18a04447d5f1c6361580a748279df7a24244ddf157a7",
+    "bytes": 2126
   },
   {
     "file": "person-brief-shell-after-320.png",

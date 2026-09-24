@@ -1,8 +1,8 @@
 # Journey acceptance ledger
 
 Checkpoint: independent review at local `01cb7aa8`, with subsequent local repairs
-tracked in [review resolution](review-resolution.md); resident backend remains
-`973e7913-platform`.
+tracked in [review resolution](review-resolution.md); the last observed resident
+backend was `973e7913-platform`.
 The two versions are deliberately named separately. No journey has been awarded
 98/100. Evidence below is operational verification of synthetic cases, not a
 user-satisfaction score or accessibility certification.
