@@ -38,6 +38,32 @@ unique key and a nullable owner in conflict state is acceptable for this
 transition; it is not permission to claim historical conflicts are resolved.
 Normal new and linked accounts must have exactly one canonical owner.
 
+### Verified secondary emails
+
+A linked provider may verify an email different from the primary email. Reserve
+that exact normalized address for the existing canonical account in the same
+transaction that links the provider, using the same email lock and uniqueness
+arbitration as registration. An already-linked subject that presents a newly
+verified address follows that arbitration before updating its hint. An owned
+reservation for this same user is idempotent; another owner or an unresolved
+historical conflict requires explicit recovery. Never create a second account
+for a verified address already reserved through a linked method.
+
+Record the verification source and time. Missing or unverified provider hints
+do not establish ownership, and historical `email_hint` values must not be
+silently backfilled as verified. Existing issuer/subject credentials remain
+authoritative for ordinary sign-in when a provider changes its email; a new
+email collision must not silently transfer either account or invalidate an
+otherwise valid existing credential.
+
+These additional reservations prevent account splitting; they do not change
+the primary email or automatically become password identifiers. Password sign-in
+continues to use the primary email or username and an explicitly configured
+password. Settings labels the primary email clearly. Password signup or reset
+must never inherit a password or grant access through a reservation alone.
+Unlinking a provider retains its verified email reservation and provenance.
+Releasing or reassigning an email needs a separate, explicitly verified flow.
+
 New password registration must verify actual email ownership before activating a
 canonical claim or admitting private product data. A pending registration is
 short-lived and cannot reserve an email indefinitely or prevent a verified
@@ -180,6 +206,16 @@ recheck the initiating session's current validity before any transfer. Removing
 or changing either proven credential invalidates the prepared request, even if
 the duplicate remains empty. A request that passed the HTTP authentication
 guard before session revocation cannot use its cached context to commit later.
+
+The frozen inventory also includes all email reservations related to both
+parties, including normalized address, owner, state, revision and verified
+provenance. Lock and recheck them in stable order at commit. Transfer every
+reservation unambiguously owned by the retiring user to the canonical user in
+the same transaction as the credentials; do not leave a secondary address owned
+by a retired login. A changed reservation or an unexplained third-party claim
+requires renewed preparation or protected review. Resolving the primary
+collision cannot take ownership away from an unproven third party, and unknown
+historical hints do not become claims as a side effect of reconciliation.
 
 Retirement must also close the in-flight-write race. Revoking an auth session
 does not revoke an already admitted request, and retaining an account/user

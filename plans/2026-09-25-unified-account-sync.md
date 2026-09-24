@@ -194,3 +194,28 @@ under the task artifact directory.
   missing development columns after schema comparison against the fresh proof
   database. Existing synthetic Person/Session IDs were retained. This adjustment
   is not fresh-migration proof and did not touch any resident database.
+
+### Independent acceptance checkpoint at 05:43 local
+
+Repair12 is in progress. The Web production timer now starts the first scheduled
+read at 11 seconds in the parent's deterministic default-configuration check.
+The real HTTP login-loop regression and actual Chrome recovery both pass while
+retaining the existing synthetic Person and Session IDs. These close the
+specific timing and recovery findings above, not native or provider acceptance.
+
+Independent review confirms the password-first target round, exact rendered
+recovery reference and consumed-round retirement fixes in source. Tests still
+need to execute the real completion route, both provider-role orders and actual
+blank-password recovery form submission. Recovery status also needs to validate
+the current actor/session/revisions before presenting a proof as verified.
+
+The parent reproduced another account-splitting defect with real disposable
+PostgreSQL and actual backend entry points: account A links a Google credential
+with verified email B; B has no reservation; verified password signup for B then
+creates account B, while the Google credential still signs in to A. Provider
+verification and delivery were controlled fixtures, not live external services.
+ADR 0018 now explicitly freezes secondary verified-email ownership, retention
+after unlink and complete reservation handling during reconciliation. This P1
+is queued for Pi after its current coherent client implementation checkpoint.
+Primary-email password lookup remains the chosen scope; a reservation alone is
+not an additional password identifier or authorization proof.
