@@ -1,5 +1,6 @@
 // Environment-specific values are generated into the optional ignored include.
 // Keep this committed file value-free so source never selects a deployment.
 TALENT_SIGNAL_API_BASE_URL_BASE64URL =
+TALENT_SIGNAL_WEB_ORIGIN_BASE64URL =
 
 #include? "Environment.local.xcconfig"

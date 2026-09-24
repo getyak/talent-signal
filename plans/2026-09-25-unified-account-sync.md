@@ -120,6 +120,30 @@ second phase after the shared implementation is coherent and reviewed.
 
 ## Execution boundaries
 
+### Client review continuation at 04:48 local
+
+Repair10 combines the remaining full-flow findings after Pi's selected native
+tests passed. Those tests do not establish actual View or provider behavior.
+The Web stale-actor ServerAction/HTTP regression passes4/4 with positive controls;
+reconciliation boundary regression passes8/8. An independent disposable Session
+was deleted through HTTP and the open Web UI disabled its composer within an
+observed7.813seconds. Native and live-provider acceptance remain pending.
+
+Open findings are independent current/duplicate provider proof slots in Web
+recovery, ownership of delayed OAuth errors, native password operation parameters,
+current Apple challenge preparation, default open-Session refresh registration,
+and honest readback after a potentially committed credential change. Pi has the
+complete review and stays the implementation owner in its isolated worktree.
+
+Parent owns the optional native build-origin plumbing in
+`scripts/ios/configure-build-environment.mjs`, its tests and
+`apps/ios/Config/Environment.xcconfig`. `TALENT_SIGNAL_WEB_ORIGIN` is encoded into
+`TALENT_SIGNAL_WEB_ORIGIN_BASE64URL`, accepts only an origin, requires Release
+HTTPS and permits exact Debug loopback HTTP. Missing configuration stays empty.
+Seven script tests and nine independent reviewer assertions pass. Pi owns the
+corresponding Info.plist decoder, active-backend matching and fixed recovery
+route; those require integration and actual UI verification.
+
 Use synthetic accounts and records in isolated task-owned test infrastructure.
 Never seed, migrate or repoint the resident production/TestFlight database during
 Pi implementation. No secrets in contracts/logs/docs. No external messages or
