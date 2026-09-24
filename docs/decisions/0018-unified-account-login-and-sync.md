@@ -156,6 +156,17 @@ phases, a frozen revision, an audit receipt and idempotency. Preserve all data a
 provenance. No production conflict is resolved by this ADR or by an automated
 test alone.
 
+The Web recovery flow keeps two independent proof slots, one for the current
+identity and one for the duplicate. Both password and provider-only accounts
+must be supported in either role. One immutable recovery reference binds the
+original session fingerprint, canonical account/user, revisions and expiry;
+each provider round trip also binds its own role, provider, challenge and nonce.
+Starting the second round must preserve the first proof and must not extend its
+authorization lifetime. A single replaceable login-operation/proof cookie
+cannot represent both roles. Use separately sealed bounded slots or server-held
+proof references, and consume both proofs atomically during preparation. A
+callback or error with unknown ownership cannot clear a newer recovery flow.
+
 For an entirely empty duplicate, support a narrowly scoped credential transfer
 to the explicitly selected canonical user, retiring the redundant login with
 an auditable alias/tombstone and revoking its old sessions. "Empty" must use the
