@@ -251,3 +251,24 @@ repair13 focused only on native implementation and real controller/consumer
 tests. Secondary-email ownership, remaining Web projection checks and the
 timestamp defect are queued separately for repair14. All source changes remain
 isolated; no production account, deployment or provider configuration changed.
+
+### Native and ownership checkpoint at 06:22 local
+
+Repair13's signed test build succeeded, but the new Model tests deadlocked and
+some request-body assertions still failed. Frozen independent review retains
+four P1 findings: clients cached across identity changes, incomplete Apple
+round selection/ownership, refresh leases missing production lifecycle wiring,
+and tombstone recovery not connected to every sending path. The parent stopped
+the exact hung test process and resumed the same Pi session as repair14 with
+these concrete findings, deterministic test fixes and the actual timestamp
+roundtrip defect. No implementation has yet been integrated into this parent
+branch; test counters and failed evidence remain intact.
+
+The parent independently added five real PostgreSQL secondary-email regression
+cases. All fail against unchanged source, including both signup/link commit
+orderings observed with `pg_blocking_pids`. The other cases cover changed
+verified email on an existing subject, retained ownership after unlink, and a
+foreign email collision during rebind. The source-bound before-fix receipt is
+`docs/evaluations/account-sync/linked-email-boundaries-before-fix-2026-09-25.json`.
+Backend ownership and the remaining Web projection/form checks are queued for
+repair15 after native repair14 reaches a coherent review checkpoint.
