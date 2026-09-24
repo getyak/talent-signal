@@ -115,11 +115,55 @@ reverse-DNS mechanism; actual resident improvement remains unverified.
 
 Rendered all eight primary page families at both widths: conversation home, Today, People, Time, Sources, Extensions, Settings and Sessions. No horizontal page overflow was observed in those empty states. This does not establish populated-page, keyboard, error, theme or native-app quality. The initial automated capture attempt sampled loading states; those samples were discarded and the harness now waits for content and source/time reads to settle.
 
-Still required: close EXP-11 and finish populated Person/Memory acceptance;
+Still required: deployed acceptance and finish populated Person/Memory acceptance;
 complete reconnect and current-runtime prioritization checks; broaden source
 deletion, theme and enlarged-text evidence; independent review and native-surface
 acceptance where required. Preserve deductions instead of upgrading unknowns
 to passes.
+
+### Unknown-result recovery acceptance
+
+Pi repair 3 is integrated with the parent's navigation-race correction. The
+parent first reproduced two missed cases: accepting navigation while a source
+request is still pending dispatched a later clue POST before unmount; a
+same-document skip link incorrectly asked to discard recovery. Both now pass.
+The form validates one complete receipt against the exact request and identity,
+seals acknowledged success before host callbacks, and preserves unknown outcomes
+across replay rejection. Scope expiry and accepted navigation stop continuation.
+
+Two real-backend browser probes deliberately hid a successful 201: first for
+the source and then for the confirmed clue. The focused unknown-result notice
+kept inputs locked. Explicit retries reused the complete body, request ID and
+observation time; each returned the original Person and resource. Canonical
+reload retained the Person. Read-only PostgreSQL verification found exactly one
+Person per unique synthetic name, one note, one contact resource and one
+confirmed handle. See [browser recovery](evidence/lost-response-recovery.json)
+and [database readback](evidence/create-recovery-db-readback.json).
+
+The assembled Web suite passed 1,267 tests with one skipped; a subsequent
+single-resource receipt regression also passed. Web typecheck and changed-file
+lint passed. These are local checks, not production deployment evidence.
+Recovery remains in memory: leaving or refreshing warns truthfully but cannot
+restore the pending request after reopening. Durable recovery is still a deeper
+improvement direction.
+
+### Browser tooling isolation
+
+Client navigation in the extension-enabled audit tab raised a React
+`parentNode.removeChild` error and retained the previous page. Inspection found
+the React-owned favicon detached while a `data-wb-cursor` replacement existed.
+A fresh extension-free Chrome context, using only the same synthetic Lab
+authorization in memory, completed Sessions → New conversation → Sessions →
+People with no page errors. The lost-response journeys also completed there.
+See [clean browser comparison](evidence/clean-browser-navigation.json).
+This is evidence of tool interference, not proof of an application defect;
+no React workaround or global browser-extension change was introduced.
+
+The [four-lens checkpoint](checkpoint-panel.json) freezes the earlier
+`9938d394` state, before unknown-result recovery was integrated. It is a
+sequential parent self-review, not independent reviewer consensus. Its active
+duplicate-write veto is superseded locally by the recovery evidence above;
+its deployment, Memory, accessibility and score-validity gaps remain open.
 
 ## Deep optimization directions
 

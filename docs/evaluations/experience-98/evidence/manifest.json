@@ -10,6 +10,16 @@
     "bytes": 103817
   },
   {
+    "file": "clean-browser-navigation.json",
+    "sha256": "a86079768ac67a70502682bd300681803bd283f644ba393b5ebeba246a0983de",
+    "bytes": 1889
+  },
+  {
+    "file": "clean-browser-people.png",
+    "sha256": "b3e8a7414c7a8e12bd7eb42cbce60444a592f47602938ac1ab961fdabe2e131c",
+    "bytes": 67111
+  },
+  {
     "file": "conversation-queue-resumed-reload.png",
     "sha256": "cd6f8ddbef27777fee8b9861234d141c1abb3040199f7968153064fa21595a70",
     "bytes": 94362
@@ -65,6 +75,11 @@
     "bytes": 3884
   },
   {
+    "file": "create-recovery-db-readback.json",
+    "sha256": "7626b310b98bc023efb20adcef74dc89e2bd878e2f17d24df5446f821e5b1c2a",
+    "bytes": 966
+  },
+  {
     "file": "create-source-reload-after.png",
     "sha256": "17e497a688e815fc5629bbd14652bfdcc0c95d8612211e61311bbf2deae9100c",
     "bytes": 95835
@@ -78,6 +93,41 @@
     "file": "create-text-contrast.json",
     "sha256": "4e880bb57d1523c167495d794858b26ede9e6ef911daeca064d43e56095598da",
     "bytes": 8600
+  },
+  {
+    "file": "lost-contact-readback.png",
+    "sha256": "24eaa27299d7d465482145054d07e4b7f48e2f0b5b20d56e4aae353ce8614834",
+    "bytes": 64529
+  },
+  {
+    "file": "lost-contact-unknown.png",
+    "sha256": "18f1b62ccbcda466f775fc3a42a17f2feb8d9ddafb468c464bc63da3c5a8e67a",
+    "bytes": 86896
+  },
+  {
+    "file": "lost-note-readback.png",
+    "sha256": "4ddd3b74337c59f1a87a930a6f5bdab739c10d580792b62e1f3824896f9c6558",
+    "bytes": 67378
+  },
+  {
+    "file": "lost-note-unknown.png",
+    "sha256": "57ff1e1df8c2aa3c58e15f88cb1d47228fb32b13fa525ed2ca5f833d9f833f06",
+    "bytes": 79443
+  },
+  {
+    "file": "lost-response-recovery.json",
+    "sha256": "007bff2b49dc08bb9b846e9f75831b1d8e2f790f7fa8b3df292c61aa4c371fa7",
+    "bytes": 9499
+  },
+  {
+    "file": "memory-live-failure.json",
+    "sha256": "42597d64fd7a6cf1dca1a93826aedf3ac0737015247495d4eb2a8f6bad4271a9",
+    "bytes": 984
+  },
+  {
+    "file": "memory-proposal-run-failed.png",
+    "sha256": "c2b7a2082cb1721be7cd47d6e3fd919e57d634c7041836df93e376fa33190ee8",
+    "bytes": 96868
   },
   {
     "file": "node-diagnostic-report-probe.json",

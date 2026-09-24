@@ -12671,6 +12671,30 @@ p {
   line-height: 1.5;
 }
 
+.context-agent-create__pending {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.context-agent-create__pending strong {
+  color: var(--accent-strong);
+  font-size: 0.875rem;
+}
+
+.context-agent-create__pending p {
+  color: var(--muted-strong);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.context-agent-create__pending > button {
+  justify-self: start;
+}
+
 .context-agent-identity-check {
   border-block: 1px solid var(--line);
   display: grid;

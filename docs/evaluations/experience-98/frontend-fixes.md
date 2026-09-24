@@ -8,7 +8,13 @@ The parent's `main#main-content` landmark repair on `QueuedConversation` and
 original checkout was not touched or copied. A second round applied parent
 review fixes: partial-success clue recovery that can never duplicate the
 committed person/source, an exact single-`draft_session` query rule for
-admission URL rewriting, and product copy without internal format names.
+admission URL rewriting, and product copy without internal format names. A
+third round added explicit pending/unknown request outcomes (lost-response
+recovery) after new browser evidence showed a transport-lost response could
+still mint a second person. A fourth round hardened that recovery: receipt
+validation before declaring committed, a mounted/workspace admission guard,
+replay-4xx uncertainty retention, client-navigation warnings, state-truthful
+copy, and seal-before-callback completion.
 
 ## EXP-01 — contact-create failure (missing `captured_at`)
 
@@ -54,7 +60,7 @@ Changes:
 Tests (rendered happy-dom/`createRoot` conventions):
 
 - `apps/web/components/relationship-workspace/agent-create-person-card.test.ts`
-  (6 tests):
+  (28 tests across nine groups):
   1. create + confirmed clue sends exactly two POSTs, each with its own request
      ID and a canonical ISO `captured_at`;
   2. same-intent retry after primary success / clue failure reuses the clue
@@ -88,6 +94,137 @@ Tests (rendered happy-dom/`createRoot` conventions):
 - `apps/web/lib/server/localBackend.test.ts` (2 tests): missing and malformed
   `captured_at` reject with the exact product copy (error name is not
   `RangeError`, message has no internal format names) before any fetch.
+
+## Lost-response recovery — explicit pending/unknown request outcomes
+
+New parent browser evidence: the first note POST commits personA (real 201)
+but the browser transport throws before the UI sees the response. The source
+outcome is **unknown**, not failed; the previous code exposed the raw
+transport error, left the draft editable, and an edited retry minted a new
+`new_person` request that created personB. This is distinct from the
+acknowledged-source/definitively-rejected-clue case above.
+
+Changes (`agent-create-person-card.tsx` only; no library, backend or storage
+changes):
+
+- **Frozen requests**: every submission freezes identity + exact JSON body
+  before dispatch (`FrozenRequest` for source/clue/defer; the source variant
+  also freezes labels, outcome and whether the clue step resumes). Retries
+  replay that frozen request verbatim.
+- **Outcome classification** (`dispatchFrozen`): `committed` = 2xx with
+  receipts; `rejected` = a definitive client/validation rejection (a real 4xx
+  answer with a parseable body, except 408) → known no-effect, correction
+  allowed; `blocked` = 401/403 account/session transitions → fail closed (all
+  mutation actions stop, no blind retry, exit described); everything else is
+  `unknown`: transport failure, malformed/unparseable body, 2xx without
+  receipts, 5xx, 408. Raw transport/parse errors are never shown and unknown
+  never claims "unsaved".
+- **Tracked state**: `trackedRequest` (`pending` while in flight, `unknown`
+  after an uncertain answer) with a `role="status"` notice and one explicit
+  action — “用相同内容重试核实” (exact replay). A synchronous
+  `submitLockRef` makes rapid double clicks admit exactly one submission.
+- **Locks**: while pending/unknown (or blocked/sealed) the source fields,
+  target-selection area, clue input and clue toggle are disabled. An unknown
+  clue must be resolved (exact replay) before any other clue attempt; no
+  second note is ever sent. An unknown defer replays its original frozen
+  candidate scope. The unknown-source replay never re-consults the directory
+  lookup, `ready`, or `new_person` permission (its own committed identity may
+  now appear in search).
+- **Committed-state preserved**: acknowledged source + definitively rejected
+  clue still permits safe clue correction/omission and “打开已保存的人物”.
+- **No silent rollback**: close asks for confirmation that states closing does
+  not roll back anything and that the in-memory retry entry is lost; a
+  `beforeunload` guard warns while a request is pending/unknown. A
+  known-committed but unusable source (unresolved identity / missing review
+  case) seals the form against duplicate writes with only a described exit.
+- Parent refinements mirrored: the `initialDraft` summary now says
+  “首条来源已保存 · 后续仅处理身份线索” when the source is committed (it no
+  longer keeps 尚未发生任何变化), and the creation footer primary/secondary
+  buttons are scoped to `0.875rem` (they computed to 12.64px).
+
+Tests (7 new; all prior regressions pass unchanged, including the
+definitive-422 correction/omission ones):
+
+1. server effect succeeds, caller gets a transport failure → unknown notice,
+   no unsaved claim, edits locked, explicit retry replays the exact
+   body/request ID/observation time, commits exactly once with the returned
+   receipt, and no directory lookup participates in the replay;
+2. source fields disabled in flight; rapid double clicks dispatch exactly one
+   request and commit once;
+3. unknown clue → same saved scope, identical clue body replayed, no note
+   replay, clue locked until resolved;
+4. unknown defer → frozen `candidate_person_ids` payload preserved exactly;
+5. malformed responses (contract-violating 200 body, unparseable 200 body) →
+   unknown, no false “unsaved” claim, no raw parse errors leak;
+6. 503 → uncertain (correction path locked, only exact replay offered). This
+   pins the review's classification: the scoped suite contained **no** prior
+   503 fixture (verified by search); every known-no-effect correction fixture
+   already uses a definitive 422;
+7. 401 account/session transition → fail closed, no blind retry offered.
+
+## Unknown-outcome correctness (review round 4)
+
+Bounded fixes in `agent-create-person-card.tsx`, its tests, and scoped
+`globals.css`; no backend, library, or storage changes.
+
+1. **Receipt validation before declaring committed** (P1): `validatedReceipts`
+   reuses the existing safe validator
+   `matchesTypeBox(ResourceCaptureResponseSchema, …)` and then checks
+   association with the frozen request: every receipt's
+   `resource.client_resource_id` equals `web-resource:<request_id>`, the
+   source/clue receipts carry the required identity IDs and match the
+   request's existing person/context scope, and the defer receipt carries a
+   `resolution_case_id` with a candidate set equal to the frozen candidate
+   scope (any bound person must be a candidate). Invalid, truncated, or
+   wrong-scope receipts are never cast or trusted — the outcome stays unknown
+   with the exact request retained. Test fixtures were upgraded from
+   truncated objects to full contract receipts bound to the live request
+   identity.
+2. **Mounted/workspace admission guard** (P1): a mount admission captures the
+   workspace identity (`[data-workspace-scope]`) plus a mount epoch. Before
+   every additional POST and every host callback the guard re-derives the
+   current DOM scope; expiry (`WORKSPACE_SESSION_EXPIRED_EVENT`) and any scope
+   change fail closed, missing scope fails closed (render-derived lock), and a
+   late continuation after unmount performs no state writes, no POST, and no
+   callback (it can never reset a newer attempt's state).
+3. **Replay uncertainty retained** (P1): a 4xx answer to the REPLAY of an
+   unknown request (409 idempotency conflict, 404 withdrawn resource, …) is
+   never converted into proof the original never committed — the unknown
+   warning and exact replay stay, the correction path stays locked, and no
+   unsaved claim appears. A first-attempt validation rejection stays
+definitive and correctable. Session 401/403 blocks further writes but keeps
+   the uncertainty warning and implies no rollback.
+4. **Client-navigation warning**: `beforeunload` does not cover Next
+   client-side links, so a scoped document-level click guard (mirroring the
+   Time editor's link guard) warns while a request is pending/unknown.
+   Declining prevents the navigation with no unmount and no POST; accepting
+   proceeds and the dead admission blocks any continuation POST. The X close
+   asks the same way and describes that closing never rolls back.
+5. **State-truthful copy and focus**: the initialDraft summary, committed
+   block and footer render text from the actual pending/unknown/committed/
+   rejected/blocked state (no “尚未发生任何变化” during an unknown source, no
+   “clue unsaved and editable” during an unknown clue); the unknown recovery
+   notice is focusable (`tabIndex={-1}`) and receives focus — not only errors.
+6. **Seal before host callbacks**: every completion seals the form and stores
+   the acknowledged receipts/outcome before invoking `onCommitted`/
+   `onDeferred`. A throwing host callback leaves a sealed, truthful state
+   (never an apparently normal editable form) with an explicit “重试打开”
+   safe re-open of the stored completion and a working close exit. Unexpected
+   internal failures seal with an explicit stop message instead of silently
+   unlocking.
+
+Tests (15 new; all prior regressions kept): truncated `[{}]` receipt →
+unknown + exact replay commits once; receipt bound to a different existing
+person → unknown with truthful clue-uncertain copy; receipt bound to another
+request identity → unknown; unmount mid-flight → no clue POST and no host
+callback; workspace scope switch mid-flight → no follow-up POST/callback and
+fail-closed lock; session expiry mid-flight → same; missing scope → fail
+closed at mount with zero requests; unknown → replay 409 and unknown →
+replay 404 → uncertainty retained and retry preserved; unknown → session
+expiry → writes blocked with the uncertainty warning retained; client-link
+decline (prevented, mounted, no POST) and accept; X close decline and accept;
+initialDraft unknown copy + notice focus; host-callback throw → sealed truthful
+state, safe re-open replays the stored completion, close exits.
 
 ## EXP-03 — create-contact readability and error recovery
 
@@ -179,11 +316,14 @@ Tests (rendered happy-dom/`createRoot` conventions):
 ## Verification performed
 
 1. `pnpm install --frozen-lockfile --ignore-scripts` — up to date.
-2. `pnpm --filter @talent-signal/web typecheck` — passed.
-3. `pnpm --filter @talent-signal/web lint` — passed (second round).
-4. `pnpm --filter @talent-signal/web test` — 1,233 passed, 1 skipped
-   (baseline: 1,213 passed, 1 skipped; net +20 scoped tests).
-5. `pnpm docs:check` — passed (wiki check, architecture boundaries and
+2. Focused: `vitest run components/relationship-workspace/agent-create-person-card.test.ts`
+   — 28/28 passed (run first).
+3. `pnpm --filter @talent-signal/web typecheck` — passed.
+4. `pnpm --filter @talent-signal/web lint` — passed.
+5. `pnpm --filter @talent-signal/web test` — 1,255 passed, 1 skipped, run
+   once after all fixes (baseline: 1,213 passed, 1 skipped; net +42 scoped
+   tests).
+6. `pnpm docs:check` — passed (wiki check, architecture boundaries and
    diagrams).
 6. Review regressions were run against the pre-fix code first: all 10 new or
    tightened assertions failed there (clue correction reposted a second
@@ -222,3 +362,36 @@ Tests (rendered happy-dom/`createRoot` conventions):
   another person; the adapted caution copy asks the recruiter to verify or
   omit the clue instead of blocking. Clue-ownership enforcement itself is a
   backend concern not exercised here.
+- **Unknown-outcome recovery state is in memory only** (deliberately: no
+  persistent browser storage may hold raw relationship evidence). A reload or
+  navigation loses the frozen request and the exact-replay entry point; the
+  form warns via `beforeunload` and an explicit close confirmation, but
+  **reload recovery is not implemented and not claimed**. Reopening the form
+  cannot resume a lost replay — the recruiter must verify the record through
+  the Person/Sources surfaces (parent-owned readback).
+- The unknown-source replay's independence from `canCreateDistinctPerson` /
+  `ready` is enforced by construction (the replay never reads lookup state)
+  and asserted by "no lookup call participates"; the rendered harness cannot
+  change a lookup result between dispatch and retry without passing through a
+  lookup-loading state that would block the initial create, so that single
+  angle is not separately probe-able in the DOM tests.
+- Definitive-rejection classification is HTTP-status based (4xx with parseable
+  body, except 408). A misbehaving proxy that answers 4xx after committing
+  would be misclassified as no-effect; transport failures, malformed bodies
+  and 5xx are conservatively unknown, and final duplicate protection is the
+  frozen request-ID idempotency keys server-side.
+- On a replay answered with a 4xx, the server's message is deliberately not
+  surfaced (it could imply a no-effect conclusion); only the retained unknown
+  warning and exact replay are shown. The specific 4xx reason therefore needs
+  server-side inspection (parent-owned).
+- Receipt validation proves structure and request association, not server
+  readback truth: the end-to-end Person readback after create/clue/defer stays
+  parent-owned.
+- The missing-scope lock is render-derived (and re-checked at every dispatch);
+  a scope that appears later without a re-render unlocks only after the next
+  render, while every write path re-validates first.
+- The client-navigation guard intercepts anchor clicks at the document level
+  (Next client-side links); imperative `router.push` without a link click is
+  host behaviour and cannot be intercepted from this card.
+- The unknown notice receives focus but is not scrolled into view; scroll
+  behaviour at real viewports is parent browser evidence.
