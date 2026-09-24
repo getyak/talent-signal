@@ -24,6 +24,7 @@ Status: in progress. No 98/100 acceptance claim has been issued.
 | EXP-08 | P2 | A source archive's “Open profile” links back to the same source archive; empty task histories still expose an empty processing disclosure. The separate relationship page displays an English no-action fallback in Chinese and a manual-identity badge based only on absence of a capture object. | Meaningful destinations and empty states; localized system copy; never claim a human identity decision without its receipt. |
 | EXP-09 | P1 | Starting a synthetic text-source run stalled the whole API: liveness and readiness each exceeded 8 seconds in three consecutive probes. The source list/detail took about 35 seconds. SDK 0.3.266 synchronously calls `process.report.getReport()` to detect Linux libc before spawning its executable. Node diagnostic reports perform reverse DNS on active sockets by default. An isolated server reproduced a 3,118ms report versus 2.4ms with network collection disabled. | Disable network lookups in runtime diagnostics before SDK admission, preserve required libc detection, and repeat a real source run while measuring API liveness/readiness. The isolated pair is not yet resident-runtime acceptance. |
 | EXP-10 | P1 | Source confirmation/deletion can submit a stale terminal revision after the runner's last save. The page displays raw `CONTACT_TASK_REVISION_CHANGED` and retains the stale action state; a full page reload was needed to proceed. | Reload current task on conflict, retain editable input, explain the changed state and require a fresh human decision. Do not automatically replay identity/deletion writes. |
+| EXP-11 | P1 | After the first resource POST returned a real 201, a synthetic transport failure hid the receipt from the form. Editing the note and pressing Create sent another `new_person` request; the backend created a second Person with a distinct ID. | Lock an unknown outcome to its exact submitted payload and request identity, reconcile before edits, and distinguish an acknowledged rejection from a missing response. Test source, clue and deferred-identity requests; never claim an unknown write was not saved. |
 
 ## First verified repair
 
@@ -39,7 +40,39 @@ The pending message was edited, reloaded with its exact text and paused state, r
 
 Created one synthetic internal arrangement for September 25, 14:00–14:30 Asia/Shanghai. The next-30-days list and a reload retained the title, time and private note. An end time before the start produced an announced validation error and preserved input. Updating the title and end to 14:45 persisted after reload. The explicit delete confirmation explained its effect; confirming removed the item from the list and cleared its title/note on deep-link reload. No calendar file was exported and no invitation was sent. EXP-07 records the remaining deleted-state presentation defect.
 
-GET-49 has separate uncommitted work for in-place send/supplement UI and queue prioritization. Keep ownership separate; do not overwrite or claim delivery of that task in this audit.
+GET-49 was independently merged in PR #242. This audit integrated `88eb33b3`
+and preserved its in-place send/supplement behavior. A new regression covers
+its prioritize path without claiming delivery of that separate task.
+
+## Revised browser acceptance
+
+- Manual contact creation with a confirmed email clue now completes. Reloading
+  the authenticated relationship destination shows one first note and one
+  confirmed clue. The source review retains the undecided participation and
+  meeting-time statement. See [creation readback](evidence/create-person-readback.json).
+- Injecting a definite first-clue rejection after a real source save preserves
+  the saved identity. The visible alert receives focus, saved source fields are
+  disabled, and correcting the clue produces one note POST and two clue attempts
+  against the same Person. The injected 503 was applied before network execution
+  in this bounded probe; ordinary 503 responses must be treated as uncertain,
+  which remains part of EXP-11. See [partial retry](evidence/create-partial-retry.json).
+- Source conflict recovery was verified against a real backend 409. The probe
+  changed only the submitted revision from 14 to 13; the page then read revision
+  14 once, preserved the name input, focused a Chinese alert and performed no
+  mutation replay. Relevant controls measured at least 44px at 320px, with no
+  horizontal overflow. See [conflict recovery](evidence/source-conflict-recovery.json).
+- The deleted Time deep link now immediately shows a compact terminal state and
+  working Close action at 320px. The previous blank editor is absent. Time's
+  affected controls measured at least 44px.
+- Contact creation labels measured 14px, inputs 16px and controls 44px at 320px.
+  Its compact primary label still measured 12.64px, so the parent scoped the
+  footer labels to 14px. A submit button initially overlapped the fixed bottom
+  bar but normal scrolling exposed it; this was not classified as unreachable.
+
+These checks cover specific synthetic journeys. They do not establish native
+app quality, 200% browser text enlargement, production latency, or 98/100.
+Next's retained route DOM can contain hidden main elements; landmark checks
+must count visible/accessibility-exposed routes rather than hidden cache nodes.
 
 ## Coverage and remaining evidence
 
@@ -62,7 +95,11 @@ reverse-DNS mechanism; actual resident improvement remains unverified.
 
 Rendered all eight primary page families at both widths: conversation home, Today, People, Time, Sources, Extensions, Settings and Sessions. No horizontal page overflow was observed in those empty states. This does not establish populated-page, keyboard, error, theme or native-app quality. The initial automated capture attempt sampled loading states; those samples were discarded and the harness now waits for content and source/time reads to settle.
 
-Still required: repair EXP-01 before judging populated Person/Memory; complete send/queue/stop/reconnect tests; review sources and deletion; theme and enlarged-text passes; independent review; any relevant database integration and native-surface acceptance. Preserve deductions instead of upgrading unknowns to passes.
+Still required: close EXP-11 and finish populated Person/Memory acceptance;
+complete reconnect and current-runtime prioritization checks; broaden source
+deletion, theme and enlarged-text evidence; independent review and native-surface
+acceptance where required. Preserve deductions instead of upgrading unknowns
+to passes.
 
 ## Deep optimization directions
 
@@ -72,7 +109,10 @@ Still required: repair EXP-01 before judging populated Person/Memory; complete s
 4. Treat admission, provider work, persistence and verified readback as distinct lifecycle states throughout front and back ends. Measure latency by stage and test interrupted/partial outcomes.
 5. Maintain a compact realistic synthetic journey set covering ambiguity, source withdrawal, long labels, no-action and retries; use it as recurring evidence, never as a substitute for human field feedback.
 6. Connect the source archive, relationship brief and Person Memory with explicit destinations and status language. A reader should understand what was imported, what is inferred, what has been confirmed and where to act without guessing between three Person surfaces.
-7. Make partial success a visible state with a stable saved identity. Correcting one unsaved field must never silently recreate an already-saved person, note or arrangement.
+7. Make acknowledged success, definite rejection and unknown outcomes distinct
+   states of the same mutation. Correcting one field must never silently
+   recreate an already-saved Person, note or arrangement; missing receipts
+   require reconciliation before another intent.
 
 ## Reference standards
 

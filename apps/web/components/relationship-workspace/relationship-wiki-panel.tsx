@@ -187,7 +187,9 @@ export function knowledgeSnapshotWikiView(
             ]
               .filter(Boolean)
               .join("\n")
-          : nextMove.content.headline,
+          : nextMove.content.headline === "No supported next action is ready."
+            ? "现有依据尚不足以提出下一步。"
+            : nextMove.content.headline,
       citationDependencyIds: uniqueDependencies([nextMove]),
       id: `${nextMove.id}:next`,
       kind:

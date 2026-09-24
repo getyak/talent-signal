@@ -16,8 +16,21 @@ export function ReviewedContactProfile({profile}:{profile:NonNullable<Screenshot
   </div>;
 }
 
-export function ContactProfileReview({task,busy,onConfirm}:{task:ScreenshotContactTaskResponse;busy:boolean;
-  onConfirm:(review:ContactProfileConfirmation)=>Promise<void>}){
+type ReviewProps = {task:ScreenshotContactTaskResponse;busy:boolean;
+  onConfirm:(review:ContactProfileConfirmation)=>Promise<void>};
+
+export function ContactProfileReview(props: ReviewProps) {
+  // A revision-only refresh preserves edits. Changed evidence starts a fresh
+  // review so an old value cannot silently attach to a reused clue index.
+  const evidence = JSON.stringify(props.task.contact_draft);
+  const [originalEvidence] = useState(evidence);
+  return <>
+    {originalEvidence !== evidence ? <p role="status">资料依据已变化，已载入最新草稿，请重新核对后保存。</p> : null}
+    <ContactProfileReviewFields key={evidence} {...props} />
+  </>;
+}
+
+function ContactProfileReviewFields({task,busy,onConfirm}: ReviewProps){
   const draft=task.contact_draft!;
   const [name,setName]=useState(draft.display_name);
   const [values,setValues]=useState(()=>Object.fromEntries(draft.fields.map(f=>[f.clue_index,f.value])));

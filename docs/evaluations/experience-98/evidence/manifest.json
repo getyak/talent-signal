@@ -20,6 +20,41 @@
     "bytes": 624681
   },
   {
+    "file": "create-form-after-320-bottom.png",
+    "sha256": "bda80e64ad6cd2d8eb12e102a3c5398629955f7b9f7e29fe837260427f5c3624",
+    "bytes": 119079
+  },
+  {
+    "file": "create-form-after-320.png",
+    "sha256": "c61d838baac68b4bc81c7bc1da2f32975a3f1623ff4e1ae8ca775d5e862e5727",
+    "bytes": 117271
+  },
+  {
+    "file": "create-lost-response-duplicate.json",
+    "sha256": "39fe107a3edc09b58723463eb6e0dca70b0a937f6db4428b6d787d8bc51984f3",
+    "bytes": 2084
+  },
+  {
+    "file": "create-partial-recovery.png",
+    "sha256": "86d6a6e7ddaccff76154dac404bc452f58f36bbd5c609b710773053197052354",
+    "bytes": 118897
+  },
+  {
+    "file": "create-partial-retry.json",
+    "sha256": "d1e3bff426cf3906a3aa35bcd91bf346e73e1e750c068410afd341b8865da140",
+    "bytes": 1705
+  },
+  {
+    "file": "create-person-readback.json",
+    "sha256": "5e8aba1ee079f3d24d421e299c725359520c1fd983058e633406ed88727228de",
+    "bytes": 3884
+  },
+  {
+    "file": "create-source-reload-after.png",
+    "sha256": "17e497a688e815fc5629bbd14652bfdcc0c95d8612211e61311bbf2deae9100c",
+    "bytes": 95835
+  },
+  {
     "file": "node-diagnostic-report-probe.json",
     "sha256": "6642e53e46f7ab65883f5b1d3256dbb74ab53a084c8f1df12f67f4682b9376ff",
     "bytes": 1201
@@ -53,6 +88,16 @@
     "file": "settings-narrow-dark-baseline.png",
     "sha256": "f6a2a869b562a3f8e377362f6426c62ea105e33ff5f15f2b471d7aa57707d6ef",
     "bytes": 95961
+  },
+  {
+    "file": "source-conflict-after.png",
+    "sha256": "4a0aafa8e7d7b2e4709a3f4590b0ccff6bb165f2e5482aedf18bef558cf71628",
+    "bytes": 105028
+  },
+  {
+    "file": "source-conflict-recovery.json",
+    "sha256": "9364ec2785839048ca21918a76cfdb1a0631e4944a66791ac660bfc2ca5528fb",
+    "bytes": 672
   },
   {
     "file": "source-contact-created.png",
@@ -93,6 +138,11 @@
     "file": "source-stale-revision.png",
     "sha256": "c1e8488b1ad74457d5df4fdb51d86eccf4ebcc83a5ee5bf5184b4f2d1a6b1498",
     "bytes": 111093
+  },
+  {
+    "file": "time-deleted-after-320.png",
+    "sha256": "8d7048d829cf08082a51ef72dfc41188c627dc50df6e6ef3a099e3607fc5357f",
+    "bytes": 96704
   },
   {
     "file": "time-deleted-reload.png",

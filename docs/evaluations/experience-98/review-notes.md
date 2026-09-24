@@ -111,4 +111,44 @@ not yet accepted. Independent review returned two issues for repair:
 - Admission accepts a matching `draft_session` even alongside unrelated query
   parameters. Mixed and duplicate query parameters must preserve navigation.
 
-Real browser acceptance of the revised packet remains pending.
+The revised first packet passed 1,233 Web tests (one skipped), typecheck, lint
+and docs checks. The parent merged it while preserving GET-49, then independently
+ran 39 affected tests and GET-49's two rendered supplement tests. Browser creation
+and known partial-success readback now pass; detailed evidence is linked from
+the [audit](README.md#revised-browser-acceptance).
+
+Further browser failure injection reproduced EXP-11: hiding an actual 201
+response leaves the first source outcome unknown, but editing its note creates
+a new request and a second Person. This is a current release gate. The same Pi
+task was resumed with bounded unknown-outcome recovery feedback. Its prior
+claim of duplicate-free recovery applies only to acknowledged partial success.
+
+## Source conflict and presentation repair
+
+Pi task `20260924-165009-c39c50a7` stopped at turn 13 with provider
+`finish_reason: content_filter` and “The request was rejected because it was
+considered high risk.” No source edits were produced. The rejected request was
+not retried and no provider or billing route was changed. The parent implemented
+and verified the local source repair; it is not attributed to Pi.
+
+The shared task mutation path keeps a synchronous admission guard and a
+selection token. On a revision conflict it reads the latest task, refreshes
+lists, retains name edits, discards stale deletion consent and requires a new
+explicit action. Failed refresh disables further task mutations and offers a
+read-only retry. Old task responses and polling generations cannot overwrite a
+new selection or a mutation result. Profile edits survive a revision-only
+refresh; changed evidence remounts the review draft with a visible explanation
+so an old value cannot attach to a reused clue index.
+
+The source archive suppresses its own self-link, empty processing records are
+hidden, identity-choice buttons describe their effect and narrow controls use
+44px targets. The relationship header no longer invents a manual identity
+decision from missing capture data. Generic relationship privacy wording and
+the exact system no-action fallback are localized without translating arbitrary
+evidence or model text.
+
+Six rendered conflict/profile regressions and six Wiki projection checks passed;
+Web typecheck and lint passed. The real-backend 409 browser probe confirmed one
+failed mutation followed by one read, preserved input and focused feedback.
+This is parent-authored implementation and deterministic/browser evidence, not
+an independent specialist consensus or full release acceptance.

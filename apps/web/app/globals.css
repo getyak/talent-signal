@@ -12343,6 +12343,11 @@ p {
   justify-content: flex-end;
 }
 
+.context-agent-create .context-primary-button,
+.context-agent-create .context-secondary-button {
+  font-size: 0.875rem;
+}
+
 .context-agent-identity-review {
   background: var(--background);
   border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
