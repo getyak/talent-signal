@@ -1,0 +1,47 @@
+name: Check macOS
+
+on:
+  pull_request:
+    paths:
+      - 'apps/macos/**'
+      - 'scripts/macos/**'
+      - 'brand/**'
+      - 'scripts/check-brand-assets.mjs'
+      - '.github/workflows/check-macos.yml'
+      - '.github/workflows/release-macos.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/macos/**'
+      - 'scripts/macos/**'
+      - 'brand/**'
+      - 'scripts/check-brand-assets.mjs'
+      - '.github/workflows/check-macos.yml'
+      - '.github/workflows/release-macos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-macos-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: macOS native build and tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Verify native app and update policy
+        env:
+          MACOS_DERIVED_DATA: ${{ runner.temp }}/talent-signal-macos-check
+        run: scripts/macos/check.sh

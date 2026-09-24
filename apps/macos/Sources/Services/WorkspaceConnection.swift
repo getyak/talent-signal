@@ -102,16 +102,28 @@ final class WorkspaceConnectionProbe: NSObject, URLSessionTaskDelegate, @uncheck
     }
 }
 
-/// This is navigation into native review UI, not a general-purpose native bridge.
-enum DesktopChromeAction: String {
+/// Only explicit main-frame links from the configured workspace can request native chrome actions.
+enum DesktopChromeAction: Equatable {
     case settings, updates
+    case installUpdate(UUID)
 
     static func resolve(_ target: URL, source: URL?, origin: WorkspaceOrigin,
                         mainFrame: Bool, userActivated: Bool) -> DesktopChromeAction? {
         guard mainFrame, userActivated, let source, origin.contains(source),
               target.scheme == "talentsignal-desktop", target.user == nil, target.password == nil,
-              target.port == nil, target.query == nil, target.fragment == nil,
+              target.port == nil, target.fragment == nil,
               target.path.isEmpty, let host = target.host else { return nil }
-        return Self(rawValue: host)
+        if host == "install-update" {
+            guard let items = URLComponents(url: target, resolvingAgainstBaseURL: false)?.queryItems,
+                  items.count == 1, items[0].name == "offer", let value = items[0].value,
+                  let offerID = UUID(uuidString: value) else { return nil }
+            return .installUpdate(offerID)
+        }
+        guard target.query == nil else { return nil }
+        switch host {
+        case "settings": return .settings
+        case "updates": return .updates
+        default: return nil
+        }
     }
 }

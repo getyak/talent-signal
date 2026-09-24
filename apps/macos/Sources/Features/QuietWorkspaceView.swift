@@ -4,8 +4,8 @@ import WebKit
 import UniformTypeIdentifiers
 import Combine
 
-/// The product window has no script handlers or native capability bridge.
-/// A display-only chrome snapshot and two human-activated review links are supported.
+/// The page receives display-only chrome metadata, never native capability APIs.
+/// Update consent is captured in an isolated script world from a trusted click.
 /// Native intake remains a separate, explicitly opened window with its own scope.
 struct WorkspaceOrigin: Equatable {
     let url: URL
@@ -90,12 +90,19 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
         configuration.userContentController = WKUserContentController()
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
+        _ = DesktopUpdateClickBridge(controller: configuration.userContentController) { [weak self] url, frame in
+            guard let self,
+                  case .installUpdate(let offerID) = DesktopChromeAction.resolve(
+                    url, source: frame.request.url, origin: self.origin,
+                    mainFrame: frame.isMainFrame, userActivated: true) else { return }
+            DesktopUpdater.shared.installUpdate(offerID: offerID)
+        }
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         webView.isInspectable = WorkspaceConnection.shared.inspectorEnabled
-        updateObservation = DesktopUpdater.shared.$availableVersion.sink { [weak self] version in
-            self?.publishDesktopChrome(version: version)
+        updateObservation = DesktopUpdater.shared.$presentation.sink { [weak self] state in
+            self?.publishDesktopChrome(state: state)
         }
         navigationObservation = webView.observe(\.canGoBack, options: [.new]) { [weak self] _, _ in
             Task { @MainActor [weak self] in
@@ -125,7 +132,12 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
                                                         userActivated: action.navigationType == .linkActivated) {
                 switch command {
                 case .settings: openSettings?()
-                case .updates: DesktopUpdater.shared.checkForUpdates()
+                case .updates:
+                    if DesktopUpdater.shared.presentation.canInstall { openSettings?() }
+                    else { DesktopUpdater.shared.checkForUpdates() }
+                // linkActivated also includes synthetic page clicks. Installation
+                // is accepted only through the isolated trusted-click handler.
+                case .installUpdate: break
                 }
             }
             decisionHandler(.cancel)
@@ -225,7 +237,7 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         loading = false
         canGoBack = webView.canGoBack
-        publishDesktopChrome(version: DesktopUpdater.shared.availableVersion)
+        publishDesktopChrome(state: DesktopUpdater.shared.presentation)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -241,8 +253,12 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
         failure = "页面已暂停，请重新载入。已保存的对话仍保留在工作区。"
     }
 
-    func publishDesktopChrome(version: String?) {
-        let state: [String: Any] = ["protocolVersion": 1, "availableVersion": version as Any? ?? NSNull()]
+    func publishDesktopChrome(state presentation: DesktopUpdatePresentation) {
+        let state: [String: Any] = ["protocolVersion": 1,
+                                    "availableVersion": presentation.version as Any? ?? NSNull(),
+                                    "phase": presentation.phase.rawValue,
+                                    "offerID": presentation.offerID?.uuidString as Any? ?? NSNull(),
+                                    "progress": presentation.progress as Any? ?? NSNull()]
         guard let bytes = try? JSONSerialization.data(withJSONObject: state),
               let json = String(data: bytes, encoding: .utf8),
               let originBytes = try? JSONSerialization.data(withJSONObject: origin.url.absoluteString, options: .fragmentsAllowed),
@@ -251,6 +267,7 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
         let script = "if (window.location.origin === \(originJSON)) { window.talentSignalDesktop = \(json); window.dispatchEvent(new Event('talent-signal-desktop')); }"
         let controller = webView.configuration.userContentController
         controller.removeAllUserScripts()
+        controller.addUserScript(DesktopUpdateClickBridge.userScript)
         controller.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         if let current = webView.url, origin.contains(current) {
             webView.evaluateJavaScript(script, completionHandler: nil)

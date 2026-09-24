@@ -44,8 +44,12 @@ struct TalentSignalMacApp: App {
         .commands {
             WorkspaceDesktopCommands()
             CommandGroup(after: .appInfo) {
-                Button(updater.availableVersion.map { "更新至 \($0)…" } ?? "检查更新…") { updater.checkForUpdates() }
-                    .disabled(!updater.isConfigured || (!updater.canCheck && updater.availableVersion == nil))
+                if let offerID = updater.presentation.offerID {
+                    Button("更新并重启") { updater.installUpdate(offerID: offerID) }
+                } else {
+                    Button("检查更新") { updater.checkForUpdates() }
+                        .disabled(!updater.isConfigured || !updater.canCheck || updater.presentation.busy)
+                }
             }
             TalentSignalCommands(model: model)
         }

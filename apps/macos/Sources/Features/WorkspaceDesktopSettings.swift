@@ -60,17 +60,27 @@ struct WorkspaceDesktopSettings: View {
                 Section {
                     LabeledContent("当前版本", value: updater.appVersion)
                     Text(updater.status).foregroundStyle(.secondary)
-                    Button(updater.availableVersion.map { "查看 \($0) 更新…" } ?? "检查更新…") {
-                        updater.checkForUpdates()
-                    }.disabled(!updater.isConfigured || (!updater.canCheck && updater.availableVersion == nil))
-                        .accessibilityIdentifier("updates.check")
+                    if let checked = updater.presentation.lastChecked {
+                        LabeledContent("上次验证更新源", value: checked.formatted(date: .abbreviated, time: .shortened))
+                    }
+                    if let offerID = updater.presentation.offerID {
+                        Button("更新并重启") { updater.installUpdate(offerID: offerID) }
+                            .accessibilityIdentifier("updates.install")
+                    } else {
+                        Button("检查更新") { updater.checkForUpdates() }
+                            .disabled(!updater.isConfigured || !updater.canCheck || updater.presentation.busy)
+                            .accessibilityIdentifier("updates.check")
+                    }
+                    if updater.canRetryRelaunch {
+                        Button("再次尝试重启") { updater.retryRelaunch() }
+                    }
                 }
                 Section {
                     Toggle("自动检查更新", isOn: $updater.automaticChecks).disabled(!updater.isConfigured)
                     Toggle("接收预览版本", isOn: $updater.includesPreview)
                         .disabled(!updater.isConfigured || updater.sessionInProgress)
                 } footer: {
-                    Text("新版本会在头像旁轻声提醒。点击后查看说明，再决定下载和重启；不会自动中断当前工作。")
+                    Text("新版本会在左下角提醒。点击“更新并重启”后，会下载、校验并重新打开应用，不再弹出确认。未点击时不会安装或重启。")
                 }
                 Section {
                     Link("版本记录与安装帮助", destination: URL(string: "https://github.com/getyak/talent-signal/releases?q=macos-")!)

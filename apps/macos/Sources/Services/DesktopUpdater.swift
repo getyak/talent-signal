@@ -17,21 +17,36 @@ struct DesktopUpdateConfiguration {
 }
 
 @MainActor
-final class DesktopUpdater: NSObject, ObservableObject, SPUUpdaterDelegate, @preconcurrency SPUStandardUserDriverDelegate {
+final class DesktopUpdater: NSObject, ObservableObject, SPUUpdaterDelegate, SPUUserDriver {
     static let shared = DesktopUpdater()
-    @Published private(set) var availableVersion: String?
+    @Published private(set) var presentation = DesktopUpdatePresentation()
     @Published private(set) var canCheck = false
     @Published private(set) var sessionInProgress = false
-    @Published private(set) var status = "此预览版尚未启用签名更新"
-    @Published var automaticChecks = true {
-        didSet { if started { controller.updater.automaticallyChecksForUpdates = automaticChecks } }
+    @Published private(set) var canRetryRelaunch = false
+    @Published var automaticChecks = false {
+        didSet {
+            if started, updater.automaticallyChecksForUpdates != automaticChecks {
+                updater.automaticallyChecksForUpdates = automaticChecks
+            }
+        }
     }
     @Published var includesPreview = UserDefaults.standard.bool(forKey: "workspace.updates.preview") {
         didSet { UserDefaults.standard.set(includesPreview, forKey: "workspace.updates.preview") }
     }
+    private let session = DesktopUpdateSession()
     private var started = false
-    private lazy var controller = SPUStandardUpdaterController(startingUpdater: false,
-                                                              updaterDelegate: self, userDriverDelegate: self)
+    private var verifiedFeed = false
+    private var expectedBytes: UInt64 = 0
+    private var receivedBytes: UInt64 = 0
+    private var retryQuit: (() -> Void)?
+    private lazy var updater = SPUUpdater(hostBundle: .main, applicationBundle: .main,
+                                         userDriver: self, delegate: self)
+    override init() {
+        super.init()
+        session.onChange = { [weak self] state in self?.presentation = state }
+    }
+    var availableVersion: String? { presentation.version }
+    var status: String { presentation.status }
     var isConfigured: Bool {
         var rehearsal = false
         #if DEBUG
@@ -47,40 +62,101 @@ final class DesktopUpdater: NSObject, ObservableObject, SPUUpdaterDelegate, @pre
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
         return "\(version) (\(build))"
     }
-
     func start() {
-        guard !started, isConfigured,
-              !ProcessInfo.processInfo.arguments.contains("--ui-testing") else { return }
-        started = true
-        controller.updater.publisher(for: \.canCheckForUpdates).assign(to: &$canCheck)
-        controller.updater.publisher(for: \.sessionInProgress).assign(to: &$sessionInProgress)
-        controller.startUpdater()
-        automaticChecks = controller.updater.automaticallyChecksForUpdates
-        // Restart/install always remains an explicit decision in Sparkle's review UI.
-        controller.updater.automaticallyDownloadsUpdates = false
-        status = "更新会在这里安静地提醒你"
+        guard !started, isConfigured, !ProcessInfo.processInfo.arguments.contains("--ui-testing") else { return }
+        updater.publisher(for: \.canCheckForUpdates).assign(to: &$canCheck)
+        updater.publisher(for: \.sessionInProgress).assign(to: &$sessionInProgress)
+        do {
+            try updater.start()
+            started = true
+            automaticChecks = updater.automaticallyChecksForUpdates
+            updater.automaticallyDownloadsUpdates = false
+            session.configure()
+            if automaticChecks { updater.checkForUpdatesInBackground() }
+        } catch { session.fail("无法启动更新检查。当前版本仍可使用，请重新打开应用后重试。") }
     }
-
+    /// A generic check never consents to a version that has not been shown yet.
     func checkForUpdates() {
         start()
-        guard started, canCheck || availableVersion != nil else { return }
-        status = availableVersion == nil ? "正在检查更新…" : "新版本可用"
-        controller.checkForUpdates(nil)
+        guard started, canCheck, !presentation.canInstall, !presentation.busy else { return }
+        verifiedFeed = false; session.checking(); updater.checkForUpdates()
+    }
+    func installUpdate(offerID: UUID) { session.install(offerID: offerID) }
+    func retryRelaunch() { retryQuit?() }
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> { includesPreview ? ["preview"] : [] }
+    func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
+        verifiedFeed = appcast.signingValidationStatus == .succeeded
+    }
+    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        handle(error)
+    }
+    private func handle(_ error: Error) {
+        let value = error as NSError
+        if value.domain == SUSparkleErrorDomain, value.code == SUError.noUpdateError.rawValue {
+            let reason = (value.userInfo[SPUNoUpdateFoundReasonKey] as? NSNumber)?.intValue
+            let message: String
+            switch reason {
+            case Int(SPUNoUpdateFoundReason.onLatestVersion.rawValue): message = "当前已是最新版本"
+            case Int(SPUNoUpdateFoundReason.onNewerThanLatestVersion.rawValue): message = "当前版本比更新源中的版本更新"
+            case Int(SPUNoUpdateFoundReason.systemIsTooOld.rawValue), Int(SPUNoUpdateFoundReason.systemIsTooNew.rawValue), Int(SPUNoUpdateFoundReason.hardwareDoesNotSupportARM64.rawValue):
+                message = "新版本暂不支持这台 Mac；当前版本仍可使用"
+            default: message = "本次没有找到适用的更新"
+            }
+            session.noUpdate(status: message, verified: verifiedFeed)
+        } else { session.fail() }
+        retryQuit = nil; canRetryRelaunch = false
     }
 
-    var supportsGentleScheduledUpdateReminders: Bool { true }
-    func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem,
-                                                              andInImmediateFocus immediateFocus: Bool) -> Bool { false }
-    func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool,
-                                                   forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
-        availableVersion = update.displayVersionString
-        status = "\(update.displayVersionString) 可供更新"
+    // Custom user driver follows Sparkle 2.10 callbacks. Only session.install()
+    // grants consent; ready() continues that same decision without another dialog.
+    // https://sparkle-project.org/documentation/api-reference/Protocols/SPUUserDriver.html
+    func show(_ request: SPUUpdatePermissionRequest, reply: @escaping (SUUpdatePermissionResponse) -> Void) {
+        reply(SUUpdatePermissionResponse(automaticUpdateChecks: automaticChecks,
+                                        automaticUpdateDownloading: false, sendSystemProfile: false))
     }
-    func standardUserDriverWillFinishUpdateSession() { availableVersion = nil }
-    func allowedChannels(for updater: SPUUpdater) -> Set<String> { includesPreview ? ["preview"] : [] }
-    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        availableVersion = nil
-        if (error as NSError).code == SUError.noUpdateError.rawValue { status = "当前已是最新版本" }
-        else { status = "未能完成更新。当前版本仍可使用，请稍后重试。" }
+    func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) { session.checking() }
+    func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState,
+                         reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        session.offer(version: "\(appcastItem.displayVersionString) (\(appcastItem.versionString))",
+                      verified: appcastItem.signingValidationStatus == .succeeded,
+                      informationOnly: appcastItem.isInformationOnlyUpdate, stage: state.stage, reply: reply)
     }
+    func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
+    func showUpdateReleaseNotesFailedToDownloadWithError(_ error: Error) {}
+    func showUpdateNotFoundWithError(_ error: Error, acknowledgement: @escaping () -> Void) {
+        handle(error); acknowledgement()
+    }
+    func showUpdaterError(_ error: Error, acknowledgement: @escaping () -> Void) {
+        handle(error); acknowledgement()
+    }
+    func showDownloadInitiated(cancellation: @escaping () -> Void) {
+        expectedBytes = 0; receivedBytes = 0; session.downloadProgress(nil)
+    }
+    func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) {
+        expectedBytes = expectedContentLength; publishDownloadProgress()
+    }
+    func showDownloadDidReceiveData(ofLength length: UInt64) {
+        let sum = receivedBytes.addingReportingOverflow(length)
+        receivedBytes = sum.overflow ? UInt64.max : sum.partialValue
+        publishDownloadProgress()
+    }
+    private func publishDownloadProgress() {
+        session.downloadProgress(expectedBytes > 0 ? Int(min(100, Double(receivedBytes) / Double(expectedBytes) * 100)) : nil)
+    }
+    func showDownloadDidStartExtractingUpdate() { session.extracting() }
+    func showExtractionReceivedProgress(_ progress: Double) {}
+    func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) { session.ready(reply: reply) }
+    func showInstallingUpdate(withApplicationTerminated applicationTerminated: Bool,
+                             retryTerminatingApplication: @escaping () -> Void) {
+        retryQuit = applicationTerminated ? nil : retryTerminatingApplication
+        canRetryRelaunch = !applicationTerminated
+        if !applicationTerminated { session.waitingForQuit() }
+    }
+    func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) {
+        session.dismiss(); acknowledgement()
+    }
+    func dismissUpdateInstallation() {
+        session.dismiss(); retryQuit = nil; canRetryRelaunch = false
+    }
+    func showUpdateInFocus() { NSApp.activate(ignoringOtherApps: true) }
 }

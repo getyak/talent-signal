@@ -12,8 +12,13 @@ The download includes no server, account, credentials, or private workspace
 address. Installing it does not grant access to anyone else's data.
 Use the network button in the workspace toolbar to change the server.
 Settings > Talent Signal links to release downloads and installation help.
-To update, quit the app and replace it in Applications; app preferences and
-workspace accounts are retained. Keep the prior download to roll back.
+Signed releases check at launch and periodically while running. A verified update
+appears beside the account avatar. Click Update and Restart once to download,
+verify and restart; there is no second application confirmation. Settings >
+Updates shows the installed version and check status. Offline checks retry later.
+Unconfigured previews need one manual trusted installation to enable updates:
+quit the app and replace it in Applications. Preferences and workspace accounts
+are retained. Keep the prior download for operator rollback.
 
 Preview packages are explicitly labeled preview. They are ad-hoc signed and
 not notarized by Apple; Gatekeeper may block them. Do not disable Gatekeeper or
