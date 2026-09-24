@@ -54,7 +54,7 @@ describe("assistant workspace prompt", () => {
       "Preserve an explicitly stated relationship origin",
       "if neither is stated, leave both unknown",
       "the owner's own introduction",
-      "the first visible added-friend notice with its adjacent relative time",
+      "an explicit first visible added-friend notice with its adjacent relative time",
       'keep time_status "unknown"',
       "never invent valid_time",
       'mark a not-yet-happened plan as "future"',

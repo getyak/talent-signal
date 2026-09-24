@@ -4,10 +4,24 @@ export function grade(c, run) {
   if(run.error || !run.result) return {status:'error',failures:['RUN_INCOMPLETE'],humanReview:'pending'};
   const body=run.result.block?.body??'';
   if(!body.trim()) failures.push('EMPTY_REPLY');
+  if(Array.isArray(run.groundingReviews)){
+    const finalReview=run.groundingReviews.find(review=>review.kind==='reply'&&review.status==='reviewed');
+    if(!finalReview||finalReview.content_hash!==run.pngHash||!finalReview.request_id||!body.startsWith(finalReview.corrected_text))
+      failures.push('GROUNDING_REVIEW_NOT_COMPLETED');
+  }
   const candidateText=(run.staged?.items??[]).map(item=>item.display_text).join("\n");
   if(c.id==='C01'&&/(?<![向给])你推荐了|我推荐了|你向.{0,8}推荐|对方(?:说|回复).{0,8}晚点看/u.test(body+"\n"+candidateText))failures.push('SPEAKER_DIRECTION_REVERSED');
-  if(c.id==='C01'&&/她/u.test(body+'\n'+candidateText))failures.push('COUNTERPARTY_GENDER_INFERRED');
+  if(c.id==='C01'&&/相识场合|读书会.{0,16}认识|邻座.{0,10}认识/u.test(body+'\n'+candidateText))failures.push('RELATIONSHIP_ORIGIN_INFERRED');
+  if(c.id==='C01'&&/2026年9月23日之前|9月23日之前/u.test(body+'\n'+candidateText))failures.push('RECENT_SOURCE_TIME_SHIFTED');
+  if(c.id==='C02'&&/(?:你|用户|我方)(?:说|表示|承诺|会|将|稍后).{0,18}(?:发送|发).{0,6}(?:书单|reading list)/iu.test(body+'\n'+candidateText))failures.push('READING_LIST_SPEAKER_REVERSED');
+  if(c.category==='contact'&&!c.group&&/(?:她|(?<!其)他(?![们人]))/u.test(body+'\n'+candidateText)) {
+    const topics=(run.inspections??[]).flatMap(observation=>observation.discussed_public_people??[]);
+    if(topics.some(topic=>typeof topic.name==='string'&&body.includes(topic.name)))
+      missing.push('Pronoun antecedents involving a discussed public author require semantic review.');
+    else failures.push('COUNTERPARTY_GENDER_INFERRED');
+  }
   if(c.id==='C03'&&/散步认识|喜欢科幻/u.test(body+'\n'+candidateText))failures.push('RELATIONSHIP_CLAIM_OVERSTATED');
+  if(c.id==='C01'&&/(?:主动|由此|因此).{0,12}加.{0,8}(?:微信|好友)/u.test(body+'\n'+candidateText))failures.push('ADD_FRIEND_CAUSE_OR_INITIATOR_INFERRED');
   const payloads=t=>(t.result?.content??[]).flatMap(b=>{try{return b.type==='text'?[JSON.parse(b.text)]:[];}catch{return [];}});
   const successful=(run.toolCalls??[]).filter(t=>t.result && !t.result.isError && !t.error && !payloads(t).some(p=>p.ok===false||p.error));
   if(c.expected.image==='inspect'&&![...(run.inspections??[]),...successful.filter(t=>t.name==='inspect_current_image').flatMap(payloads)].some(p=>p.model==='doubao-seed-2-0-lite-260215'&&p.request_id&&p.content_hash===run.pngHash))failures.push('DOUBAO_INSPECTION_RECEIPT_MISSING');
@@ -44,7 +58,8 @@ export function grade(c, run) {
   }
   if(['none','clarify'].includes(c.expected.calendar) && draft) failures.push('UNSUPPORTED_CALENDAR_DRAFT');
   if(c.expected.calendar==='clarify' && !/[?？]|确认|几点|日期|不确定|无法|不清楚|缺少|confirm|which|when|unclear/iu.test(body)) failures.push('TIME_CLARIFICATION_MISSING');
-  if(c.id==='I01') for(const [label,pattern] of [['green_chair',/绿.{0,8}(椅|座)|green.{0,12}(chair|seat)/iu],['red_mug',/红.{0,8}(杯)|red.{0,12}(mug|cup)/iu],['window',/窗|window/iu]]) if(!pattern.test(body)) failures.push('VISUAL_DETAIL_MISSING:'+label);
+  if(c.id==='K02'&&/等.{0,8}下班后|下班后.{0,8}(?:通知|告诉)/u.test(body+'\n'+candidateText))failures.push('FOLLOWUP_TIME_ORDER_REVERSED');
+  if(c.id==='I01') for(const [label,pattern] of [['green_chair',/绿.{0,8}(椅|座|沙发)|green.{0,12}(chair|seat|sofa)/iu],['red_mug',/红.{0,8}(杯)|red.{0,12}(mug|cup)/iu],['window',/窗|window/iu]]) if(!pattern.test(body)) failures.push('VISUAL_DETAIL_MISSING:'+label);
   if(c.id==='I02' && !/14[:：.]30|2:30/iu.test(body)) failures.push('POSTER_TIME_MISSING');
   if(c.id==='I03' && !/看不清|模糊|无法|不清楚|blur|illegible|can't read/iu.test(body)) failures.push('ILLEGIBLE_IMAGE_NOT_ACKNOWLEDGED');
   const researchCalls=successful.filter(t=>/search|fetch|research/iu.test(t.name) && !/contact|memory/iu.test(t.name));

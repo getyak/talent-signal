@@ -39,14 +39,24 @@ independent review and fixed the confirmed findings.
   and budget gates, database replay equality and concurrent image withdrawal.
   Four mutation modes and two simultaneous withdrawal schedules have real
   PostgreSQL coverage.
-- Blocked externally: the Claude/Hao provider returned HTTP 402 insufficient
-  quota. Paid model requests stopped. Latest complete `full-v12` is 16 mechanical
-  passes, 3 quality failures and 5 incomplete runs. Medium-effort comparison is
-  unverified; it did not change the production default.
-- Remaining: C01/C03 prose quality, fresh C04 acceptance, complete post-fix
-  research recovery, same-build full regression and final product retest.
-  [Detailed evidence and resume steps](../docs/evaluations/2026-09-24-relationship-conversations.md)
-  are authoritative; no older targeted pass substitutes for these gates.
+- Complete: restored provider quota, fresh full regression and product retest.
+  `full-v16` had 23 mechanical passes and an I02 token-budget error; semantic
+  review found additional errors. The multiline poster quote bug is repaired.
+- Rejected experiment: an inline Doubao fact-checker introduced wrong speaker
+  edits, lost real citations, false card-state claims and timeout fallbacks.
+  Its implementation and immutable v17-v21 receipts are archived privately;
+  it is removed from the product path. A judge response is not truth authority.
+- Complete: `full-v23` on the selected product build: 21 mechanical passes,
+  2 failures, 1 timeout. Independent semantic review: 14 passes, 9 P2 failures,
+  1 unknown. Authenticated contact save, calendar UI/ICS and final image-only
+  author research were read back. Quality remains incomplete; no release claim.
+- Complete: all 24 Studio cases synced and read back with source-hash-bound
+  independent semantic findings; human decisions remain pending.
+- Remaining delivery checks: current PR validation and
+  owned-runtime cleanup. The nine semantic failures and K04 timeout remain
+  quality backlog, not completed outcomes.
+  [Detailed evidence](../docs/evaluations/2026-09-24-relationship-conversations.md)
+  is authoritative; older targeted passes do not replace the final full run.
 
 ## Verification boundaries
 
@@ -68,3 +78,36 @@ product account readbacks and screenshots are stored under the task-specific
 local state directory. Credentials never enter Git or the rendered preview.
 The final handoff must identify the exact full-run build, latest grader, any
 remaining failures, test coverage and runtime cleanup.
+
+## 2026-09-24 resumed work
+
+Configured Hao quota restored: minimal actual SDK call returned OK. Initial PR
+policy and regex findings are fixed; remaining Backend CI failure was an obsolete
+no-public-web prompt assertion, now corrected. Actual low/medium v14 comparison
+did not establish a medium-effort benefit; default remains low. Transient R03
+recovery was independently checked against real search/fetch/citation receipts.
+
+`full-v16` completed with 23 mechanical passes and one I02 token-budget error
+under that run's grader. Independent review still found unsupported gender,
+friend-add causality, and one unsupported public-author detail. These are not
+semantic passes. A subsequent stricter grader records cross-contact pronoun
+checks; keep its adjudication separate from original immutable receipts.
+
+I02 repeatedly rejected an exact consecutive multi-line poster quote. Source
+validation now accepts only contiguous observed lines, with skip/reorder and
+revocation tests. No budget increase. Product v16 C06/K01/I01/R07 completed with
+matching image readback; K02 paused with MODEL_RUN_FAILED after its deadline.
+It needs a fresh run, not relabeling the failed one.
+
+Pi task `20260924-100558-a7b8dbfb` was cancelled after a stalled response,
+with no implementation produced. Parent completed the bounded experiment and
+independent reviewers checked it. Actual quality evidence rejected the inline
+checker; archived source and tests preserve the negative result outside Git.
+No alternate coding provider was selected.
+
+Selected product changes retain the original 60-second execution ceiling.
+`full-v23` tests the actual default path, with no hidden second model rewriting
+responses. Source/clock/speaker and real-receipt assertions remain strict.
+Task-owned runtimes use registered artifact
+`/private/tmp/ai-test-relationship-eval-resume.c8JuWX`; isolated PostgreSQL container
+`ts-relationship-eval-resume-20260924`, API 55450, Web 55451. Cleanup is pending.

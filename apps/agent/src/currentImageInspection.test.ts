@@ -1,6 +1,7 @@
 import {describe,it,expect,vi} from "vitest";
 import {createHash} from "node:crypto";
 import {ArkCurrentImageInspector,currentImageInspection} from "./currentImageInspection.js";
+import {publicSubjectRegistry} from "./publicSubjectRegistry.js";
 import {calendarDraftCapability} from "./calendarDraft.js";
 
 const data=Buffer.from("synthetic image");
@@ -8,6 +9,16 @@ const image={kind:"image" as const,artifactID:"conversation-image-10000000-0000-
 const observation={description:"green chair",visible_text:["明天下午三点到四点"],uncertainties:[],model:"doubao",request_id:"receipt"};
 const signal=new AbortController().signal;
 describe("current image inspection",()=>{
+ it("hands registered image-only topic IDs to the preflight model context",async()=>{
+  let current=true;const registry=publicSubjectRegistry("查一下截图提到的作者");
+  const excerpt="我最近在读 Maggie Appleton 的文章";
+  const capability=currentImageInspection({images:[image],subjectRegistry:registry,isCurrent:async()=>current,
+    inspector:{inspect:async()=>({...observation,visible_text:[excerpt],counterparty_name:"乔木",discussed_public_people:[{name:"Maggie Appleton",source_excerpt:excerpt}]})}});
+  const prepared=await capability.prepare(signal);
+  expect(prepared?.public_subjects).toEqual([{id:registry.subjects()[0]!.id,name:"Maggie Appleton"}]);
+  expect(prepared?.public_subjects[0]?.id).toMatch(/^[a-f0-9]{24}$/u);
+  current=false;expect(await capability.prepare(signal)).toBeNull();
+ });
  it("coalesces concurrent inspection of the same admitted bytes",async()=>{
   let release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
   const inspector={inspect:vi.fn(async()=>{await barrier;return observation;})};
@@ -43,6 +54,20 @@ describe("current image inspection",()=>{
   const capability=currentImageInspection({images:[image],isCurrent:async()=>current,inspector:{inspect:async()=>{current=false;return observation;}}});
   expect((await capability.tools[0]!.execute({artifact_id:image.artifactID},signal)).isError).toBe(true);
   expect(await capability.supportsExcerpt(image.artifactID,"明天下午三点到四点")).toBe(false);
+ });
+ it("accepts consecutive observed poster lines but never skips or reorders them",async()=>{
+  let current=true;
+  const visible_text=["Reading afternoon","2026-10-02","14:30 - 16:00","Shanghai"];
+  const capability=currentImageInspection({images:[image],isCurrent:async()=>current,inspector:{inspect:async()=>({...observation,visible_text})}});
+  await capability.prepare(signal);
+  for(const separator of ["\n"," "]){
+   expect(await capability.supportsExcerpt(image.artifactID,visible_text.join(separator))).toMatchObject({content_hash:image.contentHash});
+  }
+  for(const excerpt of ["Reading afternoon 14:30 - 16:00","Shanghai 2026-10-02","2026-10-02 14:00 - 16:00","Reading afternoon Shanghai"]){
+   expect(await capability.supportsExcerpt(image.artifactID,excerpt)).toBe(false);
+  }
+  current=false;
+  expect(await capability.supportsExcerpt(image.artifactID,visible_text.join("\n"))).toBe(false);
  });
 });
 

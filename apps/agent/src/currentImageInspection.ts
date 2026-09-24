@@ -106,7 +106,8 @@ export function currentImageInspection(input:{
       const receipt=await tool.execute({artifact_id:image.artifactID},signal);
       if(receipt.isError)return null;
       const observation=observations.get(image.artifactID);
-      return observation?{artifactID:image.artifactID,...observation}:null;
+      return observation?{artifactID:image.artifactID,...observation,
+        public_subjects:input.subjectRegistry?.subjects().map(({id,name})=>({id,name}))??[]}:null;
     },
     counterparty: async()=>{
       if(images.length!==1)return null;
@@ -119,7 +120,10 @@ export function currentImageInspection(input:{
     supportsExcerpt:async(artifactID:string,excerpt:string)=>{
       const image=images.find(p=>p.artifactID===artifactID),result=observations.get(artifactID);
       const normalized=(text:string)=>text.normalize("NFKC").replace(/\s+/gu," ").trim();
-      if(!image||!result||!normalized(excerpt)||!await current(image)||!result.visible_text.some(text=>normalized(text).includes(normalized(excerpt)))) return false as const;
+      // OCR often wraps one poster or message across consecutive lines. Join
+      // in observed order only: no sorting, omitted intervening lines, or
+      // generated paraphrases may establish literal source authority.
+      if(!image||!result||!normalized(excerpt)||!await current(image)||!normalized(result.visible_text.join("\n")).includes(normalized(excerpt))) return false as const;
       return {artifact_id:artifactID,content_hash:image.contentHash,inspection_request_id:result.request_id};
     }};
 }

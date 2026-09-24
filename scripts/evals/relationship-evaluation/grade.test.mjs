@@ -189,3 +189,42 @@ test('C01: counterparty recommending to the owner is not reversed speaker attrib
   const verdict = grade(caseByID('C01'), runWithBody('林知夏向你推荐了一篇文章，你回复晚点看。'));
   assert.ok(!verdict.failures.includes('SPEAKER_DIRECTION_REVERSED'));
 });
+
+test('contact pronoun grounding applies beyond the first example', () => {
+  for(const id of ['C02','C03','C04','C06']){
+    assert.ok(grade(caseByID(id),runWithBody('她希望你以后告诉他。')).failures.includes('COUNTERPARTY_GENDER_INFERRED'));
+    assert.ok(!grade(caseByID(id),runWithBody('其他事项没有提及。')).failures.includes('COUNTERPARTY_GENDER_INFERRED'));
+  }
+});
+test('C01: being seated nearby does not establish why or who added a friend', () => {
+  assert.ok(grade(caseByID('C01'),runWithBody('林知夏由此加了对方微信。')).failures.includes('ADD_FRIEND_CAUSE_OR_INITIATOR_INFERRED'));
+});
+test('an unavailable grounding review cannot count as a quality pass through a contact fallback',()=>{
+ const run={...runWithBody('事实核对不可用，联系人草稿已准备。'),groundingReviews:[{kind:'reply',status:'unavailable'}]};
+ assert.ok(grade(caseByID('C06'),run).failures.includes('GROUNDING_REVIEW_NOT_COMPLETED'));
+});
+test('C02: Ava promises the reading list, not the owner',()=>{
+ assert.ok(grade(caseByID('C02'),runWithBody('你说会稍后发送书单。')).failures.includes('READING_LIST_SPEAKER_REVERSED'));
+ assert.ok(!grade(caseByID('C02'),runWithBody('Ava 表示会稍后发送书单。')).failures.includes('READING_LIST_SPEAKER_REVERSED'));
+});
+test('C01: just now is not before the dated conversation day',()=>{
+ assert.ok(grade(caseByID('C01'),runWithBody('2026年9月23日之前的读书会坐在你旁边')).failures.includes('RECENT_SOURCE_TIME_SHIFTED'));
+});
+test('C01: sitting nearby does not establish a relationship origin',()=>{
+ assert.ok(grade(caseByID('C01'),runWithBody('林知夏是读书会上坐在旁边认识的。')).failures.includes('RELATIONSHIP_ORIGIN_INFERRED'));
+ assert.ok(!grade(caseByID('C01'),runWithBody('林知夏说刚才读书会坐在你旁边。')).failures.includes('RELATIONSHIP_ORIGIN_INFERRED'));
+});
+test('C04: an author pronoun is not automatically the private counterparty gender',()=>{
+ const r={...runWithBody('Alex Wang问是否还在读Ken Liu，你刚开始读他的新作品。'),inspections:[{discussed_public_people:[{name:'Ken Liu'}]}]};
+ const v=grade(caseByID('C04'),r);
+ assert.ok(!v.failures.includes('COUNTERPARTY_GENDER_INFERRED'));
+ assert.ok(v.missing.some(note=>note.includes('Pronoun antecedents')));
+});
+test('K02: before-work-end notice must not become after-work-end',()=>{
+ assert.ok(grade(caseByID('K02'),runWithBody('等周遥下班后通知具体时间。')).failures.includes('FOLLOWUP_TIME_ORDER_REVERSED'));
+ assert.ok(!grade(caseByID('K02'),runWithBody('周遥表示下班前告诉你具体时间。')).failures.includes('FOLLOWUP_TIME_ORDER_REVERSED'));
+});
+test('I01: a green upholstered armchair may be described as a single-seat sofa',()=>{
+ assert.ok(!grade(caseByID('I01'),runWithBody('窗边有绿色单人沙发，桌上有红杯。')).failures.includes('VISUAL_DETAIL_MISSING:green_chair'));
+ assert.ok(grade(caseByID('I01'),runWithBody('窗边有绿色植物和红杯。')).failures.includes('VISUAL_DETAIL_MISSING:green_chair'));
+});

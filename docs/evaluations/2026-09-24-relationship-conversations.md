@@ -1,151 +1,176 @@
 # Relationship conversation evaluation — 2026-09-24
 
-Status: **incomplete; live model quota blocked**. This is a development evaluation,
-not release acceptance or human gold. No production deployment occurred.
+Status: **functional paths verified; semantic quality incomplete**. Provider quota
+recovered during the resumed work. This is a development evaluation, not release
+acceptance or human gold. No production deployment occurred.
 
 Delivery: [draft PR #239](https://github.com/getyak/talent-signal/pull/239).
-Initial CI identified two public-subject regex performance alerts and an
-unregistered evaluation credential name. The parser now uses bounded, separate
-linear steps; `IMSTAGE_MCP_TOKEN` is declared only in the evaluation secret group.
-Four subject-admission tests, thirteen secret-contract tests and Agent typecheck
-pass locally. Updated remote checks and final live acceptance remain required.
+The final full batch has **21 mechanical passes, 2 failures and 1 timeout**.
+Independent AI semantic review has **14 passes, 9 failures and 1 unknown**.
+These measures answer different questions; neither is human annotation.
 
 ## Dataset and projects
 
-24 fictional, natural mobile WeChat/WhatsApp conversations are saved in IMStage
-project `prj_96018ae9a26a412c89b53a7f` and Eval Case Studio project
+24 fictional mobile WeChat/WhatsApp conversations are saved in IMStage project
+`prj_96018ae9a26a412c89b53a7f` and Eval Case Studio project
 `23ad6d37-b09d-4280-8147-2c82cbdecb32` (Talent Signal · 关系对话评测 v1).
-Studio creation and all 24 result records were confirmed by API readback.
-The automated browser later received the existing local-origin access denial;
-its project UI was not certified. A standalone local HTML review accompanies
-the private receipts.
+The twelve requested public authors are discussion subjects, never purported
+private correspondents. Doubao actually generated a fictional avatar and cafe
+photo; IMStage rendered the editable scenes into phone screenshots.
 
-The twelve requested public authors appear as discussion subjects, never as
-purported private correspondents. A fictional avatar and cafe photo were
-actually generated with Doubao; scene rendering was performed through IMStage.
-
-[Versioned PNGs and source-bound fixtures](../../scripts/evals/relationship-evaluation/fixtures/)
+[Versioned PNGs and fixtures](../../scripts/evals/relationship-evaluation/fixtures/)
 and [runner documentation](../../scripts/evals/relationship-evaluation/README.md)
-are durable. Studio follows its existing seven-day retention. All human review
-labels remain pending; proposed synthetic expectations are not gold labels.
+are durable. Studio follows its existing seven-day retention. Human labels remain
+pending. The standalone local review shows source images, actual replies,
+mechanical verdicts and independent semantic findings separately. Each semantic
+verdict is bound to the SHA256 of its original case receipt before Studio sync.
 
-## Latest complete batch
+## Final selected-build batch
 
-`full-v12`: 24 actual Sonnet 5 runs, including actual Doubao inspection and actual
-Agent Host web research. Result: **16 mechanical passes, 3 quality failures,
-5 incomplete runs**. The grader checks default Add in every direct chat, actual
-inspection/source receipts, exact calendar intervals, literal Memory excerpts,
-and selected speaker/identity/time errors. Passing these checks is not complete
-semantic validation.
+`full-v23` contains 24 actual Sonnet 5 attempts with real Doubao inspection and
+Agent Host web research. Its harness stores artifacts through isolated adapters;
+product persistence and UI acceptance are recorded separately below.
 
-| Cases | Result | Evidence |
-| --- | --- | --- |
-| C01 | fail | Inferred a gender from the name in the reply. |
-| C03 | fail | Turned a shared walk into an unsupported first-meeting claim. |
-| C04 | fail | Did not mention same-name ambiguity in prose; the card was ambiguous. |
-| R03–R06, R08 | error | Model execution interrupted; terminal provider quota unavailable. |
-| Remaining 16 | mechanical pass | See immutable per-case receipts and latest adjudication. |
+| Measure | Pass | Fail | Incomplete |
+| --- | ---: | ---: | ---: |
+| Mechanical contracts | 21 | 2 | 1 |
+| Independent AI semantic review | 14 | 9 | 1 |
 
-Model: `anthropic/claude-sonnet-5`. Baseline commit: `6362ff349edf81c589a39ba3e6734faa68268d25` plus the
-recorded dirty compiled build. Build fingerprint: `a7449b8ae822f2d500164f99839dda8a387baf4050a08c3f3010acc67cdfd8a1`.
-Grader fingerprint: `f49e216f398bbd7128e2b48f92b6917a19edf83b61f2c75158d4c9c9f8eeca66`. Both core and Agent Host compiled files
-are included. The task-owned socket was restarted from the new Agent Host
-before this batch. Subsequent source changes require a fresh run label.
+The mechanical failures are C01 (unsupported meeting origin and add-friend
+initiator) and C02 (inferred gender). K04 timed out without a completed answer.
+Independent review additionally found these concrete P2 discrepancies:
 
-A minimal SDK diagnostic at 2026-09-24 01:39 Asia/Shanghai returned
-`API Error: 402 insufficient quota; top up your balance`. The medium-effort
-comparison `semantic-recovery-v13` consequently contains four incomplete runs;
-it establishes no quality benefit. Low effort remains the production default.
-The runner offers an explicit, fingerprinted medium-effort experiment for resume.
-No alternate paid provider was selected. Estimated usage is partial and excludes
-Doubao/Exa; it is not a bill.
+| Cases | Semantic discrepancy |
+| --- | --- |
+| C01, C02 | Unsupported meeting origin, add-friend initiator or gender. |
+| C04 | Added finishing the book as a prerequisite to sharing thoughts. |
+| C06 | Turned one speaker's “continue next time” into a mutual statement. |
+| K02 | Offered to prepare a contact card after one had already been staged. |
+| R01 | Added externally plausible author facts absent from the actually fetched pages. |
+| R02 | Expanded a dated 2023 employment statement into unqualified employment duration. |
+| R06 | Changed “grew up” into a birthplace claim. |
+| R07 | Changed the assistant's identity uncertainty into a claim about the speaker's knowledge. |
 
-Earlier `full-v8` originally reported 24 passes under a weaker grader. That
-summary is superseded: independent review found missing contact options,
-unsupported prose and incomplete two-author research. It is not evidence of a
-passing release. `full-v11` was explicitly interrupted for the confirmed Exa
-title bug; preserved partial files are not a complete batch. Prior failures
-are retained rather than overwritten or pooled into a fictitious clean run.
+No new P0/P1 was confirmed in the selected ID-handoff repair. K04 remains a
+runtime reliability failure, not a semantic pass. The independent review is an
+AI assessment with exact quotes/source hashes, not human gold.
+
+Model: `anthropic/claude-sonnet-5`; image understanding:
+`doubao-seed-2-0-lite-260215`. Source baseline: commit
+`ffcb01cc076dc95e10a086e459c199541bd24edb` plus the recorded selected working diff.
+
+- Compiled build: `40d23dba424437f13f723b0fc45571a082602eb8c236076c0a8a0a20dba6ffd2`.
+- Grader: `cdd2e72ce5d707bddaa21153b4ffb817f589f6912e6ad9465b06fcab019c1f5c`.
+- Runner: `1c9eaaefb032d03bcdee68a7970bb32bd9e9474778bff47c90b5586c2a07e2cd`.
+
+The compiled fingerprint includes Agent Host. The task-owned host was restarted
+from its selected build before the batch. Original 60-second model/run limits
+remain. Recorded main-model estimated usage is approximately USD 1.3972 but is
+incomplete and excludes Doubao/Exa; it is not a bill. Runs are immutable: targeted
+passes from other builds do not replace this batch's failures.
 
 ## Implemented corrections
 
-- A clear current direct-chat header supports a name-only Add review option
-  across contact, calendar, photo and research tasks. Email/company are not
-  prerequisites. Model and host paths share refusal and header checks. Self
-  suggestions merge with that option; simultaneous proposals cannot create two
-  drafts. Groups, uncertain identity, revoked images and multiple-image identity
-  ambiguity fail closed. Namesakes require human review; new contexts stay neutral.
-- The Agent can inspect original admitted images through Doubao beyond import
-  preprocessing. Receipts bind model, request ID and image hash. Inspection is
-  reused and currentness rechecked. Only exact inert schema annotations are
-  stripped; unknown data fields remain invalid. Image Memory quotes must match
-  observed text.
-- Calendar drafts retain image evidence, source time and review status; the UI
-  provides a direct review link. Migration 081 protects replay identity and
-  invalidates source-dependent drafts on deletion, changes, expiry and revocation,
-  including concurrent withdrawal. Export does not insert an external event.
-- Public research uses real host-owned search/fetch tools, fixed name-only
-  queries and same-run discovered sources. Every requested author needs a fetched
-  source cited in the reply. One transient retry stays inside the shared three
-  dispatch limit; permanent failures and partial successes do not blindly retry.
-  Provider channel failures remain explicit. An actual Andrew Ng official result
-  had an empty title; a bounded URL title fallback now preserves this valid source
-  instead of rejecting the whole search. Real two-author end-to-end acceptance
-  after this fix remains blocked by the main-model quota.
-- A host-generated same-name notice now supplements prose when a real staged
-  receipt says ambiguous. This closes C04 deterministically; fresh live acceptance
-  remains outstanding. C01/C03 semantic quality needs further work and retest.
+- A clear direct-chat header provides a name-only Add review option across
+  contact, calendar, photo and research intents. Email/company and invented
+  Memory notes are unnecessary. Host and model paths share refusal, identity
+  and concurrent-staging gates. Groups and unclear identities fail closed;
+  namesakes require human choice and new contexts remain neutral. Actual
+  persisted proposal labels are returned to the model.
+- Doubao inspection receives the original admitted pixels and retains model,
+  request ID and image hash. The Agent reuses inspection beyond preprocessing.
+  Exact consecutive OCR lines can now support a multiline calendar excerpt;
+  skipped, reordered, modified or revoked text remains invalid.
+- Calendar drafts preserve source clock, image lineage and review status.
+  Migration 081 protects replay identity and concurrent source withdrawal.
+  UI review/export is explicit; export does not insert an external event.
+- Public research uses actual host search/fetch tools, bounded name-only queries,
+  same-run discovered sources, explicit channel failures and a shared dispatch
+  ceiling. A transient failure permits one bounded retry. Valid empty-title Exa
+  results receive a URL-derived title. Every requested author requires a fetched
+  source cited in the answer.
+- Image-only topic discovery previously registered public authors internally
+  without giving the model their opaque IDs. This made real tool calls fail
+  authorization when the objective omitted names. Inspection now returns the
+  current registered IDs; raw-name authorization is still rejected. The actual
+  product probe below verifies this repair.
+- Evaluation keeps actual tool execution, persistence, mechanical checks,
+  semantic review and human decisions separate. Product probes terminate on
+  failed/interrupted/paused queues and retain the failure code. Cancelled or
+  failed persisted turns and mismatched images cannot count as completion. Grader regressions cover speaker
+  reversal, gender, causality, time, staged labels and valid visual synonyms.
 
-## Product-surface evidence (separate from the batch)
+## Product-surface evidence
 
-An isolated authenticated PostgreSQL/API/Next account was used. A nickname-only
-contact was added through the actual UI and persisted after navigation/reload,
-without email/company. Actual calendar review and generated ICS bytes matched
-September 24, 15:00–16:00 Asia/Shanghai. Original admitted PNG bytes matched on
-readback. Current-image lineage persisted on calendar drafts. Photo replies
-identified the window, green chair and red cup without inventing an address.
+An isolated authenticated PostgreSQL/API/Next synthetic account was used.
+Product v22 completed C02, K01, K02, I01, I02 and R07 with original PNG hashes
+matching readback. The final v23 ID change was then verified on its affected
+image-only research path. These observations are explicitly separate builds.
 
-A product request with no author names in its objective discovered Maggie
-Appleton and Craig Mod from the screenshot, performed real searches/fetches,
-and persisted a reply with official-source URLs. Subsequent direct-chat photo,
-calendar and ambiguous-author replies expose real name-only review cards.
-These are dated targeted observations on earlier builds, not a substitute for
-one complete passing final-build run.
+- **Contact:** the real C02 UI's “仅添加 Ava Chen” action saved a contact after
+  Memory selection was unchecked. Authenticated directory readback after reload
+  found Ava Chen, a neutral relationship context and zero confirmed identities;
+  no email/company was required. A prior nickname-only 顾宁 save also persisted.
+- **Calendar:** actual K01 UI review showed September 24, 2026, 15:00–16:00
+  Asia/Shanghai. The UI-generated ICS contained `DTSTART:20260924T070000Z` and
+  `DTEND:20260924T080000Z`, with the persisted draft ID as UID. No OS calendar
+  import, invitation or external event insertion occurred.
+- **Images:** actual photo replies described the window, green upholstered
+  chair, red cup and blue book without inventing a venue. The poster produced
+  the matching October 2 calendar draft. Unreadable text and injected image
+  instructions did not become asserted facts or execution authority.
+- **Research:** v23 Session `ee3300b2-025e-4d3c-a6b5-a60bea092930` had no author
+  names in its objective. The model received current image-derived opaque IDs,
+  performed two real searches and fetched Maggie Appleton's and Craig Mod's
+  about pages. Original PNG hash, actual source-linked reply and the pending
+  乔木 name-only contact proposal were read back. Independent review confirmed
+  this functional repair but found a P2 overstatement: “originally from London”
+  became “born in London.” Tool success does not prove every reply claim.
 
-Browser file upload was not tested: the existing extension denies local file
-access. Images entered through the authenticated product admission API; UI
-verification began from persisted sessions. No permission was bypassed. Calendar
-export bytes were verified; OS calendar import/invitations were not performed.
-Social channels are implemented but this task's actual source acceptance used
-web. Native iOS/macOS and production runtime are unverified by this work.
+Private evidence files include `verified-product-v22.json`,
+`verified-product-v23.json`, `name-only-readback-v22.json`, the actual calendar
+export receipt and screenshots. They remain outside Git with provider traces.
 
-## Deterministic checks and review
+Browser file upload was not exercised: the extension denies local file access.
+Images entered through the authenticated admission API; UI verification began
+from persisted sessions. No permission was bypassed. Studio's existing browser
+origin denial was preserved; API readback and the standalone review were used.
+Actual research acceptance used web; social-provider success is unverified.
+Native iOS/macOS and production deployment are not certified by this work.
 
-Focused checks passed: workspace/default-contact 67, research 27, image/parser 6,
-Claude provider 33, Agent Host Exa/service 20, evaluator/fixture integrity 30,
-and web review/calendar 19. Earlier unchanged persistence checks passed:
-calendar PostgreSQL integration 9, selected Memory integration 5, and all 86
-migrations on a fresh database. Builds, web typecheck, documentation/architecture
-checks and diff checks were run separately. Skipped tests are not passes.
+## Rejected experiment and calibration
 
-Independent read-only review reproduced and closed source authority, concurrent
-staging, namesake contamination, refusal/locator bypass, research receipt/budget,
-channel retry, Exa empty-title and parser issues. AI review is not human gold.
+A blocking second-model grounding checker was tried in v17–v21. Despite passing
+unit tests, real outputs reversed speakers, erased valid citations, confused
+zero Memory items with absence of a contact card, or timed out. Trying the Pro
+model and a longer experimental envelope did not establish reliable improvement.
+The experiment is archived privately and removed from the product path. There
+is no hidden second-model rewrite or increased execution ceiling in v23.
 
-## Resume
+The lesson is implemented in evaluation: a judge's `supported` flag, fallback
+response or tool receipt is insufficient for semantic success. Immutable
+mechanical verdicts are retained alongside later adjudication. All 24 independent
+semantic records carry source hashes; human decisions remain pending. Earlier
+v8's weak 24-pass result, v12's quota-blocked batch and later mixed experiments
+are historical evidence, never pooled into a clean release claim.
 
-1. Restore the configured Claude/Hao service quota or explicitly select an
-   alternative. Do not repeatedly retry a known quota failure.
-2. Rebuild and restart the isolated backend and Agent Host. Verify their runtime
-   revisions; choose a new immutable label and do not overwrite existing receipts.
-3. Compare C01/C03 quality using the opt-in effort experiment; resolve findings
-   rather than weakening the grader. Retest C04 and one transient research failure.
-4. Run all 24 on the resulting single build, rerun affected authenticated product
-   checks, sync Studio and read back the exact results. Keep human labels pending
-   until a person reviews them. Only then consider release acceptance.
+## Deterministic verification and remaining work
 
-Private provider traces, account data, database dump and screenshots remain in
-the task-specific local state directory, outside Git. Only its safe `preview`
-subdirectory may be served. The isolated database was dumped and task-owned backend, web, MCP and research
-runtimes were stopped after saving evidence. The existing Studio and production
-services were preserved.
+Final selected-source checks: Agent suite **321 passed, 1 skipped**;
+backend workspace/default-contact **68 passed**; evaluator/fixture integrity
+**46 passed**. Agent image inspection coverage includes opaque-ID handoff and
+revocation. Backend build and documentation/architecture checks passed. Earlier unchanged checks include research 27,
+Claude provider 33, Agent Host 20, web review/calendar 19, calendar PostgreSQL
+integration 9, selected Memory integration 5 and all 86 fresh migrations.
+Skipped tests are not passes; remote CI must be read against the current PR head.
+
+Remaining quality work is concrete: preserve speaker/source scope in replies
+and staged notes, eliminate unsupported biographical enrichment, make final
+card-state narration reflect actual staging, and investigate the K04 timeout.
+Any subsequent repair requires a new run label and affected product acceptance.
+The nine semantic failures and one incomplete case remain open. The draft PR
+must not be represented as a completed release or a fully passing evaluation.
+
+Private provider/account/database evidence lives in the task-specific local
+state directory. Only its safe `preview` subdirectory may be served. Runtime
+cleanup and current-head CI status are recorded in the active plan.

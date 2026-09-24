@@ -91,7 +91,9 @@ The workspace Claude provider now accepts two host-owned supplements:
 
 - `inspect_current_image`: Doubao examines only the admitted current pixels. A
   successful receipt binds model, request ID and image hash; concurrent reads
-  share one inspection. Calendar excerpts must match its visible text.
+  share one inspection. Calendar excerpts must match its visible text. The shared inspection also
+  returns registered public-subject IDs so image-only research can use the
+  same host authorization boundary without passing raw names.
 - `search_public_subject` / `fetch_public_sources`: the existing Agent Host
   socket performs real Exa/TikHub requests. Search accepts a registered subject
   ID, never an arbitrary query. The host sends only a bounded name and fixed
@@ -126,7 +128,9 @@ of the main calendar, image or research intent. Group/unclear/multiple-image
 identity is not collapsed into one person. User refusal gates both model and
 host staging. Self-only suggestions share this card; new identity contexts are
 neutral and never copied from unconfirmed directory matches. Image Memory
-quotes must match current observed text exactly. The entire path shares the
+quotes must match current observed text exactly. Consecutive OCR lines may be
+joined with whitespace normalization; skipped, reordered or modified text is
+not accepted. The entire path shares the
 existing Run deadline, and inspection is reused by subsequent tools.
 
 ## Running product verification
@@ -141,7 +145,10 @@ research can be tested without silently changing a corpus case.
 
 `sync-studio.mjs` records the current grader hash separately from historical run
 receipts, reads back all case updates and renders a local review report. It
-keeps every human decision pending, including mechanical passes. It never
+accepts a complete optional `semantic-review.json` only when its run label and
+  all 24 original case-file hashes match. Independent AI findings are displayed
+  separately, with `humanGold: false`. It keeps every human decision pending,
+  including mechanical passes. It never
 turns synthetic expectations into human gold. Serve only its `preview`
 directory, never the private artifact root or account credentials.
 
@@ -156,3 +163,16 @@ for **each** requested public author. They also check same-name ambiguity,
 default Add across all direct chats, literal quotes, selected unsupported
 identity/time claims, speaker reversal, injection and truthful tool outage. Claim-level entailment,
 Chinese fluency and nuanced speaker interpretation remain semantic review.
+
+## Judge calibration
+
+The v17-v21 inline fact-checking experiment was rejected after actual runs:
+independent model corrections could reverse a speaker, erase real citations,
+confuse zero Memory notes with no contact card, or time out. It is not part of
+the product path. Archived experiment receipts retain its failures; the chosen
+product run must be repeated separately after removing it. Never count a safe
+fallback, a reviewer's `supported` flag, or a mechanical pass as semantic proof.
+
+Counterparty gender, add-friend causality, speaker direction, source-date shifts
+and actual staged labels have separate regression assertions. Failed or paused
+product queues terminate probes promptly and retain their failure code.
