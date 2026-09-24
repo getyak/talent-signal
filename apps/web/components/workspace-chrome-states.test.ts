@@ -24,7 +24,7 @@ describe("quiet workspace chrome states", () => {
     expect(html).not.toContain("还没有对话");
   });
   it("does not label a failed directory as an invitation to start empty", () => {
-    const html = renderToStaticMarkup(createElement(SessionDirectory, { initialSessions: [], initialComplete: false, initialNextCursor: null, sessionVersion: "a", initialError: "无法读取", sessionRecoveryHref: null }));
+    const html = renderToStaticMarkup(createElement(SessionDirectory, { renderedAt: "2026-09-24T10:00:00Z", initialSessions: [], initialComplete: false, initialNextCursor: null, sessionVersion: "a", initialError: "无法读取", sessionRecoveryHref: null }));
     expect(html).toContain('role="alert"');
     expect(html).not.toContain("每段思路");
     expect(html).not.toContain("开始一段新对话，它会留在这里");

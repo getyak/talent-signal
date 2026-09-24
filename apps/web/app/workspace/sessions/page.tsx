@@ -63,6 +63,7 @@ export default async function SessionsPage() {
 
   return (
     <SessionDirectory
+      renderedAt={new Date().toISOString()}
       initialComplete={complete}
       initialError={error}
       initialNextCursor={nextCursor}

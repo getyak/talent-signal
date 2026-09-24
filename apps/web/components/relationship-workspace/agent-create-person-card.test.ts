@@ -417,6 +417,21 @@ describe("create-contact resource request identity", () => {
     expect(mock.committed).toHaveBeenCalledTimes(1);
   });
 
+  it("does not offer an impossible deferred review for one confirmed owner", async () => {
+    const owner = person(PERSON_ID, "Synthetic Current Owner");
+    owner.identity_matches = [{ kind: "confirmed_handle", handle_type: "email",
+      display_hint: CLUE, source_resource_id: RESOURCE_ID }];
+    fetcher.mockImplementation(() => Promise.resolve(Response.json({ people: [owner] })));
+    await render();
+    await fillCreateDraft();
+    expect(host.textContent).toContain("当前归属");
+    expect(host.textContent).toContain("移除线索");
+    expect(host.textContent).not.toContain("保留为未解决");
+    expect(Array.from(host.querySelectorAll("button"))
+      .some((button) => button.textContent?.includes("保存待身份审阅"))).toBe(false);
+    expect(resourcePosts()).toHaveLength(0);
+  });
+
   it("saves an ambiguous identity for review with its own stable request identity", async () => {
     let fail = true;
     fetcher.mockImplementation((url: string) => {
@@ -1364,6 +1379,34 @@ function stubConfirm(accepted: boolean): ReturnType<typeof vi.fn> {
     await clickButton("用相同内容重试核实");
     await flush(50);
     expect(mock.committed).toHaveBeenCalledOnce();
+  });
+
+  it("stops late continuation on history traversal before the card unmounts", async () => {
+    let resolveSource!: (value: Response) => void;
+    fetcher.mockImplementation((url: string) => {
+      if (String(url).includes("/people/search")) return Promise.resolve(Response.json({ people: [] }));
+      if (resourcePosts().length === 1) return new Promise<Response>((resolve) => { resolveSource = resolve; });
+      return Promise.resolve(Response.json({ receipts: [receipt()] }));
+    });
+    const originalURL = window.location.href;
+    await render();
+    await fillCreateDraft();
+    await toggleConfirmClue();
+    await clickPrimary();
+    expect(host.textContent).toContain("浏览器后退会失去本页的核实入口");
+    try {
+      await act(async () => {
+        window.history.pushState({}, "", "/workspace/sessions?history=audit");
+        expect(window.location.pathname + window.location.search).toBe("/workspace/sessions?history=audit");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+      resolveSource(Response.json({ receipts: [receipt()] }));
+      await flush(50);
+      expect(resourcePosts()).toHaveLength(1);
+      expect(mock.committed).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState({}, "", originalURL);
+    }
   });
 
   it("asks before closing and honours both answers", async () => {

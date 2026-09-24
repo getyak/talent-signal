@@ -27,6 +27,36 @@ Status: in progress. No 98/100 acceptance claim has been issued.
 | EXP-11 | P1 | After the first resource POST returned a real 201, a synthetic transport failure hid the receipt from the form. Editing the note and pressing Create sent another `new_person` request; the backend created a second Person with a distinct ID. | Lock an unknown outcome to its exact submitted payload and request identity, reconcile before edits, and distinguish an acknowledged rejection from a missing response. Test source, clue and deferred-identity requests; never claim an unknown write was not saved. |
 | EXP-12 | P2 | At 320px the mobile shell labels shrink to 9px; utility labels wrap into one-character columns when the privacy action is present. The search target is 30px square and the account target is 35px wide. | Keep the four primary labels readable; preserve named utility destinations at narrow widths and verify all header targets at 320/390/430px. |
 | EXP-13 | P1 | A Person with unchanged proposed source fragments enters relationship chat, waits for model processing, then gets `CHAT_COMPLETION_SOURCE_CHANGED`. The reviewed-manifest filter only ran when Session screenshot sources were present, while the final completion guard always required reviewed/attributed evidence. Both Session and no-Session synthetic PostgreSQL cases reproduced 409 before repair. | Filter proposed evidence from every reviewed manifest before provider work; preserve its unconfirmed state and the late revocation guard. Repeat against the deployed runtime. |
+| EXP-14 | P1 | Independent static review found `finalizeRetained` directly cancels and scrubs a queue entry when a stop wins against failed/interrupted finalization, bypassing admitted-message history persistence. | Reproduce the race against the disposable database; preserve exact text and attachment references before scrub, or retain recoverable state if governed persistence is unavailable. |
+| EXP-15 | P2 | Global search's Person result opens `/workspace?person=…`, which displayed the source-intake surface in the real synthetic Lab instead of that Person's page. | Open the canonical `/workspace/people/:id` destination with the matching Person heading, including keyboard activation. |
+| EXP-16 | P2 | An extension-free browser caught Session list hydration replacing `59 分钟前` with `1 小时前`; server and client independently used the current time. | A clock-boundary SSR/hydration regression must pass with a shared server timestamp; relative labels may refresh after hydration. |
+| EXP-17 | P2 | A single confirmed identity owner exposed “save for identity review” although its request contract requires at least two candidates. | Keep the single-owner choice truthful and withhold an impossible deferred submission; preserve the multi-candidate review path. |
+
+## Independent review and navigation follow-up
+
+The [independent report](independent-code-review.md) reviewed `01cb7aa8` and
+reported two P1 and three P2 findings. The parent verified the mechanisms;
+the [resolution ledger](review-resolution.md) separates fixed local paths from
+pending database repair, independent re-review and deployment. The live Memory
+failure's cause is still unknown; an old deployment is a fact, not a diagnosis.
+
+- EXP-15: [search readback](evidence/search-keyboard.json) now reaches the exact
+  canonical Person heading at 390px and 1440px. Input focus, Esc focus return,
+  Ctrl+K, no-results feedback, ArrowDown and Enter all work. Both widths had no
+  page errors. [Before evidence](evidence/search-before.json) preserves the
+  wrong destination and the separate real hydration error.
+- EXP-16: a deterministic SSR/hydration test reproduced the same time mismatch
+  before the server timestamp was threaded through the list. It passes after
+  repair without suppressing hydration errors.
+- EXP-17: the single-owner component regression failed before the UI contract
+  correction. Multiple candidates retain their existing review action.
+- EXP-11 history traversal: a delayed first-source receipt could still start
+  the clue POST before the old card unmounted. A failing regression reproduced
+  two writes; the history event now revokes continuation immediately. A
+  same-document hash does not end admission. Browser history is not cancelable;
+  persistent copy explicitly warns that leaving loses this page's in-memory
+  reconciliation entry. This is not durable recovery and does not close that
+  remaining product requirement.
 
 ## First verified repair
 

@@ -337,7 +337,7 @@ export function WorkspaceGlobalSearchDialog({
                     <Link
                       className={styles.searchResult}
                       data-search-result=""
-                      href={`/workspace?person=${encodeURIComponent(person.id)}`}
+                      href={`/workspace/people/${encodeURIComponent(person.id)}`}
                       key={person.id}
                       onClick={close}
                     >

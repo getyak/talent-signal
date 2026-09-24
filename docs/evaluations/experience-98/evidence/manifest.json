@@ -190,6 +190,26 @@
     "bytes": 3521
   },
   {
+    "file": "search-1440.png",
+    "sha256": "9f3f4b0cf8836c3f96b3b80a3af80df46c7dfb838ec4904adc7cdd22535d0cc9",
+    "bytes": 501306
+  },
+  {
+    "file": "search-390.png",
+    "sha256": "f305d15e0dc028444b127c979e3b45a5f2db70730b6aedeb74fddd96f0a77abc",
+    "bytes": 63665
+  },
+  {
+    "file": "search-before.json",
+    "sha256": "da60a296cfe4205c9e1b1120ac3fd41c44fdb87f102e3bedbcb202da893deba5",
+    "bytes": 7412
+  },
+  {
+    "file": "search-keyboard.json",
+    "sha256": "d1a889081797d7e3129e08f6bf03a7793fbaf2b45565a26197ed1a00ab365c56",
+    "bytes": 1422
+  },
+  {
     "file": "settings-narrow-dark-baseline.png",
     "sha256": "f6a2a869b562a3f8e377362f6426c62ea105e33ff5f15f2b471d7aa57707d6ef",
     "bytes": 95961

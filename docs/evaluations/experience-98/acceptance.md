@@ -1,6 +1,8 @@
 # Journey acceptance ledger
 
-Checkpoint: local Web `01cb7aa8`; resident backend `973e7913-platform`.
+Checkpoint: independent review at local `01cb7aa8`, with subsequent local repairs
+tracked in [review resolution](review-resolution.md); resident backend remains
+`973e7913-platform`.
 The two versions are deliberately named separately. No journey has been awarded
 98/100. Evidence below is operational verification of synthetic cases, not a
 user-satisfaction score or accessibility certification.
@@ -9,9 +11,9 @@ user-satisfaction score or accessibility certification.
 | --- | --- | --- |
 | Access and settings | Authenticated isolated Lab; settings and diagnostics render in both themes; visible navigation and shell targets checked at 320/390/430px | Sign-in interruption, account transition, expired-session recovery and settings changes through the deployed UI |
 | Conversations | Send and canonical reload; stop with queued message; edit pending text; reload paused state; explicit continuation completes once; skip link reaches main | Deployed post-commit stop/restart repair, prioritization on the current revision, provider failure diagnosis, screen-reader and enlarged-browser-text checks |
-| People and Memory | Create with note and confirmed clue; canonical reload; first-field focus; lost source/clue receipts resolve to the same identity and resource, independently counted in PostgreSQL | Live Memory proposal failed twice; review/accept/correct/undo loop is not accepted. Durable recovery after leaving remains a design gap |
+| People and Memory | Create with note and confirmed clue; canonical reload; first-field focus; lost source/clue receipts resolve to the same identity and resource, independently counted in PostgreSQL; global search opens the correct Person by keyboard | Live Memory proposal failed on the original run, explicit retry and one fresh Session; review/accept/correct/undo loop is not accepted. Durable recovery after leaving remains a design gap |
 | Sources and evidence | No-person outcome; create Person from synthetic source; retain undecided statements; conflict refresh preserves input and requires a new decision; deletion readback | Deployed API-latency repair; repeated identity-confirmation explanation; broader source withdrawal/derived-store readback and assistive navigation |
-| Today and Time | Empty Today surface; create/edit/reload internal arrangement; invalid end time retains input and announces error; delete and compact unavailable deep link | Populated Today comprehension, timezone/date boundaries, recovery from an unknown arrangement result on the current runtime and native integration where applicable |
+| Today and Time | Today remains empty with saved People but no Pursuits; create/edit/reload internal arrangement; invalid end time retains input and announces error; delete and compact unavailable deep link | Explain the People-to-Pursuit path without fabricating work; populated Today comprehension, timezone/date boundaries, recovery from an unknown arrangement result on the current runtime and native integration where applicable |
 | Recovery and continuity | Frozen exact replay, malformed/wrong-request receipts, account expiry, navigation-before-unmount, and thrown host callback covered; two real lost-201 probes passed | Refresh-safe durable intent reconciliation, cross-device continuation, deployed lifecycle proof and representative interruption trials |
 
 ## How points may be awarded

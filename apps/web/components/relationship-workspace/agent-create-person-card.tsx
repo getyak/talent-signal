@@ -349,9 +349,9 @@ export function AgentCreatePersonCard({
     }
   }, [error]);
   useEffect(() => {
-    // Warn before a reload or navigation loses the in-memory unknown-outcome
-    // recovery state; recovery is memory-only by design and the report says
-    // so.
+    // Warn before reload/close loses the in-memory recovery state. Browser
+    // history traversal is not cancelable; the persistent notice names that
+    // limitation and the separate popstate guard ends continuation promptly.
     if (!trackedRequest) {
       return;
     }
@@ -397,6 +397,18 @@ export function AgentCreatePersonCard({
     // on link navigation while a request is pending or unknown. Declining
     // prevents the navigation without unmount or any POST; accepting lets it
     // proceed and the dead admission blocks continuation POSTs.
+    const currentRoute = window.location.pathname + window.location.search;
+    const endAdmission = () => {
+      navigationEndedRef.current = true;
+      admissionRef.current = null;
+      setSealed(true);
+      setError("已结束本次创建流程，后续提交已停止。已发出的内容可能已保存，请从人物列表核实。");
+    };
+    const historyGuard = () => {
+      if (window.location.pathname + window.location.search !== currentRoute) {
+        endAdmission();
+      }
+    };
     const linkGuard = (event: MouseEvent) => {
       if (
         event.defaultPrevented ||
@@ -436,14 +448,15 @@ export function AgentCreatePersonCard({
       } else {
         // A client transition can retain this component until the destination
         // loads. Revoke admission now, not at the later unmount.
-        navigationEndedRef.current = true;
-        admissionRef.current = null;
-        setSealed(true);
-        setError("已结束本次创建流程，后续提交已停止。已发出的内容可能已保存，请从人物列表核实。");
+        endAdmission();
       }
     };
     document.addEventListener("click", linkGuard, true);
-    return () => document.removeEventListener("click", linkGuard, true);
+    window.addEventListener("popstate", historyGuard, true);
+    return () => {
+      document.removeEventListener("click", linkGuard, true);
+      window.removeEventListener("popstate", historyGuard, true);
+    };
   }, [trackedRequest]);
   const parsedIdentityClue = useMemo(
     () => parseIdentityHandleQuery(identityClue),
@@ -493,6 +506,7 @@ export function AgentCreatePersonCard({
     (target.mode !== "new_person" || newPersonAllowed);
   const reviewReady =
     identityChoiceNeedsReview &&
+    matches.length >= 2 &&
     name.trim().length > 0 &&
     contextLabel.trim().length > 0 &&
     firstNote.trim().length > 0;
@@ -1546,7 +1560,9 @@ export function AgentCreatePersonCard({
               <small>
                 {committedSource
                   ? `人物已固定为 ${committedSource.scope.person.display_label}。请核对这条线索是否属于此人；不确定时请取消确认，直接打开已保存的人物。`
-                  : "请选择当前人物、移除线索，或将此来源保留为未解决。历史归属者仍可用于对比，但不能接收此来源。"}
+                  : matches.length >= 2
+                    ? "请选择当前人物、移除线索，或将此来源保留为未解决。历史归属者仍可用于对比，但不能接收此来源。"
+                    : "如果确认是同一人，请选择当前人物；否则先移除线索，再继续核对。身份未确认前，此来源不会保存。"}
               </small>
             </p>
           </div>
@@ -1640,7 +1656,7 @@ export function AgentCreatePersonCard({
           {completed
             ? "内容已保存；此处不会产生新的写入。"
             : trackedRequest
-              ? "提交结果确认前内容已锁定，避免重复写入；关闭不会撤销任何已提交内容。"
+              ? "提交结果确认前内容已锁定。刷新、关闭或浏览器后退会失去本页的核实入口，不会撤销已提交内容；请先在此核实结果。"
               : committedSource
                 ? "人物与首条来源已保存，不会重复写入；线索可修改、取消确认或放弃。"
                 : target.mode === "existing_context"
