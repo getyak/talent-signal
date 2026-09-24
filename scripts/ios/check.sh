@@ -10,6 +10,62 @@ ios_automation_lock_owned="false"
 ios_backend_url="${TS_IOS_BACKEND_URL:-}"
 ios_fixture_database_url=""
 
+check_script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+
+# On a developer Mac the reusable session helper owns device selection and the
+# machine-wide lock. Routing is decided only by the helper is-owner check, so an
+# inconsistent inherited environment can never silently fall back to the
+# standalone lock. CI (true/1) and non-Darwin hosts keep the standalone path.
+ios_ci="false"
+if [ "${CI:-}" = "true" ] || [ "${CI:-}" = "1" ]; then
+  ios_ci="true"
+fi
+
+ios_host_is_darwin="false"
+if [ "$(uname -s 2>/dev/null)" = "Darwin" ]; then
+  ios_host_is_darwin="true"
+fi
+
+if [ "$ios_ci" != "true" ] && [ -n "${DEV_IOS_SESSION_BIN:-}" ] && [ ! -x "${DEV_IOS_SESSION_BIN}" ]; then
+  echo "DEV_IOS_SESSION_BIN is set but not executable: ${DEV_IOS_SESSION_BIN}" >&2
+  exit 2
+fi
+
+ios_session_helper=""
+if [ "$ios_ci" != "true" ] && [ "$ios_host_is_darwin" = "true" ]; then
+  if [ -n "${DEV_IOS_SESSION_BIN:-}" ]; then
+    ios_session_helper="${DEV_IOS_SESSION_BIN}"
+  elif command -v dev-ios-session >/dev/null 2>&1; then
+    ios_session_helper="$(command -v dev-ios-session)"
+  elif [ -x "${HOME:-}/.local/bin/dev-ios-session" ]; then
+    ios_session_helper="${HOME:-}/.local/bin/dev-ios-session"
+  fi
+fi
+
+ios_session_profile="${DEV_IOS_PROFILE:-primary}"
+ios_session_reason="${DEV_IOS_REASON:-}"
+ios_session_lock_held="false"
+
+if [ -n "$ios_session_helper" ]; then
+  ios_session_status_args=(is-owner --profile "$ios_session_profile")
+  if [ -n "$ios_session_reason" ]; then
+    ios_session_status_args+=(--reason "$ios_session_reason")
+  fi
+  if "$ios_session_helper" "${ios_session_status_args[@]}" >/dev/null 2>&1; then
+    ios_session_lock_held="true"
+  else
+    ios_session_run_args=(
+      run
+      --profile "$ios_session_profile"
+      --timeout "$ios_automation_lock_timeout"
+    )
+    if [ -n "$ios_session_reason" ]; then
+      ios_session_run_args+=(--reason "$ios_session_reason")
+    fi
+    exec "$ios_session_helper" "${ios_session_run_args[@]}" -- "$check_script_path" "$@"
+  fi
+fi
+
 if [ -n "$ios_backend_url" ]; then
   ios_fixture_database_url="${DATABASE_URL:-}"
   if [ -z "$ios_fixture_database_url" ]; then
@@ -24,6 +80,11 @@ acquire_ios_automation_lock() {
   local waited=0
   local waiting_reported="false"
   local owner_pid=""
+
+  if [ "$ios_session_lock_held" = "true" ]; then
+    echo "Using the outer dev-ios-session lock owned by pid ${DEV_IOS_SESSION_PID:-unknown}." >&2
+    return 0
+  fi
 
   until /usr/bin/shlock -f "$ios_automation_lock_file" -p "$$"; do
     if [ "$waiting_reported" != "true" ]; then
@@ -74,9 +135,7 @@ trap cleanup_ios_derived_data EXIT
 
 acquire_ios_automation_lock
 
-# The machine-wide build lock makes all previously booted iOS devices stale.
-# Start from zero so this 16 GB host never retains multiple Simulator runtimes.
-xcrun simctl shutdown all >/dev/null 2>&1 || true
+python3 "$(dirname "$check_script_path")/test_dev_ios_session.py"
 
 node scripts/ios/check-localization.mjs
 
@@ -130,8 +189,12 @@ if [ -z "$simulator_id" ]; then
       ruby -rjson -e '
         devices = JSON.parse(STDIN.read).fetch("devices")
         ios_runtimes = devices.keys.grep(/iOS/).sort.reverse
-        phone = ios_runtimes.flat_map { |runtime| devices.fetch(runtime) }
-                            .find { |device| device.fetch("name").start_with?("iPhone") }
+        phones = ios_runtimes.flat_map { |runtime| devices.fetch(runtime) }
+                           .select { |device| device.fetch("name").start_with?("iPhone") }
+        # Prefer a numbered modern iPhone so the standalone path matches the
+        # local Primary iPhone profile instead of an older compact device.
+        phone = phones.find { |device| device.fetch("name").match?(/\AiPhone \d/) } ||
+                phones.first
         abort("No available iPhone simulator found") unless phone
         print phone.fetch("udid")
       '
@@ -140,9 +203,17 @@ fi
 
 # A long-lived Simulator can retain wedged accessibility and automation
 # services after interrupted UI runs. Reboot it by default so the release gate
-# starts from an observable device baseline. Set IOS_REBOOT_SIMULATOR=false
-# only for an intentional live-debug session.
-if [ "${IOS_REBOOT_SIMULATOR:-true}" = "true" ]; then
+# starts from an observable device baseline. Inside a validated local session
+# the default is false so a borrowed, prebooted device is never interrupted;
+# set IOS_REBOOT_SIMULATOR=true to reboot the chosen device explicitly. This
+# only ever affects the selected device, never any other simulator.
+ios_default_reboot="true"
+if [ "$ios_session_lock_held" = "true" ]; then
+  ios_default_reboot="false"
+fi
+ios_reboot_simulator="${IOS_REBOOT_SIMULATOR:-$ios_default_reboot}"
+
+if [ "$ios_reboot_simulator" = "true" ]; then
   xcrun simctl shutdown "$simulator_id" >/dev/null 2>&1 || true
 fi
 xcrun simctl boot "$simulator_id" >/dev/null 2>&1 || true
@@ -442,6 +513,14 @@ is_retryable_simulator_failure() {
 }
 
 reboot_simulator_for_retry() {
+  if [ "${DEV_IOS_BORROWED:-false}" = "true" ]; then
+    echo "Refusing to reboot borrowed simulator ${simulator_id} for retry; leaving the prebooted device untouched." >&2
+    return 0
+  fi
+  if [ "$ios_reboot_simulator" != "true" ]; then
+    echo "Simulator reboot for retry is disabled (IOS_REBOOT_SIMULATOR=$ios_reboot_simulator); reusing ${simulator_id}." >&2
+    return 0
+  fi
   xcrun simctl shutdown "$simulator_id" >/dev/null 2>&1 || true
   xcrun simctl boot "$simulator_id" >/dev/null 2>&1 || true
   xcrun simctl bootstatus "$simulator_id" -b
