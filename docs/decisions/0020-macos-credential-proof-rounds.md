@@ -111,7 +111,12 @@ primitives and retain their existing regression tests.
 ## Recovery
 
 System cancel uses its own sealed attempt/state authority, then returns the
-fixed native cancel callback. WK clears only its own pairing/continuation. Both
+fixed native cancel callback. WK pairing is fresh random authority returned
+only to WK prepare and stored as a hash by the backend. Never return it from
+system authorize or reconstruct it from a database URL or other configuration.
+If system cancel needs a second secret beyond state, generate an independent
+random cancel-only capability and store its own hash; keep the two authority
+types discriminated in the request contract. WK clears only its own pairing/continuation. Both
 jar families use attempt-specific cookies: a delayed A response must not delete
 a newer B. Consumed results cannot be relabelled cancelled. Cancellation of an
 uncommitted target invalidates only that operation's unused grant.

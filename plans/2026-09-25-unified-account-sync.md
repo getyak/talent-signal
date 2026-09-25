@@ -38,7 +38,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 1 after independent review. Live provider flows remain pending.
+   repair 2 after independent review and the accepted credential-round design. Live provider flows remain pending.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
    and review; no automatic database merge during implementation.
@@ -450,3 +450,24 @@ ADR0020 defines the next bounded system credential-round continuation: exact
 current/target proof for one frozen Settings operation, preserving the original
 WK session and existing credential transaction. It is design-only and awaits
 independent native protocol review plus subsequent Pi implementation.
+
+### 2026-09-25 09:44 repair2 and canonical credential-round design
+
+Native design review of ADR0020 found no confirmed P0/P1 and added explicit
+server acknowledgment, current-to-target generation turnover and unknown-result
+window-close rules. Parent encoded those rules and the normal password-form
+exception. The credential-round design is now accepted, not implemented.
+
+During repair1, parent found a new deviation: Pi derived the WK pairing secret
+from config.databaseUrl and returned that authority to the system browser.
+Parent officially cancelled at207 cumulative turns, preserved source hashes in
+phase2-rejected-pairing-r19.json, and resumed the same task/session at repair2.
+No moving candidate was integrated. The repair2 contract requires random WK
+pairing, independently scoped system cancellation, and the complete ADR0020
+current/target/result/ack continuation, replacing the unreleased recent-login
+direct-link shortcut. Cumulative600 replies/5 repairs remain; no accounting reset.
+
+Parent prepared an independent actual public-endpoint PostgreSQL harness for
+unverified Apple hints and revoke-after-admission login. It is not yet run; it
+will run on frozen repaired source in its own database, after fresh migrations.
+All actual iOS/macOS manual guards are released. Production is unchanged.
