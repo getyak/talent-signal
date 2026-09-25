@@ -1079,3 +1079,53 @@ accessibility: team6RG2F8YY59 allows selecting Developer ID Application and
 shows the CSR/G2 form. No CSR was uploaded, certificate issued or private key
 exported. This establishes the interactive application path, not a role label
 or completed signing identity. Parent still owns all release mutations.
+
+### Issued signing identity and rejected r40 checkpoint — 14:45 local
+
+After the user explicitly confirmed issuance through computer use, the parent
+selected the Apple Developer ID Application G2 intermediary, uploaded only the
+existing CSR and downloaded certificate XAGZ946TL5 (expires2031-09-17). Its public
+key matches the preserved original key. macOS codeSign certificate policy
+validation passed. The encrypted P12 and its password/identity were added only
+to the existing staging:/release Infisical names; Sparkle and notary trust
+anchors were preserved. Exact secret readback, ephemeral-keychain import, real
+Mach-O signing with Apple timestamp and strict verification passed. Original
+keychain search list was restored and the test keychain deleted. Configuration
+now reports8/8 required names present; product signing/notarization/OIDC/feed and
+release publication remain unproved. No workflow was dispatched. See
+developer-id-signing-r40.json. Generic LibreSSL initially rejected Apple's
+critical extension; macOS native codeSign policy is the accepted validation.
+
+Pi repair10 reported ready at577 replies but explicitly omitted native inert
+entry and same-store status. Parent froze1253 exact worker source files into
+r40 cff4946a and independently reviewed the actual app composition. Seven P1
+groups remain, including unresolved bootstrap/selection, one global host ID,
+old-browser callback/entry ownership, unverified status settlement, incomplete
+test isolation, first prepared-response rejection and recovery/cancel context.
+Native exact-controller probe1 control pass/3 acceptance failures. No actual
+app/WK/default registry was opened by that probe.
+
+Parent real HTTP+PostgreSQL checks preserve password/dropped-response2/2 and
+primary-status7/7. Both original target chains fail because the real native
+consume shape does not trigger Web's target-grant resolver. An explicitly
+labelled diagnostic variant adds role/purpose: password-first then commits
+once with unchanged actor, but produces incomplete/wrong-role recovery
+metadata; provider-first still fails. These are failed acceptance evidence,
+not a real provider or native success. See desktop-r40-binding.json and reports.
+
+Repair11 resumes the same task/session/model at577 replies,750 cumulative
+reply ceiling/11repairs. Feedback requires complete production transport first,
+then actual bootstrap/entry/status composition using accepted ADR0021; no new
+architecture decision is pending. Parent presentation67e8904c remains separate
+and must survive integration. No phase2 integration, PR, merge, deployment or
+release yet. Existing live Apple Account checkpoint remains unanswered.
+
+Independent publication review of parent67e8904c found no confirmed new private
+data/production credentials among257 files/23images. Two OCR label questions
+were resolved through parent visual inspection plus disposable CSV provenance.
+Later live-provider evidence still requires bounded publication review.
+
+The original parent held-lock code-expiry probe now passes2/2 against r40
+(stable source), closing the demonstrated r35 transaction-start-time
+regression after restoring r33 runtime-clock behavior. This is not a complete
+app/database clock-drift redesign. Receipt: desktop-code-lock-expiry-r40.json.
