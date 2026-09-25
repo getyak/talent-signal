@@ -39,7 +39,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 4 after three further independently reproduced P1 findings. Live provider flows
+   repair 5 after native lifecycle and receipt findings. Live provider flows
    remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
@@ -52,7 +52,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; phase2 r26 closes original five cases but has three further P1 in repair4; Web/native acceptance pending |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; phase2 backend r29 under independent retest; native lifecycle/receipt repair5 active |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -708,3 +708,24 @@ The response contract and the distinction between pending-continuation ACK and
 actual credential completion are being independently reviewed before the next
 consolidated Pi feedback. Pi repair4 remains active; r27 findings are not yet
 closed or integrated. No production/provider/runtime configuration changed.
+
+### 2026-09-25 11:42 repair5 response contract
+
+The independent WebKit-boundary review supports only the measured transport,
+and clarifies two essential lifecycle constraints: response-policy rejection
+cannot roll back Set-Cookie, and pending continuation ACK is not committed
+credential ACK. ADR0020 now preserves current-flow recovery through the ordinary
+password form and distinguishes it from a fresh target provider round. Per-flow
+cookie ownership must prevent late A from overwriting B; nonce/generation checks
+alone are insufficient. A strict fixed-route200 header receipt carries only
+non-secret, correlated metadata after real backend work and sealing.
+
+Pi repair4 was officially cancelled at387 replies after reported backend33/33;
+its useful source is frozen as625e3b36 in the managed account-sync-relay-proof-r29
+worktree (1,224 files, stable hashes). Parent created fresh isolated DB
+account_sync_desktop_parent_r29 and began migration/typecheck/repository and
+independent consumer retests. The same Pi task resumed repair5 with six native
+P1, the real launch-flag mismatch, controller counterexamples, the supported
+WebKit boundary and concrete full-consumer contracts. Limits remain600 replies,
+5 repairs and7200 seconds per attempt. Existing checks and counters are retained.
+The native rewrite is not integrated and live provider checkpoint is unchanged.

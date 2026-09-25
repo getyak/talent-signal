@@ -156,14 +156,39 @@ using HKDF-SHA256 from the random pairing secret with a fixed credential-secret
 domain and immutable flow/desktop/credential IDs. Store only its hash. A paired
 result read can regenerate that same secret after verifying native verifier and
 original actor/session/origin; it never mints a second attempt. Keep pairing
-authority until WK continuation acknowledgment or the original deadline.
+authority until the relevant completion acknowledgment or the original deadline.
 Native retains that round's verifier, attempt and generation until this server
-acknowledgment is confirmed or its deadline ends. Callback arrival, consume
+acknowledgment is confirmed or its deadline ends. A pending-continuation
+acknowledgment confirms only that the grant is sealed in WK; it does not prove
+a password or target mutation completed. Keep the current flow's recovery
+context through the later password form and any uncertain response. A target
+round has independent state/verifier while the current recovery context remains
+available until same-grant recovery responsibility is demonstrably transferred,
+or a committed result is acknowledged. Callback arrival, consume
 dispatch and a generic WK didFinish are not acknowledgments. The fixed paired
 acknowledgment POST must read the newly sealed WK continuation and compare its
 flow/attempt to the committed result before acknowledging; normal page URLs or
 display metadata cannot assert acknowledgment. The native host fences the whole
 consume/result/ack navigation chain with its owning generation.
+
+For capable native requests, fixed first-party POST responses use a minimal
+non-secret HTML document and allowlisted receipt headers. The request carries
+a fresh opaque exchange reference, strictly compared by Web and echoed only
+in a validated protocol response. Native checks the exact main-frame origin,
+endpoint, HTTP status, content type, exchange/attempt/phase correlation and
+enumerated outcome before advancing. Backend success and correct server-side
+continuation sealing precede a success receipt. Error documents and ordinary
+Settings URLs cannot supply one. Cancel intermediate document rendering only
+after classification; ignore the resulting cancellation event for that exact
+owned navigation, then send the next POST in the same WK jar. A verified
+pending or committed acknowledgment, not dispatch, advances that phase.
+
+Response cancellation does not undo Set-Cookie. Attempt/flow-specific storage
+must therefore prevent an old response from overwriting a newer operation's
+shared cookie state; a native generation check alone is insufficient. Keep
+ordinary Web behavior and its authority checks separate from this presentation
+transport. Receipt metadata is never backend authorization and contains no
+provider token, password, bearer session, pairing secret or verifier.
 
 Only after current-round acknowledgment may target start. Target gets fresh
 native state, verifier and generation while retaining the same credential
