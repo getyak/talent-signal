@@ -1172,3 +1172,56 @@ Stopped only superseded parent chain runtimes44339/44349 and temporary UI
 fixtures4613/44369; source/evidence/databases remain. Current frozen r40 chain
 44359 and user-facing previews remain available. Storage audit122GiB free,
 all3 shared simulators shutdown; unrelated artifact warnings unchanged.
+
+
+### Bounded parent transport repair and Settings slice — 15:32 local
+
+Parent cancelled repair12 at627 cumulative replies/12repairs after confirming
+remaining exact-navigation cancellation, unretained production timer and
+committed-result metadata gaps. The original task/session/patch/source and
+Token Plan accounting (estimated1,464,871,476Credits, not a provider bill) remain
+preserved in repair12-checkpoint. This is a cancelled draft, not ready evidence.
+Composite checkpoint f581b3a0 is on codex/account-sync-transport-r41 at
+/Users/cubxxw/.codex/worktrees/account-sync-transport-r41/talent-signal; parent
+presentation and integration still need final reconciliation. Parent branch
+source remains unmodified by that draft.
+
+Independent native review found4 dynamic P1 counterexamples; Web review found6
+production-chain gaps. Parent bounded corrections0788afac/e9cf8b69/1541ba11
+retain exact cancellation identity and the actual production timer; preserve
+pairing/intent/role/deadline through teardown and final ACK; reset completed
+current-round gating; enforce intent/next-step semantics. Proven backend round
+metadata now supplies completed consume/result/cancel receipts. A separate
+server-sealed committed receipt can ACK only a committed fact, while pending
+ACK guards retain their sealed grant requirement. Pairing remains at its
+original cookie TTL so a lost ACK response can be read/retried. Login backend
+completion is not claimed as WK cookie installation or a credential ACK.
+
+Independent exact-controller8/8 passes close the demonstrated native transport
+counterexamples. Parent Web+real HTTP+PostgreSQL: password-first/provider-first
+full target2/2, immediate current unlink1/1, pre-consume WK current/target
+cancellation2/2, and committed-login read-only recovery1/1 pass. Target/unlink
+checks include repeated final ACK, same canonical actor/primary cookie, one
+audit and one revision increment. Provider verification is controlled; these
+are not actual WK or live OAuth acceptance. Backend82/82 and focused Web181/181
+passed before the final added login-regression test. Formal evidence binding
+and final combined-source rerun remain pending.
+
+The actual Settings surface still needed nativeHost on password-first forms,
+relay-aware staged pages, operationRef on continuation forms and a real
+new-password form. A NEW bounded Pi slice20260925-151734-0d6456f9 is running from
+f581b3a0, Pro/high,180 replies/4repairs, with explicit non-overlapping Web page,
+form and Action ownership. This is a distinct UI outcome, not a reset of the
+old task accounting. Parent owns receipt/backend/native changes. Fixed pending
+ACK returns select the existing Settings password/link continuation pages;
+password completion must request full-document fixed /desktop-auth/check-result,
+which triggers only a native paired read and final ACK. Ordinary browser
+fallback returns to Settings. StageB application/store/primary-entry recovery
+remains separately OPEN; next-stage handoff is in task artifacts.
+
+No PR, merge, production deployment or release. Fetch confirms origin/main
+still6cad31f4. Developer ID credential preparation remains complete. Live Apple
+Account sign-in checkpoint is still unanswered. Storage122GiB, shared devices
+all shutdown; no standard PrimaryLoginStores access or installed app launch in
+parent transport probes. Current parent HTTP44379 runs the bounded transport
+candidate against only the disposable chain database.
