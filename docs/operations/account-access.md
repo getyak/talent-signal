@@ -43,6 +43,10 @@ separate request. Expired, replayed, or over-attempted codes fail generically.
 Delivery uses the server-configured Resend adapter (`RESEND_API_KEY`,
 `RESEND_FROM_EMAIL`, `POST https://api.resend.com/emails`) with a timeout,
 sanitized errors and idempotency keys. Tests inject an isolated mail sink.
+Both deployment Compose files pass these server-only settings to the API. Set
+`AUTH_VERIFICATION_BASE_URL` to the Web HTTPS origin for confirmation links;
+otherwise the first allowed origin is used. Keep password registration disabled
+until the mail transport and an authorized recipient have been verified.
 Production never returns or logs verification codes and never pretends an
 unconfigured or failed transport succeeded: it fails with an honest
 `EMAIL_DELIVERY_UNAVAILABLE`/`EMAIL_DELIVERY_FAILED` state and no account is
