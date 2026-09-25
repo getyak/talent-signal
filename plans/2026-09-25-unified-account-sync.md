@@ -38,11 +38,12 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
    unverified password email claims and the design now requires verification.
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
-3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 8 review failed on real consumer paths and disconnected
-   primary-login store ownership; repair9 was interrupted for app-bootstrap isolation and concrete
-   composition guidance; repair10 is now running with the reviewed composition. Live provider flows
-   remain pending; no phase2 implementation is integrated.
+3. Active: parent Stage A transport fixes have bounded native and real
+   HTTP/PostgreSQL proof on `codex/account-sync-transport-r41` at `4f856555`.
+   Pi Settings continuation slice `20260925-151734-0d6456f9` is running repair1
+   after the actual browser proved that Server Action redirects do not trigger
+   native main-document interception. Stage B application/primary-entry wiring
+   remains open under accepted ADR0021. No phase2 source is integrated here yet.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
    and review; no automatic database merge during implementation.
@@ -54,7 +55,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 and frozen r33 passed; r35 clock regression and r36 primary/target/store blockers independently confirmed; repair10 running |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 accepted; r41 credential transport and default-timer corrections verified; rendered Settings continuation and Stage B remain open |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -1225,3 +1226,42 @@ Account sign-in checkpoint is still unanswered. Storage122GiB, shared devices
 all shutdown; no standard PrimaryLoginStores access or installed app launch in
 parent transport probes. Current parent HTTP44379 runs the bounded transport
 candidate against only the disposable chain database.
+
+
+### Actual navigation boundary and transport closure — 15:50 local
+
+Parent transport branch4f856555 preserves formal independent before/after
+reviews and six real HTTP/PostgreSQL cases under docs/evaluations/account-sync.
+Exact native controller8/8 and an additional production-default timer2/2 pass;
+the latter uses real Task scheduling and no injected clock/scheduler. Focused
+Web182/182, backend82/82, the final two added backend receipt assertions,
+typechecks, docs and native build-for-testing pass. No TEST_HOST/WK app was
+launched by these checks; StageB bootstrap isolation is still required.
+
+A minimal actual Next16.3.4/React19.2.8 browser experiment proved that hydrated
+Server Action redirect to a fixed Route Handler produces an RSC fetch
+(dest=empty/cors), following the ordinary fallback before native main-frame
+interception. A plain anchor produces document/navigate as required. This
+corrects the parent initial Settings contract's loose use of “redirect”.
+The safe receipt is next-full-document-handoff-r41.json; no credentials,
+provider, database or product mutation was involved. Temporary port4614 and
+its browser tab were closed after proof.
+
+The same Pi Settings task was stopped at47 replies and resumed as repair1
+with one consolidated correction: all actual native Settings Action results
+must lead client forms to a full-document fixed handoff, and unknown password
+completion needs a real check-result action with resubmission blocked. Frozen
+provider/model/session and cumulative accounting are preserved. StageB accepted
+design already requires the same full-document boundary.
+
+Independent native reviewer is preparing actual TEST_HOST/host acceptance and
+a private xctestrun transformer. Local Xcode documentation confirms unit-test
+CommandLineArguments targets the TEST_HOST; UI target arguments are distinct.
+Existing check.sh does not inject isolated args and will be in the next Pi
+scope. Production account state/preferences remain untouched.
+
+Fetch still confirms main6cad31f4 with its successful CI; no candidate CI/PR,
+merge or deployment exists. MACOS_RELEASE_MODE remains unset (preview default)
+until coordinated signed delivery. The owner has been asked for a real test
+mail recipient, because sandbox sender configuration alone is not delivery
+proof. The earlier iOS Apple Account sign-in checkpoint is still pending.
