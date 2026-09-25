@@ -675,3 +675,36 @@ replies,5 repairs,7200 seconds per attempt. Parent independently froze the new
 61-file native implementation as r27 for review while Pi repairs backend/Web.
 No phase2 code is integrated, and no live OAuth success or production/provider
 change is claimed. The user Apple Account sign-in checkpoint remains pending.
+
+### 2026-09-25 11:35 native controller and WebKit response boundary
+
+Independent r27 native review covers61/61 hash-matched files from the
+turn343–360 implementation, not a final Pi candidate. It finds six P1 covering
+owned redirect navigation, premature ACK completion, diverging generation
+counters, unconnected result recovery, missing absolute deadline and ambiguous
+window teardown. Parent compiled the exact controller plus a byte-identical
+WorkspaceOrigin excerpt and executed four counterexamples, all failing with
+positive controls: second navigation ownership, ACK response not yet delivered,
+injected deadline enforcement and close after consume dispatch. The probe uses
+a controlled browser factory/navigation objects, not a real WK or provider UI.
+Actual CLI invocation also confirms the required bare ephemeral flag is ignored
+by the host's defaults reader although the unused arguments helper accepts it.
+See native-r27-review.md, native-controller-r27.json and native-build-launch-r27.json.
+
+A separate bounded WebKit experiment answers the response-transport question.
+Actual WKNavigationResponse exposes a correlated200 HTML receipt; cancelling
+its document rendering still lets the next WK ACK POST carry the HttpOnly
+cookie set by that response. An allow-render control passes; stale correlation
+and HTTP500 produce no ACK. Four cases and six loopback HTTP requests support
+this narrow header-receipt transport, without a JS credential bridge or cookie
+copy. Policy cancellation actually emits WebKit error102 here, so product
+handling must fence the exact intentional navigation instead of assuming only
+NSURLErrorCancelled. The fixture server and accessory CLI were precisely
+terminated after preserving results; NSApplication.stop alone did not promptly
+exit that disposable wrapper. No claim is made about product lifecycle or live
+ASWebAuthenticationSession. See wk-receipt-boundary-r28.json and binding.
+
+The response contract and the distinction between pending-continuation ACK and
+actual credential completion are being independently reviewed before the next
+consolidated Pi feedback. Pi repair4 remains active; r27 findings are not yet
+closed or integrated. No production/provider/runtime configuration changed.
