@@ -523,3 +523,59 @@ mutation. Six new result tests plus ten existing Action/component tests pass.
 The UI reports current connected status without claiming that a query parameter
 proves this operation completed. These parent deltas must be preserved when
 integrating Pi's independently edited Web files. No phase2 source is integrated.
+
+### 2026-09-25 10:27 immutable backend snapshot and counterexamples
+
+To review completed backend work while Pi continued Web/native, parent captured
+451 backend/contracts/architecture files with unchanged before/after bytes and
+committed the isolated snapshot as f4143338 in the managed worktree
+`/Users/cubxxw/.codex/worktrees/account-sync-backend-proof-r22/talent-signal`.
+The snapshot has its own dependencies and a fresh disposable database
+account_sync_desktop_parent_r20 migrated through085. It is not merged into the
+parent and is not the final Pi revision. Final source hashes must be compared.
+
+Backend typecheck and61/61 existing desktop/identity tests passed. Parent's two
+independent real-PostgreSQL/public-route probes also passed: an unverified Apple
+email hint cannot reserve ownership, and a real revocation committed after the
+exact session admission read prevents a new login session. The latter includes
+a successful authenticated control, a matched original session/token hash and
+specific401 SESSION_INVALID, with unchanged session count.
+
+Three additional independent probes failed and prevent integration:
+- Removing password via a provider current round fails at public prepare400.
+- Pending result reveals the original credential attempt secret to anonymous,
+  other-account and revoked-original callers that retain pairing/verifier;
+  anonymous/other-account acknowledgment also succeeds. This violates original
+  actor/session continuity; it is not claimed as proof of account takeover.
+- A normal password-first grant with client:talent-signal-web origin fails409
+  in desktop target consume, which hard-codes client:talent-signal-desktop.
+  This uses a valid idempotent Apple target reassertion and production password
+  step-up; it is not a visible new-provider button or live OAuth test.
+
+Receipts: desktop-login-pg-r22.json and
+desktop-credential-counterexamples-r22.json. Independent review is finishing
+the exact backend defects and missing deadline/cancellation cases for repair3.
+No production state changed and no phase2 code has been integrated.
+
+### 2026-09-25 10:36 repair3 dispatch
+
+Independent backend review is complete at the immutable r22 snapshot: five P1,
+no P0. The report is preserved at
+`docs/evaluations/account-sync/backend-r22-review.md`. In addition to the three
+executed counterexamples, source review found proof-deadline renewal and
+cancellation leaving an unused credential grant redeemable. Those two require
+parent dynamic confirmation; they are not yet labeled executed failures.
+
+Parent officially cancelled Pi repair2 at283 cumulative replies and resumed
+the same task20260925-073216-41f71cc2 with repair3, preserving the frozen
+provider/model, session, worktree and600-reply/5-repair limits. Feedback adds
+exact regression sequences, current-ack ordering, ordinary/desktop lock-order
+collision, real first-password completion and malformed-request coverage. It
+also identifies parent6e1f795c Web regression fixes and64600f56 transcript dedup
+that must survive integration. A process-only ephemeral ASWebAuthenticationSession
+flag is requested for isolated live acceptance; no saved preference or
+provider/production mutation is authorized.
+
+The real Apple device-account checkpoint remains pending. Parent continues
+independent disposable-PostgreSQL deadline/cancellation probes while Pi owns
+implementation. Phase2 has not been integrated or accepted.
