@@ -1057,3 +1057,25 @@ Parent is preparing two rendered login directions under task-owned artifacts
 and an independent read-only release-readiness review while Pi repairs the
 account flow. Parent will integrate visual changes after Pi's overlapping login
 source is stable; no parallel edits to Pi files. No release has been published.
+
+### Login visual implementation and real password check — 14:30 local
+
+The user's aesthetic request is implemented in four parent-owned presentation
+files (AccountContinuity, login page/CSS, AccountAccessForm headings). Independent
+r39 rendered A/B review selected A desktop / single-column mobile. Its requested
+readability/target corrections are applied. The running parent source on4612
+passed real synthetic-account password success, wrong-password recovery and
+logout; 320px DOM has no horizontal overflow. Light/dark, registration-switch
+and collision-copy screenshots are preserved in login-design-r39 with source
+hashes. Typecheck, focused ESLint and diff check pass. This does not replace
+phase-two native or live-provider acceptance. Preserve these presentation
+edits when integrating Pi's overlapping login page/form; do not overwrite them
+with the old snapshot. Next's generated temporary path changes were restored.
+
+Read-only release review confirms iOS11/11 credential names, no current valid
+Developer ID Application certificate/identity, and preserved matching CSR/key.
+The parent subsequently opened the existing Apple portal using native Chrome
+accessibility: team6RG2F8YY59 allows selecting Developer ID Application and
+shows the CSR/G2 form. No CSR was uploaded, certificate issued or private key
+exported. This establishes the interactive application path, not a role label
+or completed signing identity. Parent still owns all release mutations.

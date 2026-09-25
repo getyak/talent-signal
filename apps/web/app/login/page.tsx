@@ -23,6 +23,7 @@ import { getAuthAvailability, safeRedirectTarget } from "@/lib/auth-config";
 import { getGoogleOAuthCredentials } from "@/lib/server/google-oauth";
 import { signInWithApple, signInWithDefaultAccount, signInWithGoogle } from "./actions";
 import styles from "./login.module.css";
+import { AccountContinuity } from "./account-continuity";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -34,7 +35,7 @@ const oauthErrors: Record<string, string> = {
   AccessDenied: "登录已取消。准备好后，可以再试一次。",
   Configuration: "这次连接没有完成。已有账号请使用原登录方式，或稍后重试。",
   OAuthCallbackError: "这次登录没有完成，请重新连接。",
-  OAuthAccountNotLinked: "请使用最初创建这个账号的方式登录。",
+  OAuthAccountNotLinked: "这个邮箱已有账号。请使用原来的方式登录，再到设置中绑定新的登录方式。",
 };
 
 export default async function LoginPage({ searchParams }: {
@@ -115,6 +116,7 @@ export default async function LoginPage({ searchParams }: {
         </div>
       </div>
       <div className={styles.stage}>
+        <AccountContinuity />
         <div className={styles.content}>
           {verificationSecret ? (
             <VerificationConfirmForm secret={verificationSecret} redirectTo={callbackUrl} />
@@ -138,10 +140,10 @@ export default async function LoginPage({ searchParams }: {
               <button type="submit">使用开发测试账号 · {availability.defaultAccountName}</button>
             </form>
           )}
-          <p className={styles.privacy}>只带入你选择分享的内容。<br />个人资料可以稍后补充。</p>
+          <p className={styles.privacy}>同一账号，联系人与会话自动同步。</p>
         </div>
       </div>
-      <footer className={styles.footer}>TALENT SIGNAL <span>让每一次连接，都有来处。</span></footer>
+      <footer className={styles.footer}>只带入你选择分享的内容。</footer>
     </main>
   );
 }

@@ -46,8 +46,8 @@ export function AccountAccessForm({ callbackUrl, registrationEnabled, initialMod
   return (
     <section aria-labelledby="sign-in-title">
       <header className={styles.heading}>
-        <p className={styles.eyebrow}>你的关系工作台</p>
-        <h1 id="sign-in-title">{register ? "从你开始。" : "继续，保持连接。"}</h1>
+        <p className={styles.eyebrow}>{register ? "你的关系工作台" : "欢迎回来"}</p>
+        <h1 id="sign-in-title">{register ? "从你开始。" : "登录你的工作台"}</h1>
         <p>{register ? "先创建账号，其他的慢慢了解。" : "重要的人与对话，都在这里。"}</p>
       </header>
       {notice && <p className={styles.error} role="alert">{notice}</p>}
