@@ -147,7 +147,9 @@ describe("settings sign-in methods", () => {
     // A bare completion flag without method verification proves nothing.
     expect(verified).toContain("请核对下方登录方式的实际状态");
     const failed = renderToString(<AccountSignInMethods initial={settings()} linkStatus="error" />);
-    expect(failed).toContain("这次操作没有完成");
+    expect(failed).toContain("无法确认这次操作的结果");
+    expect(failed).not.toContain("没有完成");
+    expect(verified).not.toContain("操作已完成");
     expect(failed).not.toContain("账号没有任何更改");
     expect(failed).toContain("请核对下方登录方式的实际状态");
   });

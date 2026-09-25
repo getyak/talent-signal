@@ -509,7 +509,7 @@ export function renderedScopeMatchesOperation(
   scope: RenderedOperationScope | null,
 ): boolean {
   if (!operation || !scope) return false;
-  if (scope.operationRef && scope.operationRef !== operation.ref) return false;
+  if (scope.operationRef !== operation.ref) return false;
   return (
     scope.accountId === operation.accountId &&
     scope.userId === operation.userId &&

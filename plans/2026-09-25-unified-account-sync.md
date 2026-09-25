@@ -497,3 +497,29 @@ checks the exact live initiating row/token hash at the admission pause, demands
 the specific revoked-session rejection and preserves database evidence before
 assertions. The alias case also confirms the staged email remains unverified.
 The strengthened harness is still unexecuted until repaired source freezes.
+
+### 2026-09-25 10:16 credential result and exact-form regression
+
+The user has not yet confirmed Apple Account sign-in. The900-second manual
+guard ended normally and stopped only task-booted Primary iPhone, preserving
+device data. No live Apple token reached the isolated backend. Resume the same
+device after the user's response; do not treat the pending request as approval
+or provider success.
+
+Parent found that the exported completeStagedUnlink Server Action caught Next's
+real success redirect and replaced it with an error redirect. A new focused
+regression uses real next/navigation control flow and real staged-cookie
+seal/read. Two failures before the fix proved the redirect problem and false
+"no effect" copy after a lost password response. Moving success redirect outside
+the catch and labeling uncertain responses truthfully fixes both. This tests
+the exported Action, not a currently visible unlink form or the provider
+callback's separate completion path.
+
+The same staged scope helper also accepted a missing operationRef. A separate
+counterexample proved the request could consume a staged unlink without that
+ref. It now requires exact equality; the normal staged forms already include
+it. Missing/old refs and sibling-session requests all refuse before a backend
+mutation. Six new result tests plus ten existing Action/component tests pass.
+The UI reports current connected status without claiming that a query parameter
+proves this operation completed. These parent deltas must be preserved when
+integrating Pi's independently edited Web files. No phase2 source is integrated.

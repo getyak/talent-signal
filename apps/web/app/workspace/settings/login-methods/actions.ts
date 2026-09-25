@@ -88,9 +88,9 @@ const failure = (error: unknown): LoginMethodActionState => {
     if (error.code === "CREDENTIAL_ATTEMPT_INVALID" || error.code === "CREDENTIAL_ATTEMPT_STALE") {
       return { error: "这次操作已过期或已变化。请刷新页面后重新开始。" };
     }
-    return { error: "暂时无法完成这次更改，账号没有被修改。可以重试或稍后再试。" };
+    return { error: "暂时无法确认这次更改的结果。请核对结果，再决定是否重新验证。" };
   }
-  return { error: "网络不稳定，更改未生效。恢复连接后可以重试。" };
+  return { error: "网络不稳定，暂时无法确认更改是否生效。请恢复连接后核对结果，再决定是否重新验证。" };
 };
 
 /** Direct password-owner step-up: set or change the account password. */
@@ -484,11 +484,12 @@ export async function completeStagedUnlink(form: FormData): Promise<void> {
       attempt_secret: attempt.attempt_secret,
     });
     await clearStagedAuth();
-    redirect("/workspace/settings?link=done");
   } catch {
     await clearStagedAuth();
     redirect("/workspace/settings?link=error");
   }
+  // Next's success redirect throws control flow; it is not a failed mutation.
+  redirect("/workspace/settings?link=done");
 }
 
 /**
