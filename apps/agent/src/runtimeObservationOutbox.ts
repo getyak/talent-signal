@@ -289,7 +289,7 @@ export class RuntimeObservationOutbox {
       let entry = await readJSON<Entry>(this.path(id));
       const existing = await readJSON<Tombstone>(this.tombstonePath(id));
       if ((entry && (entry.receipt.endpoint !== this.policy.endpoint || entry.receipt.workspace !== this.policy.workspace
-        || entry.receipt.project !== this.policy.project)) || (existing && existing.policy_digest !== observationHash(this.policy))) {
+        || entry.receipt.project !== this.policy.project)) || (existing && !entry && existing.policy_digest !== observationHash(this.policy))) {
         throw new Error("OPIK_RUNTIME_TARGET_MISMATCH");
       }
       const spanIDs = [...new Set([...(existing?.span_ids ?? []), ...(entry ? this.observations(entry).flatMap((item) => item.spans.map((span) => span.id)) : []),
@@ -323,7 +323,10 @@ export class RuntimeObservationOutbox {
         let tombstone = await readJSON<Tombstone>(this.tombstonePath(id));
         if (entry && (entry.receipt.endpoint !== this.policy.endpoint || entry.receipt.workspace !== this.policy.workspace
           || entry.receipt.project !== this.policy.project)) throw new Error("OPIK_RUNTIME_TARGET_MISMATCH");
-        if (tombstone && tombstone.policy_digest !== observationHash(this.policy)) throw new Error("OPIK_RUNTIME_TARGET_MISMATCH");
+        // A stored receipt proves the exact deletion destination above. Scope
+        // changes cannot cancel an existing cleanup obligation; content export
+        // still requires its original complete policy. Orphan tombstones stay strict.
+        if (tombstone && !entry && tombstone.policy_digest !== observationHash(this.policy)) throw new Error("OPIK_RUNTIME_TARGET_MISMATCH");
         if (!tombstone && (!entry || Date.parse(entry.receipt.retention_expires_at) > now)) {
           await this.locked(id, async () => {
             await this.purgeContentFiles(id, false);

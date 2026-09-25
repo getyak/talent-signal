@@ -285,6 +285,45 @@ describe("private runtime observation", () => {
     const redirected = new RuntimeObservationOutbox(root, { ...policy, project: "different-project" }, transport);
     await expect(redirected.flush()).rejects.toThrow("TARGET_MISMATCH"); expect(transport.retain).not.toHaveBeenCalled();
   });
+  it("finishes existing deletion after source scope changes without exporting old content", async () => {
+    const retain=vi.fn(),remove=vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
+    const {root,outbox}=await setup({retain,remove}),value=await observation();
+    try {
+      await outbox.enqueue(value);await outbox.flush();await outbox.deleteRun(context);
+      const expanded=new RuntimeObservationOutbox(root,{...policy,source_workspace_ids:[...policy.source_workspace_ids,"new-account"]},{retain,remove});
+      await expanded.flush();
+      expect((await expanded.status()).deleted).toBe(1);
+      await expanded.deleteRun(context);await expanded.flush();
+      expect(retain).toHaveBeenCalledOnce();
+      await expect(expanded.enqueue(value)).rejects.toThrow("POLICY_MISMATCH");
+    } finally {await fs.rm(root,{recursive:true,force:true});}
+  });
+  it.each([{endpoint:"http://localhost:5174/api"},{workspace:"other"},{project:"other"}])("rejects changed deletion target %j",async changed=>{
+    const {root,outbox}=await setup(),value=await observation();
+    try {
+      await outbox.enqueue(value);await outbox.flush();await outbox.deleteRun(context,true);
+      const remove=vi.fn(),redirected=new RuntimeObservationOutbox(root,{...policy,...changed},{retain:vi.fn(),remove});
+      await expect(redirected.flush()).rejects.toThrow("TARGET_MISMATCH");
+      await expect(redirected.deleteRun(context)).rejects.toThrow("TARGET_MISMATCH");
+      expect(remove).not.toHaveBeenCalled();
+    } finally {await fs.rm(root,{recursive:true,force:true});}
+  });
+  it("requires the frozen digest for orphan tombstones and pending content",async()=>{
+    const {root,outbox}=await setup(),value=await observation();
+    try {
+      await outbox.enqueue(value);await outbox.flush();await outbox.deleteRun(context,true);
+      await fs.unlink(join(root,`${value.id}.json`));
+      const transport={retain:vi.fn(),remove:vi.fn()};
+      const expanded=new RuntimeObservationOutbox(root,{...policy,source_workspace_ids:[...policy.source_workspace_ids,"new-account"]},transport);
+      await expect(expanded.flush()).rejects.toThrow("TARGET_MISMATCH");
+      await expect(expanded.deleteRun(context)).rejects.toThrow("TARGET_MISMATCH");
+      expect(transport.remove).not.toHaveBeenCalled();
+      await fs.unlink(join(root,`${value.id}.json.tombstone`));
+      await outbox.enqueue(value);
+      await expect(expanded.flush()).rejects.toThrow("TARGET_MISMATCH");
+      expect(transport.retain).not.toHaveBeenCalled();
+    } finally {await fs.rm(root,{recursive:true,force:true});}
+  });
   it("requires full trace and child readback before retained receipts, and disables redirects", async () => {
     const value = await observation(); const stored = new Map<string, Record<string, unknown>>();
     const fetcher = vi.fn(async (url, init) => {

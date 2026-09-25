@@ -116,6 +116,9 @@ use measured stage timings and timeout rates before tuning it further.
 Local product capture and native Opik export are separate. Opik requires the
 account in `TALENT_SIGNAL_OPIK_RUNTIME_POLICY`, a runtime reload, and actual
 request/destination readback; a healthy endpoint alone is insufficient.
+Existing deletion receipts continue at their exact endpoint/workspace/project
+after account-scope changes. Orphan tombstones and old full-content exports still
+require the original frozen policy; never rewrite their policy to resend them.
 See the [incident evidence](../evaluations/2026-09-25-conversation-diagnostics/README.md).
 
 ## Verification

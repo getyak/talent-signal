@@ -45,3 +45,20 @@ probe confirmed write, destination readback and deletion readback with zero mode
 An isolated disposable local PostgreSQL container owns test data; remove it after
 delivery and preserve concise evidence before removing registered test artifacts.
 Pi delegation produced no source edits after a bounded attempt; parent took over.
+
+## Deployment follow-through
+
+Revision `27d30e5a` is healthy in the internal API; the affected account policy
+and 180000 ms deadline are loaded. Synthetic font-free image admission took
+35 ms and completion 13.51 s. Original byte hash matched, the canonical answer
+and both Ark/Claude LLM spans were visible through the authenticated monitor API.
+Opik trace `b9a0e855-c2a5-7710-ab37-487050691f98` returned HTTP 200 with the same
+product run `d75e0348-4f6d-4788-b7ab-18b1c915195d` and expected synthetic answer.
+The probe's first receipt selector used native run identity instead of projection
+source identity; independent destination readback corrected the test harness.
+
+Deployment exposed old deletion tombstones whose full policy digest changed
+when account scope expanded. Preserve exact destination checks, but permit
+existing same-target deletion receipts to finish their cleanup obligation.
+29 observation tests pass; independent review confirms orphan tombstones and
+old pending content remain strict. Final image and post-cleanup readback pending.
