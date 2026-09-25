@@ -1,7 +1,7 @@
 import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
 import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
 import { loadAgentResponsePreference } from "./agentPreferences.js";
-import type { AgentProviderInputPart, RuntimeObservationContext } from "@talent-signal/agent";
+import { claudeHarnessInterruptionCode, type AgentProviderInputPart, type RuntimeObservationContext } from "@talent-signal/agent";
 import type { HarnessContinuationFactory } from "@talent-signal/agent";
 import { createHarnessContinuationFactory } from "./harnessSessions.js";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
@@ -67,6 +67,8 @@ export interface UnscopedChatExecution {
   conversationSources?: AgentSessionChatSource[];
   previousTaskIDs: string[];
   remoteStatus: "agent_completed" | "completed" | "disabled" | "fallback";
+  /** Bounded operator diagnostic; never a raw provider error or user content. */
+  remoteFailureCode?: "MODEL_RUN_TIMEOUT";
   providerResult: RemoteChatAnswerResult | null;
   agentProviderResult: {
     providerID: string;
@@ -206,6 +208,7 @@ export async function executeUnscopedChatTask(input: {
   let remoteStatus: UnscopedChatExecution["remoteStatus"] = input.provider
     ? "fallback"
     : "disabled";
+  let remoteFailureCode: UnscopedChatExecution["remoteFailureCode"];
   let block: ChatResponseBlock;
   let agentEvent: UnscopedChatTaskResponse["agent_event"] = null;
   let memoryProposalRef:
@@ -278,7 +281,11 @@ export async function executeUnscopedChatTask(input: {
         proposedSessionTitle = providerResult.session_title ?? null;
         remoteStatus = "completed";
       }
-    } catch {
+    } catch (error) {
+      if (input.provider.providerId === "claude-agent-sdk" &&
+        ["WORKSPACE_CONVERSATION_TIMEOUT", "CLAUDE_HARNESS_TIMEOUT"].includes(claudeHarnessInterruptionCode(error))) {
+        remoteFailureCode = "MODEL_RUN_TIMEOUT";
+      }
       providerResult = null;
       agentProviderResult = null;
       if (input.provider.providerId === "claude-agent-sdk" || input.signal?.aborted) {
@@ -335,6 +342,7 @@ export async function executeUnscopedChatTask(input: {
       created_at: (input.createdAt ?? new Date()).toISOString(),
     },
     remoteStatus,
+    ...(remoteFailureCode ? { remoteFailureCode } : {}),
     providerResult,
     agentProviderResult,
   };

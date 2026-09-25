@@ -24,7 +24,19 @@ describe("unscoped Agent conversation", () => {
     });
     expect(answer).toHaveBeenCalledOnce();
     expect(execution.remoteStatus).toBe("fallback");
+    expect(execution.remoteFailureCode).toBeUndefined();
     expect(execution.body.external_effects).toEqual([]);
+  });
+
+  it("retains only a bounded timeout code from an SDK failure", async () => {
+    const answer = vi.fn(async () => { throw new Error("WORKSPACE_CONVERSATION_TIMEOUT"); });
+    const execution = await executeUnscopedChatTask({ request,
+      provider: { providerId: "claude-agent-sdk", model: "synthetic", supportsImageInput: true, answer },
+    });
+    expect(answer).toHaveBeenCalledOnce();
+    expect(execution.remoteStatus).toBe("fallback");
+    expect(execution.remoteFailureCode).toBe("MODEL_RUN_TIMEOUT");
+    expect(JSON.stringify(execution.body)).not.toContain("WORKSPACE_CONVERSATION_TIMEOUT");
   });
 
   it("loads canonical same-scope dialogue before answering a follow-up", async () => {

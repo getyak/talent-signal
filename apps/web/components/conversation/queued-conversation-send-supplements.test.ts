@@ -24,7 +24,13 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { writeConversationMessage } from "@/lib/conversation-local";
-import { QueuedConversation } from "./queued-conversation";
+import { QueuedConversation, queueFailureText } from "./queued-conversation";
+
+it("explains a bounded timeout without exposing provider detail", () => {
+  expect(queueFailureText("MODEL_RUN_TIMEOUT", true)).toContain("图片分析超时");
+  expect(queueFailureText("MODEL_RUN_TIMEOUT", false)).toContain("消息已保留");
+  expect(queueFailureText("MODEL_RUN_FAILED", true)).toBe("上次未完成，请重试或移除");
+});
 
 const SCOPE = "b".repeat(64);
 const SESSION = "11111111-1111-4111-8111-111111111111";

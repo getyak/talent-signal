@@ -569,7 +569,12 @@ export class ConversationQueueRunner {
           return;
         }
         if (execution.remoteStatus === "fallback") {
-          await this.finalizeRetained(fence, "MODEL_RUN_FAILED", { auth, claimed, partialText: previewText });
+          const failureCode = execution.remoteFailureCode ?? "MODEL_RUN_FAILED";
+          this.options.logger.warn(
+            { queue_entry_id: claimed.entryId, failure_code: failureCode },
+            "conversation queue model run did not complete",
+          );
+          await this.finalizeRetained(fence, failureCode, { auth, claimed, partialText: previewText });
           return;
         }
         const result = serializedResult(
