@@ -15,17 +15,18 @@ paths=(
 
 case "$path_set" in
   "") ;;
-  --ci-files)
-    paths+=(
+  --ci-files|--pr-files)
+    # Simulator checks do not exercise signing, upload, or Ruby dependencies.
+    # Keep those inputs in the publication classifier below instead.
+    paths=(
+      apps/ios
+      scripts/ios
       .github/workflows/ci.yml
-      .github/workflows/release-ios.yml
-      .github/workflows/security.yml
       scripts/ci/has-ios-changes.sh
+      scripts/ci/ios-ci-efficiency.test.mjs
       scripts/ci/ios-release-policy.test.mjs
-      scripts/ci/next-ios-version.sh
       scripts/ci/testflight-release-receipt.cjs
-      scripts/ci/wait-for-testflight-build.mjs
-      scripts/ci/test-next-ios-version.sh
+      ':(exclude,glob)**/*.md'
     )
     ;;
   --release-files)
@@ -48,6 +49,14 @@ if [ -z "$base_sha" ] ||
   ! git cat-file -e "${head_sha}^{commit}" 2>/dev/null; then
   printf 'true\n'
   exit 0
+fi
+
+if [ "$path_set" = "--pr-files" ]; then
+  # Compare only the PR's changes, not unrelated changes added to its base.
+  if ! base_sha="$(git merge-base "$base_sha" "$head_sha")"; then
+    printf 'true\n'
+    exit 0
+  fi
 fi
 
 if git diff --quiet "$base_sha" "$head_sha" -- "${paths[@]}"; then

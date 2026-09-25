@@ -12,7 +12,7 @@ pull request / push
         |      docs + workflow policy
         |      web lint/typecheck/test/build
         |      backend typecheck/test/build
-        |      iOS Release build + unit tests + bounded UI smoke when relevant
+        |      iOS unit tests + tiered build/UI checks when relevant
         |      macOS Hybrid build and native boundary checks when relevant
         |
         +--> Security required
@@ -117,19 +117,35 @@ Fastlane, signing dependency, versioning, classifier, receipt policy, and
 release-workflow changes. A change to the release decision itself therefore
 receives the same real TestFlight proof as an iOS product change.
 
-The blocking iOS job compiles the Release configuration, runs the full unit
-suite, and executes the small no-external-write UI set in
-`scripts/ios/ci-smoke-tests.txt`. This protects compilation, core navigation,
-explicit-action, language, accessibility, and retained-evidence boundaries
-without starting a fresh XCTest runner for every UI journey. Use the CI
-workflow's manual `full` scope for the complete isolated UI regression suite;
-the default manual and automatic scope is `smoke`. Keep the smoke list bounded
-and move scenario expansion to full regression rather than silently restoring
-a long blocking gate.
+The iOS job uses the host simulator architecture only (`arm64` on hosted
+`macos-26`), without changing the device archive or macOS distribution targets.
+Pull requests build Debug once, run all unit tests, and execute the five core
+journeys in `scripts/ios/ci-quick-tests.txt`. Main pushes retain the separate
+Release build and all ten journeys in `scripts/ios/ci-smoke-tests.txt`, including
+both large-text/dark-mode accessibility audits. Every UI journey still uses an
+isolated XCTest runner to contain known Simulator failures.
+
+Automatic checks stop after a failed test part, after the existing single
+retry for recognized Simulator failures. They preserve completed native results
+and partial bundles; a stopped suite is a failure, never complete coverage.
+Manual CI defaults to `smoke`, also offers `quick` and `full`, retains Release
+compilation, and continues collecting results after failures. Local checks
+retain Release compilation and default to the full suite. Explicit local
+`IOS_CHECK_RELEASE_BUILD=false` and `IOS_FAIL_FAST=true` select faster feedback.
+
+Simulator CI watches iOS product/build/test inputs and its own workflow and
+scope policy. Markdown documentation and release-only Fastlane, Ruby, upload,
+versioning, and release-workflow inputs do not independently trigger simulator
+work; their policy checks and publication classification remain separate.
+PRs compare against their merge base, so target-branch-only changes do not
+inflate scope. Missing revisions still require checks, and the main-branch
+cumulative trusted-receipt baseline described above remains in force. As a
+result, an unrelated main push still runs iOS checks when unverified/unreleased
+iOS changes remain; it must not bypass the pre-publication gate.
 
 Swift CodeQL still runs on relevant `main` pushes, the weekly Security run, and
 manual Security runs. It is not duplicated in pull-request latency because the
-blocking iOS Release compilation and tests already reject build failures, while
+blocking iOS Debug compilation and tests already reject build failures, while
 the main and scheduled scans preserve repository-wide Swift security analysis.
 
 The release job exchanges GitHub's OIDC token for a short-lived Infisical token,

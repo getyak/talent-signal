@@ -107,7 +107,7 @@ test("CI and release use explicit, shared iOS change sets", () => {
       "Change release workflow",
     );
     assert.equal(classify(temporaryDirectory, base, head), "false");
-    assert.equal(classify(temporaryDirectory, base, head, "--ci-files"), "true");
+    assert.equal(classify(temporaryDirectory, base, head, "--ci-files"), "false");
     assert.equal(
       classify(temporaryDirectory, base, head, "--release-files"),
       "true",
@@ -149,7 +149,7 @@ test("CI and release use explicit, shared iOS change sets", () => {
       "Change TestFlight processing policy",
     );
     assert.equal(classify(temporaryDirectory, base, head), "false");
-    assert.equal(classify(temporaryDirectory, base, head, "--ci-files"), "true");
+    assert.equal(classify(temporaryDirectory, base, head, "--ci-files"), "false");
     assert.equal(
       classify(temporaryDirectory, base, head, "--release-files"),
       "true",
@@ -208,7 +208,7 @@ test("iOS CI blocks on a bounded smoke suite and keeps full coverage explicit", 
   assert.match(iosJob[1], /timeout-minutes: 60/);
   assert.match(
     iosJob[1],
-    /IOS_UI_TEST_SCOPE: \$\{\{ inputs\.ios_test_scope \|\| 'smoke' \}\}/,
+    /IOS_UI_TEST_SCOPE:.*inputs\.ios_test_scope.*pull_request.*'quick'.*'smoke'/,
   );
   assert.match(ciWorkflow, /ios_test_scope:/);
   assert.match(ciWorkflow, /- smoke\n\s+- full/);
@@ -221,25 +221,27 @@ test("iOS CI blocks on a bounded smoke suite and keeps full coverage explicit", 
   assert.match(iosCheck, /Audit failed to complete in time/);
   assert.doesNotMatch(iosCheck, /rg --files-with-matches/);
 
-  const smokeTests = readFileSync(
-    join(repositoryRoot, "scripts/ios/ci-smoke-tests.txt"),
-    "utf8",
-  )
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#"));
-  assert.ok(smokeTests.length >= 5 && smokeTests.length <= 10);
+  for (const scope of ["quick", "smoke"]) {
+    const smokeTests = readFileSync(
+      join(repositoryRoot, `scripts/ios/ci-${scope}-tests.txt`),
+      "utf8",
+    )
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"));
+    assert.ok(smokeTests.length >= 5 && smokeTests.length <= 10);
 
-  const uiSources = [
-    "apps/ios/UITests/CandidateSignalUITests.swift",
-    "apps/ios/UITests/StandaloneOnboardingUITests.swift",
-  ].map((path) => readFileSync(join(repositoryRoot, path), "utf8"));
-  for (const selector of smokeTests) {
-    const method = selector.split("/").at(-1);
-    assert.ok(
-      uiSources.some((source) => source.includes(`func ${method}(`)),
-      `expected smoke selector ${selector} to exist`,
-    );
+    const uiSources = [
+      "apps/ios/UITests/CandidateSignalUITests.swift",
+      "apps/ios/UITests/StandaloneOnboardingUITests.swift",
+    ].map((path) => readFileSync(join(repositoryRoot, path), "utf8"));
+    for (const selector of smokeTests) {
+      const method = selector.split("/").at(-1);
+      assert.ok(
+        uiSources.some((source) => source.includes(`func ${method}(`)),
+        `expected smoke selector ${selector} to exist`,
+      );
+    }
   }
 });
 
