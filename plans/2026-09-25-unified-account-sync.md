@@ -40,7 +40,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
    repair 8 review failed on real consumer paths and disconnected
-   primary-login store ownership; consolidated repair9 is being prepared. Live provider flows
+   primary-login store ownership; consolidated repair9 is active. Live provider flows
    remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
@@ -53,7 +53,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 and frozen r33 passed; r35 clock regression and r36 primary/target/store blockers independently confirmed; repair9 pending |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 and frozen r33 passed; r35 clock regression and r36 primary/target/store blockers independently confirmed; repair9 active |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -969,3 +969,31 @@ Parent decision is to revert the unrequested partial runtime clock policy to
 r33, retain justified DB assertion improvements, and avoid claiming a complete
 clock-drift fix. Older shared expiry seams remain explicitly outside this
 bounded closure. No phase2 source is integrated or installed.
+
+### 2026-09-25 13:43 consolidated repair9 active
+
+Independent native/Web review confirms5 P1 groups: disconnected real store
+ownership/durability, swallowed primary-login redirects and incomplete client
+gates, inherited current-round context for target/recovery, mismatched native
+request-ref alphabet, and missing actual WK cancellation error/ownership routing.
+The reviewer ran the real Next redirect baseline and actual primary Actions
+with controlled Auth/provider responses: baseline passes; password/Google/Apple
+redirect propagation and valid native underscore-ref acceptance fail. Cookie
+effects in this probe are synthetic, not a live login. See native-web-r36-review.md,
+desktop-primary-login-r36.json and native-web-r36-binding.json. Additional
+semantic deadline/cancel and restart boundaries are explicitly source-only.
+
+Parent preserved repair8 ready520 and dispatched the same task/session as
+repair9 at05:43:05Z (pid37716). Feedback binds the backend clock regression,
+actual full target failures, A/B controller failure, real registry composition,
+primary Actions and producer/consumer transport contracts. Cumulative limits
+were explicitly extended to750 replies/9repairs after inspecting the failed
+ready candidate; provider/model remain MiMo Pro, no counters reset or silent
+billing fallback. The1,234 worker files still matched r36 before dispatch.
+Final native/Web report became available immediately after dispatch and is at
+the exact path already supplied in that feedback.
+
+Storage readback:127GiB free, all3 allowed simulators shutdown. Exit2 covers
+existing unrelated artifact warnings, not a new simulator violation. No cleanup
+or installed preferences were changed. Live Apple still awaits the original
+human Apple Account sign-in checkpoint; no new identity verification is inferred.
