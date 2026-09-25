@@ -39,7 +39,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 5 after native lifecycle and receipt findings. Live provider flows
+   repair 6 after native lifecycle and real-consumer findings. Live provider flows
    remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
@@ -52,7 +52,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; r29 backend 2 P1 remain; lock races verified; native lifecycle/receipt repair5 active |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; r29 backend 2 P1 remain; lock races verified; native lifecycle/receipt repair6 active |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -762,3 +762,38 @@ mid-repair snapshot r30 is under independent native review; it is not Pi's
 ready_for_review or an integrated candidate. Live Apple authentication still
 needs the device account checkpoint. No production/provider configuration or
 remote delivery state was changed.
+
+### 2026-09-25 12:10 r30 native review and repair6
+
+Pi repair5 reached ready_for_review at413 replies with repository checks green,
+but independent acceptance failed. Every94-file r30 snapshot hash still matched
+the ready worker, as did the three backend r29 key files. Full ready source is
+frozen as a41b154f in account-sync-relay-proof-r31 (1,225 files) before repair6;
+raw Pi summary/patch/checkpoint remains in macos-pi/repair5-ready.
+
+The independent native/Web report groups8P1 across response ownership and
+validation, late cookie writes, pending/final ACK, actual Settings continuation
+consumers, target entry, cancellation and original deadlines. Parent compiled
+the exact controller plus byte-identical WorkspaceOrigin and reproduced5/6
+failures: fractional-date parsing, actual response-object HTTP500 recovery,
+target deadline extension, committed consume skipping final ACK, and dropped
+unused-cancel authority. One corrected setPassword/password controlled-header
+recovery sequence passed, as did both actual ProcessInfo CLI launch cases.
+The initial wrong-intent positive fixture was preserved separately and is not
+acceptance evidence. No whole native app, WK, HTTP or live provider was involved
+in this controller probe. See native-web-r30-review.md, native-controller-r30.json
+and native-build-launch-r30.json.
+
+ADR0020 clarifies that a native provider-current flow needs its same-flow ACK,
+while password-first entry validates the existing Web password proof at backend
+prepare. Consumers must resolve the active frozen operation together with its
+flow-owned continuation; relay responses cannot restore a shared mutable cookie.
+Parent is separately adjudicating the ordinary-login cookie installation race
+across windows/stores; Pi must not invent a device registry or auth-cookie scheme.
+
+The same Pi task resumed repair6 with these exact failures and actual-consumer
+acceptance sequences. Cumulative repairs were explicitly extended from5 to8
+after inspecting the failed evidence; replies remain600 and each attempt7200s,
+with counters and frozen MiMo model retained. No phase2 source was integrated.
+Live Apple device-account checkpoint remains pending, and no production,
+provider, Tailnet, installed-app or remote delivery state changed.

@@ -190,10 +190,28 @@ ordinary Web behavior and its authority checks separate from this presentation
 transport. Receipt metadata is never backend authorization and contains no
 provider token, password, bearer session, pairing secret or verifier.
 
-Only after current-round acknowledgment may target start. Target gets fresh
-native state, verifier and generation while retaining the same credential
-attempt, current proof and absolute deadline. Late current success, error,
-cancel, timeout and navigation events cannot alter the new target round.
+When a flow uses a native current-provider round, only its confirmed pending
+acknowledgment opens that same flow's target round. A password-first flow has
+already proved the current password in the existing Web step-up and has no
+native current round to acknowledge. Its initial target prepare must validate
+the server-sealed password grant, original actor, intent, target and deadline
+before launching any provider browser. A process-global acknowledgment flag is
+not a substitute for either path.
+
+Target gets fresh native state, verifier and generation while retaining the
+same credential attempt, current proof and absolute deadline. Late current
+success, error, cancel, timeout and navigation events cannot alter the new
+target round. Each result and acknowledgment exchange captures the exact
+recovery context it sends; a retained current-flow request cannot be validated
+against a newer target attempt or acknowledged with the target's verifier.
+
+Relay responses write only their own flow/attempt continuation storage. The
+active frozen AuthOperation is resolved together with its matching continuation
+when rendering Settings or invoking the actual password/target consumer. A
+request-time match followed by a shared-cookie write is insufficient: a held
+response may arrive after a newer operation. A pending acknowledgment retains
+pairing for those later consumers; unknown password completion retains the
+same operation's recovery authority and never automatically replays the write.
 
 If the window closes and native verifier is lost, invalidate an uncommitted
 orphan and require fresh proof. A possibly committed result remains unconfirmed;
