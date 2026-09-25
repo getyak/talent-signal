@@ -12,6 +12,7 @@ on:
         default: smoke
         type: choice
         options:
+          - quick
           - smoke
           - full
       regression_case_id:
@@ -88,7 +89,11 @@ jobs:
             fi
           fi
 
-          ios="$(./scripts/ci/has-ios-changes.sh "$comparison_base" "$HEAD_SHA" --ci-files)"
+          path_set=--ci-files
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            path_set=--pr-files
+          fi
+          ios="$(./scripts/ci/has-ios-changes.sh "$comparison_base" "$HEAD_SHA" "$path_set")"
           echo "ios=$ios" >> "$GITHUB_OUTPUT"
           echo "iOS checks required: $ios"
 
@@ -447,8 +452,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
-    # Cold hosted builds reached AX5 after ~32 minutes. Keep both complete
-    # audit stages and native result upload within one bounded job.
+    # Main/manual retain release and accessibility coverage; PRs compile only
+    # Debug and run the quick set. Keep room for full diagnostic runs.
     timeout-minutes: 60
     steps:
       - name: Check out repository
@@ -458,16 +463,20 @@ jobs:
 
       - name: Build and test iOS
         env:
-          IOS_UI_TEST_SCOPE: ${{ inputs.ios_test_scope || 'smoke' }}
+          IOS_UI_TEST_SCOPE: ${{ inputs.ios_test_scope || (github.event_name == 'pull_request' && 'quick' || 'smoke') }}
+          IOS_CHECK_RELEASE_BUILD: ${{ github.event_name != 'pull_request' }}
+          IOS_FAIL_FAST: ${{ github.event_name != 'workflow_dispatch' }}
           RESULT_BUNDLE_PATH: ${{ github.workspace }}/build/ios/TestResults.xcresult
         run: ./scripts/ios/check.sh
 
       - name: Preserve failed test results
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ios-test-results-${{ github.run_id }}
-          path: build/ios/TestResults.xcresult
+          path: |
+            build/ios/TestResults.xcresult
+            build/ios/TestResults.parts
           if-no-files-found: ignore
           retention-days: 7
 
@@ -535,6 +544,7 @@ jobs:
       BACKEND_RESULT: ${{ needs.backend.result }}
       PHASE_ONE_RESULT: ${{ needs.phase-one.result }}
       IOS_RESULT: ${{ needs.ios.result }}
+      IOS_REQUIRED: ${{ needs.changes.outputs.ios }}
       MACOS_HYBRID_REQUIRED: ${{ needs.changes.outputs.macos_hybrid }}
       MACOS_HYBRID_RESULT: ${{ needs.macos-hybrid.result }}
     steps:
@@ -542,7 +552,11 @@ jobs:
         run: |
           test "$CHANGES_RESULT" = "success"
           test "$REPOSITORY_RESULT" = "success"
-          test "$IOS_RESULT" = "success" || test "$IOS_RESULT" = "skipped"
+          if [ "$IOS_REQUIRED" = "true" ]; then
+            test "$IOS_RESULT" = "success"
+          else
+            test "$IOS_RESULT" = "success" || test "$IOS_RESULT" = "skipped"
+          fi
 
           if [ "$MACOS_HYBRID_REQUIRED" = "true" ]; then
             test "$MACOS_HYBRID_RESULT" = "success"

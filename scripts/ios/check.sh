@@ -10,6 +10,18 @@ ios_automation_lock_owned="false"
 ios_backend_url="${TS_IOS_BACKEND_URL:-}"
 ios_fixture_database_url=""
 
+# CI chooses the tier explicitly; local verification retains release coverage.
+ios_ui_test_scope="${IOS_UI_TEST_SCOPE:-full}"
+ios_check_release_build="${IOS_CHECK_RELEASE_BUILD:-true}"
+ios_fail_fast="${IOS_FAIL_FAST:-false}"
+case "$ios_ui_test_scope" in quick|smoke|full) ;; *)
+  echo "IOS_UI_TEST_SCOPE must be quick, smoke or full." >&2; exit 2 ;;
+esac
+for flag in "$ios_check_release_build" "$ios_fail_fast"; do
+  case "$flag" in true|false) ;; *) echo "iOS check flags must be true or false." >&2; exit 2 ;; esac
+done
+ios_simulator_arch="$(uname -m)"
+
 check_script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
 # On a developer Mac the reusable session helper owns device selection and the
@@ -153,33 +165,42 @@ if [ -z "$ios_build_api_base64url" ]; then
   exit 2
 fi
 
-xcodebuild \
-  -jobs "${IOS_XCODE_JOBS:-4}" \
-  -project "$project_path" \
-  -scheme "$scheme_name" \
-  -configuration Release \
-  -destination "generic/platform=iOS Simulator" \
-  -derivedDataPath "$ios_derived_data" \
-  CODE_SIGNING_ALLOWED=NO \
-  "TALENT_SIGNAL_API_BASE_URL_BASE64URL=$ios_build_api_base64url" \
-  clean build
+verify_compiled_environment() {
+  local ios_compiled_info_plist="$ios_derived_data/Build/Products/$1-iphonesimulator/TalentSignal.app/Info.plist"
+  ios_compiled_api_base64url="$(
+    plutil -extract TalentSignalAPIBaseURLBase64URL raw -o - "$ios_compiled_info_plist"
+  )"
+  if [ "$ios_compiled_api_base64url" != "$ios_build_api_base64url" ]; then
+    echo "Compiled iOS Info.plist does not contain the selected API URL." >&2
+    exit 2
+  fi
+  ios_compiled_api_url="$(
+    node -e \
+      'process.stdout.write(Buffer.from(process.argv[1], "base64url").toString("utf8"))' \
+      "$ios_compiled_api_base64url"
+  )"
+  if [ "$ios_compiled_api_url" != "$ios_build_api_url" ]; then
+    echo "Compiled iOS API URL does not match the selected build environment." >&2
+    exit 2
+  fi
+}
 
-ios_compiled_info_plist="$ios_derived_data/Build/Products/Release-iphonesimulator/TalentSignal.app/Info.plist"
-ios_compiled_api_base64url="$(
-  plutil -extract TalentSignalAPIBaseURLBase64URL raw -o - "$ios_compiled_info_plist"
-)"
-if [ "$ios_compiled_api_base64url" != "$ios_build_api_base64url" ]; then
-  echo "Compiled iOS Info.plist does not contain the selected API URL." >&2
-  exit 2
-fi
-ios_compiled_api_url="$(
-  node -e \
-    'process.stdout.write(Buffer.from(process.argv[1], "base64url").toString("utf8"))' \
-    "$ios_compiled_api_base64url"
-)"
-if [ "$ios_compiled_api_url" != "$ios_build_api_url" ]; then
-  echo "Compiled iOS API URL does not match the selected build environment." >&2
-  exit 2
+if [ "$ios_check_release_build" = "true" ]; then
+  echo "iOS stage: Release build ($ios_simulator_arch)"
+  xcodebuild \
+    -jobs "${IOS_XCODE_JOBS:-4}" \
+    -project "$project_path" \
+    -scheme "$scheme_name" \
+    -configuration Release \
+    -destination "generic/platform=iOS Simulator" \
+    -derivedDataPath "$ios_derived_data" \
+    "ARCHS=$ios_simulator_arch" \
+    ONLY_ACTIVE_ARCH=YES \
+    CODE_SIGNING_ALLOWED=NO \
+    "TALENT_SIGNAL_API_BASE_URL_BASE64URL=$ios_build_api_base64url" \
+    clean build
+
+  verify_compiled_environment Release
 fi
 
 simulator_id="${IOS_SIMULATOR_ID:-}"
@@ -413,6 +434,8 @@ test_arguments=(
   -destination "platform=iOS Simulator,id=$simulator_id"
   -derivedDataPath "$ios_derived_data"
   -parallel-testing-enabled NO
+  "ARCHS=$ios_simulator_arch"
+  ONLY_ACTIVE_ARCH=YES
   "TS_IOS_BACKEND_URL=$TS_IOS_BACKEND_URL"
   "TS_IOS_EXPECT_REMOTE_CHAT=${TS_IOS_EXPECT_REMOTE_CHAT:-false}"
   "TS_IOS_RESPONSE_LOSS_PROXY_URL=$TS_IOS_RESPONSE_LOSS_PROXY_URL"
@@ -431,6 +454,7 @@ if [ -n "${IOS_ONLY_TESTING:-}" ]; then
     test_arguments+=(-resultBundlePath "$RESULT_BUNDLE_PATH")
   fi
   xcodebuild "${test_arguments[@]}" test
+  verify_compiled_environment Debug
   exit 0
 fi
 
@@ -438,7 +462,9 @@ fi
 # one process even when those journeys pass independently. Build once, execute
 # unit tests together, isolate every UI journey in a fresh runner, then merge
 # the native result bundles into one auditable full-suite artifact.
+echo "iOS stage: Debug build for testing ($ios_simulator_arch)"
 xcodebuild "${test_arguments[@]}" build-for-testing
+verify_compiled_environment Debug
 
 ios_result_parts_dir=""
 ios_result_parts_owned="false"
@@ -467,6 +493,18 @@ trap 'cleanup_ios_result_parts; cleanup_ios_helpers' EXIT
 declare -a ios_result_parts=()
 ios_suite_failed="false"
 ios_part_index=0
+
+preserve_ios_results() {
+  [ -n "${RESULT_BUNDLE_PATH:-}" ] || return 0
+  if [ "${#ios_result_parts[@]}" -eq 1 ]; then
+    cp -R "${ios_result_parts[0]}" "$RESULT_BUNDLE_PATH"
+  elif [ "${#ios_result_parts[@]}" -gt 1 ]; then
+    xcrun xcresulttool merge --output-path "$RESULT_BUNDLE_PATH" "${ios_result_parts[@]}"
+  else
+    echo "No native test results were produced." >&2
+    return 2
+  fi
+}
 
 is_retryable_simulator_failure() {
   local result_path="$1"
@@ -536,6 +574,7 @@ run_ios_test_part() {
   part_path="$ios_result_parts_dir/$(printf '%03d' "$ios_part_index")-$part_label.xcresult"
   part_arguments+=(-resultBundlePath "$part_path")
 
+  echo "iOS stage: $selector"
   if xcodebuild "${part_arguments[@]}" test-without-building; then
     :
   elif is_retryable_simulator_failure "$part_path"; then
@@ -552,6 +591,14 @@ run_ios_test_part() {
   fi
   if [ -d "$part_path" ]; then
     ios_result_parts+=("$part_path")
+  else
+    echo "Missing native results for $selector" >&2
+    ios_suite_failed="true"
+  fi
+  if [ "$ios_suite_failed" = "true" ] && [ "$ios_fail_fast" = "true" ]; then
+    echo "Stopping iOS checks after failure: $selector" >&2
+    preserve_ios_results
+    exit 65
   fi
 }
 
@@ -580,9 +627,8 @@ if [ "${#ios_ui_tests[@]}" -eq 0 ]; then
   exit 2
 fi
 
-ios_ui_test_scope="${IOS_UI_TEST_SCOPE:-full}"
-if [ "$ios_ui_test_scope" = "smoke" ]; then
-  ios_smoke_test_file="$repository_root/scripts/ios/ci-smoke-tests.txt"
+if [ "$ios_ui_test_scope" != "full" ]; then
+  ios_smoke_test_file="$repository_root/scripts/ios/ci-$ios_ui_test_scope-tests.txt"
   declare -a ios_smoke_tests=()
 
   while IFS= read -r ios_smoke_test; do
@@ -608,9 +654,6 @@ if [ "$ios_ui_test_scope" = "smoke" ]; then
     exit 2
   fi
   ios_ui_tests=("${ios_smoke_tests[@]}")
-elif [ "$ios_ui_test_scope" != "full" ]; then
-  echo "IOS_UI_TEST_SCOPE must be smoke or full, got: $ios_ui_test_scope" >&2
-  exit 2
 fi
 
 echo "iOS UI test scope: $ios_ui_test_scope (${#ios_ui_tests[@]} journeys)"
@@ -638,15 +681,7 @@ ruby -rjson -e '
     "skipped=#{totals.fetch("skipped")}"
 ' "${ios_result_parts[@]:1}"
 
-if [ -n "${RESULT_BUNDLE_PATH:-}" ]; then
-  if [ "${#ios_result_parts[@]}" -lt 2 ]; then
-    echo "Not enough result bundle parts were produced to merge." >&2
-    exit 2
-  fi
-  xcrun xcresulttool merge \
-    --output-path "$RESULT_BUNDLE_PATH" \
-    "${ios_result_parts[@]}"
-fi
+preserve_ios_results
 
 if [ "$ios_suite_failed" = "true" ]; then
   exit 65
