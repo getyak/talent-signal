@@ -39,8 +39,8 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 8 after native lifecycle and real-consumer findings, plus accepted
-   primary-login store ownership. Live provider flows
+   repair 8 review failed on real consumer paths and disconnected
+   primary-login store ownership; consolidated repair9 is being prepared. Live provider flows
    remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
@@ -53,7 +53,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; r33 backend review and 27/27 PG regressions pass; native/Web receipt, target/cancel and store ownership repair8 active |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 and frozen r33 passed; r35 clock regression and r36 primary/target/store blockers independently confirmed; repair9 pending |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -930,3 +930,42 @@ route, actual Settings consumers and ADR0021 production wiring. It preserves
 the successful5+2 Web slices and accepted backend81+27. No counters were reset
 or source integrated. Parent live-provider and final signed native acceptance
 remain open; the user Apple Account checkpoint is unchanged.
+
+### 2026-09-25 13:40 ready520 rejection on exact consumers
+
+Pi repair8 returned ready_for_review at520 replies. Its local checks report
+81 backend,1367 Web(+1skip),176 native(5skip), types/docs and a signed local
+candidate. Parent froze1,234 source files as r36 commits ee9ef2fa/3aa05014,
+including the worker architecture checker in the second commit. The five
+controlled-HTTP Web cases and two actual HTTP/PG password/drop-recovery cases
+still pass. The prior four target/cancel cases now pass3/4: password-first
+target prepare and both invalid-body cancellation cases close, while
+provider-first target prepare remains stale.
+
+Full target completion adds two failures beyond the earlier entry-only test:
+password-first prepare/approve succeeds but Web never resolves the server-sealed
+grant secret for target consume, causing backend409/Web303. Provider-first
+Action now redirects and seals a target round, but target resolution still
+requires operation.attempt which the relay does not write. Independent review
+confirms neither failure is a fixture omission of a legitimate native argument;
+the secret must remain sealed server-side. Downstream target role/ACK context
+are source-only gaps because execution stops earlier. Real visible target
+entry is not proven by directly invoking the Action. See target-r36-review.md.
+
+Actual compiled native controller also passes a fresh password-target prepared
+positive, then fails currentA prepared/callback/consume/ACK followed by targetB
+prepared: dispatch inherits the retained A attempt. This is Foundation response
+and controlled AS evidence, not actual WK. The registry helper still has no
+production host caller; real browsers keep the old deterministic origin store.
+Primary login redirect, request-ref alphabet and host cancellation review is
+being completed separately. See ready-r36-binding.json and bound receipts.
+
+Backend runtime was not preserved: new databaseNow uses transaction-start now().
+A real PG D-row lock crosses code expiry, after which r35 consumes and creates
+a user/session; r33 corresponding case410/zero writes. Both positive controls
+pass. Database timestamps prove the r35 ordering; app executedAt and DB clocks
+do not share a demonstrated timeline. See backend-r35-review.md and binding.
+Parent decision is to revert the unrequested partial runtime clock policy to
+r33, retain justified DB assertion improvements, and avoid claiming a complete
+clock-drift fix. Older shared expiry seams remain explicitly outside this
+bounded closure. No phase2 source is integrated or installed.
