@@ -797,3 +797,23 @@ after inspecting the failed evidence; replies remain600 and each attempt7200s,
 with counters and frozen MiMo model retained. No phase2 source was integrated.
 Live Apple device-account checkpoint remains pending, and no production,
 provider, Tailnet, installed-app or remote delivery state changed.
+
+### 2026-09-25 12:22 r31 actual Web consumer counterexamples
+
+On frozen repair5 a41b154f, five independent actual-consumer Web tests fail:
+invalid query/body correlation calls backend consume before400 (no cookie
+change observed); pending ACK deletes pairing so Result returns409; real
+set-password continuation leaves AuthOperation without its grant so the actual
+completion Action rejects it; password-first invokes embedded signIn; held A
+response writes overwrite B's legacy shared credential cookie while B's active
+operation and own continuation remain intact. External HTTP and Next cookie
+transport are controlled; this is not rendered UI, actual backend mutation or
+real HTTP delivery. The signIn stub intentionally throws, so only its invocation
+is claimed, not the resulting provider behavior.
+
+The independent review verified1,225 source hashes and11 execution-bound files.
+These tests substantiate existing repair6 findings; Pi was not interrupted just
+for their addition. Future held-A regression must validate the actual B consumer
+after shared-cookie removal; it must not require retention of the old global
+cookie implementation. See web-r31-consumer-review.md and
+desktop-web-consumers-r31.json.
