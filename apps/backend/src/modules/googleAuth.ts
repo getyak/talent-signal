@@ -3,10 +3,18 @@ import { CONTRACT_VERSION, ErrorResponseSchema, SessionResponseSchema } from "@t
 import { Type, type Static } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type { BackendConfig } from "../config.js";
 import { ApiError } from "../lib/apiError.js";
 import { sha256 } from "../lib/hash.js";
+import {
+  EmailClaimConflict,
+  createRealIdentity,
+  emailClaimConflictError,
+  newAccountSlug,
+  providerSubjectHash,
+  reserveVerifiedEmail,
+} from "./accountIdentity.js";
 import { insertSession } from "./auth.js";
 
 const ChallengeRequest = Type.Object({ client_label: Type.String({ minLength: 1, maxLength: 80 }) }, { additionalProperties: false });
@@ -46,7 +54,7 @@ function audiences(config: BackendConfig): string[] {
   return config.googleSignInAudiences;
 }
 
-export async function createGoogleChallenge(pool: Pool, config: BackendConfig, clientLabel: string) {
+export async function createGoogleChallenge(pool: Pick<Pool, "query">, config: BackendConfig, clientLabel: string) {
   audiences(config);
   // Attempts contain no raw tokens; prune expired replay receipts before their
   // parent challenges, with a bounded batch so sign-in stays inexpensive.
@@ -62,25 +70,39 @@ export async function createGoogleChallenge(pool: Pool, config: BackendConfig, c
   return { contract_version: CONTRACT_VERSION, challenge_id: id, nonce, expires_at: expiresAt.toISOString() };
 }
 
+export type GoogleProofRequest = {
+  challenge_id: string;
+  identity_token: string;
+  client_label: string;
+};
+
+/** Consume the Google challenge and exact assertion once (anti-replay). */
+export async function consumeGoogleProof(
+  client: PoolClient,
+  request: GoogleProofRequest,
+  identity: GoogleIdentity,
+): Promise<void> {
+  const consumed = await client.query(`UPDATE google_login_challenges SET consumed_at = now()
+    WHERE id = $1 AND expected_nonce_hash = $2 AND client_label = $3
+      AND consumed_at IS NULL AND expires_at > now() RETURNING id`,
+  [request.challenge_id, identity.nonce, request.client_label]);
+  if (!consumed.rowCount) throw new ApiError(409, "GOOGLE_CHALLENGE_INVALID", "This Google sign-in attempt has expired or was already used.");
+  const assertion = await client.query(`INSERT INTO google_consumed_assertions(assertion_hash, challenge_id, expires_at)
+    VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING assertion_hash`,
+  [sha256(request.identity_token), request.challenge_id, identity.expiresAt]);
+  if (!assertion.rowCount) throw new ApiError(409, "GOOGLE_TOKEN_REPLAYED", "Start a new Google sign-in attempt.");
+}
+
 export async function createGoogleSession(pool: Pool, config: BackendConfig, request: GoogleLogin, verify: GoogleVerifier = verifyGoogleIdentity) {
   const allowed = audiences(config);
   let identity: GoogleIdentity;
   try { identity = await verify(request.identity_token, allowed); }
   catch { throw new ApiError(401, "GOOGLE_TOKEN_INVALID", "The Google identity could not be verified. Start sign-in again."); }
+  const subjectHash = providerSubjectHash("google", "https://accounts.google.com", identity.subject);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const consumed = await client.query(`UPDATE google_login_challenges SET consumed_at = now()
-      WHERE id = $1 AND expected_nonce_hash = $2 AND client_label = $3
-        AND consumed_at IS NULL AND expires_at > now() RETURNING id`,
-    [request.challenge_id, identity.nonce, request.client_label]);
-    if (!consumed.rowCount) throw new ApiError(409, "GOOGLE_CHALLENGE_INVALID", "This Google sign-in attempt has expired or was already used.");
-    const assertion = await client.query(`INSERT INTO google_consumed_assertions(assertion_hash, challenge_id, expires_at)
-      VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING assertion_hash`,
-    [sha256(request.identity_token), request.challenge_id, identity.expiresAt]);
-    if (!assertion.rowCount) throw new ApiError(409, "GOOGLE_TOKEN_REPLAYED", "Start a new Google sign-in attempt.");
-
-    const subjectHash = sha256(`https://accounts.google.com:${identity.subject}`);
+    await consumeGoogleProof(client, request, identity);
     // Serialize first sign-ins for the same subject before checking/creating identity.
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`google:${subjectHash}`]);
     const existing = await client.query<{ account_id: string; account_name: string; account_slug: string;
@@ -95,19 +117,48 @@ export async function createGoogleSession(pool: Pool, config: BackendConfig, req
     if (!user) {
       // Never turn a matching email into authority over an existing workspace.
       // Email is the visible login clue; provider subject owns federated identity.
-      const collision = await client.query("SELECT id FROM users WHERE lower(email) = $1 LIMIT 1", [identity.email]);
-      if (collision.rowCount) throw new ApiError(409, "GOOGLE_ACCOUNT_LINK_REQUIRED", "This email already has a workspace. Sign in with its existing method to preserve that account.");
-      const accountID = randomUUID(), userID = randomUUID(), slug = `personal-${randomUUID()}`;
-      const accountName = `${identity.name}'s workspace`;
-      await client.query("INSERT INTO accounts(id, slug, name) VALUES ($1, $2, $3)", [accountID, slug, accountName]);
-      await client.query(`INSERT INTO users(id, account_id, email, display_name, kind)
-        VALUES ($1, $2, $3, $4, 'google_human')`, [userID, accountID, identity.email, identity.name]);
-      await client.query(`INSERT INTO auth_identities(id, account_id, user_id, provider, subject_hash)
-        VALUES ($1, $2, $3, 'google', $4)`, [randomUUID(), accountID, userID, subjectHash]);
-      user = { account_id: accountID, account_name: accountName, account_slug: slug,
+      const accountID = randomUUID(), userID = randomUUID(), accountName = `${identity.name}'s workspace`;
+      const accountSlug = newAccountSlug();
+      try {
+        await createRealIdentity(client, {
+          accountId: accountID,
+          userId: userID,
+          accountName,
+          accountSlug,
+          email: identity.email,
+          displayName: identity.name,
+          kind: "google_human",
+          // Google sign-in only verifies identities with an asserted, verified
+          // email claim; ownership is proven at creation.
+          emailVerifiedAt: new Date(),
+        });
+      } catch (error) {
+        if (error instanceof EmailClaimConflict) throw emailClaimConflictError(error, "google");
+        throw error;
+      }
+      await client.query(`INSERT INTO auth_identities(id, account_id, user_id, provider, subject_hash, email_hint)
+        VALUES ($1, $2, $3, 'google', $4, $5)`, [randomUUID(), accountID, userID, subjectHash, identity.email]);
+      user = { account_id: accountID, account_name: accountName, account_slug: accountSlug,
         user_id: userID, display_name: identity.name, email: identity.email, status: "active", account_role: "member", username: null };
     }
-    await client.query("UPDATE auth_identities SET last_authenticated_at = now() WHERE provider = 'google' AND subject_hash = $1", [subjectHash]);
+    // An established subject keeps its login authority when its provider
+    // email changes. A verified secondary address is claimed best-effort
+    // (same-owner idempotent); a foreign or conflicted claim never blocks the
+    // credential and never moves an account.
+    if (existing.rows[0]) {
+      try {
+        await reserveVerifiedEmail(
+          client,
+          identity.email,
+          { accountId: user.account_id, userId: user.user_id },
+          { source: "provider:google", verifiedAt: new Date() },
+          "secondary",
+        );
+      } catch {
+        // Truthful conflict handling: no claim, credential untouched.
+      }
+    }
+    await client.query("UPDATE auth_identities SET last_authenticated_at = now(), email_hint = COALESCE($2, email_hint) WHERE provider = 'google' AND subject_hash = $1", [subjectHash, identity.email]);
     const session = await insertSession(client, config, {
       accountId: user.account_id, accountName: user.account_name, accountSlug: user.account_slug,
       userId: user.user_id, userEmail: user.email, displayName: user.display_name,

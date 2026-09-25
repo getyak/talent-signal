@@ -103,6 +103,28 @@ describe("Session conversation presentation", () => {
     expect(sessionSupportsSend(detail({ state: "expired" }))).toBe(false);
   });
 
+  it("renders a native reply mirrored across both history fields once", () => {
+    const saved = block("2a205102-9220-43ce-ba04-ffe8f27965dd", "Sync proof", "Synthetic sync reply");
+    const mirrored = { ...saved, citation_dependency_ids: [...saved.citation_dependency_ids] };
+    const original = response({ savedBlocks: [saved], unboundConversationBlocks: [mirrored] });
+    expect(sessionTurnBlocks(original)).toEqual([saved]);
+    expect(original.unboundConversationBlocks).toEqual([mirrored]);
+  });
+
+  it("retains distinct blocks even when their visible text is identical", () => {
+    const first = block("first", "Reply", "Repeated on purpose");
+    const second = block("second", "Reply", "Repeated on purpose");
+    expect(sessionTurnBlocks(response({ savedBlocks: [first], unboundConversationBlocks: [second] })))
+      .toEqual([first, second]);
+  });
+
+  it("keeps the saved representation when a mirrored block differs", () => {
+    const saved = block("same-id", "Saved response", "Canonical snapshot");
+    const older = block("same-id", "Reply", "Older representation");
+    expect(sessionTurnBlocks(response({ savedBlocks: [saved], unboundConversationBlocks: [older] })))
+      .toEqual([saved]);
+  });
+
   it("follows the latest message only while already near the bottom", () => {
     const atBottom = { clientHeight: 400, scrollHeight: 1_000, scrollTop: 600 };
     const away = { clientHeight: 400, scrollHeight: 1_000, scrollTop: 100 };

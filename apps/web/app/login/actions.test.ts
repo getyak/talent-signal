@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { signInMock } = vi.hoisted(() => ({ signInMock: vi.fn() }));
 
 vi.mock("@/auth", () => ({ signIn: signInMock, signOut: vi.fn() }));
+const { registerBackendAccountMock } = vi.hoisted(() => ({
+  registerBackendAccountMock: vi.fn(),
+}));
 vi.mock("@/lib/server/backendAuth", () => ({
   authenticatedBackendClient: vi.fn().mockResolvedValue(null),
   backendAuthBaseUrl: () => "http://127.0.0.1:4317",
   readPrimaryBackendSessionClaims: vi.fn().mockResolvedValue(null),
+  registerBackendAccount: registerBackendAccountMock,
 }));
 vi.mock("@/lib/server/testWorkspaceSession", () => ({
   clearTestWorkspaceSession: vi.fn(),
@@ -31,6 +35,7 @@ vi.mock("next-auth", () => {
   return { AuthError, CredentialsSignin };
 });
 
+import { TalentSignalHttpError } from "@talent-signal/contracts";
 import { CredentialsSignin } from "next-auth";
 import { redirect } from "next/navigation";
 import {
@@ -67,6 +72,7 @@ function formOf(entries: Record<string, string>) {
 
 beforeEach(() => {
   signInMock.mockReset();
+  registerBackendAccountMock.mockReset();
 });
 
 describe("login action failure contract", () => {
@@ -106,8 +112,15 @@ describe("login action failure contract", () => {
     expect(signInMock).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps registration inputs on a duplicate account", async () => {
-    signInMock.mockRejectedValue(new AccountExistsCredentialsError());
+  it("keeps registration inputs on a duplicate account without disclosing state", async () => {
+    registerBackendAccountMock.mockRejectedValue(
+      new TalentSignalHttpError(
+        409,
+        "PASSWORD_ACCOUNT_EXISTS",
+        "An account already uses that username or email.",
+        null,
+      ),
+    );
     const state = await registerPasswordAccount(
       initialState,
       formOf({
@@ -123,9 +136,15 @@ describe("login action failure contract", () => {
       displayName: "Recruiter",
       email: "recruiter@example.com",
     });
+    expect(state.sent).not.toBe(true);
+    expect(signInMock).not.toHaveBeenCalled();
   });
 
-  it("sends registration to onboarding with a derived display name and one password field", async () => {
+  it("starts verified signup without signing in and without a code in the state", async () => {
+    registerBackendAccountMock.mockResolvedValue({
+      contract_version: "2026-08-24.10",
+      status: "verification_sent",
+    });
     const state = await registerPasswordAccount(
       initialState,
       formOf({
@@ -136,16 +155,35 @@ describe("login action failure contract", () => {
     );
 
     expect(state.error).toBe("");
-    expect(signInMock).toHaveBeenCalledWith(
-      "password-account",
+    expect(state.sent).toBe(true);
+    // Verified signup never signs in directly and never returns a code.
+    expect(signInMock).not.toHaveBeenCalled();
+    expect(JSON.stringify(state)).not.toMatch(/code|secret/i);
+    expect(registerBackendAccountMock).toHaveBeenCalledWith(
       expect.objectContaining({
         email: "recruiter@example.com",
-        displayName: "recruiter",
-        mode: "register",
-        redirectTo: "/onboarding?callbackUrl=%2Fworkspace%2Fpursuits%2F42",
+        display_name: "recruiter",
       }),
     );
-    expect(signInMock.mock.calls[0]?.[1]).not.toHaveProperty("confirmPassword");
+    expect(registerBackendAccountMock.mock.calls[0]?.[0]).not.toHaveProperty("confirmPassword");
+  });
+
+  it("fails honestly when delivery is unconfigured instead of claiming sent", async () => {
+    registerBackendAccountMock.mockRejectedValue(
+      new TalentSignalHttpError(
+        503,
+        "EMAIL_DELIVERY_UNAVAILABLE",
+        "Email verification is not configured for this service.",
+        null,
+      ),
+    );
+    const state = await registerPasswordAccount(
+      initialState,
+      formOf({ email: "recruiter@example.com", password: "correct horse battery" }),
+    );
+    expect(state.code).toBe("service_unavailable");
+    expect(state.sent).not.toBe(true);
+    expect(state.error).toContain("账号未创建");
   });
 
   it("rejects an invalid registration email before calling the backend", async () => {

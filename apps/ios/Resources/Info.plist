@@ -87,5 +87,7 @@
     <array>
         <string>UIInterfaceOrientationPortrait</string>
     </array>
+	<key>TalentSignalWebOriginBase64URL</key>
+	<string>$(TALENT_SIGNAL_WEB_ORIGIN_BASE64URL)</string>
 </dict>
 </plist>

@@ -5,6 +5,8 @@ import {
   TalentSignalClient,
   type PasswordLoginRequest,
   type PasswordRegistrationRequest,
+  type PasswordRegistrationStartResponse,
+  type PasswordVerificationConfirmRequest,
   type SessionResponse,
 } from "@talent-signal/contracts";
 import { headers } from "next/headers";
@@ -65,15 +67,29 @@ export async function signInBackendAccount(
   );
 }
 
+/**
+ * Start a verified password registration. The response is generic and never
+ * contains a code; production without a configured transport fails honestly.
+ */
 export async function registerBackendAccount(
   request: Omit<PasswordRegistrationRequest, "client_label">,
-): Promise<SessionResponse> {
+): Promise<PasswordRegistrationStartResponse> {
   return withAuthRequestTimeout(
     (signal) =>
       authClient().registerWithPassword(
         { ...request, client_label: "talent-signal-web" },
         signal,
       ),
+    { timeoutMs: BACKEND_AUTH_REQUEST_TIMEOUT_MS },
+  );
+}
+
+/** Confirm the emailed verification and open the verified account session. */
+export async function confirmBackendRegistration(
+  request: PasswordVerificationConfirmRequest,
+): Promise<SessionResponse> {
+  return withAuthRequestTimeout(
+    (signal) => authClient().confirmPasswordRegistration(request, signal),
     { timeoutMs: BACKEND_AUTH_REQUEST_TIMEOUT_MS },
   );
 }

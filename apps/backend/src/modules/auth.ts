@@ -8,7 +8,6 @@ import {
   type CurrentSessionResponse,
   type LogoutResponse,
   type PasswordLoginRequest,
-  type PasswordRegistrationRequest,
   type SessionResponse,
   type SimulatedLoginRequest,
 } from "@talent-signal/contracts";
@@ -19,10 +18,18 @@ import type { Pool, PoolClient } from "pg";
 import type { BackendConfig } from "../config.js";
 import { ApiError } from "../lib/apiError.js";
 import { sha256 } from "../lib/hash.js";
+import {
+  EmailClaimConflict,
+  assertAccountActive,
+  createRealIdentity,
+  emailClaimConflictError,
+  newAccountSlug,
+  normalizeEmail,
+  reserveVerifiedEmail,
+} from "./accountIdentity.js";
 import { labWorkspaceSessionActiveSQL } from "./labWorkspaceAccess.js";
 import {
   consumeDummyPasswordWork,
-  encodePasswordCredential,
   verifyPasswordCredential,
 } from "./passwordCredential.js";
 
@@ -129,6 +136,9 @@ export async function insertSession(
   },
   clientLabel: string,
 ): Promise<SessionResponse> {
+  // New auth sessions are governed writes: fence the account for the whole
+  // transaction so a concurrent retirement cannot admit a stale session.
+  await assertAccountActive(client, identity.accountId);
   const accessToken = sessionToken();
   const expiresAt = new Date(Date.now() + config.sessionTtlSeconds * 1_000);
   await client.query(
@@ -166,7 +176,7 @@ export async function insertSession(
 }
 
 export async function createAppleLoginChallenge(
-  pool: Pool,
+  pool: Pick<Pool, "query">,
   config: BackendConfig,
   request: AppleLoginChallengeRequest,
 ): Promise<AppleLoginChallengeResponse> {
@@ -189,12 +199,22 @@ export async function createAppleLoginChallenge(
   };
 }
 
-export async function createAppleSession(
-  pool: Pool,
+export type AppleProof = {
+  token: AppleIdentityToken;
+  subjectHash: string;
+};
+
+/**
+ * Validate an Apple identity request before any transaction: challenge
+ * binding, signature/issuer/expiry, nonce, and audience. Provider identity is
+ * the verified `(issuer, subject)` pair; email is only a visible hint.
+ */
+export async function verifyAppleIdentityRequest(
+  pool: Pick<Pool, "query">,
   config: BackendConfig,
   request: AppleLoginRequest,
   verifier: AppleTokenVerifying = appleTokenVerifier,
-): Promise<SessionResponse> {
+): Promise<AppleProof> {
   requireAppleAuth(config);
   const challengeResult = await pool.query<{
     client_label: string;
@@ -242,46 +262,64 @@ export async function createAppleSession(
       "The Apple identity token was issued for another application.",
     );
   }
+  return { token, subjectHash: sha256(`${token.issuer}:${token.subject}`) };
+}
 
+/** Consume the challenge and the exact assertion once (anti-replay). */
+export async function consumeAppleProof(
+  client: PoolClient,
+  request: AppleLoginRequest,
+  proof: AppleProof,
+): Promise<void> {
+  const consumed = await client.query(
+    `UPDATE apple_login_challenges
+     SET consumed_at = now()
+     WHERE id = $1 AND consumed_at IS NULL AND expires_at > now()
+     RETURNING id`,
+    [request.challenge_id],
+  );
+  if (!consumed.rows[0]) {
+    throw new ApiError(
+      409,
+      "APPLE_CHALLENGE_REPLAYED",
+      "This Apple sign-in attempt has already been used. Start again.",
+    );
+  }
+  const assertion = await client.query(
+    `INSERT INTO consumed_auth_assertions(
+       id, provider, assertion_hash, challenge_id, expires_at
+     ) VALUES ($1, 'apple', $2, $3, $4)
+     ON CONFLICT (assertion_hash) DO NOTHING
+     RETURNING id`,
+    [
+      randomUUID(),
+      sha256(request.identity_token),
+      request.challenge_id,
+      proof.token.expiresAt,
+    ],
+  );
+  if (!assertion.rows[0]) {
+    throw new ApiError(
+      409,
+      "APPLE_TOKEN_REPLAYED",
+      "This Apple identity token has already been used. Start again.",
+    );
+  }
+}
+
+export async function createAppleSession(
+  pool: Pool,
+  config: BackendConfig,
+  request: AppleLoginRequest,
+  verifier: AppleTokenVerifying = appleTokenVerifier,
+): Promise<SessionResponse> {
+  const proof = await verifyAppleIdentityRequest(pool, config, request, verifier);
+  const { token, subjectHash } = proof;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const consumed = await client.query(
-      `UPDATE apple_login_challenges
-       SET consumed_at = now()
-       WHERE id = $1 AND consumed_at IS NULL AND expires_at > now()
-       RETURNING id`,
-      [request.challenge_id],
-    );
-    if (!consumed.rows[0]) {
-      throw new ApiError(
-        409,
-        "APPLE_CHALLENGE_REPLAYED",
-        "This Apple sign-in attempt has already been used. Start again.",
-      );
-    }
-    const assertion = await client.query(
-      `INSERT INTO consumed_auth_assertions(
-         id, provider, assertion_hash, challenge_id, expires_at
-       ) VALUES ($1, 'apple', $2, $3, $4)
-       ON CONFLICT (assertion_hash) DO NOTHING
-       RETURNING id`,
-      [
-        randomUUID(),
-        sha256(request.identity_token),
-        request.challenge_id,
-        token.expiresAt,
-      ],
-    );
-    if (!assertion.rows[0]) {
-      throw new ApiError(
-        409,
-        "APPLE_TOKEN_REPLAYED",
-        "This Apple identity token has already been used. Start again.",
-      );
-    }
+    await consumeAppleProof(client, request, proof);
 
-    const subjectHash = sha256(`${token.issuer}:${token.subject}`);
     // Serialize first sign-ins for the same subject before checking/creating
     // identity, mirroring the Google flow so concurrent Apple callbacks cannot
     // race a duplicate auth_identities insert.
@@ -322,43 +360,42 @@ export async function createAppleSession(
     if (!identity) {
       const accountId = randomUUID();
       const userId = randomUUID();
-      const accountSlug = `personal-${randomUUID()}`;
       const displayName = boundedName(request);
-      const email = token.emailVerified && token.email
-        ? token.email.trim().toLowerCase()
+      // A verified Apple email claim is evidence of ownership; an absent or
+      // unverified claim gets a synthetic private address. Either way the
+      // visible email never grants authority over another account.
+      const verifiedEmail = token.emailVerified && token.email;
+      const email = verifiedEmail
+        ? normalizeEmail(token.email as string)
         : `apple-${subjectHash.slice(0, 24)}@private.talentsignal.invalid`;
-      // Never turn a matching email into authority over an existing workspace.
-      // Apple subject owns the federated identity; a visible email collision
-      // requires the user to sign in with the existing method instead.
-      const collision = await client.query(
-        `SELECT id FROM users WHERE lower(email) = $1 LIMIT 1`,
-        [email],
-      );
-      if (collision.rowCount) {
-        throw new ApiError(
-          409,
-          "APPLE_ACCOUNT_LINK_REQUIRED",
-          "This email already has a workspace. Sign in with its existing method to preserve that account.",
-        );
+      const accountName = `${displayName}'s workspace`;
+      const accountSlug = newAccountSlug();
+      try {
+        await createRealIdentity(client, {
+          accountId,
+          userId,
+          accountName,
+          accountSlug,
+          email,
+          displayName,
+          kind: "apple_human",
+          emailVerifiedAt: verifiedEmail ? new Date() : null,
+        });
+      } catch (error) {
+        if (error instanceof EmailClaimConflict) {
+          throw emailClaimConflictError(error, "apple");
+        }
+        throw error;
       }
       await client.query(
-        `INSERT INTO accounts(id, slug, name) VALUES ($1, $2, $3)`,
-        [accountId, accountSlug, `${displayName}'s workspace`],
-      );
-      await client.query(
-        `INSERT INTO users(id, account_id, email, display_name, kind)
-         VALUES ($1, $2, $3, $4, 'apple_human')`,
-        [userId, accountId, email, displayName],
-      );
-      await client.query(
         `INSERT INTO auth_identities(
-           id, account_id, user_id, provider, subject_hash
-         ) VALUES ($1, $2, $3, 'apple', $4)`,
-        [randomUUID(), accountId, userId, subjectHash],
+           id, account_id, user_id, provider, subject_hash, email_hint
+         ) VALUES ($1, $2, $3, 'apple', $4, $5)`,
+        [randomUUID(), accountId, userId, subjectHash, token.email],
       );
       identity = {
         account_id: accountId,
-        account_name: `${displayName}'s workspace`,
+        account_name: accountName,
         account_slug: accountSlug,
         account_role: "member",
         display_name: displayName,
@@ -367,11 +404,26 @@ export async function createAppleSession(
         user_id: userId,
       };
     } else {
+      // Established Apple subjects keep login authority across provider email
+      // changes; a verified secondary address is claimed best-effort only.
+      if (token.emailVerified && token.email) {
+        try {
+          await reserveVerifiedEmail(
+            client,
+            token.email,
+            { accountId: identity.account_id, userId: identity.user_id },
+            { source: "provider:apple", verifiedAt: new Date() },
+            "secondary",
+          );
+        } catch {
+          // Truthful conflict handling: no claim, credential untouched.
+        }
+      }
       await client.query(
         `UPDATE auth_identities
-         SET last_authenticated_at = now()
+         SET last_authenticated_at = now(), email_hint = COALESCE($2, email_hint)
          WHERE provider = 'apple' AND subject_hash = $1`,
-        [subjectHash],
+        [subjectHash, token.email],
       );
     }
 
@@ -479,6 +531,7 @@ type PasswordIdentityRow = {
   password_scrypt: string;
   user_email: string;
   user_id: string;
+  user_kind: UserKind;
   username: string;
 };
 
@@ -512,6 +565,7 @@ export async function createPasswordSession(
          accounts.slug AS account_slug,
          users.id AS user_id,
          users.email AS user_email,
+         users.kind AS user_kind,
          users.username,
          users.display_name,
          users.account_role,
@@ -523,14 +577,26 @@ export async function createPasswordSession(
        JOIN password_credentials
          ON password_credentials.account_id = users.account_id
         AND password_credentials.user_id = users.id
-       WHERE users.kind = 'password_human'
-         AND users.status = 'active'
+       WHERE users.status = 'active'
          AND (
-           lower(users.username) = $1 OR lower(users.email) = $1
+           lower(users.username) = $1 OR lower(btrim(users.email)) = $1
          )
        FOR UPDATE OF password_credentials`,
       [identifier],
     );
+    // Historical same-email duplicates can leave more than one password-bearing
+    // user. Ambiguity fails closed with a recoverable error; the first row is
+    // never selected arbitrarily and unambiguous credentials keep working.
+    if (result.rows.length > 1) {
+      await consumeDummyPasswordWork(request.password);
+      await client.query("COMMIT");
+      transactionOpen = false;
+      throw new ApiError(
+        409,
+        "PASSWORD_SIGN_IN_AMBIGUOUS",
+        "More than one account matches this email. Sign in with your username, or resolve the duplicate in Settings.",
+      );
+    }
     const identity = result.rows[0];
     if (!identity) {
       await consumeDummyPasswordWork(request.password);
@@ -590,7 +656,9 @@ export async function createPasswordSession(
         role: identity.account_role,
         userEmail: identity.user_email,
         userId: identity.user_id,
-        userKind: "password_human",
+        // A password credential resolves the login regardless of the user's
+        // historical kind; attaching a password never rewrites provenance.
+        userKind: identity.user_kind,
         username: identity.username,
       },
       request.client_label,
@@ -601,101 +669,6 @@ export async function createPasswordSession(
   } catch (error) {
     if (transactionOpen) {
       await client.query("ROLLBACK");
-    }
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-export async function registerPasswordSession(
-  pool: Pool,
-  config: BackendConfig,
-  request: PasswordRegistrationRequest,
-): Promise<SessionResponse> {
-  requirePasswordAuth(config);
-  if (!config.passwordRegistrationEnabled) {
-    throw new ApiError(
-      404,
-      "PASSWORD_REGISTRATION_DISABLED",
-      "Account registration is not open on this service.",
-    );
-  }
-
-  const username = request.username.trim().toLowerCase();
-  const email = request.email.trim().toLowerCase();
-  const displayName = request.display_name.trim();
-  const passwordScrypt = await encodePasswordCredential(request.password);
-  const accountId = randomUUID();
-  const userId = randomUUID();
-  const accountSlug = `personal-${username}-${randomUUID().slice(0, 8)}`;
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-    const duplicate = await client.query(
-      `SELECT 1
-       FROM users
-       WHERE kind = 'password_human'
-         AND (lower(username) = $1 OR lower(email) = $2)
-       LIMIT 1`,
-      [username, email],
-    );
-    if (duplicate.rows[0]) {
-      throw new ApiError(
-        409,
-        "PASSWORD_ACCOUNT_EXISTS",
-        "An account already uses that username or email.",
-      );
-    }
-
-    await client.query(
-      `INSERT INTO accounts(id, slug, name) VALUES ($1, $2, $3)`,
-      [accountId, accountSlug, `${displayName}'s workspace`],
-    );
-    await client.query(
-      `INSERT INTO users(
-         id, account_id, email, username, display_name, kind, account_role
-       ) VALUES ($1, $2, $3, $4, $5, 'password_human', 'member')`,
-      [userId, accountId, email, username, displayName],
-    );
-    await client.query(
-      `INSERT INTO password_credentials(
-         account_id, user_id, password_scrypt
-       ) VALUES ($1, $2, $3)`,
-      [accountId, userId, passwordScrypt],
-    );
-    const session = await insertSession(
-      client,
-      config,
-      {
-        accountId,
-        accountName: `${displayName}'s workspace`,
-        accountSlug,
-        displayName,
-        role: "member",
-        userEmail: email,
-        userId,
-        userKind: "password_human",
-        username,
-      },
-      request.client_label,
-    );
-    await client.query("COMMIT");
-    return session;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "23505"
-    ) {
-      throw new ApiError(
-        409,
-        "PASSWORD_ACCOUNT_EXISTS",
-        "An account already uses that username or email.",
-      );
     }
     throw error;
   } finally {
@@ -767,8 +740,17 @@ export async function revokeCurrentSession(
   pool: Pool,
   auth: AuthContext,
 ): Promise<LogoutResponse> {
-  const result = await pool.query<{ revoked_at: Date }>(
-    `WITH revoked AS (
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Consistent lock order with every governed write and reconciliation:
+    // the existing account row is locked first, then session rows, so session
+    // revocation and transfer commit in one linear order without deadlocks.
+    await client.query(`SELECT retired_at FROM accounts WHERE id = $1 FOR SHARE`, [
+      auth.accountId,
+    ]);
+    const result = await client.query<{ revoked_at: Date }>(
+      `WITH revoked AS (
        UPDATE sessions SET revoked_at = now()
        WHERE id = $1 AND account_id = $2 AND user_id = $3 AND revoked_at IS NULL
        RETURNING revoked_at
@@ -778,17 +760,25 @@ export async function revokeCurrentSession(
        RETURNING lab_test_workspace_entries.id
      )
      SELECT revoked_at FROM revoked`,
-    [auth.sessionId, auth.accountId, auth.userId],
-  );
-  const revokedAt = result.rows[0]?.revoked_at;
-  if (!revokedAt) {
-    throw new ApiError(401, "SESSION_INVALID", "The session is no longer active.");
+      [auth.sessionId, auth.accountId, auth.userId],
+    );
+    const revokedAt = result.rows[0]?.revoked_at;
+    if (!revokedAt) {
+      await client.query("ROLLBACK");
+      throw new ApiError(401, "SESSION_INVALID", "The session is no longer active.");
+    }
+    await client.query("COMMIT");
+    return {
+      contract_version: CONTRACT_VERSION,
+      revoked_session_id: auth.sessionId,
+      revoked_at: revokedAt.toISOString(),
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
   }
-  return {
-    contract_version: CONTRACT_VERSION,
-    revoked_session_id: auth.sessionId,
-    revoked_at: revokedAt.toISOString(),
-  };
 }
 
 export function createAuthGuard(pool: Pool, deploymentWorkspaceIds?: readonly string[]): preHandlerHookHandler {

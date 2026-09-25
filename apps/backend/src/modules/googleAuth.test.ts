@@ -41,7 +41,15 @@ function database(options: { consumed?: boolean; replay?: boolean; collision?: b
     if (sql.includes("UPDATE google_login_challenges")) return { rowCount: options.consumed ? 0 : 1, rows: [{ id: "challenge" }] };
     if (sql.includes("INSERT INTO google_consumed_assertions")) return { rowCount: options.replay ? 0 : 1, rows: [{}] };
     if (sql.includes("FROM auth_identities identities")) return { rowCount: options.inactive ? 1 : 0, rows: options.inactive ? [{ status: "suspended" }] : [] };
-    if (sql.includes("SELECT id FROM users")) return { rowCount: options.collision ? 1 : 0, rows: [] };
+    if (sql.includes("FROM users WHERE lower(btrim(email))")) return {
+      rowCount: options.collision ? 1 : 0,
+      rows: options.collision ? [{ id: "legacy-user", kind: "password_human" }] : [],
+    };
+    if (sql.includes("INSERT INTO account_email_reservations")) return {
+      rowCount: 1,
+      rows: [{ normalized_email: "one@example.com", state: "owned", account_id: "account", user_id: "user" }],
+    };
+    if (sql.includes("SELECT retired_at FROM accounts")) return { rowCount: 1, rows: [{ retired_at: null }] };
     return { rowCount: 1, rows: [] };
   });
   const release = vi.fn();

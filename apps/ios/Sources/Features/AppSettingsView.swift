@@ -717,6 +717,8 @@ struct AccountSettingsView: View {
                 )
             }
 
+            AccountSignInMethodsView()
+
             Section {
                 SettingsExplanationRow(
                     systemImage: "lock.shield",

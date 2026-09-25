@@ -20,11 +20,14 @@ import {
   loadWorkspaceDirectory,
   readCachedWorkspaceDirectory,
   subscribeWorkspaceDirectoryInvalidation,
-  WORKSPACE_DIRECTORY_REFRESH_INTERVAL_MS,
   type WorkspaceDirectorySessionResponse,
   type WorkspaceDirectorySnapshot,
   type WorkspaceDirectoryInvalidationMode,
 } from "@/lib/workspace-directory-cache";
+import {
+  coordinatorScopeIsCurrent,
+  subscribeWorkspaceRefresh,
+} from "@/lib/workspace-refresh";
 import { WORKSPACE_SESSION_EXPIRED_EVENT, workspaceSessionFetch } from "./workspace-session-request";
 import styles from "./workspace-shell.module.css";
 
@@ -146,29 +149,23 @@ export function useWorkspaceDirectory(binding: string | null, enabled: boolean) 
       expired = true;
       setResult({ binding: key, data: null, failed: true });
     }
-    function onFocus() {
-      load(false);
-    }
-    function onVisible() {
-      if (document.visibilityState === "visible") load(false);
-    }
     const force = forceNextRead.current;
     forceNextRead.current = false;
     load(force);
     const unsubscribe = subscribeWorkspaceDirectoryInvalidation(onInvalidated);
+    // One shared refresh coordinator per binding: foreground, focus, network
+    // recovery and a bounded active interval refresh People AND Sessions
+    // together; hidden-surface polling pauses and in-flight work coalesces.
+    const unsubscribeRefresh = subscribeWorkspaceRefresh(key, (reason, generation) => {
+      if (!coordinatorScopeIsCurrent(key, generation)) return;
+      load(reason === "interval" ? false : true);
+    });
     window.addEventListener(WORKSPACE_SESSION_EXPIRED_EVENT, onExpired);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisible);
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") load(false);
-    }, WORKSPACE_DIRECTORY_REFRESH_INTERVAL_MS);
     return () => {
       disposed = true;
       unsubscribe();
-      window.clearInterval(interval);
+      unsubscribeRefresh();
       window.removeEventListener(WORKSPACE_SESSION_EXPIRED_EVENT, onExpired);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [binding, enabled, pathname, refreshVersion]);
   useEffect(() => {

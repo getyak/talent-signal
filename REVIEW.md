@@ -38,6 +38,13 @@ including each supported surface and capability. A narrowed plan, available
 interface, or passing test suite cannot substitute for a missing requested
 behavior. Record unmet and optional requirements explicitly before delivery.
 
+For authentication, persistence, and recovery changes, trace the production
+entry through construction, dispatch, state change, and readback. Exercise the
+same resolver and transitions used by the user surface. A test must not supply
+missing application wiring, skip a required protocol stage, or invent receipt
+fields absent from the real producer to claim that path works. Helper tests
+remain useful unit evidence; they do not establish production integration.
+
 Prefer direct evidence:
 
 - behavior observed on the relevant user surface;

@@ -15,6 +15,10 @@ export interface BackendConfig {
   sessionTtlSeconds: number;
   simulatedAuthEnabled: boolean;
   internalLabEnabled?: boolean;
+  /** Server-side mail transport for account verification (Resend). */
+  mailTransport?: { apiKey: string; fromEmail: string };
+  /** Base URL used to build email verification links (Web origin). */
+  verificationBaseUrl?: string;
   tls?: { certificatePem: string; privateKeyPem: string };
   chatMediaStorage?:
     | { provider: "local"; directory: string }
@@ -176,6 +180,19 @@ export function loadConfig(): BackendConfig {
     throw new Error("TLS mode for the macOS Hybrid adapter requires HOST=127.0.0.1 or HOST=::1.");
   }
 
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const resendFromEmail = process.env.RESEND_FROM_EMAIL?.trim();
+  if (Boolean(resendApiKey) !== Boolean(resendFromEmail)) {
+    throw new Error(
+      "RESEND_API_KEY and RESEND_FROM_EMAIL must be configured together.",
+    );
+  }
+  const mailTransport =
+    resendApiKey && resendFromEmail
+      ? { apiKey: resendApiKey, fromEmail: resendFromEmail }
+      : undefined;
+  const verificationBaseUrl = process.env.AUTH_VERIFICATION_BASE_URL?.trim();
+
   return {
     allowedOrigins: (
       process.env.ALLOWED_ORIGINS ??
@@ -206,6 +223,8 @@ export function loadConfig(): BackendConfig {
     simulatedAuthEnabled,
     internalLabEnabled,
     chatMediaStorage,
+    ...(mailTransport ? { mailTransport } : {}),
+    ...(verificationBaseUrl ? { verificationBaseUrl } : {}),
     ...(tls ? { tls } : {}),
   };
 }

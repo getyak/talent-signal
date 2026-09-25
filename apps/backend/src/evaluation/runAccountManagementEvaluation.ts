@@ -8,24 +8,34 @@ import { buildApp } from '../app.js';
 import type { BackendConfig } from '../config.js';
 import { LocalChatMediaStorage } from '../modules/chatMediaStorage.js';
 import { insertSession } from '../modules/auth.js';
+import { claimEmailReservation } from '../modules/accountIdentity.js';
+import { createMemoryMailSink } from '../lib/mail.js';
 import { inTransaction } from '../database/pool.js';
 import type { AccountSettings, SessionResponse } from '@talent-signal/contracts';
+
+const sink=createMemoryMailSink();
 
 const databaseURL=process.env.ACCOUNT_EVALUATION_DATABASE_URL;
 assert(databaseURL&&new URL(databaseURL).pathname==='/account_proof'&&['localhost','127.0.0.1'].includes(new URL(databaseURL).hostname),'Use the explicit disposable account_proof database.');
 const pool=new Pool({connectionString:databaseURL,max:8});
 const media=await mkdtemp(join(tmpdir(),'ts-account-proof-'));
-const config:BackendConfig={databaseUrl:databaseURL,host:'127.0.0.1',port:4334,allowedOrigins:[],
+const config:BackendConfig={databaseUrl:databaseURL,host:'127.0.0.1',port:4334,allowedOrigins:[],verificationBaseUrl:'https://account-proof.example.test',
   appleSignInAudiences:[],appleSignInEnabled:false,passwordAuthEnabled:true,passwordRegistrationEnabled:true,
   simulatedAuthEnabled:true,internalLabEnabled:true,retentionSweepIntervalMs:60_000,sessionTtlSeconds:3600};
-const app=await buildApp({pool,config,chatMediaStorage:new LocalChatMediaStorage(media),remoteChatProvider:null,personResearchProvider:null,labJobWorkerEnabled:false});
+const app=await buildApp({pool,config,chatMediaStorage:new LocalChatMediaStorage(media),remoteChatProvider:null,personResearchProvider:null,labJobWorkerEnabled:false,mail:sink.delivery});
 const request=async(token:string,method:'GET'|'POST',url:string,payload?:Record<string,unknown>,expected=200)=>{
   const result=await app.inject({method,url,headers:{authorization:`Bearer ${token}`},...(payload?{payload}:{})});
   assert.equal(result.statusCode,expected,result.body);return result.json();
 };
 const register=async():Promise<SessionResponse>=>{
   const name=`proof${randomUUID().slice(0,8)}`;
-  return request('','POST','/v1/auth/password/register',{username:name,email:`${name}@example.test`,display_name:name,password:'Synthetic-proof-only!',client_label:'account-proof'},201);
+  // Verified signup: start delivers a code to the injected sink; confirmation
+  // activates the account. The code is never returned by the API.
+  await request('','POST','/v1/auth/password/register',{username:name,email:`${name}@example.test`,display_name:name,password:'Synthetic-proof-only!',client_label:'account-proof'},202);
+  const message=sink.messages[sink.messages.length-1]!;
+  const secret=/one-time code: (\S+)/.exec(message.text)?.[1];
+  assert(secret,'verification message must carry the one-time code');
+  return request('','POST','/v1/auth/password/register/confirm',{verification_secret:secret,client_label:'account-proof'},200);
 };
 const settings=(token:string):Promise<AccountSettings>=>request(token,'GET','/v1/account/settings');
 const mutate=(token:string,body:Record<string,unknown>,status=200)=>request(token,'POST','/v1/account/settings',body,status);
@@ -57,7 +67,10 @@ try{
   assert(!JSON.stringify(profileEvents[0]!.details).includes(profile.name),'profile audit must not copy the personal name');
   assert(!JSON.stringify(profileEvents[0]!.details).includes(owner.user.email),'profile audit must not copy the email');
   const memberId=randomUUID();
-  await pool.query("INSERT INTO users(id,account_id,email,display_name,kind,account_role) VALUES ($1,$2,$3,'Synthetic member','password_human','member')",[memberId,owner.account.id,`${memberId}@example.test`]);
+  await inTransaction(pool,async c=>{
+    await claimEmailReservation(c,`${memberId}@example.test`,{accountId:owner.account.id,userId:memberId});
+    await c.query("INSERT INTO users(id,account_id,email,display_name,kind,account_role) VALUES ($1,$2,$3,'Synthetic member','password_human','member')",[memberId,owner.account.id,`${memberId}@example.test`]);
+  });
   const member=await inTransaction(pool,c=>insertSession(c,config,{accountId:owner.account.id,accountName:owner.account.name,accountSlug:owner.account.slug,userId:memberId,userEmail:`${memberId}@example.test`,displayName:'Synthetic member',role:'member',userKind:'password_human',username:null},'member-proof'));
   const memberSessionId=(await pool.query<{id:string}>('SELECT id FROM sessions WHERE account_id=$1 AND user_id=$2 AND revoked_at IS NULL',[owner.account.id,memberId])).rows[0]!.id;
   const memberState=await settings(member.access_token);assert.equal(memberState.members.length,0);assert.equal(memberState.activity.length,0);

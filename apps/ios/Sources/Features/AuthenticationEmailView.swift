@@ -7,6 +7,8 @@ struct AuthenticationEmailView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var registering = false
+    @State private var verificationSent = false
+    @State private var verificationCode = ""
     @FocusState private var focusEmail: Bool
 
     var body: some View {
@@ -24,9 +26,55 @@ struct AuthenticationEmailView: View {
                 } footer: {
                     if registering { Text(language.text("Use at least 8 characters for your password.")) }
                 }
+                if registering && verificationSent {
+                    Section {
+                        // Primary: the emailed HTTPS link opens the Web
+                        // confirmation page. Returning here, the user
+                        // continues with the pending email and password held
+                        // only in memory; this opens a separate device session
+                        // for the same account.
+                        Button {
+                            Task { await store.signInWithEmail(email: email, password: password, registering: false) }
+                        } label: {
+                            HStack {
+                                Text(language.text("I have verified, continue"))
+                                Spacer()
+                                if store.isWorking { ProgressView() } else { Image(systemName: "checkmarkmark") }
+                            }
+                            .frame(minHeight: 44)
+                        }
+                        .disabled(store.isWorking)
+                        .accessibilityIdentifier("login-verification-continue")
+                        TextField(language.text("Verification code"), text: $verificationCode)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                            .accessibilityIdentifier("login-verification-code")
+                        Button {
+                            Task { await store.confirmRegistration(secret: verificationCode) }
+                        } label: {
+                            HStack {
+                                Text(language.text("Confirm and sign in"))
+                                Spacer()
+                                if store.isWorking { ProgressView() } else { Image(systemName: "checkmark") }
+                            }
+                            .frame(minHeight: 44)
+                        }
+                        .disabled(store.isWorking || verificationCode.trimmingCharacters(in: .whitespaces).count < 32)
+                        .accessibilityIdentifier("login-verification-submit")
+                    } footer: {
+                        Text(language.text("We sent a verification link to your email. Open it and confirm to finish creating your account. Nothing is created until you confirm."))
+                    }
+                }
                 Section {
                     Button {
-                        Task { await store.signInWithEmail(email: email, password: password, registering: registering) }
+                        Task {
+                            if registering {
+                                if await store.startRegistration(email: email, password: password) {
+                                    verificationSent = true
+                                }
+                            } else {
+                                await store.signInWithEmail(email: email, password: password, registering: false)
+                            }
+                        }
                     } label: {
                         HStack {
                             Text(language.text(registering ? "Create workspace" : "Sign in"))
@@ -35,10 +83,10 @@ struct AuthenticationEmailView: View {
                         }
                         .frame(minHeight: 44)
                     }
-                    .disabled(store.isWorking || !email.contains("@") || password.count < (registering ? 8 : 1))
+                    .disabled(store.isWorking || (registering && verificationSent) || !email.contains("@") || password.count < (registering ? 8 : 1))
                     .accessibilityIdentifier("login-email-submit")
                     Button(language.text(registering ? "Already have an account? Sign in" : "New here? Create an account")) {
-                        registering.toggle(); store.notice = nil
+                        registering.toggle(); verificationSent = false; verificationCode = ""; store.notice = nil
                     }
                     .disabled(store.isWorking)
                     .frame(minHeight: 44)

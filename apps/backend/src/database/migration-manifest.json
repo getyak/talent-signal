@@ -87,6 +87,8 @@
     "079_memory_source_authority",
     "080_memory_pursuit_association",
     "081_meeting_image_evidence",
-    "082_conversation_queue_prioritize"
+    "082_conversation_queue_prioritize",
+    "083_account_identity_ownership",
+    "084_secondary_email_ownership"
   ]
 }

@@ -315,7 +315,7 @@ function SettingsOverview({
         </Row>
         <Row description="退出会话后，该设备需要重新登录。" title="登录会话">
           <span className={styles.rowValue}>
-            {initial.sessions.length} 台设备已登录
+            {initial.sessions.length} 个登录会话
           </span>
         </Row>
         <Row description="空间名称、成员角色与最近的管理记录。" title="工作空间">
@@ -379,16 +379,26 @@ function SettingsOverview({
   );
 }
 
+export type StagedRecoveryProjection = {
+  operationRef: string | null;
+  roles: {
+    current: { provider: string; expiresAt: string } | null;
+    duplicate: { provider: string; expiresAt: string } | null;
+  };
+};
+
 export function SettingsWorkspace({
   initial,
   sessionVersion,
   section,
   labEnabled,
+  recovery = { operationRef: null, roles: { current: null, duplicate: null } },
 }: {
   initial: AccountSettings | null;
   sessionVersion: string | null;
   section: SettingsSection;
   labEnabled: boolean;
+  recovery?: StagedRecoveryProjection;
 }) {
   const drilldownSections = settingsDrilldownSections(labEnabled);
   const current = SETTINGS_SECTIONS.find((item) => item.id === section);
@@ -453,6 +463,7 @@ export function SettingsWorkspace({
               embedded
               initial={initial}
               key={`${initial.workspace.id}-${section}`}
+              recovery={recovery}
               section={section}
             />
           ) : (

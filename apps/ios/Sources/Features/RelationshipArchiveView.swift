@@ -25,6 +25,9 @@ struct RelationshipArchiveView: View {
     @State private var peopleRestorationPosition: String?
     @State private var presentedSheet: RelationshipArchiveSheet?
     @State private var askPresentation: RelationshipAskPresentation?
+    /// Shared active-refresh registration for the REAL open Agent Session (or
+    /// the directory-level Session list when no conversation is open).
+    @State private var activeRefreshRegistration: WorkspaceActiveRefresh.Registration?
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
     @State private var isCaptureInboxPresented = false
@@ -34,8 +37,10 @@ struct RelationshipArchiveView: View {
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
     @State private var deferredAskPresentation: RelationshipAskPresentation?
     @State private var deferredCapturePresentation: RelationshipCapturePresentation?
+    private let readScopeIsCurrent: () -> Bool
     private let reviewBaseURL: URL?
     private let authenticatedAccessToken: String?
+    private let authenticatedUserID: String?
     private let accountEmail: String?
     private let workspaceLabel: String?
     private let onSignOut: (() async -> Bool)?
@@ -47,7 +52,8 @@ struct RelationshipArchiveView: View {
         session: PursuitWorkspaceSession? = nil,
         service: PursuitWorkspaceServing? = nil,
         labService: TalentSignalLabServing? = nil,
-        onSignOut: (() async -> Bool)? = nil
+        onSignOut: (() async -> Bool)? = nil,
+        currentIdentity: (() -> AccountOperationScope?)? = nil
     ) {
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
@@ -66,6 +72,15 @@ struct RelationshipArchiveView: View {
         let previewSnapshot: PursuitWorkspaceSnapshot = .preview
         let previewSessionCount = 2
 #endif
+        let expectedIdentity = session.map {
+            AccountOperationScope(baseURL: $0.baseURL, accessToken: $0.accessToken ?? "",
+                                  accountID: $0.accountID ?? "", userID: $0.userID ?? "")
+        }
+        let scopeIsCurrent: () -> Bool = {
+            guard let currentIdentity else { return true }
+            return currentIdentity() == expectedIdentity
+        }
+        self.readScopeIsCurrent = scopeIsCurrent
         let resolvedService = service ?? session.map {
             URLPursuitWorkspaceClient(
                 baseURL: $0.baseURL,
@@ -83,7 +98,8 @@ struct RelationshipArchiveView: View {
                 actionCompletions: session.map {
                     FilePursuitActionCompletionStore(accountID: $0.persistenceScope, legacyAccountID: $0.accountID)
                 } ?? UserDefaultsPursuitActionCompletionStore(),
-                previewSnapshot: previewSnapshot
+                previewSnapshot: previewSnapshot,
+                readScopeIsCurrent: scopeIsCurrent
             )
         )
         // Keep loading, migration, and test resets inside StateObject's lazy
@@ -154,6 +170,7 @@ struct RelationshipArchiveView: View {
         labExperimentService = resolvedLabService as? any LabExperimentServing
         runtimeScope = session?.persistenceScope
         legacyAccountID = session?.accountID
+        authenticatedUserID = session?.userID
         reviewBaseURL = session?.baseURL
         authenticatedAccessToken = session?.accessToken
         accountEmail = session?.userEmail
@@ -203,6 +220,7 @@ struct RelationshipArchiveView: View {
                 }
             }
         }
+        .modifier(activeRefreshModifier)
         .onChange(of: askPresentation?.id) { presentationID in
             if presentationID == nil { completeDeferredTransition() }
         }
@@ -983,7 +1001,33 @@ struct RelationshipArchiveView: View {
         }
     }
 
+    /// The real open-Session refresh work: the same authenticated synchronize
+    /// path the UI uses, fenced by the coordinator generation and coalesced
+    /// inside AgentSessionStore.
+    private var activeRefreshModifier: AgentSessionActiveRefreshModifier {
+        // The lease binds the ACTUAL endpoint/token/account/user identity of
+        // this scope; the consumer owns request authority until release.
+        let lease = AgentSessionActiveRefreshConsumer.lease(
+            endpoint: reviewBaseURL,
+            accessToken: authenticatedAccessToken ?? "",
+            accountID: legacyAccountID ?? "",
+            userID: authenticatedUserID ?? "",
+            openSessionID: askPresentation?.sessionID
+        )
+        let workspace = workspaceStore
+        let sessions = sessionStore
+        return AgentSessionActiveRefreshModifier(
+            lease: lease,
+            sessions: sessions,
+            people: workspace,
+            syncService: { workspace.sessionSyncService },
+            isCanonical: { workspace.isCanonical },
+            isScopeCurrent: readScopeIsCurrent
+        )
+    }
+
     private func synchronizeAgentSessions(_ requiredSessionID: UUID? = nil) async -> Bool {
+        guard readScopeIsCurrent() else { return false }
         guard workspaceStore.isCanonical else { return true }
         // Use the same authenticated client as chat, including loopback fixtures
         // whose login is established after the workspace view is initialized.
@@ -5307,93 +5351,6 @@ private struct RelationshipEyebrow: View {
     }
 }
 
-private struct RelationshipContinueRow: View {
-    let initials: String
-    let name: String
-    let context: String
-    let status: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                RelationshipInitials(initials: initials, size: 40)
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(alignment: .firstTextBaseline, spacing: 7) {
-                        Text(name)
-                            .font(.custom("Georgia", size: 16, relativeTo: .body))
-                            .foregroundStyle(Color.tsInk)
-                        Text(context)
-                            .font(.caption2)
-                            .foregroundStyle(Color.tsMutedInk)
-                    }
-                    Text(status)
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-            }
-            .frame(minHeight: 68)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
-    }
-}
-
-private struct RelationshipPersonRow: View {
-    let person: RelationshipArchivePerson
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: 14) {
-                RelationshipInitials(initials: person.initials, size: 50)
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text(person.state.rawValue.uppercased())
-                            .font(.caption2.weight(.bold))
-                            .tracking(0.7)
-                            .foregroundStyle(
-                                person.state == .changed
-                                    ? Color.tsVermilion
-                                    : Color.tsMutedInk
-                            )
-                        Spacer()
-                        Text(person.recency.uppercased())
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Color.tsMutedInk)
-                    }
-                    Text(person.name)
-                        .font(.custom("Georgia", size: 19, relativeTo: .headline))
-                        .foregroundStyle(Color.tsInk)
-                    Text("\(person.role) · \(person.company)")
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(person.dependency)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 3)
-                }
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .frame(minHeight: 50)
-            }
-            .padding(.vertical, 20)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
-        .accessibilityIdentifier("relationship-person-\(person.id)")
-    }
-}
-
 struct RelationshipInitials: View {
     let initials: String
     let size: CGFloat
@@ -5406,60 +5363,6 @@ struct RelationshipInitials: View {
             .background(Color.tsCanvas, in: Circle())
             .overlay { Circle().stroke(Color.tsLine, lineWidth: 1) }
             .accessibilityHidden(true)
-    }
-}
-
-private struct RelationshipLibraryRow: View {
-    let systemImage: String
-    let title: String
-    let detail: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: systemImage)
-                    .font(.body)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .frame(width: 42, height: 42)
-                    .overlay { Circle().stroke(Color.tsLine, lineWidth: 1) }
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(title)
-                        .font(.custom("Georgia", size: 16, relativeTo: .body))
-                        .foregroundStyle(Color.tsInk)
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-            }
-            .frame(minHeight: 82)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
-    }
-}
-
-private struct RelationshipCollectionLabel: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(value)
-        }
-        .font(.caption2.weight(.semibold))
-        .tracking(0.8)
-        .textCase(.uppercase)
-        .foregroundStyle(Color.tsMutedInk)
-        .frame(minHeight: 44)
-        .overlay(alignment: .top) { Divider().overlay(Color.tsLine) }
     }
 }
 
@@ -5495,5 +5398,50 @@ private extension WorkspaceGap.Basis {
             return "Originally evidence-supported"
         }
         return kind.humanized
+    }
+}
+
+/// Keeps the archive body type-checkable: one shared refresh registration for
+/// the real open Agent Session or the directory-level Session list.
+private struct AgentSessionActiveRefreshModifier: ViewModifier {
+    let lease: AgentSessionActiveRefreshConsumer.Lease?
+    let sessions: AgentSessionStore
+    let people: PursuitWorkspaceStore?
+    let syncService: @MainActor () -> (any AgentSessionSyncServing)?
+    let isCanonical: @MainActor () -> Bool
+    let isScopeCurrent: @MainActor () -> Bool
+    @State private var consumer: AgentSessionActiveRefreshConsumer?
+    @State private var registration: WorkspaceActiveRefresh.Registration?
+
+    func body(content: Content) -> some View {
+        content
+            .task(id: lease) {
+                release()
+                guard let lease else { return }
+                let consumer = AgentSessionActiveRefreshConsumer(
+                    lease: lease,
+                    sessions: sessions,
+                    people: people,
+                    syncService: syncService,
+                    isCanonical: isCanonical,
+                    isScopeCurrent: isScopeCurrent
+                )
+                self.consumer = consumer
+                registration = WorkspaceActiveRefresh.shared.register(
+                    scope: consumer.registryScope
+                ) { generation in
+                    await consumer.refresh(generation: generation)
+                }
+            }
+            .onDisappear { release() }
+    }
+
+    private func release() {
+        if let registration {
+            WorkspaceActiveRefresh.shared.unregister(registration)
+            self.registration = nil
+        }
+        consumer?.release()
+        consumer = nil
     }
 }

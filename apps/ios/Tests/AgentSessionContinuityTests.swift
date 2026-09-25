@@ -355,7 +355,9 @@ final class AgentSessionContinuityTests: XCTestCase {
 
     @MainActor
     func testOfflineDraftAndFeedbackCannotExtendOriginalSessionRetention() throws {
-        let createdAt = Date()
+        // Persistence uses milliseconds; keep the exact expiry assertion on
+        // that clock instead of a wall-clock value with submillisecond rounding.
+        let createdAt = Date(timeIntervalSince1970: 1_750_000_000)
         var current = createdAt
         let persistence = SessionContinuityMemoryPersistence()
         let store = AgentSessionStore(persistence: persistence, now: { current })
@@ -366,7 +368,7 @@ final class AgentSessionContinuityTests: XCTestCase {
         XCTAssertTrue(store.saveDraft("A later draft", sessionID: id))
         XCTAssertTrue(store.toggleFeedback(sessionID: id, turnID: turnID, feedback: .helpful))
         let relaunched = AgentSessionStore(persistence: persistence, now: { current })
-        XCTAssertEqual(relaunched.session(id: id)?.originalCreatedAt.timeIntervalSince1970.rounded(.down), createdAt.timeIntervalSince1970.rounded(.down))
+        XCTAssertEqual(relaunched.session(id: id)?.originalCreatedAt, createdAt)
         current.addTimeInterval(24 * 60 * 60)
         XCTAssertNil(relaunched.session(id: id))
         XCTAssertTrue(AgentSessionStore(persistence: persistence, now: { current }).sessions.isEmpty)

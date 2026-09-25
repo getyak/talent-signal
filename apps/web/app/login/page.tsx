@@ -9,12 +9,21 @@ import { auth } from "@/auth";
 import { AccountAccessForm } from "@/components/account-access-form";
 import { BrandMark } from "@/components/brand-mark";
 import { EmailSignInForm } from "@/components/email-sign-in-form";
+import { VerificationConfirmForm } from "@/components/verification-confirm-form";
+import {
+  LINK_COMPLETE_PATH,
+  readAuthOperation,
+  readAuthProof,
+  readAuthRound,
+  validateStagedProof,
+} from "@/lib/server/stagedAuth";
 import { OAuthSubmit } from "@/components/oauth-submit";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getAuthAvailability, safeRedirectTarget } from "@/lib/auth-config";
 import { getGoogleOAuthCredentials } from "@/lib/server/google-oauth";
 import { signInWithApple, signInWithDefaultAccount, signInWithGoogle } from "./actions";
 import styles from "./login.module.css";
+import { AccountContinuity } from "./account-continuity";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -26,11 +35,11 @@ const oauthErrors: Record<string, string> = {
   AccessDenied: "登录已取消。准备好后，可以再试一次。",
   Configuration: "这次连接没有完成。已有账号请使用原登录方式，或稍后重试。",
   OAuthCallbackError: "这次登录没有完成，请重新连接。",
-  OAuthAccountNotLinked: "请使用最初创建这个账号的方式登录。",
+  OAuthAccountNotLinked: "这个邮箱已有账号。请使用原来的方式登录，再到设置中绑定新的登录方式。",
 };
 
 export default async function LoginPage({ searchParams }: {
-  searchParams: Promise<{ callbackUrl?: string; error?: string; reason?: string; mode?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; error?: string; reason?: string; mode?: string; verification?: string }>;
 }) {
   const [session, parameters] = await Promise.all([auth(), searchParams]);
   const requestHeaders = await headers();
@@ -43,6 +52,40 @@ export default async function LoginPage({ searchParams }: {
   if (session?.user && !sessionExpired && !parameters.error) {
     redirect(`/onboarding?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
+  // Staged Settings operations never fall through to ordinary login: a staged
+  // proof returns to its fixed same-origin completion route, and a cancelled
+  // or stale one exits through the fail-closed cleanup route. State lives in
+  // sealed cookies; no URL success flag is trusted.
+  const stagedOperation = await readAuthOperation();
+  const stagedRound = await readAuthRound();
+  const stagedProof = await readAuthProof(
+    stagedRound?.role === "duplicate" ? "duplicate" : "current",
+  );
+  // Owned completion only: a proof matching the CURRENT sealed round (role,
+  // provider, challenge, purpose) inside the frozen flow lifetime. A delayed
+  // error from another round never borrows the current round's authority.
+  const ownedCompletion =
+    parameters.error === "AccessDenied" &&
+    validateStagedProof({
+      operation: stagedOperation,
+      round: stagedRound,
+      proof: stagedProof,
+      role: stagedRound?.role ?? "current",
+    });
+  if (ownedCompletion) {
+    redirect(LINK_COMPLETE_PATH);
+  }
+  if (parameters.error && !sessionExpired && (stagedProof || stagedOperation)) {
+    // An error arriving from an unknown earlier round can never borrow the
+    // CURRENT operation's authority to cancel it. The originating staged pages
+    // own ref-tied cancellation; here the user only returns to Settings with a
+    // recoverable state and the sealed operation is left untouched.
+    redirect("/workspace/settings?link=error");
+  }
+  if (parameters.error && !sessionExpired && session?.user) {
+    redirect("/workspace/settings?link=error");
+  }
+  const verificationSecret = parameters.verification?.trim() ?? "";
   const availability = getAuthAvailability(process.env, { google: Boolean(getGoogleOAuthCredentials()) });
   const error = sessionExpired ? "登录已过期。重新登录后，可以继续刚才的工作。"
     : parameters.error ? (oauthErrors[parameters.error] ?? "登录未完成，请重试或换一种方式。") : "";
@@ -73,8 +116,11 @@ export default async function LoginPage({ searchParams }: {
         </div>
       </div>
       <div className={styles.stage}>
+        <AccountContinuity />
         <div className={styles.content}>
-          {availability.password ? (
+          {verificationSecret ? (
+            <VerificationConfirmForm secret={verificationSecret} redirectTo={callbackUrl} />
+          ) : availability.password ? (
             <AccountAccessForm callbackUrl={callbackUrl} registrationEnabled={availability.registration}
               initialMode={parameters.mode === "register" ? "register" : "sign-in"} notice={error}>
               {providers}
@@ -94,10 +140,10 @@ export default async function LoginPage({ searchParams }: {
               <button type="submit">使用开发测试账号 · {availability.defaultAccountName}</button>
             </form>
           )}
-          <p className={styles.privacy}>只带入你选择分享的内容。<br />个人资料可以稍后补充。</p>
+          <p className={styles.privacy}>同一账号，联系人与会话自动同步。</p>
         </div>
       </div>
-      <footer className={styles.footer}>TALENT SIGNAL <span>让每一次连接，都有来处。</span></footer>
+      <footer className={styles.footer}>只带入你选择分享的内容。</footer>
     </main>
   );
 }

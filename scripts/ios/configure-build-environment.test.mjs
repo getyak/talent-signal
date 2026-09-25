@@ -8,6 +8,7 @@ import {
   encodeEnvironmentProfiles,
   readEnvironmentValue,
   validateAPIBaseURL,
+  validateWebOrigin,
   writeBuildEnvironment,
 } from "./configure-build-environment.mjs";
 
@@ -109,6 +110,50 @@ test("allow-missing removes stale generated configuration", () => {
 
     assert.equal(selected, null);
     assert.throws(() => readFileSync(outputFile));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("account recovery accepts only a trusted origin with configuration-specific transport", () => {
+  assert.equal(validateWebOrigin(undefined, "Release"), "");
+  assert.equal(validateWebOrigin("https://web.example.test:10443/", "Release"), "https://web.example.test:10443");
+  assert.equal(validateWebOrigin("http://127.0.0.1:4608", "Debug"), "http://127.0.0.1:4608");
+  for (const value of [
+    "https://web.example.test/workspace",
+    "https://web.example.test/?token=secret",
+    "https://web.example.test/#fragment",
+    "https://user:secret@web.example.test",
+    "http://127.0.0.1:4608",
+    "javascript:alert(1)",
+  ]) assert.throws(() => validateWebOrigin(value, "Release"));
+  assert.throws(() => validateWebOrigin("http://127.0.0.1.example.test", "Debug"));
+});
+
+test("web origin configuration is encoded, explicit environment wins, and absence removes stale values", () => {
+  const directory = mkdtempSync(join(tmpdir(), "talent-signal-ios-web-origin-"));
+  const environmentFile = join(directory, ".env");
+  const outputFile = join(directory, "Environment.local.xcconfig");
+  const build = (environment) => writeBuildEnvironment({
+    allowMissing: false, configuration: "Release", environment,
+    environmentFile, outputFile,
+  });
+  const readWeb = () => {
+    const encoded = readFileSync(outputFile, "utf8").match(/^TALENT_SIGNAL_WEB_ORIGIN_BASE64URL = (.*)$/mu)[1];
+    return Buffer.from(encoded, "base64url").toString("utf8");
+  };
+  try {
+    writeFileSync(environmentFile, "TALENT_SIGNAL_API_BASE_URL=https://api.example.test\nTALENT_SIGNAL_WEB_ORIGIN=https://file.example.test\n");
+    build({});
+    assert.equal(readWeb(), "https://file.example.test");
+    build({ TALENT_SIGNAL_WEB_ORIGIN: "https://process.example.test" });
+    assert.equal(readWeb(), "https://process.example.test");
+    assert.doesNotMatch(readFileSync(outputFile, "utf8"), /https:\/\//u);
+    build({ TALENT_SIGNAL_WEB_ORIGIN: "" });
+    assert.equal(readWeb(), "");
+    writeFileSync(environmentFile, "TALENT_SIGNAL_API_BASE_URL=https://api.example.test\n");
+    build({});
+    assert.equal(readWeb(), "");
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

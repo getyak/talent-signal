@@ -1,6 +1,6 @@
 import type { ProductRunDetail, ProductRunList, ProductRunFeedbackMutation } from "./productRunSchemas.js";
 import type { TimeScope, TimeActivityListResponse, TimeScheduleMutationRequest, TimeScheduleDeleteRequest, TimeScheduleResponse, TimeReviewRequest, TimeReviewResponse } from "./timeWorkspaceSchemas.js";
-import type { AccountSettings, AccountMutation, AccountOnboarding, AccountOnboardingMutation, AccountOnboardingPreview, AccountOnboardingPreviewRequest } from "./accountSchemas.js";
+import type { AccountSettings, AccountMutation, AccountOnboarding, AccountOnboardingMutation, AccountOnboardingPreview, AccountOnboardingPreviewRequest, CredentialChangeAttempt, CredentialChangeResult, CompleteCredentialChangeRequest, StartCredentialChangeRequest, PasswordRegistrationStartResponse, PasswordVerificationConfirmRequest, ReconciliationActionRequest, ReconciliationPrepareRequest, ReconciliationRecord } from "./accountSchemas.js";
 import type {
   McpClientGrantCreateRequest,
   McpClientGrantCreateResponse,
@@ -271,13 +271,96 @@ export class TalentSignalClient {
   async registerWithPassword(
     request: PasswordRegistrationRequest,
     signal?: AbortSignal,
+  ): Promise<PasswordRegistrationStartResponse> {
+    // Verified signup: this only starts delivery. The response is generic and
+    // contains no code; confirmation activates the account.
+    return this.request<PasswordRegistrationStartResponse>(
+      "/v1/auth/password/register",
+      { method: "POST", body: request, authenticated: false, signal },
+    );
+  }
+
+  async confirmPasswordRegistration(
+    request: PasswordVerificationConfirmRequest,
+    signal?: AbortSignal,
   ): Promise<SessionResponse> {
     const response = await this.request<SessionResponse>(
-      "/v1/auth/password/register",
+      "/v1/auth/password/register/confirm",
       { method: "POST", body: request, authenticated: false, signal },
     );
     this.setAccessToken(response.access_token);
     return response;
+  }
+
+  startLoginMethodChange(
+    request: StartCredentialChangeRequest,
+    signal?: AbortSignal,
+  ): Promise<CredentialChangeAttempt> {
+    return this.request<CredentialChangeAttempt>(
+      "/v1/account/login-methods/attempts",
+      { method: "POST", body: request, signal },
+    );
+  }
+
+  completeLoginMethodChange(
+    request: CompleteCredentialChangeRequest,
+    signal?: AbortSignal,
+  ): Promise<CredentialChangeResult> {
+    return this.request<CredentialChangeResult>(
+      "/v1/account/login-methods/complete",
+      { method: "POST", body: request, signal },
+    );
+  }
+
+  prepareReconciliation(
+    request: ReconciliationPrepareRequest,
+    signal?: AbortSignal,
+  ): Promise<ReconciliationRecord> {
+    return this.request<ReconciliationRecord>(
+      "/v1/account/reconciliations/prepare",
+      { method: "POST", body: request, signal },
+    );
+  }
+
+  readReconciliation(id: string, signal?: AbortSignal): Promise<ReconciliationRecord> {
+    return this.request<ReconciliationRecord>(
+      `/v1/account/reconciliations/${encodeURIComponent(id)}`,
+      { method: "GET", signal },
+    );
+  }
+
+  confirmReconciliation(
+    id: string,
+    request: ReconciliationActionRequest,
+    signal?: AbortSignal,
+  ): Promise<ReconciliationRecord> {
+    return this.request<ReconciliationRecord>(
+      `/v1/account/reconciliations/${encodeURIComponent(id)}/confirm`,
+      { method: "POST", body: request, signal },
+    );
+  }
+
+  cancelReconciliation(
+    id: string,
+    request: ReconciliationActionRequest,
+    signal?: AbortSignal,
+  ): Promise<ReconciliationRecord> {
+    return this.request<ReconciliationRecord>(
+      `/v1/account/reconciliations/${encodeURIComponent(id)}/cancel`,
+      { method: "POST", body: request, signal },
+    );
+  }
+
+  createGoogleLoginChallenge(
+    request: { client_label: string },
+    signal?: AbortSignal,
+  ): Promise<AppleLoginChallengeResponse> {
+    return this.request("/v1/auth/google/challenges", {
+      method: "POST",
+      body: request,
+      authenticated: false,
+      signal,
+    });
   }
 
   createAppleLoginChallenge(

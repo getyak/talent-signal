@@ -5,14 +5,14 @@ import Apple from "next-auth/providers/apple";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import type { Provider } from "next-auth/providers";
+import { cookies, headers } from "next/headers";
+import { getToken } from "next-auth/jwt";
 import {
   appleFormPostCookiesSupported,
-  deriveRegistrationDisplayName,
   emailSignInSchema,
   getAuthAvailability,
   getDefaultAccount,
   normalizeEmail,
-  passwordRegistrationSchema,
   passwordSignInSchema,
   verifyConfiguredPassword,
 } from "@/lib/auth-config";
@@ -20,18 +20,36 @@ import { backendSessionIsExpired } from "@/lib/backend-session";
 import {
   AUTH_SESSION_COOKIE,
   authSecret,
-  registerBackendAccount,
+  confirmBackendRegistration,
   signInBackendAccount,
 } from "@/lib/server/backendAuth";
 import { getGoogleOAuthCredentials } from "@/lib/server/google-oauth";
+import { TEST_WORKSPACE_COOKIE } from "@/lib/server/testWorkspaceSession";
 
 import { authCookieSecure } from "@/lib/auth-cookie-policy";
 import { OAUTH_NONCE_COOKIE, OAuthAccountLinkRequired, oauthBackendClaims } from "@/lib/server/oauth-session";
 import { finishGoogleSignIn } from "@/lib/server/google-session";
+import {
+  clearStagedAuth,
+  readAuthOperation,
+  readAuthProof,
+  readAuthRound,
+  readCallbackPath,
+  resolveProviderReturn,
+  sealAuthProof,
+} from "@/lib/server/stagedAuth";
 import { finishAppleSignIn } from "@/lib/server/apple-session";
 import { getAppleOAuthCredentials } from "@/lib/server/apple-oauth";
 
 class AccountLinkRequired extends AuthError { static type = "OAuthAccountNotLinked"; }
+// Auth.js maps error types it knows; reusing the supported AccessDenied type
+// keeps the callback choreography inside the framework contract while the
+// staged proof cookie (server-sealed state) carries the real distinction.
+class StagedProofError extends AuthError {
+  static type = "AccessDenied";
+  code = "staged_proof";
+}
+
 async function exchangeProviderSession<T>(exchange: () => Promise<T>): Promise<T> {
   try { return await exchange(); }
   catch (error) {
@@ -144,28 +162,15 @@ function buildProviders(appleCredentials: AppleCredentials): Provider[] {
           return null;
         }
         try {
-          const backendSession =
-            credentials.mode === "register"
-              ? await (async () => {
-                  const parsed = passwordRegistrationSchema.safeParse(
-                    credentials,
-                  );
-                  if (!parsed.success) return null;
-                  return registerBackendAccount({
-                    username: parsed.data.username,
-                    email: parsed.data.email,
-                    display_name: deriveRegistrationDisplayName(
-                      parsed.data.email,
-                      parsed.data.displayName,
-                    ),
-                    password: parsed.data.password,
-                  });
-                })()
-              : await (async () => {
-                  const parsed = passwordSignInSchema.safeParse(credentials);
-                  if (!parsed.success) return null;
-                  return signInBackendAccount(parsed.data);
-                })();
+          // Verified signup never signs in directly: registration starts an
+          // email verification and only the verified confirmation opens a
+          // session (see the email-verification provider below).
+          if (credentials.mode === "register") return null;
+          const backendSession = await (async () => {
+            const parsed = passwordSignInSchema.safeParse(credentials);
+            if (!parsed.success) return null;
+            return signInBackendAccount(parsed.data);
+          })();
           if (!backendSession) return null;
 
           return {
@@ -242,6 +247,54 @@ function buildProviders(appleCredentials: AppleCredentials): Provider[] {
       },
     }),
   ];
+
+  // Verified password signup: the emailed link/code is confirmed by an
+  // intentional user action, never by a GET scanner, and only then opens a
+  // session for the verified account.
+  providers.push(
+    Credentials({
+      id: "email-verification",
+      name: "Email verification",
+      credentials: {
+        verificationSecret: { label: "Verification code", type: "text" },
+      },
+      async authorize(credentials) {
+        const secret =
+          typeof credentials.verificationSecret === "string"
+            ? credentials.verificationSecret.trim()
+            : "";
+        if (secret.length < 32 || secret.length > 200) return null;
+        try {
+          const backendSession = await confirmBackendRegistration({
+            verification_secret: secret,
+            client_label: "talent-signal-web",
+          });
+          return {
+            id: backendSession.user.id,
+            email: backendSession.user.email,
+            name: backendSession.user.display_name,
+            backendAccessToken: backendSession.access_token,
+            backendAccountId: backendSession.account.id,
+            backendAccountName: backendSession.account.name,
+            backendAccountSlug: backendSession.account.slug,
+            backendExpiresAt: backendSession.expires_at,
+            backendRole: backendSession.user.role,
+            backendUserId: backendSession.user.id,
+            backendUsername: backendSession.user.username,
+          };
+        } catch (error) {
+          if (
+            error instanceof TalentSignalHttpError &&
+            error.status >= 400 &&
+            error.status < 500
+          ) {
+            return null;
+          }
+          throw new AccountServiceCredentialsError();
+        }
+      },
+    }),
+  );
 
   const googleCredentials = getGoogleOAuthCredentials();
 
@@ -320,6 +373,57 @@ export function buildAuthConfig(): NextAuthConfig {
     },
     callbacks: {
       async jwt({ token, user, account, profile }) {
+        if (
+          account &&
+          (account.provider === "google" || account.provider === "apple")
+        ) {
+          // Bounded staged operation (ADR 0018): a Settings linking or
+          // reauthentication round trip stages its proof here and returns to
+          // the fixed same-origin completion route with the ORIGINAL session.
+          // Nothing here creates, replaces, or attaches a credential, and a
+          // missing, stale or wrong-purpose attempt fails closed instead of
+          // falling through to ordinary login.
+          const operationForReturn = await readAuthOperation();
+          const roundForReturn = await readAuthRound();
+          const decision = resolveProviderReturn({
+            operation: operationForReturn,
+            round: roundForReturn,
+            provider: account.provider,
+            callbackPath: await readCallbackPath(),
+          });
+          if (decision.kind === "fail-closed") {
+            await clearStagedAuth();
+            throw new AccountLinkRequired(
+              "This sign-in method change did not complete. Return to Settings and start again.",
+            );
+          }
+          if (decision.kind === "stage") {
+            const round = roundForReturn;
+            if (!round || !account.id_token) {
+              await clearStagedAuth();
+              throw new AccountLinkRequired("Provider did not return an identity token.");
+            }
+            // The explicit sealed round decides role, challenge and purpose:
+            // this return is routed to the round it validated, never inferred
+            // from provider equality or from which slot happens to be empty.
+            await sealAuthProof(
+              {
+                ref: round.flowRef,
+                roundRef: round.roundRef,
+                purpose: round.purpose,
+                provider: round.provider,
+                challengeId: round.challengeId,
+                identityToken: account.id_token,
+                stagedAt: new Date().toISOString(),
+              },
+              round.role === "duplicate" ? "duplicate" : "current",
+            );
+            // Terminate before any session write using an Auth.js-supported
+            // error type. The staged proof (server-sealed state, not a URL
+            // success flag) carries the completed round forward.
+            throw new StagedProofError("staged");
+          }
+        }
         if (account?.provider === "google") {
           if (!account.id_token) throw new Error("Google did not return an identity token.");
           const backend = await exchangeProviderSession(() => finishGoogleSignIn(account.id_token!));
@@ -417,6 +521,25 @@ export function buildAuthConfig(): NextAuthConfig {
     session: {
       maxAge: 60 * 60 * 8,
       strategy: "jwt",
+    },
+    events: {
+      async signIn({ account }) {
+        // Unified ordinary primary-login boundary (password, verified email,
+        // Google, Apple): a fresh primary login retires any stale test
+        // workspace SELECTION cookie. Only the selection is cleared: test
+        // workspace data and sessions are untouched, and staged link /
+        // reauthentication flows throw before this event, preserving their
+        // original selection and session. Failed logins never reach it.
+        if (
+          account &&
+          (account.provider === "password-account" ||
+            account.provider === "email-verification" ||
+            account.provider === "google" ||
+            account.provider === "apple")
+        ) {
+          (await cookies()).delete(TEST_WORKSPACE_COOKIE);
+        }
+      },
     },
     secret: configuredAuthSecret,
     trustHost:
