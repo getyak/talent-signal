@@ -201,7 +201,7 @@ final class AppSessionStore: ObservableObject {
         } catch {
             guard generation == contextGeneration else { return }
             self.challenge = nil
-            let signInNotice = error.localizedDescription
+            let signInNotice = self.signInNotice(error)
             isWorking = false
             await prepareChallenge()
             guard generation == contextGeneration else { return }
@@ -304,7 +304,8 @@ final class AppSessionStore: ObservableObject {
         switch code {
         case "PASSWORD_SIGN_IN_FAILED": return "The email or password is not recognized."
         case "PASSWORD_ACCOUNT_EXISTS": return "This email already has an account. Please sign in."
-        case "GOOGLE_ACCOUNT_LINK_REQUIRED": return "This email already has a workspace. Use its existing sign-in method."
+        case "GOOGLE_ACCOUNT_LINK_REQUIRED", "APPLE_ACCOUNT_LINK_REQUIRED": return "This email already has a workspace. Use its existing sign-in method."
+        case "APPLE_CHALLENGE_INVALID", "APPLE_CHALLENGE_REPLAYED", "APPLE_TOKEN_REPLAYED", "APPLE_TOKEN_INVALID", "APPLE_NONCE_MISMATCH", "APPLE_AUDIENCE_MISMATCH": return "Apple sign-in expired or could not be verified. Please try again."
         case "GOOGLE_CHALLENGE_INVALID", "GOOGLE_TOKEN_REPLAYED", "GOOGLE_TOKEN_INVALID": return "Google sign-in expired. Please try again."
         case "VERIFICATION_INVALID": return "This verification code is invalid or has expired. Start again to get a new email."
         case "EMAIL_DELIVERY_UNAVAILABLE", "EMAIL_DELIVERY_FAILED": return "Verification email could not be sent. No account was created. Try again shortly."
@@ -518,7 +519,7 @@ struct AppAuthenticationView: View {
                             }
                         case let .failure(error):
                             if (error as? ASAuthorizationError)?.code != .canceled {
-                                store.notice = error.localizedDescription
+                                store.notice = "Apple sign-in could not finish. Check your Apple Account in Settings, then try again."
                             }
                         }
                     }

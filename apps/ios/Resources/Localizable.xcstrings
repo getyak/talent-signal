@@ -1,6 +1,26 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Apple sign-in could not finish. Check your Apple Account in Settings, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能完成 Apple 登录。请检查「设置」中的 Apple 账户，然后重试。"
+          }
+        }
+      }
+    },
+    "Apple sign-in expired or could not be verified. Please try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 登录已过期或未通过验证，请重试。"
+          }
+        }
+      }
+    },
     "Left": {
       "localizations": {
         "zh-Hans": {

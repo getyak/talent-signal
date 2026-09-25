@@ -471,3 +471,29 @@ Parent prepared an independent actual public-endpoint PostgreSQL harness for
 unverified Apple hints and revoke-after-admission login. It is not yet run; it
 will run on frozen repaired source in its own database, after fresh migrations.
 All actual iOS/macOS manual guards are released. Production is unchanged.
+
+### 2026-09-25 10:00 native Apple system checkpoint
+
+Parent started a separate loopback backend on44329 using the production Apple
+JWKS verifier and a fresh database migrated through084. The normally signed iOS
+candidate launched with that endpoint, preserving the synthetic44319 protected
+session. The actual Apple button displayed Apple's device-account sign-in
+requirement. Only challenge requests reached the backend; no token, canonical
+account or authenticated session was created. The user has a pending request to
+sign into Apple Account in Primary iPhone Settings. This is not live Apple pass.
+
+Parent also corrected opaque native Apple failure copy and routed backend Apple
+email conflicts through the existing-account guidance. Parser/catalog checks,
+normal signed build-for-testing and strict code-sign verification passed.
+Independent review found no new correctness or user-state issue. This small
+copy change added no tests; compiled tests were not executed, and no new app
+install or launch interrupted the user's credential handoff. The manual
+simulator guard is currently held for that interaction.
+Pi repair2 continues separately; no phase2 source is integrated.
+
+Independent review strengthened the pending parent PostgreSQL race harness:
+it now proves an equivalent authenticated request succeeds without revocation,
+checks the exact live initiating row/token hash at the admission pause, demands
+the specific revoked-session rejection and preserves database evidence before
+assertions. The alias case also confirms the staged email remains unverified.
+The strengthened harness is still unexecuted until repaired source freezes.

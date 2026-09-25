@@ -71,8 +71,8 @@ same-record receipts containing only synthetic IDs and revision metadata.
 | Action | Required cross-client observation |
 | --- | --- |
 | Web creates a Person | iOS and macOS display the same Person ID after foreground/active refresh |
-| iOS edits that Person | Web and macOS display the saved revision, with no duplicate Person |
-| macOS updates that Person | iOS and Web observe that exact revision |
+| iOS imports a Person through the supported review/save flow | Web and macOS display the same Person/context IDs; completed in the actual clients |
+| A supported client changes a Person | Other clients observe that revision; generic native Person editing is not present and is not claimed as tested |
 | Web creates a durable Session with one synthetic message | iOS and macOS open the same Session/message IDs |
 | iOS continues that Session | Web and macOS retrieve the new message under the same Session |
 | macOS continues that Session | iOS and Web retrieve it without a fork or duplicate write |
@@ -120,6 +120,22 @@ URL. No Apple configuration was edited or saved. This verifies the intended
 native/Web grouping, not actual provider callback or canonical-account continuity.
 An isolated candidate origin needs an explicitly registered return URL before
 its real Web/macOS Apple flow can pass.
+
+### Native Apple authorization checkpoint, September 25 10:00
+
+The normally signed iOS candidate was launched with the isolated endpoint
+`http://127.0.0.1:44329`, which has a freshly migrated, empty acceptance database
+and uses the production Apple JWKS verifier. The existing synthetic account at
+`:44319` remains in its separate endpoint-scoped protected storage. A real tap
+on Continue with Apple displayed the system message requiring an Apple Account
+sign-in in device Settings. The backend returned a challenge but received no
+Apple identity token and created no authenticated account or session.
+
+The user was asked to complete the Apple Account sign-in directly in the
+allowlisted Primary iPhone simulator. Live Apple acceptance remains pending;
+neither challenge availability nor the system prompt is proof of authentication.
+No production routing, provider configuration or account ownership changed.
+See `native-apple-system-checkpoint-r20.json` and its system-prompt screenshot.
 
 Independent review must close confirmed P0/P1 findings. Bind test/CI evidence to
 the final source revision. Deployment, registered Apple grouping, real mail
