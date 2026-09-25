@@ -92,7 +92,7 @@ describe("workspace conversation Agent", () => {
     expect(stage).not.toHaveBeenCalled();
   });
 
-  it.each([["claude-agent-sdk", 60_000], ["scripted", 35_000]])("admits the %s adapter's complete execution budget", async (id, duration) => {
+  it.each([["claude-agent-sdk", 180_000], ["scripted", 35_000]])("admits the %s adapter's complete execution budget", async (id, duration) => {
     const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Ready", body: "Ready" });
     const run = vi.fn<AgentProvider["run"]>(async request => {
       expect(request.budget.maxDurationMs).toBe(duration);
@@ -107,7 +107,7 @@ describe("workspace conversation Agent", () => {
     const provider = new ScriptedAgentProvider([], { outcome: "reply", title: "Ready", body: "Ready" });
     const run = vi.fn<AgentProvider["run"]>(async request => {
       expect(request.budget).toMatchObject({ maxTaskTokens: image ? 96_000 : 32_000,
-        maxEstimatedUsd: 1, maxTurns: 6, maxToolCalls: 6, maxDurationMs: 60_000 });
+        maxEstimatedUsd: 1, maxTurns: 6, maxToolCalls: 6, maxDurationMs: 180_000 });
       return { structuredOutput: { outcome: "reply", title: "Ready", body: "Ready" },
         inputTokens: 0, outputTokens: 0, estimatedUsd: 0, turns: 1, permissionDenials: [] };
     });

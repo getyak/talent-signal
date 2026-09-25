@@ -95,3 +95,16 @@ test("rejects Claude endpoint drift, missing model and ambiguous official creden
     { TALENT_SIGNAL_CLAUDE_TASK_BUDGET_ENABLED: "yes" },
   ]) assert.equal(verifyTestflightChatEnvironment({ ...environment, ...changes }).ok, false);
 });
+
+test("bounds the workspace conversation deadline before deployment", () => {
+  const environment = {
+    TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING: "true", TALENT_SIGNAL_CHAT_PROVIDER: "claude",
+    TALENT_SIGNAL_AGENT_MODEL: "claude-sonnet-5", ANTHROPIC_API_KEY: "synthetic-test-key",
+  };
+  assert.equal(verifyTestflightChatEnvironment({ ...environment, TALENT_SIGNAL_CONVERSATION_TIMEOUT_MS: "180000" }).ok, true);
+  for (const duration of ["0", "300001", "NaN"]) {
+    const result = verifyTestflightChatEnvironment({ ...environment, TALENT_SIGNAL_CONVERSATION_TIMEOUT_MS: duration });
+    assert.equal(result.ok, false);
+    assert.ok(result.issues.includes("CONVERSATION_TIMEOUT_CONFIGURATION_INVALID"));
+  }
+});

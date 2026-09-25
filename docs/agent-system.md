@@ -42,7 +42,7 @@ An open-ended agent may produce an artifact or proposal. A task may also grant
 specific reversible internal filing operations, enforced by domain tools. It
 cannot confirm a fact, merge identity, or grant itself consequential actions.
 
-Workspace image runs permit 64k cumulative tokens for repeated visual context; text runs remain at 32k, with existing dollar, duration, turn and tool-call caps unchanged.
+Workspace image runs have a bounded allowance for repeated visual context. Conversation deadlines cover inspection, model startup and tool turns together, independently of HTTP admission. Cancellation and source revocation remain immediate. See [product run operations](operations/product-feedback.md) for current limits and trace coverage.
 Public-web research has a separate definition, explicit company/market purpose, domain and usage budgets, and no conversation evidence or attachments.
 Search discovers untrusted leads; every draft claim cites only same-Run fetched sources and gains no truth or action authority.
 The legacy screenshot public-person definition is read-only: one intentional

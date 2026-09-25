@@ -120,6 +120,14 @@ export function registerConversationQueueRoutes(
         request.auth,
         request.body,
       );
+      request.log.info({
+        session_id: request.params.id,
+        message_id: request.body.message_id,
+        queue_entry_id: result.response.queue_entry_id,
+        replayed: result.replayed,
+        image_count: request.body.images?.length ?? 0,
+        image_bytes: request.body.images?.reduce((total, image) => total + image.byte_size, 0) ?? 0,
+      }, "conversation queue admitted");
       return reply
         .header("idempotent-replayed", result.replayed)
         .status(202)

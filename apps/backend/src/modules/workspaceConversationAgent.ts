@@ -1,4 +1,5 @@
 import { measureLabServerStage, measureLabServerStageSync } from "../lib/labDiagnostics.js";
+import { workspaceConversationTimeoutMs } from "./workspaceConversationBudget.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -14,7 +15,6 @@ import {
   DEFAULT_AGENT_BUDGET,
   currentImageInspection, ArkCurrentImageInspector, type CurrentImageInspector,
   publicSubjectRegistry, WorkspacePublicSubjectSearchSchema, WorkspacePublicSourceFetchSchema,
-  AGENT_BUDGET_CEILING,
   WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES,
   WorkspaceConversationFinalOutputSchema,
   fingerprint,
@@ -47,7 +47,6 @@ import { currentStableHandleOwner, type MemoryImageManifestEntry } from "./memor
 import { LocalContactResearchClient, type ContactResearchClient } from "./contactResearchClient.js";
 import { createWorkspacePublicResearch } from "./workspacePublicResearch.js";
 
-const WORKSPACE_CONVERSATION_TIMEOUT_MS = 35_000;
 
 export { WORKSPACE_CONVERSATION_SYSTEM_PROMPT } from "@talent-signal/agent";
 
@@ -394,10 +393,9 @@ export async function executeWorkspaceConversationAgentCore(input: {
 const declinedContact = /(?:不要|不用|别|不需要).{0,12}(?:添加|建|保存).{0,8}(?:联系人|人物)|(?:do not|don't|no need to).{0,12}(?:add|create|save).{0,12}contact/iu.test(input.sourceText ?? input.objective);
   let memoryStagePending = false;
   let toolCallCount = 0;
-  // SDK startup and tool turns share the same admitted wall-clock ceiling as
-  // scoped Chat. Keep the legacy HTTP adapter's tighter existing deadline.
-  const durationMs = input.provider.id === "claude-agent-sdk"
-    ? AGENT_BUDGET_CEILING.maxDurationMs : WORKSPACE_CONVERSATION_TIMEOUT_MS;
+  // Inspection, startup and all tool turns share one absolute deadline.
+  // Queue admission is already acknowledged independently of this execution.
+  const durationMs = workspaceConversationTimeoutMs(input.provider.id);
   const abort = new AbortController();
   const research = input.researchClient ? createWorkspacePublicResearch({
     client: input.researchClient, taskID: randomUUID(), authorizedSubjects: subjects.subjects, signal: abort.signal,
@@ -1111,6 +1109,7 @@ const declinedContact = /(?:不要|不用|别|不需要).{0,12}(?:添加|建|保
       abort.signal,
     ));
     await input.assertCurrent?.();
+    abort.signal.throwIfAborted();
     providerResult.prompt ??= promptReference(snapshot);
     // Preparing an optional review card does not create a person or grant
     // identity authority. The staging service still detects namesakes and
