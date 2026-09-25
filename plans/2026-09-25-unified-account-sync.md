@@ -817,3 +817,39 @@ for their addition. Future held-A regression must validate the actual B consumer
 after shared-cookie removal; it must not require retention of the old global
 cookie implementation. See web-r31-consumer-review.md and
 desktop-web-consumers-r31.json.
+
+### 2026-09-25 12:31 primary-login store decision and r32 proof
+
+Accepted ADR0021 extends the existing origin-based persistent WebKit store
+selection with one active epoch, durable login-entry uncertainty and process
+ownership. A new primary login with uncertain old writers starts from a fresh
+first-party entry/store before credentials or proof; credential Settings rounds
+keep the current store. All hosts reconstruct by store epoch. Actual Web login
+controls use a synchronous shared submit gate. Read-only authenticated status
+must not emit Set-Cookie or reuse Auth.js's cookie-refreshing session endpoint.
+The independent design review closed its two concrete seams; OS locking must
+use a stable separate lock identity rather than the replaceable journal inode.
+Implementation, crash durability, product interactions and real-provider proof
+remain unaccepted. Pi repair6 has not yet received this later store decision.
+
+The r32 real-WK experiment supported shared-store late-A contamination and
+distinct-store B isolation. With explicit persistent-cookie attributes and
+five seconds of graceful observation, a separate .app process reopened B and
+sent CookieB on a real HTTP check. Public WebKit cleanup removed exactly the
+three task identifiers and verified absence. Independent review verified the
+12 bound artifacts. The first bare-CLI and second .app variants failed reopening;
+several fixture/lifetime factors changed, so no single-cause diagnosis is claimed.
+The first cleanup crashed before WebKit initialization; a nonpersistent bootstrap
+then removed those original three identifiers successfully. All three runs'
+stores are removed; no product store/preferences were touched.
+
+See login-store-boundary-r32-review.md, race/reopen/cleanup receipts and binding.
+This establishes graceful API persistence and isolation only, not coordinator,
+crash or installed-app acceptance. The runner's future reuse needs unique run
+identity/fresh outputs and process-code gating; current final timestamps, store
+IDs, actual wire trace and all three exit0 results independently align. No
+additional rerun is justified for the measured boundary.
+
+Backend repair6 source is separately frozen as78c2a85f in
+account-sync-backend-proof-r33 (451 files) for fresh migration/typecheck, relevant
+repository tests and the27 independent PG cases. Native/Web remain with Pi.
