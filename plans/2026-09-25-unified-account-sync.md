@@ -40,7 +40,8 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
    repair 8 review failed on real consumer paths and disconnected
-   primary-login store ownership; consolidated repair9 is active. Live provider flows
+   primary-login store ownership; repair9 was interrupted for app-bootstrap isolation and concrete
+   composition guidance; repair10 is now running with the reviewed composition. Live provider flows
    remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
@@ -53,7 +54,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 and frozen r33 passed; r35 clock regression and r36 primary/target/store blockers independently confirmed; repair9 active |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 and frozen r33 passed; r35 clock regression and r36 primary/target/store blockers independently confirmed; repair10 running |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -997,3 +998,62 @@ Storage readback:127GiB free, all3 allowed simulators shutdown. Exit2 covers
 existing unrelated artifact warnings, not a new simulator violation. No cleanup
 or installed preferences were changed. Live Apple still awaits the original
 human Apple Account sign-in checkpoint; no new identity verification is inferred.
+
+### 2026-09-25 13:55 primary-status correction and composition checkpoint
+
+A further bounded primary-status probe found the route selected the secondary
+workspace token after merely checking that primary claims exist. Expanded real
+HTTP/PG tests reproduce3 failures among7: wrong secondary actor, revoked A
+validated by live B, and damaged secondary cookie throwing before the catch.
+Parent fixed only the route and added7 repository regressions on isolated
+r37 commit e765d3bf. The same real HTTP/PG7 now pass; repository7 and Web
+typecheck pass. Independent review closes this P1. The fixture uses valid
+production sealing for a synthetic ordinary B; actual Lab creation/WK are not
+claimed. See primary-status-r37-binding.json and status-r37-review.md. This
+small parent-owned commit MUST be retained on later phase2 integration.
+
+Repair9 was officially cancelled at549 replies while still in progress, before
+its normal Mac check. Draft composition creates a registry per browser, resolves
+errors to a temp fallback then force-unwraps, replaces only WKWebView while
+controller closures retain the old view, and rotates only on provider entry.
+The macOS unit target has TEST_HOST pointing to the real application, while
+its test launch lacks an explicit registry root. Parent checked the default
+PrimaryLoginStores directory is absent before and after cancellation; no
+product registry was initialized.1251 source hashes plus actual patch/untracked
+files are preserved in macos-pi/repair9-checkpoint; this is not a ready candidate.
+
+ADR0021 now states the concrete production composition: one app coordinator,
+stable host IDs outside keyed browser lifetimes, entry-before-input rotation,
+whole view/controller reconstruction, correlated same-store primary readback,
+and fail-closed XCTest bootstrap isolation. Independent design review is being
+run before the same Pi task receives repair10. No counters are reset, no phase2
+source is integrated and the human Apple sign-in checkpoint remains pending.
+
+### Reviewed composition and new delivery instruction — 14:10 local
+
+The parent cancelled repair9 at549 replies, preserving1251 source hashes and
+the draft before app tests could touch the standard registry. ADR0021 now
+requires one injected app coordinator, immutable whole-host reconstruction,
+inert-before-ownership native login rendering across client/history routes,
+host-owned isolated-world same-store status, and explicit test root/origin/fresh
+WK identifiers with no installed-state adoption. Independent r38 closure
+review closes its3P1+1P2 at design level only.
+
+Repair10 resumed the same Pi task/session at549 replies with750 cumulative
+replies/10repairs/7200seconds and the frozen MiMo Pro provider. Its feedback
+requires all unfinished repair9/R36 fixes and the independently accepted
+e765d3bf two-file primary-status correction. Source integration and real app
+acceptance remain pending.
+
+The user subsequently explicitly authorized parent judgment, full merge and a
+new release after correctness checks, and requested login-page aesthetic
+improvement. This supersedes the earlier parent-level no-publication boundary
+for this task's reviewed changes. Pi's current contract remains implementation
+only; parent owns PR, exact-head CI, merge, deployment and release verification.
+The authorization does not waive real identity proof, production-data conflict
+review, signing requirements or the user's own Apple authentication step.
+
+Parent is preparing two rendered login directions under task-owned artifacts
+and an independent read-only release-readiness review while Pi repairs the
+account flow. Parent will integrate visual changes after Pi's overlapping login
+source is stable; no parallel edits to Pi files. No release has been published.

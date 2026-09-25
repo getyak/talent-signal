@@ -117,6 +117,155 @@ and automatically reselect or delete them. Store rotation does not revoke a
 backend session that may already have been created, undo a credential mutation,
 or establish that an abandoned operation was cancelled.
 
+## Production composition contract
+
+The r36 helper-only implementation and repair9 draft exposed an implementation
+ambiguity. The following composition is part of this accepted decision; a
+per-browser coordinator or a replaced WK view with the old controller does not
+satisfy it.
+
+### One application owner and immutable host construction
+
+Create one main-actor application coordinator, initialized once from explicit
+launch configuration. It owns one registry/process-lock lifetime and a selection
+map by canonical origin. Additional windows and rebuilt SwiftUI views receive
+this coordinator by injection; they never independently construct a registry or
+acquire the same lock. Each window has a stable host ID outside the subtree that
+is rebuilt for a store change.
+
+The coordinator exposes a bounded resolution for each host: unavailable with an
+actionable reason, ordinary selected workspace, owned primary-login entry, or a
+passive waiting host. The immutable browser construction context contains
+`{origin, storeID, epoch, hostID}`; a primary entry additionally carries the full
+lease and a fresh first-party GET destination. Registry errors produce the
+unavailable resolution. Never force-unwrap a failed coordinator, choose a
+temporary fallback directory, or silently reuse the deterministic legacy jar.
+
+Construct WorkspaceBrowser, its WKWebView and DesktopAuthenticationSession as a
+single lifetime from this context. The connected SwiftUI subtree and native
+view representation are keyed by `{origin, storeID, epoch, hostID}`. A selected
+epoch change retires the complete old browser/controller and constructs a new
+one. Merely assigning another WKWebView to a property is insufficient: existing
+load closures, presentation anchors, KVO, script handlers, event observers and
+NSViewRepresentable instances may still point at the old view. Reconstruct all
+of them together, and keep old asynchronous callbacks bound to their captured
+context. The old store remains quarantined rather than deleted.
+
+Host registration is explicit. Selecting a new epoch publishes to every
+registered host of that origin, including hidden hosts; every old controller
+loses navigation/mutation authority. Only the owning host may show the selected
+login entry. Other hosts display a passive state and cannot silently take the
+lease or expose a second form. An explicit user choice may start a new entry in
+a fresh store, but an automatic hidden-host callback cannot make that choice.
+
+### Rotate at login entry, before inputs; keep the selected entry for its methods
+
+When the selected ordinary workspace redirects/navigates to primary login,
+cancel that old host entry before login inputs appear. An automatic navigation
+only requests entry; it never grants ownership. Only the application-selected
+visible foreground host, with no conflicting live owner, may automatically
+acquire first entry. Hidden/background hosts become passive and cannot rotate
+or steal a lease because their session expired. A conflicting owner requires
+a deliberate user action to start a fresh entry in the chosen host; callbacks
+and restored history cannot simulate that action. The coordinator validates
+the requesting host, current selection and foreground/explicit-entry reason
+before persisting the fresh entry selection and unresolved lease,
+then publish the replacement construction context. The replacement host loads a
+fresh first-party login GET only after those writes succeed. It already owns
+that entry; its own initial GET does not recursively rotate again.
+
+Password Enter, ordinary provider submission and the native provider handoff
+all belong to that same entry. Do not rotate for the first time inside a provider
+button's `/desktop-auth/request` interception: password input may already have
+been exposed and the old controller/load closure may still target the old jar.
+The provider interception validates the current host's entry lease, then starts
+proof in the already selected entry store. Settings current/target credential
+rounds never request primary-entry rotation.
+
+A navigation-delegate GET check alone is insufficient. Native login rendering
+has a fail-closed presentation boundary covering Next client routing, history,
+BFCache restoration and return from registration/recovery. Configure a native
+display-only user-agent marker before the first request and entry-ownership
+metadata at document start, derived from the immutable construction context.
+For a native host, the server login surface initially renders an inert entry
+shell, not interactive password/provider controls. Only the owning fresh entry's
+client boundary may render/enable those controls. Ordinary browsers keep their
+normal login surface. Spoofing display metadata grants no backend authority.
+The visible entry/new-entry action requests the fixed first-party native entry
+route; the application coordinator remains the sole lease authority.
+
+The presentation boundary rechecks on route/history restoration and on host
+revocation; an old cached owned flag cannot reopen a completed/retired entry.
+Full document navigation is required for the native fresh-entry transition;
+no RSC redirect or restored history may bypass that boundary. Host lease loss
+immediately makes the old surface noninteractive and retires its view/controller.
+The same synchronous client submission gate covers every enabled method;
+metadata never carries a cookie, password, verifier or provider assertion.
+
+A visible explicit new-login/recovery action acquires a new entry lease before
+reopening any methods. A possibly committing request in an older entry is not
+replayed. On process startup, an unresolved persisted entry is replaced before
+any host can load it for authentication; old lease host IDs are not revived.
+The coordinator distinguishes initial workspace adoption, resume of settled
+workspace use, and fresh login entry, so normal workspace navigation does not
+continually create stores.
+
+### Same-store observation and asynchronous fences
+
+The actual app uses the fixed read-only primary-status route from the owning
+WK store and correlates its response with the captured host/store/epoch/lease.
+The route must validate the primary token directly, without the workspace-aware
+client that can select a secondary Lab token. Return safe actor metadata only.
+Do not extract HttpOnly auth cookies into URLSession or native storage to make
+this request, and do not add a general-purpose page-to-native credential bridge.
+A fixed same-origin status fetch returning only this safe metadata is permitted.
+Invoke it from host-owned code in a dedicated isolated WK content world in the
+owning main frame; do not accept a page-posted actor or DOM text. Use the exact
+configured status URL with a fresh read correlation, same-origin credentials,
+no-store and redirect rejection. Validate the exact final origin/path, HTTP200,
+JSON MIME and bounded actor/status schema before using the result. Correlate
+both dispatch and asynchronous completion with the captured full lease/store
+and read generation. A response to an old view cannot resolve a newer entry.
+
+Keep observedActor separate from settledEntry. Status can update the observed
+identity and recovery UI but cannot by itself clear an unresolved possibly
+committing write. Settling requires the separately observed matching installation
+response and this live readback; when a password fetch response cannot be
+observed by the host, retain the conservative uncertainty/rotation rule. A page
+route, native consume callback or decoded JSON without that provenance cannot
+clear uncertainty.
+
+Retain the explicit distinction between an observed actor and quiescent cookie
+writers. A password success observation does not prove every older response is
+done. The next primary login still rotates. Every asynchronous resolution,
+lease release, marker update and host retirement compares the full captured
+lease; no callback looks up an unrelated newer lease and clears that instead.
+
+### Test host isolation is enforced at application bootstrap
+
+The production root is resolved only after strict launch-argument validation.
+The `--primary-login-store-root` override requires one absolute task-owned path;
+a missing value, duplicate switch or another switch as its value is an error,
+not a production-root fallback. Tests inject one shared coordinator and explicit
+roots, not a registry for each view.
+
+macOS unit tests have a real TEST_HOST application, so helper-only temporary
+roots do not isolate app bootstrap. The generated test launch configuration must
+supply a task-owned root before any workspace host is constructed. Detecting an
+XCTest host without an explicit root must fail closed into an unavailable test
+host state before touching the standard registry. UI test launch arguments must
+also name the task root and isolated Web origin. Registry-root isolation does
+not isolate WebKit's globally identified persistent jars. In disposable test
+mode, disable legacy-store adoption entirely: allocate a fresh task-namespaced
+persistent UUID and reuse only selections recorded in that task registry. Never
+read or adopt the installed application's origin selection, saved preferences,
+legacy deterministic UUID or other WebKit identifiers. Both unit TEST_HOST and
+UI runs must explicitly supply their isolated origin as well as root; otherwise
+remain unavailable before constructing any WK view. Record effective arguments,
+origin, root and task store identifier at the safe metadata level; never log
+cookies, verifiers or assertions. Build and compile are separate from launching
+this isolated application.
+
 ## Product behavior
 
 Normal workspace use and Settings binding remain quiet and continuous. An
