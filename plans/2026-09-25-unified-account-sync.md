@@ -39,7 +39,8 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 6 after native lifecycle and real-consumer findings. Live provider flows
+   repair 7 after native lifecycle and real-consumer findings, plus accepted
+   primary-login store ownership. Live provider flows
    remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
@@ -52,7 +53,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; r29 backend 2 P1 remain; lock races verified; native lifecycle/receipt repair6 active |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; r33 backend review and 27/27 PG regressions pass; native/Web receipt and store ownership repair7 active |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -853,3 +854,28 @@ additional rerun is justified for the measured boundary.
 Backend repair6 source is separately frozen as78c2a85f in
 account-sync-backend-proof-r33 (451 files) for fresh migration/typecheck, relevant
 repository tests and the27 independent PG cases. Native/Web remain with Pi.
+
+### 2026-09-25 12:43 r33 database closure and consolidated repair7
+
+Frozen backend78c2a85f passed fresh085 migration, backend typecheck and81/81
+relevant repository tests with no skips. All ten independent PG harnesses exited0;
+all27 cases and source-stability checks passed, including the two ordinary-target
+committed-ACK failures and anonymous pending-login failure from r29. Forced real
+row-lock schedules, original actor/revocation checks, deadline and cancellation
+regressions remain green. The pending-login inherited boundary metadata was
+corrected before this execution. See backend-r33-binding.json and the ten r33
+receipts. This covers actual PostgreSQL routes/ordinary consumers with controlled
+external verification, not Web/native/live OAuth or phase2 integration.
+
+Pi repair6 encountered service500/503 errors, including a15-minute response gap,
+then made two further native state/dispatch edits. Parent officially cancelled
+at436 replies, preserved checkpoint/patch/untracked files, and confirmed all451
+backend hashes still matched r33. The same task/session resumed repair7 with
+unchanged frozen MiMo Pro and cumulative limits600 replies/8repairs. Consolidated
+feedback retains repair6 actual-consumer defects and adds accepted ADR0021
+implementation/acceptance with task-only test registry roots. No counter reset,
+provider fallback or unreviewed integration occurred.
+
+Live Apple still requires the user's device Apple Account sign-in checkpoint.
+The simulator session remains released and the task-started simulator shut down;
+no human provider verification was inferred from the user's continue message.
