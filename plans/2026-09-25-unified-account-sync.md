@@ -39,7 +39,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 7 after native lifecycle and real-consumer findings, plus accepted
+   repair 8 after native lifecycle and real-consumer findings, plus accepted
    primary-login store ownership. Live provider flows
    remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
@@ -53,7 +53,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; r33 backend review and 27/27 PG regressions pass; native/Web receipt and store ownership repair7 active |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; r33 backend review and 27/27 PG regressions pass; native/Web receipt, target/cancel and store ownership repair8 active |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -914,3 +914,19 @@ store ownership/native code; these newer findings are pending consolidated
 feedback. No phase2 source is integrated and no production/provider/installed
 application state changed. The chain fixture server/DB are task-only and retained
 for final-source reruns, not resident deployment.
+
+### 2026-09-25 13:01 consolidated repair8 dispatched
+
+Parent officially interrupted ongoing repair7 at471 replies to supply the
+completed r34 target/cancel counterexamples before another full local check
+cycle. This checkpoint was still in progress, not ready_for_review. The actual
+patch, untracked sources and812 native/Web/contracts hashes are retained in
+macos-pi/repair7-checkpoint; all451 backend hashes still match r33.
+
+The same task/session resumed repair8 with existing cumulative limits600replies/
+8repairs and frozen MiMo Pro. Feedback names both actual downstream target
+failures, invalid-body cancellation effects, every required strict200 native
+route, actual Settings consumers and ADR0021 production wiring. It preserves
+the successful5+2 Web slices and accepted backend81+27. No counters were reset
+or source integrated. Parent live-provider and final signed native acceptance
+remain open; the user Apple Account checkpoint is unchanged.
