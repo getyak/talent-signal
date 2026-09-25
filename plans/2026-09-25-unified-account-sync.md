@@ -39,7 +39,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 3 after five independently reproduced P1 findings. Live provider flows
+   repair 4 after three further independently reproduced P1 findings. Live provider flows
    remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
@@ -52,7 +52,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; phase2 relay has five P1 in repair3; live relay proof pending |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; phase2 r26 closes original five cases but has three further P1 in repair4; Web/native acceptance pending |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -636,3 +636,42 @@ Latest storage audit:133GiB available, three allowlisted devices shut down;
 non-task artifact warnings remain and were not cleaned. The isolated live Apple
 backend has only two challenge receipts and no real provider token. The user
 device-account checkpoint remains pending.
+
+### 2026-09-25 11:26 r26 independent proof and repair4
+
+Parent froze 451 backend/contracts files at854f47beec6e930e8cbfb380551abe530d156a86
+in the managed account-sync-backend-proof-r26 worktree. Fresh isolated DB
+account_sync_desktop_parent_r26 migrated through085; backend typecheck and
+71/71 relevant repository tests passed. Independent public-route/production-
+function probes passed login2/2, credential3/3, deadline/cancel5/5 and the
+original ordinary-versus-desktop completion race1/1. The parent harness was
+adapted to the newly attached error schema (code, message, request_id); its
+initial serialization500 is neither product failure nor valid rejection proof.
+Final original-actor negative receipts require exact409 fingerprint errors or
+specific401 authentication errors and include revoked-session acknowledgment.
+
+Three further P1 prevent acceptance. Two public target consumers for the same
+grant acquire account/grant locks in opposite order; deterministic real-lock
+scheduling records PostgreSQL40P01, wrapped503, no completion audit and no
+revision change. Ordinary first-password completion commits once, but original
+paired result and ack fail409 because its own revision increment is treated as
+pending-state drift. Ordinary Google completion before target cancel returns
+cancelled through both WK and system authorities despite a committed grant,
+linked provider and one audit/revision increment. Final assertions bind outcome,
+actor/account/user scope, exact audit and acknowledgment identities; passing
+some earlier assertions does not imply the recovery assertions passed.
+
+The independently reviewed fix uses a complete desktop/grant/account/provider
+lock order including trigger-acquired locks, and the same atomic grant/audit
+completion fact for ordinary and desktop consumers. It avoids acquiring other
+desktop rows from ordinary completion. The rationale is now in ADR0020; precise
+findings and hash-bound receipts belong in the r26 evaluation artifacts.
+
+Pi task20260925-073216-41f71cc2 was officially cancelled at360 replies, then
+resumed as repair4 with all counters and source preserved. Feedback includes
+r26's concrete counterexamples and r25's actual Web consumer failures, while
+preserving repaired R1–R5 and parent Web fixes. Bounds remain600 cumulative
+replies,5 repairs,7200 seconds per attempt. Parent independently froze the new
+61-file native implementation as r27 for review while Pi repairs backend/Web.
+No phase2 code is integrated, and no live OAuth success or production/provider
+change is claimed. The user Apple Account sign-in checkpoint remains pending.

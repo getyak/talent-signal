@@ -108,6 +108,28 @@ Desktop redemption, credential attempt creation and any immediate unlink/result
 commit must share a transaction. Keep normal Web/native callers on these same
 primitives and retain their existing regression tests.
 
+All consumers of an existing credential grant use one acquisition order:
+the desktop row owned by that request, if any; the existing grant; account,
+user and live session; then provider challenge/assertion rows. Target prepare
+locks its existing grant before account scope and inserts a new desktop row
+afterward. Provider approval and cancellation include account locks acquired
+indirectly by retirement-fence triggers in this order. A current round's new
+grant is created within its transaction and cannot yet be held by another
+committed consumer. A database deadlock mapped to a retryable HTTP error is
+not evidence that the order is consistent.
+
+The ordinary credential completion's consumed grant and exact account-access
+event form the shared durable completion fact. They are written atomically and
+matched by grant ID, account, actor, session, intent and outcome. Ordinary
+completion must not acquire associated desktop rows after grant/account locks
+just to copy a receipt. Result and acknowledgment first verify the original
+live actor, then use nonlocking reads of this exact committed fact to select
+receipt mode. Pending state retains its original revision and deadline guards;
+an existing password, provider row, or consumed timestamp alone is insufficient.
+Cancellation locks the grant and checks the same completed fact before any
+desktop write. If completion won, report it truthfully; otherwise revoke only
+the exact unused grant. Missing or inconsistent evidence stays unknown.
+
 ## Recovery
 
 System cancel uses its own sealed attempt/state authority, then returns the
