@@ -49,10 +49,13 @@ export async function saveProductRunOutput(client: Pool | PoolClient, match: { i
 }
 
 const omitted = () => ({ status: "unavailable" as const, original_bytes: 0, retained_bytes: 0, sha256: null });
+const metadataKeys = ["model", "provider", "prompt_revision", "input_tokens", "output_tokens", "duration_ms", "usage", "cost_usd", "session_id", "message_id", "queue_entry_id", "run_id", "task_id", "attempt",
+    "failure_code", "sdk_initialized_ms", "sdk_first_response_ms", "model_responses", "tool_calls", "usage_complete",
+    "api_retry_count", "last_api_status", "sdk_session_id", "phase"];
 export function metadataOnlyProductSpan<T extends { input: unknown; output: unknown; error: string | null; metadata: Record<string, unknown> }>(span: T) {
-  const keys = ["model", "provider", "prompt_revision", "input_tokens", "output_tokens", "duration_ms", "usage", "cost_usd"];
+
   return { ...span, input: omitted(), output: omitted(), error: span.error ? "Operation failed" : null,
-    metadata: Object.fromEntries(Object.entries(span.metadata).filter(([key,value]) => keys.includes(key)
+    metadata: Object.fromEntries(Object.entries(span.metadata).filter(([key,value]) => metadataKeys.includes(key)
       && (typeof value === "number" || typeof value === "boolean" || typeof value === "string" || value === null))) };
 }
 
@@ -103,4 +106,26 @@ export function productRunSink(pool: Pool, id: string, onError: (error: unknown)
       finally { pending.clear(); retainedBytes=0; sourceExpiresAt=undefined; }
     },
   };
+}
+
+/** Keep bounded diagnostic metadata for unsuccessful attempts, never revoked content. */
+export async function cleanupProductRunSources(pool: Pool): Promise<void> {
+  await inTransaction(pool, async client => {
+    await client.query(`DELETE FROM product_run_spans WHERE run_id IN
+      (SELECT id FROM product_runs WHERE NOT product_run_source_available(id)
+        AND (expires_at<=clock_timestamp() OR (task_id IS NOT NULL AND status<>'failed')))`);
+    await client.query(`UPDATE product_run_spans s SET span=(s.span-'input'-'output'-'error'-'metadata')
+      || jsonb_build_object('input',$1::jsonb,'output',$1::jsonb,
+        'error',CASE WHEN s.span->>'error' IS NULL THEN NULL ELSE 'Operation failed' END,
+        'metadata',COALESCE((SELECT jsonb_object_agg(key,value) FROM jsonb_each(s.span->'metadata')
+          WHERE key=ANY($2::text[]) AND jsonb_typeof(value) IN ('string','number','boolean','null')),'{}'::jsonb))
+      FROM product_runs r WHERE r.id=s.run_id AND NOT product_run_source_available(r.id)
+        AND r.expires_at>clock_timestamp() AND (r.task_id IS NULL OR r.status='failed')`,
+    [JSON.stringify(omitted()),metadataKeys]);
+    await client.query(`UPDATE product_run_feedback_events SET output='null'::jsonb,comment='',correction='',selected_text=''
+      WHERE run_id IN (SELECT id FROM product_runs WHERE NOT product_run_source_available(id))`);
+    await client.query(`UPDATE product_runs SET input=NULL,output=NULL,objective='',comment='',correction='',selected_text=''
+      WHERE NOT product_run_source_available(id) AND
+        (input IS NOT NULL OR output IS NOT NULL OR objective<>'' OR comment<>'' OR correction<>'' OR selected_text<>'')`);
+  });
 }

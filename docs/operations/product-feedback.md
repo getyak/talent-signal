@@ -80,6 +80,44 @@ run metadata and feedback counts. Regression and descendant rerun access follows
 the same source availability. This preserves source/version meaning without
 introducing another approval step.
 
+## Background conversation diagnostics
+
+`POST /v1/agent-sessions/:id/conversation-queue` admits the message and original
+image bytes atomically; it does not await the model. The runner claims the next
+message, restores original bytes as base64, runs configured Ark image inspection,
+then Claude with the original base64 and inspection context, and finally commits
+the answer to the canonical session. Images are not converted into text-only
+model input. Queueing preserves ordering, idempotency and recoverability.
+
+Admission logs correlate `session_id`, `message_id` and `queue_entry_id`.
+Execution adds `run_id`, `task_id` and `attempt`. Each model attempt has one
+local product run. A retry invokes a new run; persistence-only replay links the
+stored reply to its original task ID without invoking another model. Successful
+committed replies expose captured LLM/context/tool spans in the monitor. Replay
+cannot reconstruct spans released after an earlier persistence failure.
+
+Failure events retain a whitelisted code, elapsed duration, observed response,
+tool and token counts, retry/status metadata and SDK timing when available.
+`sdk_session_id` identifies the SDK session, not an upstream HTTP request.
+Unknown errors have a fixed generic code; raw exception prose, screenshots and
+base64 are excluded from ordinary logs. Failed/unbound local spans remain
+metadata-only through cleanup and expire with the run. Missing capture must
+never turn a successful product request into a failure.
+
+Workspace Claude has one total deadline, including image inspection, SDK
+startup and tools: `TALENT_SIGNAL_CONVERSATION_TIMEOUT_MS`, default `180000`,
+validated range `30000`–`300000`. Ark retains its own 40-second ceiling within
+that deadline. Claude token limits remain 96,000 for image requests and 32,000
+for text requests; turn, tool and dollar limits are unchanged. The deadline is
+independent of HTTP admission or the 55-second SSE reconnect. Cancellation and
+source revocation remain immediate. The 180-second default is provisional;
+use measured stage timings and timeout rates before tuning it further.
+
+Local product capture and native Opik export are separate. Opik requires the
+account in `TALENT_SIGNAL_OPIK_RUNTIME_POLICY`, a runtime reload, and actual
+request/destination readback; a healthy endpoint alone is insufficient.
+See the [incident evidence](../evaluations/2026-09-25-conversation-diagnostics/README.md).
+
 ## Verification
 
 See [GET-23 delivery evidence](../evaluations/2026-09-09-get-23/plan.md). Focused
