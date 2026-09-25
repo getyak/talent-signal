@@ -32,12 +32,17 @@ export function sessionBlockTitle(title: string): string | null {
   return title.trim();
 }
 
-/** Ordered assistant content for one turn, exactly as persisted. */
+/** Native history can mirror the same block in both compatibility fields. */
 export function sessionTurnBlocks(response: SessionResponse): SessionBlock[] {
+  const seen = new Set<string>();
   return [
     ...(response.savedBlocks ?? []),
     ...(response.unboundConversationBlocks ?? []),
-  ];
+  ].filter((block) => {
+    if (seen.has(block.id)) return false;
+    seen.add(block.id);
+    return true;
+  });
 }
 
 /**

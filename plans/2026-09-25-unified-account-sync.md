@@ -37,8 +37,8 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
    unverified password email claims and the design now requires verification.
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
-3. Active: finish integrated native checks, then delegate the separate macOS
-   system authentication handoff and independently verify live provider flows.
+3. Active: integrated native checks passed; macOS system handoff is in Pi
+   repair 1 after independent review. Live provider flows remain pending.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
    and review; no automatic database merge during implementation.
@@ -53,7 +53,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | Safe conflict and relay behavior | hostile/replay/ownership tests | backend tests and independent review passed; live relay proof pending |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
-| Session history sync both directions | same session/message IDs and deletion | actual iOS/Web/macOS history and draft writes passed; native remote deletion preserved draft |
+| Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
 | Interrupted/offline recovery | preserved draft and no duplicate write | stale-scope native tests and actual draft conflict/deletion passed; live offline-provider flow pending |
 | Real Apple sign-in | provider callback and post-login readback | pending |
 | Review and delivery | independent P0/P1 closure and exact-head checks | pending |
@@ -400,3 +400,33 @@ Final independent secondary-email review closed the no-op claim P2 against
 parent source73e75f47 and test4014f13f. No confirmed P0/P1 remains in the
 reviewed shared-account scope. Existing production conflicts are still
 unresolved by design; no data reconciliation has been executed.
+
+### 2026-09-25 09:30 actual sends and system-auth review
+
+Actual iOS Send persisted turn d0f07095 under the retained e904c65d Session;
+Web and macOS showed it. Actual macOS Send persisted d2106300 in the same
+Session, visible in iOS/Web. A foreground repeat produced turn0241170b; native
+UI showed the reply 7,915 ms after the macOS Send click, within the15-second
+design target. All earlier turn IDs and original timestamp remained unchanged.
+These sends used a fixed synthetic provider through real queue/stream/save
+paths, not external AI or OAuth. See actual-bidirectional-send-r18.json.
+
+Real native response persistence mirrors a block in saved/unbound compatibility
+arrays. Parent fixed duplicate Web/macOS rendering by stable block ID, preserving
+the saved representation, distinct IDs and input data. Twelve focused tests
+passed; independent review found no P0/P1 or order/data regression. Screenshots
+were visually inspected and retained. The old macOS candidate quit normally;
+Primary iPhone guard was released and only the task-started device stopped.
+
+Phase2 Pi initially reported ready_for_review, but independent review found
+nine P1 and one P2 across actual Web consumers, backend authority locks and
+native lifecycle. No phase2 code is integrated. Repair1 dispatched under the
+same task/session/counters with an explicit600 cumulative-turn cap. The frozen
+initial counterexamples are saved in phase2-web-counterexamples-r18.json and
+phase2-review-r18.md. Native current-identity reauthentication for older Settings
+sessions needs a bounded protocol continuation; it is not marked complete.
+
+Native Person detail is currently read-only. Previous actual Person import and
+cross-client directory creation/readback passed; native generic Person editing
+was not performed or claimed. Production identity ownership, provider settings,
+Tailnet routes and installed apps remain unchanged.
