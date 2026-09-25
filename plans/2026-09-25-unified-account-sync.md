@@ -19,10 +19,11 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 - Runtime inspected in preceding inquiry: backend/Web revision `973e7913`;
   same-email Google/password users have distinct account and user IDs. Only
   aggregate metadata was read; no conversation or contact content was accessed.
-- Current password registration checks only password_human email duplicates;
+- Inspected production password registration checks only password_human email duplicates;
   password login also filters that kind. Existing auth_identities already
   supports several provider credentials per user.
-- iOS foreground refreshes Sessions but omits workspace/People refresh.
+- Inspected production iOS foreground refresh omitted workspace/People refresh;
+  the integrated candidate now refreshes both directories.
 - macOS uses the Web product surface. Its cookie store remains device/origin
   scoped, while product data must be canonical and shared.
 - Dependencies: React 19.2.8, Next 16.3.4, Auth.js beta.32, Fastify 5.12.5,
@@ -38,7 +39,8 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
 3. Active: integrated native checks passed; macOS system handoff is in Pi
-   repair 2 after independent review and the accepted credential-round design. Live provider flows remain pending.
+   repair 3 after five independently reproduced P1 findings. Live provider flows
+   remain pending; no phase2 implementation is integrated.
 4. Integrate reviewed code, complete applicable CI/delivery gates and live
    runtime readback. Historical production reconciliation requires exact proof
    and review; no automatic database merge during implementation.
@@ -50,7 +52,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | backend tests and independent review passed; live relay proof pending |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; phase2 relay has five P1 in repair3; live relay proof pending |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -579,3 +581,28 @@ provider/production mutation is authorized.
 The real Apple device-account checkpoint remains pending. Parent continues
 independent disposable-PostgreSQL deadline/cancellation probes while Pi owns
 implementation. Phase2 has not been integrated or accepted.
+
+### 2026-09-25 10:45 deadline, cancellation and lock counterexamples
+
+Against unchanged immutable f4143338, parent dynamically confirmed the remaining
+R4/R5 findings. Five cases include fresh-password and uncancelled-Google positive
+controls, both passing. The delayed-proof case extends credential expiry by
+about240 seconds and permits a real password write after the original proof
+deadline. A logical-time fixture translates relevant stored deadline fields;
+it is not a physical-clock or live-provider test. Both WK/system cancellation
+return cancelled yet permit a new target and ordinary completion adding Google
+to the same Apple account. Independent review confirms these boundaries and
+binds the final script/receipt hashes. See desktop-deadline-cancel-r23.json and
+backend-r23-counterexample-review.md.
+
+A separate deterministic real-lock test confirms the suspected opposite lock
+order: ordinary completion holds the credential row, desktop consume holds the
+account row, and the duplicate ordinary request receives PostgreSQL40P01/500
+while desktop completes once. No duplicate credential or data loss was observed.
+This tests a repeated already-approved provider assertion, which should produce
+a domain replay/consumed/stale error. It is not two independent fresh proofs.
+Receipt: desktop-lock-r24.json; independent review in backend-r24-lock-review.md
+confirms the final harness and its exact error, single-audit and revision+1 guards.
+The ordinary500 is a normalized raw function error; the public ordinary HTTP
+error mapping is source evidence, not separately executed.
+Repair3 already requires both the security fixes and a consistent lock order.
