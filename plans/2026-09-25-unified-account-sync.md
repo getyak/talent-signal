@@ -430,3 +430,23 @@ Native Person detail is currently read-only. Previous actual Person import and
 cross-client directory creation/readback passed; native generic Person editing
 was not performed or claimed. Production identity ownership, provider settings,
 Tailnet routes and installed apps remain unchanged.
+
+### 2026-09-25 09:36 real Web Person creation
+
+Chrome's actual Add Contact form created Web Sync Person r19 from a synthetic
+note after the account-scoped identity search returned zero candidates. It
+produced Person43f0e661 and contextb942808b. The normally signed iOS app's
+foreground People directory displayed that exact ID; the macOS WebKit window
+opened the same Person/context. Authenticated HTTP readback found exactly one
+record in the same canonical account/user. See actual-web-person-r19.json and
+its screenshots. No confirmed identity claim was added from the optional hint.
+
+This closes actual Web creation to native readback alongside the prior iOS
+import to Web/macOS. The iOS app launched after creation, so no active People
+propagation latency is claimed. Both manual test hosts were released/quit.
+Generic native Person editing remains outside the existing product surface.
+
+ADR0020 defines the next bounded system credential-round continuation: exact
+current/target proof for one frozen Settings operation, preserving the original
+WK session and existing credential transaction. It is design-only and awaits
+independent native protocol review plus subsequent Pi implementation.
