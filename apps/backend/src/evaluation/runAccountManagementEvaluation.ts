@@ -19,7 +19,7 @@ const databaseURL=process.env.ACCOUNT_EVALUATION_DATABASE_URL;
 assert(databaseURL&&new URL(databaseURL).pathname==='/account_proof'&&['localhost','127.0.0.1'].includes(new URL(databaseURL).hostname),'Use the explicit disposable account_proof database.');
 const pool=new Pool({connectionString:databaseURL,max:8});
 const media=await mkdtemp(join(tmpdir(),'ts-account-proof-'));
-const config:BackendConfig={databaseUrl:databaseURL,host:'127.0.0.1',port:4334,allowedOrigins:[],
+const config:BackendConfig={databaseUrl:databaseURL,host:'127.0.0.1',port:4334,allowedOrigins:[],verificationBaseUrl:'https://account-proof.example.test',
   appleSignInAudiences:[],appleSignInEnabled:false,passwordAuthEnabled:true,passwordRegistrationEnabled:true,
   simulatedAuthEnabled:true,internalLabEnabled:true,retentionSweepIntervalMs:60_000,sessionTtlSeconds:3600};
 const app=await buildApp({pool,config,chatMediaStorage:new LocalChatMediaStorage(media),remoteChatProvider:null,personResearchProvider:null,labJobWorkerEnabled:false,mail:sink.delivery});
