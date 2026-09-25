@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useState, useSyncExternalStore } from 'react';
 import type { AccountSettings, SignInMethodProvider } from '@talent-signal/contracts';
 import {
   saveAccountPassword,
@@ -29,22 +29,27 @@ type Flow =
   | { kind: 'link'; provider: 'apple' | 'google' }
   | null;
 
-function OperationAuthPanel({ flow, hasPassword, connectedProviders, scope, onUpdated, onCancel }: {
-  flow: NonNullable<Flow>;
-  hasPassword: boolean;
-  connectedProviders: Array<'apple' | 'google'>;
-  scope: { accountId: string; userId: string; accountRevision: number; userRevision: number };
-  onUpdated: (settings: AccountSettings) => void;
-  onCancel: () => void;
-}) {
-  const ScopeFields = () => (
+type RenderedScope = { accountId: string; userId: string; accountRevision: number; userRevision: number };
+
+function ScopeFields({ scope }: { scope: RenderedScope }) {
+  return (
     <>
       <input type="hidden" name="accountId" value={scope.accountId} />
       <input type="hidden" name="userId" value={scope.userId} />
       <input type="hidden" name="accountRevision" value={String(scope.accountRevision)} />
-      <input type="hidden" name="userRevision" value={scope.userRevision} />
+      <input type="hidden" name="userRevision" value={String(scope.userRevision)} />
     </>
   );
+}
+
+function OperationAuthPanel({ flow, hasPassword, connectedProviders, scope, onUpdated, onCancel }: {
+  flow: NonNullable<Flow>;
+  hasPassword: boolean;
+  connectedProviders: Array<'apple' | 'google'>;
+  scope: RenderedScope;
+  onUpdated: (settings: AccountSettings) => void;
+  onCancel: () => void;
+}) {
   // Three distinct chains: password change, unlink, and password step-up
   // followed by the NEW provider's own proof. A password-only owner can reach
   // every one of them without a mandatory provider reauthentication.
@@ -83,7 +88,7 @@ function OperationAuthPanel({ flow, hasPassword, connectedProviders, scope, onUp
       </p>
       {hasPassword ? (
         <form action={formAction}>
-          <ScopeFields />
+          <ScopeFields scope={scope} />
           <p className={styles.stepUpTitle}>验证当前身份</p>
           <label className={styles.field}>
             <span>当前密码</span>
@@ -113,7 +118,7 @@ function OperationAuthPanel({ flow, hasPassword, connectedProviders, scope, onUp
       )}
       {connectedProviders.map(provider => (
         <form key={provider} action={startProviderReauth}>
-          <ScopeFields />
+          <ScopeFields scope={scope} />
           <input type="hidden" name="intent" value={intent} />
           <input type="hidden" name="reauthProvider" value={provider} />
           {flow.kind === 'link' && <input type="hidden" name="targetProvider" value={flow.provider} />}
@@ -132,30 +137,32 @@ function OperationAuthPanel({ flow, hasPassword, connectedProviders, scope, onUp
   );
 }
 
+function subscribeLocation(onChange: () => void) {
+  window.addEventListener('popstate', onChange);
+  return () => window.removeEventListener('popstate', onChange);
+}
+const readLocation = () => window.location.search;
+const emptyLocation = () => '';
+
 export function AccountSignInMethods({ initial, linkStatus: linkStatusProp }: {
   initial: AccountSettings;
   linkStatus?: 'done' | 'error' | null;
 }) {
-  const [data, setData] = useState(initial);
+  const [localResult, setLocalResult] = useState<{ source: AccountSettings; value: AccountSettings } | null>(null);
+  const data = localResult?.source === initial ? localResult.value : initial;
+  const setData = (value: AccountSettings) => setLocalResult({ source: initial, value });
   const [flow, setFlow] = useState<Flow>(null);
   const [offline, setOffline] = useState(false);
   // Failure/cancel recovery is visible in place: the staged round trip returns
   // to Settings with `?link=done|error` and the row keeps its method state.
-  const [linkResult, setLinkResult] = useState<{ status: 'done' | 'error'; method?: string; state?: string } | null>(
-    linkStatusProp ? { status: linkStatusProp } : null,
-  );
-  useEffect(() => {
-    if (linkStatusProp) return;
-    const parameters = new URLSearchParams(window.location.search);
-    const value = parameters.get('link');
-    if (value === 'done' || value === 'error') {
-      setLinkResult({
-        status: value,
-        method: parameters.get('method') ?? undefined,
-        state: parameters.get('state') ?? undefined,
-      });
-    }
-  }, [linkStatusProp]);
+  const search = useSyncExternalStore(subscribeLocation, readLocation, emptyLocation);
+  const parameters = new URLSearchParams(search);
+  const linkValue = parameters.get('link');
+  const linkResult = linkStatusProp
+    ? { status: linkStatusProp, method: undefined, state: undefined }
+    : linkValue === 'done' || linkValue === 'error'
+      ? { status: linkValue, method: parameters.get('method'), state: parameters.get('state') }
+      : null;
   useEffect(() => {
     const update = () => setOffline(!navigator.onLine);
     update();
@@ -166,7 +173,6 @@ export function AccountSignInMethods({ initial, linkStatus: linkStatusProp }: {
       window.removeEventListener('offline', update);
     };
   }, []);
-  useEffect(() => { setData(initial); }, [initial]);
 
   const hasPassword = data.sign_in_methods.some(method => method.provider === 'password' && method.state !== 'unconnected');
   const connectedProviders = data.sign_in_methods

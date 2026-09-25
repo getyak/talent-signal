@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.hoisted(() => {
   process.env.AUTH_SECRET ??= "fixture-auth-secret";
@@ -143,6 +143,10 @@ function recoveryForm(entries: Record<string, string>) {
 }
 
 beforeEach(() => {
+  // Exercise bounded credentials at an explicit clock, independently of the
+  // day/time CI runs. Only Date is frozen; WebCrypto IO remains real.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(baseTime);
   jar.entries.clear();
   for (const mock of Object.values(mocks)) mock.mockReset();
   // The redirect transport always throws the real NEXT_REDIRECT digest.
@@ -171,6 +175,8 @@ beforeEach(() => {
     created_at: "2026-09-25T00:00:00.000Z",
   });
 });
+
+afterEach(() => vi.useRealTimers());
 
 async function runProviderReturn(options: {
   provider: "google" | "apple";
@@ -208,7 +214,7 @@ async function expectCallbackOutcome(
   )) as { code?: string; constructor: { type?: string } } | null;
   expect(error).not.toBeNull();
   if (outcome === "staged") {
-    expect(error!.code).toBe("staged_proof");
+    expect(error!.code, error instanceof Error ? error.message : "Callback outcome").toBe("staged_proof");
     expect(error!.constructor.type).toBe("AccessDenied");
   } else {
     expect(error!.constructor.type).toBe("OAuthAccountNotLinked");
@@ -405,14 +411,13 @@ describe("recovery prepare with dual provider proofs (real action)", () => {
     jar.entries.delete(AUTH_PROOF_COOKIE);
 
     // Flow expiry: t0 flow with proofs at t550/t580 must fail at t650.
-    vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date(baseTime + 650_000));
       const expired = await prepareConflictRecovery({}, recoveryForm(base));
       expect(expired.error).toBeTruthy();
       expect(mocks.prepareReconciliation).not.toHaveBeenCalled();
     } finally {
-      vi.useRealTimers();
+      vi.setSystemTime(baseTime);
     }
   });
 

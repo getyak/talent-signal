@@ -38,14 +38,18 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
    unverified password email claims and the design now requires verification.
 2. Shared implementation integrated: Pi completed uniqueness, settings binding
    and sync lifecycle. Parent closed review defects and verified actual clients.
-3. Active: parent Stage A transport fixes have bounded native and real
+3. Follow-up: parent Stage A transport fixes have bounded native and real
    HTTP/PostgreSQL proof on `codex/account-sync-transport-r41` at `4f856555`.
    Pi Settings continuation slice `20260925-151734-0d6456f9` is running repair1
    after the actual browser proved that Server Action redirects do not trigger
    native main-document interception. Stage B application/primary-entry wiring
    remains open under accepted ADR0021. No phase2 source is integrated here yet.
-4. Integrate reviewed code, complete applicable CI/delivery gates and live
-   runtime readback. Historical production reconciliation requires exact proof
+4. Active: deliver the independently reviewed phase-one account/sync source and
+   accepted login presentation first, following the user's explicit request to
+   prioritize PR, merge and a new release. Phase-two macOS system authentication
+   remains isolated and unaccepted; this release does not claim that work or
+   live provider/mail acceptance. Complete exact-head CI and deployment/readback
+   for this release. Historical production reconciliation requires exact proof
    and review; no automatic database merge during implementation.
 
 ## Completion matrix
