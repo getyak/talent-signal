@@ -879,3 +879,38 @@ provider fallback or unreviewed integration occurred.
 Live Apple still requires the user's device Apple Account sign-in checkpoint.
 The simulator session remains released and the task-started simulator shut down;
 no human provider verification was inferred from the user's continue message.
+
+### 2026-09-25 12:59 r34 actual Web/HTTP/PG consumer assessment
+
+Intermediate repair7 Web/backend/contracts source is frozen as6996b6b7 in
+account-sync-web-proof-r34 (1,148 files). All451 backend files match accepted
+r33. Web typecheck passed. The five earlier controlled-HTTP consumer tests now
+pass with the final flow-owned resolver and actual B password completion after
+held A; the old shared-cookie expectation was removed, not the actor/grant check.
+
+A new real loopback HTTP fixture on44339 uses r33 production route registries
+and account_sync_web_pg_chain, with a controlled Apple verifier and fixture
+Web cookie encoded from its real backend login. Normal password completion and
+dropping its actual HTTP200 response both pass the full Web Action/relay/result/
+final-ACK chain. Each checks canonical actor, one completion request, revision+1,
+audit1 with exact kind/account/user, stored password and consumed grant. Next
+cookie transport remains an adapter; no WK, system-browser callback or live
+OAuth claim. Initial fixture syntax, missing iterator and final-ACK outcome
+expectation were corrected; raw earlier runs are preserved.
+
+Independent review nevertheless finds2P1, now reproduced by4 additional real
+HTTP/PG counterexamples. Password-first step-up returns201 but redirects before
+sealing the new grant/round; next prepare is stale and never reaches backend.
+The apparent sealed operation is the previous set_password flow. Provider-first
+current consume+ACK succeeds but continueTargetLink rejects its operation before
+using the resolver, so no target prepare runs. Cancel accepts mismatched and
+missing body ref by substituting the query ref, and both actual attempts change
+from prepared to cancelled. These4 failures remain separate from5+2 passes.
+
+See web-r34-consumer-review.md, the successful and counterexample receipts and
+separate bindings. Prepare still returns303 in this snapshot, so these tests do
+not establish the required strict200 native transport. Pi repair7 continues on
+store ownership/native code; these newer findings are pending consolidated
+feedback. No phase2 source is integrated and no production/provider/installed
+application state changed. The chain fixture server/DB are task-only and retained
+for final-source reruns, not resident deployment.
