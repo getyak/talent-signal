@@ -606,3 +606,33 @@ confirms the final harness and its exact error, single-audit and revision+1 guar
 The ordinary500 is a normalized raw function error; the public ordinary HTTP
 error mapping is source evidence, not separately executed.
 Repair3 already requires both the security fixes and a consistent lock order.
+
+### 2026-09-25 11:02 bounded Web continuation counterexamples
+
+Parent exercised the actual native-host provider reauth Server Action, cookie
+seal/read and desktop prepare: the Action creates a valid ordinary operation
+and current round, but prepare looks for the recovery-only roleChallenges field
+and refuses before backend admission. Three bounded downstream Route Handler
+probes separately start from a paired-WK/backend-continuation fixture. Success
+and unknown consume both delete pairing before ack/result, causing Web409;
+result returns the exact synthetic attempt_secret in page-readable JSON without
+sealing the recovered continuation. These are four failed cases across three
+root defects, not four independent end-to-end OAuth tests.
+
+Nine direct Web/compiled-client files stayed byte-identical across the tests
+and were copied to parent-macos-manual/r25-source for independent review. The
+final harness checks specific success destinations, same flow/grant/secret
+sealing, actual backend calls and unchanged primary session; its failing cases
+do not establish later assertions passed. Independent review confirms each
+counterexample and identifies final contract/transport checks to retain.
+See desktop-web-recovery-r25.json and web-r25-consumer-review.md.
+
+Pi repair3 is still implementing backend regressions; its native controller is
+still the old protocol at this checkpoint. The new Web evidence must be included
+in the next consolidated Pi feedback and final candidate acceptance. No new
+ready-for-review or live-provider success has been claimed.
+
+Latest storage audit:133GiB available, three allowlisted devices shut down;
+non-task artifact warnings remain and were not cleaned. The isolated live Apple
+backend has only two challenge receipts and no real provider token. The user
+device-account checkpoint remains pending.
