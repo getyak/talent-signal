@@ -52,7 +52,7 @@ Design authority: [ADR 0018](../docs/decisions/0018-unified-account-login-and-sy
 | New email globally unique | PostgreSQL concurrent registration tests | fresh migration084; independent alias5/5 and integrated account43/43 passed |
 | Password email ownership | real delivery plus challenge/replay tests | Resend configuration found; delivery unverified |
 | Apple/Google/password same account/user | backend receipts and settings UI | controlled-provider identity and Settings flows passed; live providers pending |
-| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; phase2 backend r29 under independent retest; native lifecycle/receipt repair5 active |
+| Safe conflict and relay behavior | hostile/replay/ownership tests | phase1 conflict checks passed; r29 backend 2 P1 remain; lock races verified; native lifecycle/receipt repair5 active |
 | Historical duplicates handled | classified inventory, preview, dual proof | inventory10/10, final reconciliation8/8 and Web consumer16/16 passed; production accounts untouched |
 | People sync both directions | real iOS/Web/macOS IDs after refresh | actual native import to Web and macOS; Web Person visible in iOS, same IDs |
 | Session history sync both directions | same session/message IDs and deletion | actual iOS/macOS Send returned the same Session to all clients; foreground macOS-to-iOS observed in 7.915 seconds; draft/deletion recovery passed |
@@ -729,3 +729,36 @@ P1, the real launch-flag mismatch, controller counterexamples, the supported
 WebKit boundary and concrete full-consumer contracts. Limits remain600 replies,
 5 repairs and7200 seconds per attempt. Existing checks and counters are retained.
 The native rewrite is not integrated and live provider checkpoint is unchanged.
+
+### 2026-09-25 12:00 r29 backend and Web consumer checkpoint
+
+Frozen relay625e3b36 (1,224 files unchanged) passed fresh migration085, backend
+typecheck and76/76 relevant repository tests. Independent PostgreSQL probes
+passed the original15 cases plus cancel/consume4/4 and approve/ordinary2/2:
+actual grant-lock admission was forced in both winner orders, with exact
+domain replay/refusal, one matching audit and one settings revision increment.
+A same-Apple assertion has outcome already_linked; the initial probe's linked
+expectation was corrected and its before-receipt preserved as a fixture error.
+
+Two new P1 remain: ordinary target completion reports committed but final ACK
+returns unknown (2 target cases fail; set/change-password controls2/2 pass);
+anonymous approved-login result incorrectly requires a nonexistent actor
+(401 SESSION_INVALID; same-attempt consume succeeds and authenticated control
+passes). The independent report also records exact committed-fact discriminator
+and regression-test coverage gaps. See backend-r29-review.md and
+relay-r29-binding.json. The raw pending-login receipt retains an inherited
+top-level admission/revocation description; only its explicit per-case pending
+read/consume evidence is claimed, as the review explains.
+
+The four r25 actual Web consumer counterexamples now pass on r29: each begins
+with the real Server Action/prepare, then uses real route handlers and cookie
+crypto under production cookie policy. Backend HTTP and Next adapters remain
+controlled; this does not validate repair5's new200 native header transport,
+full native UI or live OAuth. The initial non-production cookie-policy fixture
+was corrected without changing product source; before-receipt retained.
+
+Pi repair5 continues on native/Web receipt integration. A94-file immutable
+mid-repair snapshot r30 is under independent native review; it is not Pi's
+ready_for_review or an integrated candidate. Live Apple authentication still
+needs the device account checkpoint. No production/provider configuration or
+remote delivery state was changed.
