@@ -1129,3 +1129,46 @@ The original parent held-lock code-expiry probe now passes2/2 against r40
 (stable source), closing the demonstrated r35 transaction-start-time
 regression after restoring r33 runtime-clock behavior. This is not a complete
 app/database clock-drift redesign. Receipt: desktop-code-lock-expiry-r40.json.
+
+Further parent r40 checks: deadline/cancel5/5 and cancellation-versus-consume
+race4/4 pass against the changed revocation-write clock domain. Only the
+revocation expiry write plus a whitespace line differs from accepted r33
+desktopAuth runtime; other relevant backend/contract sources are unchanged.
+
+Real Next redirect probe now passes baseline/password/Google/Apple4/4; a new
+independent-entry-after-unknown case fails because server uncertainty is keyed
+by raw identifier for the process with no production clear caller. Actual IAB
+registration at4613 (controlled failure-only HTTP service44369) reproduces a
+known503 error: button re-enables, second click emits no request, full-document
+refresh permits another request. No email/DB writes/provider proof. Servers
+were stopped and Next-generated config restored. Screenshot and receipt are
+registration-browser-recovery-r40.json / registration-retry-stuck-r40.png.
+Independent recovery review is in progress; Pi repair11 is still active and
+has not yet received this new evidence. These findings remain required closure.
+
+### Delivery split after observed recovery failures — 14:56 local
+
+The independent r40 login recovery review confirms3 P1 groups: registration
+completion does not release its gate, identity/callback server globals cross
+independent entries, and alternate methods do not acquire the same entry gate.
+The first two have controlled execution evidence; provider/native-anchor bypass
+is source-confirmed, not a claimed live race.
+
+Parent cancelled active repair11 at595 replies, preserving1252 source files
+and the actual patch (draft, not accepted), then resumed the same task as
+repair12 with a narrower transport-only outcome. Finish real controller and
+Web producer/consumer chains first; N1-N4 application composition plus LR1-LR3
+client entry recovery remain explicitly open for the following bounded slice.
+This changes work order, not final scope or acceptance. Provider, session and
+counters are preserved; limits750 replies/12repairs. No release is ready.
+
+Project Knowledge Steward routed the repeated helper-versus-production proof
+correction to REVIEW.md, its authoritative completion standard. It requires
+the actual entry/resolver/transition chain and real producer fields, without
+copying task chronology into AGENTS.md or memory. Detailed failed cases remain
+in dated evaluations and deterministic regression tests.
+
+Stopped only superseded parent chain runtimes44339/44349 and temporary UI
+fixtures4613/44369; source/evidence/databases remain. Current frozen r40 chain
+44359 and user-facing previews remain available. Storage audit122GiB free,
+all3 shared simulators shutdown; unrelated artifact warnings unchanged.

@@ -12,7 +12,13 @@
     "desktop-primary-status-r40.json": "ceb174c3635fb584aacff148ab68fd3b201a48dbe2a61749b8d26435dcd03897",
     "developer-id-signing-r40.json": "7f32b81b2e80cf8eaec693362ca11df4efe23f5f0ba8bb8608b5c0de6b9c0d12",
     "publication-data-review-r39.md": "173d6eddd13397007b2809766eea857428d6075eee3586e5f25ece4093529479",
-    "desktop-code-lock-expiry-r40.json": "fdabc655687031fe55b128373e9f896ff24c6484a283064c9b864e0dad6da917"
+    "desktop-code-lock-expiry-r40.json": "fdabc655687031fe55b128373e9f896ff24c6484a283064c9b864e0dad6da917",
+    "desktop-cancel-consume-lock-r40.json": "f027dfcecc77ce73f72eed2e335bc2048f9de3c0104ba5f085116c30222ffa58",
+    "desktop-deadline-cancel-r40.json": "fd0c36d1e1d80670f0bf3e14452fe9c289b1fc3fbaca016c68af89dd48e25068",
+    "desktop-primary-login-r40.json": "ad7e46578eb9304a01fc34fdc94d4d123e46891fb94ba562c0760ac1b85b1be1",
+    "registration-browser-recovery-r40.json": "b62029aa3e2122109dbe350c515de2cbeef7dba0f701a4d069810dccdd9d4324",
+    "registration-retry-stuck-r40.png": "1cc6eb7218cb60ee3a75cf7e718efbc1c48576380d7d41a45a25f7df13c25dca",
+    "r40-login-recovery-review.md": "367083399595ece3d2bee51210245af8530464edfc67eeb33250f190fed13c8b"
   },
   "decision": "Rejected for seven native P1 groups and target producer/consumer failures; signing credential preparation does not certify a product release."
 }
