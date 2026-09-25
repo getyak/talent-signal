@@ -111,11 +111,11 @@ also retain the prior classification across the same timestamp round trip.
 
 ## Evidence boundaries
 
-Read the parent's existing before/after receipts and executable script:
+The public [timestamp verification receipt](timestamp-final-r16-receipt.json) records the result. Original task-private artifacts remain available to the operator:
 
-- [script](/private/tmp/ai-test-account-sync.umqxBi/parent-db/session-timestamp-boundary.py)
-- [before](/private/tmp/ai-test-account-sync.umqxBi/parent-db/session-timestamp-boundary-before-fix.json)
-- [after](/private/tmp/ai-test-account-sync.umqxBi/parent-db/session-timestamp-boundary.json)
+- script: `/private/tmp/ai-test-account-sync.umqxBi/parent-db/session-timestamp-boundary.py`
+- before: `/private/tmp/ai-test-account-sync.umqxBi/parent-db/session-timestamp-boundary-before-fix.json`
+- after: `/private/tmp/ai-test-account-sync.umqxBi/parent-db/session-timestamp-boundary.json`
 
 The parent's after receipt reports 9/9 checks: equivalent native representation
 accepted with original creation strings retained; +1 ms Session/turn changes and

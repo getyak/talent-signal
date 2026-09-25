@@ -422,7 +422,7 @@ struct AccountSignInMethodsView: View {
                     .accessibilityIdentifier("sign-in-method-conflict-handoff")
                     Text(language.text("Sign in there with THIS account: "))
                         .font(.caption2).foregroundStyle(Color.tsMutedInk)
-                    Text("\(model.snapshot?.user_id ?? "") · \(model.snapshot?.account_id ?? "")")
+                    Text(verbatim: "\(model.snapshot?.user_id ?? "") · \(model.snapshot?.account_id ?? "")")
                         .font(.caption2).foregroundStyle(Color.tsMutedInk)
                         .textSelection(.enabled)
                 } else {

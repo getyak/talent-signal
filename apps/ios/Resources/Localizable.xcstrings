@@ -30689,6 +30689,16 @@
         }
       }
     },
+    "Verify with Apple": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Apple 验证当前身份"
+          }
+        }
+      }
+    },
     "Verify with Google": {
       "localizations": {
         "zh-Hans": {
