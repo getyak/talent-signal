@@ -12,7 +12,7 @@ import { useSyncExternalStore } from "react";
 
 import { AccountSettingsPanel } from "./account-settings";
 import { AgentResponsePreference } from "./agent-response-preference";
-import { accountInitials } from "@/lib/workspace-account";
+import { AvatarDefaultSettings, AvatarEditor } from "./avatar-editor";
 import {
   SETTINGS_SECTIONS,
   settingsDrilldownSections,
@@ -175,6 +175,7 @@ function AppearancePane({ sessionVersion }: { sessionVersion: string | null }) {
           <span className={styles.rowValue}>{timeZone}</span>
         </Row>
       </Group>
+      <AvatarDefaultSettings />
       <Group
         description="只改变回复的展开方式，不改变来源判断或操作权限。"
         title="智能助理回复"
@@ -287,9 +288,7 @@ function SettingsOverview({
   return (
     <>
       <article className={styles.featured}>
-        <span aria-hidden="true" className={styles.featuredAvatar}>
-          {accountInitials(initial.user.display_name)}
-        </span>
+        <AvatarEditor id="self" self label={initial.user.display_name} size={64} />
         <div className={styles.featuredCopy}>
           <h2>{initial.user.display_name}</h2>
           <p>{initial.user.email}</p>
@@ -327,6 +326,7 @@ function SettingsOverview({
         <Row description="只保存在这台设备上。" title="外观">
           <ThemeChoice />
         </Row>
+        <Row title="头像" description="默认风格与单独设置的联系人头像。"><RowLink href="/workspace/settings?section=appearance" label="设置头像风格" /></Row>
         <Row title="语言">
           <span className={styles.rowValue}>简体中文</span>
         </Row>

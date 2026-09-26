@@ -11,6 +11,7 @@ import {
   sidebarSessionRows,
 } from "@/lib/workspace-sidebar";
 import { useWorkspaceDirectory } from "./workspace-search";
+import { PersonDirectoryAvatar } from "./person-directory-avatar";
 import styles from "./workspace-shell.module.css";
 
 /**
@@ -65,18 +66,7 @@ export function WorkspaceSidebarPeople({ binding }: { binding: string | null }) 
                     title={`展开 ${person.label} 的相关对话`}
                     type="button"
                   >
-                    <span
-                      aria-hidden="true"
-                      className={styles.avatar}
-                      data-size="small"
-                    >
-                      {person.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" src={person.avatarUrl} />
-                      ) : (
-                        person.label.slice(0, 1)
-                      )}
-                    </span>
+                    <PersonDirectoryAvatar id={person.id} label={person.label} url={person.avatarUrl} className={styles.avatar} dataSize="small" />
                     <span className={styles.personSummary}>
                       <strong>{person.label}</strong>
                       <small>{person.detail}</small>

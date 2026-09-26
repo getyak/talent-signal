@@ -384,3 +384,11 @@
 @media (max-width: 760px) {
   .search button { min-width: 44px; min-height: 44px; }
 }
+
+.peopleList > li { position: relative; }
+.rowAvatar { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); z-index: 1; }
+.personIdentity { padding-left: 54px; }
+@media (max-width: 760px) {
+  .rowAvatar { left: 6px; top: 13px; transform: none; }
+  .personChange { padding-left: 54px; }
+}

@@ -13,6 +13,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@dicebear/core": "10.7.0",
+    "@dicebear/styles": "10.6.0",
     "@phosphor-icons/react": "2.1.10",
     "@radix-ui/react-dialog": "1.1.23",
     "@sinclair/typebox": "^0.34.41",

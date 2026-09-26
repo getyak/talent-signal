@@ -10,7 +10,7 @@ import Form from "next/form";
 
 import styles from "./people-directory-app.module.css";
 import { withReturnSession } from "./session-return-navigation";
-import { PersonDirectoryAvatar } from "./person-directory-avatar";
+import { PeopleDirectoryList } from "./people-directory-list";
 import { WorkspaceDisconnectedState } from "./workspace-disconnected-state";
 
 type Props = {
@@ -20,62 +20,6 @@ type Props = {
   returnSessionId: string | null;
   sessionRecoveryHref: string | null;
 };
-
-function formatActivity(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "已有活动记录";
-  }
-  const includeYear = date.getUTCFullYear() !== new Date().getUTCFullYear();
-  return new Intl.DateTimeFormat("zh-CN", {
-    day: "numeric",
-    month: "short",
-    ...(includeYear ? { year: "numeric" } : {}),
-    timeZone: "UTC",
-  }).format(date);
-}
-
-function relationshipHref(
-  person: PersonDirectoryItem,
-  returnSessionId: string | null,
-) {
-  // The production person-only route retains the person id even when no
-  // relationship context exists; existing contexts link from that page.
-  return withReturnSession(
-    `/workspace/people/${encodeURIComponent(person.id)}`,
-    returnSessionId,
-  );
-}
-
-function identityHandleLabel(type: string) {
-  const labels: Record<string, string> = {
-    email: "邮箱", phone: "电话", wechat: "微信", linkedin_url: " LinkedIn",
-    public_profile_url: "公开主页", source_native_id: "来源标识",
-  };
-  return labels[type] ?? "联系方式";
-}
-
-function identityMatchLabel(
-  match: PersonDirectoryItem["identity_matches"][number],
-) {
-  if (match.kind === "name") {
-    return "姓名匹配";
-  }
-  if (match.kind === "confirmed_handle") {
-    return `当前${identityHandleLabel(match.handle_type)}：${match.display_hint}`;
-  }
-  return `历史${identityHandleLabel(match.handle_type)}：${match.display_hint}`;
-}
-
-function personChange(person: PersonDirectoryItem) {
-  if (person.contexts.length > 1) {
-    return `${person.contexts.length} 个关系情境`;
-  }
-  if (person.capture_count > 0) {
-    return `来源 ${person.capture_count} · 已确认线索 ${person.confirmed_identity_count}`;
-  }
-  return "暂无已确认的来源";
-}
 
 export function PeopleDirectoryApp({
   error,
@@ -184,46 +128,7 @@ export function PeopleDirectoryApp({
                 <span>关系与最近变化</span>
                 <span>更新</span>
               </div>
-              <ol className={styles.peopleList}>
-                {people.map((person) => {
-                  const match = person.identity_matches[0];
-                  const context = person.contexts[0];
-                  return (
-                    <li key={person.id}>
-                      <Link
-                        className={styles.personRow}
-                        href={relationshipHref(person, returnSessionId)}
-                      >
-                        <span className={styles.personIdentity}>
-                          <PersonDirectoryAvatar
-                            className={styles.avatar}
-                            label={person.display_label}
-                            url={person.avatar?.url ?? null}
-                          />
-                          <span className={styles.personName}>
-                            <strong>{person.display_label}</strong>
-                            <small>
-                              {match ? identityMatchLabel(match) : person.profile?.headline ?? "身份待补充"}
-                            </small>
-                          </span>
-                        </span>
-                        <span className={styles.personChange}>
-                          <span className={styles.contextLabel}>
-                            {context?.display_label ?? "没有活跃情境"}
-                          </span>
-                          <small>{personChange(person)}</small>
-                        </span>
-                        <span className={styles.personMeta}>
-                          <time dateTime={person.last_activity_at}>
-                            {formatActivity(person.last_activity_at)}
-                          </time>
-                          <ArrowRight aria-hidden="true" size={15} />
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ol>
+              <PeopleDirectoryList people={people} returnSessionId={returnSessionId} />
             </>
           )}
         </div>

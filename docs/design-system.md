@@ -292,6 +292,7 @@ review into a chat reply.
 
 ## Accessibility and privacy
 
+- Avatars aid recognition, never verify identity: authorized photo, name initials, then stable abstract fallback. Local image/style overrides are account-scoped display preferences with preview, cancel, reset and deletion; preserve source provenance and light/dark contrast.
 - Preserve meaning without relying on color alone.
 - Keep text and controls legible at platform accessibility sizes.
 - Make focus, keyboard, screen-reader, and reduced-motion behavior first-class.
