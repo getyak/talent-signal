@@ -3,31 +3,7 @@
 import { Moon, Palette, Sun } from "@phosphor-icons/react";
 import { useSyncExternalStore } from "react";
 
-const THEME_KEY = "talent-signal-theme";
-const THEME_EVENT = "talent-signal:theme-change";
-
-function subscribeTheme(onChange: () => void) {
-  window.addEventListener(THEME_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    window.removeEventListener(THEME_EVENT, onChange);
-    window.removeEventListener("storage", onChange);
-  };
-}
-
-function themeSnapshot(): "light" | "dark" {
-  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-}
-
-function applyTheme(nextTheme: "light" | "dark") {
-  document.documentElement.dataset.theme = nextTheme;
-  try {
-    window.localStorage.setItem(THEME_KEY, nextTheme);
-  } catch {
-    /* Theme still works when persistence is unavailable. */
-  }
-  window.dispatchEvent(new Event(THEME_EVENT));
-}
+import { applyTheme, subscribeTheme, themeSnapshot } from "@/lib/theme-preference";
 
 /**
  * One theme control with two honest presentations: a circular icon action for

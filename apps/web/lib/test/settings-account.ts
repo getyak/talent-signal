@@ -1,0 +1,35 @@
+import { CONTRACT_VERSION, type AccountSettings } from "@talent-signal/contracts";
+export const settingsAccount: AccountSettings = {
+  contract_version: CONTRACT_VERSION,
+  user: {
+    id: "11111111-1111-4111-8111-111111111111",
+    email: "owner@example.com",
+    display_name: "林顾问",
+    username: null,
+    kind: "human",
+    revision: 1,
+    login_methods: ["password"],
+    email_verified_at: null,
+  },
+  sign_in_methods: [
+    { provider: "apple", state: "unconnected", hint: null, can_unlink: false },
+    { provider: "google", state: "unconnected", hint: null, can_unlink: false },
+    { provider: "password", state: "legacy_unverified", hint: null, can_unlink: false },
+  ],
+  email_ownership_state: "legacy_unverified",
+  workspace: {
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "Alpha 寻访测试",
+    slug: "fixture-alpha",
+    revision: 1,
+    owner_user_id: "11111111-1111-4111-8111-111111111111",
+    role: "admin",
+    is_owner: true,
+    can_manage: true,
+    is_test: true,
+  },
+  sessions: [],
+  members: [],
+  activity: [],
+  lab_enabled: true,
+};

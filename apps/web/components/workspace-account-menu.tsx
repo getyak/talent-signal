@@ -3,17 +3,13 @@
 import { clearTimeWorkspaceStorage } from "@/lib/time-workspace-storage";
 import {
   CaretDown,
-  CaretRight,
-  GearSix,
   Globe,
   SignOut,
 } from "@phosphor-icons/react";
-import Link from "next/link";
 import { useEffect, useRef } from "react";
 
 import {
   accountDisplayName,
-  accountInitials,
   accountMenuLabel,
   accountWorkspaceLabel,
   type AccountIdentity,
@@ -22,11 +18,10 @@ import { DesktopSettingsLink, DesktopUpdateButton } from "./desktop-chrome";
 import { ThemeToggle } from "./theme-toggle";
 import { clearAllPendingSessionDrafts } from "./session-workbench/session-draft-pending";
 import { clearAllPendingMeetingDraftIntents } from "@/lib/meeting-draft-pending";
+import { PersonDirectoryAvatar } from "./person-directory-avatar";
+import { AvatarEditor } from "./avatar-editor";
 import styles from "./workspace-shell.module.css";
 
-const links = [
-  ["/workspace/settings", "设置", GearSix],
-] as const;
 
 export function WorkspaceAccountMenu({
   accountName,
@@ -47,7 +42,6 @@ export function WorkspaceAccountMenu({
   const identity: AccountIdentity = { accountName, workspaceName, avatarUrl };
   const displayName = accountDisplayName(identity);
   const workspaceLabel = accountWorkspaceLabel(identity);
-  const initials = accountInitials(accountName);
 
   function clearPendingLocalIntents() {
     clearTimeWorkspaceStorage();
@@ -81,6 +75,7 @@ export function WorkspaceAccountMenu({
   useEffect(() => {
     const closeFromOutside = (event: Event) => {
       const target = event.target;
+      if (target instanceof Element && target.closest("[data-avatar-editor]")) return;
       if (
         menu.current?.open &&
         target instanceof Node &&
@@ -120,14 +115,7 @@ export function WorkspaceAccountMenu({
         className={styles.accountTrigger}
         ref={trigger}
       >
-        <span aria-hidden="true" className={styles.avatar} data-size="account">
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img alt="" src={avatarUrl} />
-          ) : (
-            initials
-          )}
-        </span>
+        <PersonDirectoryAvatar id="self" self label={accountName} url={avatarUrl} className={styles.avatar} dataSize="account" />
         <span className={styles.accountName}>
           <strong>{displayName}</strong>
           <small>{workspaceLabel}</small>
@@ -136,27 +124,13 @@ export function WorkspaceAccountMenu({
       </summary>
       <div aria-label="账号与空间操作" className={styles.accountPopover} ref={popover}>
         <span className={styles.accountSummary}>
-          <span aria-hidden="true" className={styles.avatar} data-size="row">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img alt="" src={avatarUrl} />
-            ) : (
-              initials
-            )}
-          </span>
+          <AvatarEditor id="self" self label={accountName} url={avatarUrl} size={44} />
           <span>
             <strong>{displayName}</strong>
             <small>{workspaceLabel}</small>
           </span>
         </span>
         <hr />
-        {links.map(([href, label, LinkIcon]) => (
-          <Link href={href} key={href} onClick={() => close()}>
-            <LinkIcon aria-hidden="true" size={16} />
-            <span>{label}</span>
-            <CaretRight aria-hidden="true" size={12} />
-          </Link>
-        ))}
         <DesktopSettingsLink onClick={() => close()} />
         <span className={styles.accountMetaRow}>
           <Globe aria-hidden="true" size={16} />

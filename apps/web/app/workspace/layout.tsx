@@ -30,6 +30,7 @@ import { backendSessionIsExpired } from "@/lib/backend-session";
 import { leaveTestWorkspace } from "@/app/workspace/settings/testing/actions";
 import accountStyles from "@/components/account-settings.module.css";
 import { SystemHealthProvider } from "@/components/system-health-provider";
+import { AvatarPreferencesProvider } from "@/components/avatar-preferences-provider";
 import { WorkspaceAccountMenu } from "@/components/workspace-account-menu";
 import { MeetingDraftSessionBoundary } from "@/components/meeting-draft-session-boundary";
 import { WorkspaceDirectoryScope } from "@/components/workspace-directory-cache";
@@ -148,6 +149,7 @@ export default async function WorkspaceLayout({
 
   return (
     <WorkspacePrivacyBoundary privateContent={children}>
+      <AvatarPreferencesProvider scope={pendingSessionDraftScope}>
       <div lang="zh-CN" className={`ts-workspace-theme quiet-workspace ${styles.shell}`}>
         {pendingBinding ? (
           <MeetingDraftSessionBoundary sessionVersion={pendingBinding} />
@@ -219,6 +221,7 @@ export default async function WorkspaceLayout({
           </TalentSignalLabShell>
         </div>
       </div>
+      </AvatarPreferencesProvider>
     </WorkspacePrivacyBoundary>
   );
 }

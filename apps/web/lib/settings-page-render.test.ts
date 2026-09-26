@@ -104,7 +104,15 @@ describe("settings page server composition", () => {
     expect(html).toContain("账号设置暂时无法连接");
   });
 
-  it("leads with the real account overview and only the supported capabilities", async () => {
+  it("does not show the primary account photo in an isolated test identity", async () => {
+    auth.mockResolvedValue({ user: { image: "https://example.test/private-photo" } });
+    loadAccountSettings.mockResolvedValue({ ...account, user: { ...account.user, kind: "lab_human" } });
+    claims.mockResolvedValue(null);
+    const html = renderToStaticMarkup(await SettingsPage({ searchParams: Promise.resolve({}) }));
+    expect(html).not.toContain("https://example.test/private-photo");
+  });
+
+  it("leads with editable profile and only the supported capabilities", async () => {
     auth.mockResolvedValue({ user: { name: "林顾问" } });
     loadAccountSettings.mockResolvedValue({ ...account, lab_enabled: false });
     claims.mockResolvedValue(null);
@@ -114,11 +122,12 @@ describe("settings page server composition", () => {
 
     expect(html).toContain("林顾问");
     expect(html).toContain("owner@example.com");
-    expect(html).toContain("管理账号与安全");
+    expect(html).toContain("编辑显示名称");
+    expect(html).toContain("更换头像");
     expect(html).toContain("账号与安全");
-    // Native capabilities are named as native-owned, never as web switches.
-    expect(html).toContain("桌面与 iOS 能力");
-    expect(html).toContain("在原生应用中管理");
+    expect(html).toContain("个人资料");
+    expect(html).toContain("头像保存在哪里？");
+    expect(html).not.toContain("连接诊断");
     // A workspace without the Lab does not advertise its testing surface.
     expect(html).not.toContain("测试与诊断");
   });
