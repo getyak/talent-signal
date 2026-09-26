@@ -283,7 +283,7 @@ action belongs after the information it commits.
 Desktop starts with the conversation canvas; Today stays directly reachable. Optimize for comparison, provenance, conflict resolution, research, and longitudinal editing.
 Source intake gives material and its next action the main canvas; an empty history does not reserve a second navigation column. Populated records earn an inbox and detail composition.
 Optional intent stays secondary; permission, uncertain saves, and recovery remain visible where they affect a decision.
-Verify rendered structure and interaction in both empty and populated full viewports; a CSS reskin alone is not fidelity.
+Verify rendered structure and interaction in both empty and populated full viewports; a CSS reskin alone is not fidelity. Settings uses stable named sections, a readable edit pane and explicit Edit, Save and Cancel actions. Failures retain drafts. Optional explanations and diagnostics sit behind named disclosures; unresolved failures remain visible. Web settings stays inside the workspace; macOS uses one independent settings window that preserves the main conversation and keeps device controls available offline.
 
 ### Channel
 
@@ -292,6 +292,7 @@ review into a chat reply.
 
 ## Accessibility and privacy
 
+- Avatars aid recognition without verifying identity: authorized photo, readable name initials, then a stable abstract fallback. Account-scoped local choices support preview, cancel, save and reset. Explain the local-only persistence scope on demand and preserve source provenance, readable contrast and reduced motion.
 - Preserve meaning without relying on color alone.
 - Keep text and controls legible at platform accessibility sizes.
 - Make focus, keyboard, screen-reader, and reduced-motion behavior first-class.

@@ -1,8 +1,8 @@
 /**
  * Presentation-only derivation for the account footer.
  *
- * The product stores no avatar for the signed-in human, so the footer shows
- * neutral initials and the real account/workspace names. Nothing here grants
+ * The footer uses the real account/workspace names. Avatar presentation and
+ * explicit local display preferences live in the shared avatar component. Nothing here grants
  * or reads authority; it only formats identity that the server already
  * resolved for the rendered scope.
  */

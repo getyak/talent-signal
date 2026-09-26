@@ -73,6 +73,7 @@ struct WorkspaceOrigin: Equatable {
 final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
     let origin: WorkspaceOrigin
     let webView: WKWebView
+    let isSettingsSurface: Bool
     @Published var failure: String?
     @Published var loading = true
     @Published var canGoBack = false
@@ -82,9 +83,11 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     private var updateObservation: AnyCancellable?
     private var calendarDownloads = Set<ObjectIdentifier>()
     private var navigationObservation: NSKeyValueObservation?
+    private var locationObservation: NSKeyValueObservation?
 
-    init(origin: WorkspaceOrigin) {
+    init(origin: WorkspaceOrigin, settings: Bool = false, initialURL: URL? = nil) {
         self.origin = origin
+        self.isSettingsSurface = settings
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: origin.dataStoreIdentifier)
         configuration.userContentController = WKUserContentController()
@@ -110,10 +113,22 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
                 self.canGoBack = self.webView.canGoBack
             }
         }
-        webView.load(URLRequest(url: origin.entryURL))
+        if settings {
+            locationObservation = webView.observe(\.url, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor [weak self] in
+                    guard let self, WorkspaceSettingsNavigation.shared.selection.isWeb,
+                          let url = self.webView.url,
+                          let section = WorkspaceSettingsSection.resolve(url, origin: self.origin) else { return }
+                    WorkspaceSettingsNavigation.shared.selection = section
+                }
+            }
+        }
+        publishDesktopChrome(state: DesktopUpdater.shared.presentation)
+        webView.load(URLRequest(url: initialURL ?? origin.entryURL))
     }
 
     func navigate(_ destination: WorkspaceDestination) {
+        if destination == .settings, !isSettingsSurface { openSettings?(); return }
         webView.load(URLRequest(url: destination.url(in: origin)))
     }
 
@@ -131,9 +146,14 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
                                                         origin: origin, mainFrame: action.sourceFrame.isMainFrame,
                                                         userActivated: action.navigationType == .linkActivated) {
                 switch command {
-                case .settings: openSettings?()
+                case .settings:
+                    WorkspaceSettingsNavigation.shared.selection = .profile
+                    openSettings?()
                 case .updates:
-                    if DesktopUpdater.shared.presentation.canInstall { openSettings?() }
+                    if DesktopUpdater.shared.presentation.canInstall {
+                        WorkspaceSettingsNavigation.shared.selection = .updates
+                        openSettings?()
+                    }
                     else { DesktopUpdater.shared.checkForUpdates() }
                 // linkActivated also includes synthetic page clicks. Installation
                 // is accepted only through the isolated trusted-click handler.
@@ -150,6 +170,15 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
             return
         }
         if origin.contains(url) {
+            if !isSettingsSurface, action.sourceFrame.isMainFrame,
+               action.targetFrame?.isMainFrame != false,
+               action.navigationType == .linkActivated,
+               let selection = WorkspaceSettingsSection.resolve(url, origin: origin) {
+                WorkspaceSettingsNavigation.shared.selection = selection
+                openSettings?()
+                decisionHandler(.cancel)
+                return
+            }
             if action.targetFrame == nil {
                 webView.load(action.request)
                 decisionHandler(.cancel)
@@ -255,6 +284,7 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
 
     func publishDesktopChrome(state presentation: DesktopUpdatePresentation) {
         let state: [String: Any] = ["protocolVersion": 1,
+                                    "surface": isSettingsSurface ? "settings" : "workspace",
                                     "availableVersion": presentation.version as Any? ?? NSNull(),
                                     "phase": presentation.phase.rawValue,
                                     "offerID": presentation.offerID?.uuidString as Any? ?? NSNull(),
@@ -264,7 +294,7 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
               let originBytes = try? JSONSerialization.data(withJSONObject: origin.url.absoluteString, options: .fragmentsAllowed),
               let originJSON = String(data: originBytes, encoding: .utf8) else { return }
         // Main-frame display metadata only. The origin check also closes navigation races.
-        let script = "if (window.location.origin === \(originJSON)) { window.talentSignalDesktop = \(json); window.dispatchEvent(new Event('talent-signal-desktop')); }"
+        let script = "if (window.location.origin === \(originJSON)) { window.talentSignalDesktop = \(json); if (document.documentElement) document.documentElement.dataset.desktopSurface = \(json).surface; else document.addEventListener('DOMContentLoaded', () => { document.documentElement.dataset.desktopSurface = \(json).surface; }, { once: true }); window.dispatchEvent(new Event('talent-signal-desktop')); }"
         let controller = webView.configuration.userContentController
         controller.removeAllUserScripts()
         controller.addUserScript(DesktopUpdateClickBridge.userScript)
@@ -315,7 +345,7 @@ final class WorkspaceBrowser: NSObject, ObservableObject, WKNavigationDelegate, 
     }
 }
 
-private struct WorkspaceWebSurface: NSViewRepresentable {
+struct WorkspaceWebSurface: NSViewRepresentable {
     let browser: WorkspaceBrowser
     let zoom: Double
     func makeNSView(context: Context) -> WKWebView {
@@ -382,7 +412,7 @@ private struct ConnectedQuietWorkspace: View {
             ToolbarItem {
                 Menu {
                     Button("新对话") { browser.navigate(.home) }
-                    Button("工作区设置") { browser.navigate(.settings) }
+                    Button("设置…") { openSettings() }
                     Divider()
                     Button("重新载入", action: browser.retry)
                     Button("本机工具") { openWindow(id: "native-tools") }
@@ -431,8 +461,8 @@ struct QuietWorkspaceView: View {
             ConnectedQuietWorkspace(origin: origin).id(origin.url)
                 .toolbar {
                     ToolbarItem {
-                        Button("连接", systemImage: "slider.horizontal.3") { openSettings() }
-                            .help("连接")
+                        Button("设置", systemImage: "slider.horizontal.3") { openSettings() }
+                            .help("设置（⌘,）")
                     }
                 }
         } else {

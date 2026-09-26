@@ -10,7 +10,7 @@ import Form from "next/form";
 
 import styles from "./people-directory-app.module.css";
 import { withReturnSession } from "./session-return-navigation";
-import { PersonDirectoryAvatar } from "./person-directory-avatar";
+import { AvatarEditor } from "./avatar-editor";
 import { WorkspaceDisconnectedState } from "./workspace-disconnected-state";
 
 type Props = {
@@ -190,16 +190,12 @@ export function PeopleDirectoryApp({
                   const context = person.contexts[0];
                   return (
                     <li key={person.id}>
+                      <div className={styles.rowAvatar}><AvatarEditor id={person.id} label={person.display_label} url={person.avatar?.url} size={40} /></div>
                       <Link
                         className={styles.personRow}
                         href={relationshipHref(person, returnSessionId)}
                       >
                         <span className={styles.personIdentity}>
-                          <PersonDirectoryAvatar
-                            className={styles.avatar}
-                            label={person.display_label}
-                            url={person.avatar?.url ?? null}
-                          />
                           <span className={styles.personName}>
                             <strong>{person.display_label}</strong>
                             <small>

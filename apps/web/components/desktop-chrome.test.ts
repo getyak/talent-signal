@@ -14,17 +14,20 @@ afterEach(async () => {
 });
 
 describe("native desktop chrome", () => {
-  it("stays absent in ordinary browsers and appears only for a supported host snapshot", async () => {
+  it("uses the Web settings route in browsers and the native window in a supported host", async () => {
     const host = document.createElement("div"); document.body.append(host);
     root = createRoot(host);
     await act(async () => root!.render(createElement("div", null,
       createElement(DesktopUpdateButton), createElement(DesktopSettingsLink, { onClick() {} }))));
-    expect(host.textContent).toBe("");
+    expect(host.querySelector("a")?.getAttribute("href")).toBe("/workspace/settings");
+    expect(host.querySelector("kbd")).toBeNull();
     await act(async () => {
       window.talentSignalDesktop = { protocolVersion: 1, availableVersion: null };
       window.dispatchEvent(new Event("talent-signal-desktop"));
     });
-    expect(host.textContent).toContain("连接与调试");
+    expect(host.textContent).toContain("设置");
+    expect(host.querySelector("a")?.getAttribute("href")).toBe("talentsignal-desktop://settings");
+    expect(host.querySelector("kbd")?.textContent).toBe("⌘ ,");
     expect(host.querySelector('[href="talentsignal-desktop://updates"]')).toBeNull();
     await act(async () => {
       window.talentSignalDesktop = { protocolVersion: 1, availableVersion: "0.2.0" };

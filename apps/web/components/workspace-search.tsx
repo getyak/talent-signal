@@ -29,6 +29,7 @@ import {
   subscribeWorkspaceRefresh,
 } from "@/lib/workspace-refresh";
 import { WORKSPACE_SESSION_EXPIRED_EVENT, workspaceSessionFetch } from "./workspace-session-request";
+import { PersonDirectoryAvatar } from "./person-directory-avatar";
 import styles from "./workspace-shell.module.css";
 
 function cleanLabel(value: unknown): string {
@@ -345,13 +346,7 @@ export function WorkspaceGlobalSearchDialog({
                       key={person.id}
                       onClick={close}
                     >
-                      <span
-                        aria-hidden="true"
-                        className={styles.avatar}
-                        data-size="row"
-                      >
-                        {person.label.slice(0, 1)}
-                      </span>
+                      <PersonDirectoryAvatar id={person.id} label={person.label} url={person.avatarUrl} className={styles.avatar} dataSize="row" />
                       <span>
                         <strong>{person.label}</strong>
                         <small>{person.detail}</small>

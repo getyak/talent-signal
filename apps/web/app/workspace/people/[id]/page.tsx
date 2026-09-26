@@ -5,7 +5,7 @@ import { ArrowLeft, CaretRight } from "@phosphor-icons/react/dist/ssr";
 
 import { auth } from "@/auth";
 import { MemoryReviewCard } from "@/components/memory-review/memory-review-card";
-import { PersonDirectoryAvatar } from "@/components/person-directory-avatar";
+import { AvatarEditor } from "@/components/avatar-editor";
 import {
   validReturnSessionId,
   withReturnSession,
@@ -131,8 +131,9 @@ export default async function PersonMemoryPage({
   return (
     <main className={styles.main} id="main-content" tabIndex={-1}>
       <header className={styles.identity}>
-        <PersonDirectoryAvatar
-          className={styles.avatar}
+        <AvatarEditor
+          id={person?.id ?? id}
+          size={72}
           label={person?.display_label ?? "人物"}
           url={person?.avatar?.url ?? null}
         />

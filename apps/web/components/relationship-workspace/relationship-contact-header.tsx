@@ -1,3 +1,4 @@
+import { AvatarEditor } from "../avatar-editor";
 import type {
   RelationshipScope,
   WorkspaceReviewResponse,
@@ -117,14 +118,7 @@ export function RelationshipContactHeader({
     <section className="context-contact-overview" id="contact-overview">
       <div className="context-contact-header">
         <div className="context-contact-header__portrait">
-          <div
-            aria-label={`${scope.person.display_label} 的姓名首字；没有已核验联系人照片`}
-            className="context-contact-header__avatar"
-            role="img"
-          >
-            {scope.person.display_label.trim().slice(0, 1).toUpperCase()}
-          </div>
-          <span>没有已核验照片</span>
+          <AvatarEditor id={scope.person.id} label={scope.person.display_label} size={64} />
         </div>
         <div className="context-contact-header__identity">
           <p className="eyebrow">持续更新的联系人页面</p>

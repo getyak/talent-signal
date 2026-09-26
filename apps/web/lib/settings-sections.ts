@@ -6,19 +6,17 @@
  * predicate imported from a client component would throw at runtime when a
  * Server Component calls it, which typecheck alone cannot catch.
  *
- * `overview` is the default page: one narrow column that explains the real
- * account, appearance and connection choices before deeper pages. Every other
- * section is a drilldown reached from that overview or from the compact
- * section row.
+ * `overview` remains the stable default route and now opens personal profile
+ * editing. Persistent named navigation keeps each preference easy to find.
  */
 
 export const SETTINGS_SECTIONS = [
-  { id: "overview", label: "设置", href: "/workspace/settings" },
+  { id: "overview", label: "个人资料", href: "/workspace/settings" },
   { id: "account", label: "账号与安全", href: "/workspace/settings?section=account" },
   { id: "workspace", label: "工作空间", href: "/workspace/settings?section=workspace" },
   { id: "appearance", label: "外观与偏好", href: "/workspace/settings?section=appearance" },
   { id: "connections", label: "连接与权限", href: "/workspace/settings?section=connections" },
-  { id: "advanced", label: "高级", href: "/workspace/settings?section=advanced" },
+  { id: "advanced", label: "帮助与诊断", href: "/workspace/settings?section=advanced" },
   { id: "testing", label: "测试与诊断", href: "/workspace/settings?section=testing" },
 ] as const;
 
