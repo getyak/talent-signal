@@ -25,7 +25,11 @@ async function click(label: string) {
   const within = document.querySelector('[role="dialog"]') ?? document;
   const button = [...within.querySelectorAll("button")].find(item => item.textContent === label || item.getAttribute("aria-label") === label);
   expect(button, label).toBeTruthy();
-  await act(() => button!.click());
+  await act(async () => {
+    button!.click();
+    if (button!.getAttribute("aria-haspopup") === "dialog") await import("./avatar-editor-dialog");
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 }
 function generated(within: ParentNode) {
   const sources = [...within.querySelectorAll('img')].map(img => img.getAttribute('src'));

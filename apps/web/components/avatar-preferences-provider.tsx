@@ -1,9 +1,14 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createAvatarStore, emptyAvatarPreferences, type AvatarStore } from "@/lib/avatar-preferences";
+import type { AvatarPreference, AvatarStyle } from "@/lib/avatar";
 
 const Context = createContext<AvatarStore | null>(null);
+export type AvatarEditorTarget = { id: string; label: string; url?: string | null; self?: boolean };
+export type AvatarEditorRequest = AvatarEditorTarget & { trigger: HTMLButtonElement; expected: AvatarPreference | undefined };
+const EditorContext = createContext<((target: AvatarEditorTarget, trigger: HTMLButtonElement) => void) | null>(null);
+const AvatarEditorDialog = lazy(() => import("./avatar-editor-dialog"));
 const noopSubscribe = () => () => {};
 const serverSnapshot = () => emptyAvatarPreferences;
 
@@ -13,12 +18,41 @@ export function AvatarPreferencesProvider({ scope, children }: { scope: string |
 
 function BoundAvatarPreferences({ scope, children }: { scope: string; children: ReactNode }) {
   const [store] = useState(() => createAvatarStore(scope, () => window.localStorage));
+  const [editing, setEditing] = useState<AvatarEditorRequest | null>(null);
+  const openEditor = useCallback((target: AvatarEditorTarget, trigger: HTMLButtonElement) => {
+    store.refresh();
+    setEditing({ ...target, trigger, expected: store.getSnapshot().people[target.self ? "self" : `person:${target.id}`] });
+  }, [store]);
   useEffect(() => {
     const onStorage = (event: StorageEvent) => { if (event.key === null || event.key === store.key) store.refresh(); };
+    const refresh = () => store.refresh();
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+    };
   }, [store]);
-  return <Context.Provider value={store}>{children}</Context.Provider>;
+  return <Context.Provider value={store}><EditorContext.Provider value={openEditor}>
+    {children}
+    {editing ? <Suspense fallback={<span role="status" className="sr-only">正在打开头像设置…</span>}>
+      <AvatarEditorDialog key={`${editing.self ? "self" : editing.id}`} request={editing} onClose={() => setEditing(null)} />
+    </Suspense> : null}
+  </EditorContext.Provider></Context.Provider>;
+}
+
+export const useAvatarEditor = () => useContext(EditorContext);
+
+/** A person's change must not rerender every other avatar in a large directory. */
+export function useAvatarDisplay(entity: string) {
+  const store = useContext(Context);
+  const preference = useSyncExternalStore(store?.subscribe ?? noopSubscribe,
+    () => store?.getSnapshot().people[entity], () => undefined);
+  const defaultStyle = useSyncExternalStore<AvatarStyle>(store?.subscribe ?? noopSubscribe,
+    () => preference && preference.style !== "auto" ? "initials" : store?.getSnapshot().defaultStyle ?? "initials", () => "initials");
+  return { store, preference, defaultStyle };
 }
 
 export function useAvatarPreferences() {

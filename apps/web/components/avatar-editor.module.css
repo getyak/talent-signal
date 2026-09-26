@@ -40,6 +40,17 @@
 .localData { margin-top: 18px; font-size: 12px; color: var(--muted-strong, #70685e); }
 .localData summary { cursor: pointer; }
 .localData > div { display: flex; gap: 24px; }
+.crop { margin: 24px 0; }
+.cropPreview { display: block; width: min(192px, 100%); height: auto; aspect-ratio: 1; margin: 0 auto; border-radius: 50%; background: var(--surface-muted); touch-action: none; cursor: grab; }
+.cropPreview:active { cursor: grabbing; }
+.crop > p { text-align: center; margin-bottom: 12px; }
+.cropControl { display: flex; align-items: center; gap: 16px; min-height: 44px; font-size: 12px; color: var(--muted-strong); }
+.cropControl span { min-width: 4em; }
+.cropControl input { flex: 1; min-width: 0; accent-color: var(--ink); }
+.cropControl input:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+.cropActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.cropActions > :first-child { margin-right: auto; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 540px) { .examples > :nth-child(n+2) { display: none; } .dialog { padding: 18px; } .secondary, .primary { min-height: 44px; } }
 
 .trigger[data-labelled="true"] { display: inline-flex; flex-direction: column; gap: 10px; border-radius: 10px; }

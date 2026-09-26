@@ -48,4 +48,57 @@ describe("local avatar preference boundary", () => {
     expect(a.getSnapshot().defaultStyle).toBe("glass");
     expect(reads).toBe(2);
   });
+
+  it("refuses stale editor drafts without losing the newer saved choice", () => {
+    const disk = storage();
+    const first = createAvatarStore("shared", () => disk);
+    const second = createAvatarStore("shared", () => disk);
+    const expected = first.getSnapshot().people["person:one"];
+    second.save("person:one", { style: "glass" });
+    expect(() => first.save("person:one", { style: "shapes" }, { expected })).toThrow(/changed/i);
+    expect(first.getSnapshot().people["person:one"]?.style).toBe("glass");
+    expect(createAvatarStore("shared", () => disk).getSnapshot().people["person:one"]?.style).toBe("glass");
+  });
+
+  it("preserves unchanged preference references across storage refreshes", () => {
+    const disk = storage();
+    const store = createAvatarStore("shared", () => disk);
+    store.save("person:one", { style: "glass" });
+    const previous = store.getSnapshot().people["person:one"];
+    createAvatarStore("shared", () => disk).save("person:two", { style: "shapes" });
+    store.refresh();
+    expect(store.getSnapshot().people["person:one"]).toBe(previous);
+  });
+
+  it("preserves another person's update when saving an unchanged draft", () => {
+    const disk = storage();
+    const first = createAvatarStore("shared", () => disk);
+    const second = createAvatarStore("shared", () => disk);
+    first.getSnapshot();
+    second.save("person:two", { style: "glass" });
+    first.save("person:one", { style: "shapes" }, { expected: undefined });
+    expect(first.getSnapshot().people).toEqual({
+      "person:one": { style: "shapes" }, "person:two": { style: "glass" },
+    });
+  });
+
+  it("requires renewed confirmation before clearing changed settings", () => {
+    const disk = storage();
+    const first = createAvatarStore("shared", () => disk);
+    const confirmed = first.getSnapshot();
+    createAvatarStore("shared", () => disk).save("self", { style: "glass" });
+    expect(() => first.clear(confirmed)).toThrow(/changed/i);
+    expect(first.getSnapshot().people.self?.style).toBe("glass");
+    first.clear(first.getSnapshot());
+    expect(disk.getItem(first.key)).toBeNull();
+  });
+
+  it("retains only explicit display fields from stored input", () => {
+    const disk = storage();
+    const store = createAvatarStore("shared", () => disk);
+    disk.setItem(store.key, JSON.stringify({ defaultStyle: "initials", people: {
+      self: { style: "glass", name: "Not a preference", source: "https://example.test" },
+    } }));
+    expect(store.getSnapshot().people.self).toEqual({ style: "glass" });
+  });
 });

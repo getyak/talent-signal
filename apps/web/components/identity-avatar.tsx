@@ -9,7 +9,7 @@ export function IdentityAvatar({ id, label, url, className = "", size, preferenc
   id: string; label: string; url?: string | null; className?: string; size?: number;
   preference?: AvatarPreference; defaultStyle?: AvatarStyle; dataSize?: string;
 }) {
-  const avatar = resolveAvatar({ id, label, url, preference, defaultStyle });
+  const avatar = useMemo(() => resolveAvatar({ id, label, url, preference, defaultStyle }), [id, label, url, preference, defaultStyle]);
   const [loaded, setLoaded] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const photo = avatar.photo !== failed ? avatar.photo : null;
