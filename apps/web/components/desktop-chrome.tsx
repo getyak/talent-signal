@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowDown, ArrowClockwise, SlidersHorizontal } from "@phosphor-icons/react";
+import { ArrowDown, ArrowClockwise, GearSix } from "@phosphor-icons/react";
 import { useSyncExternalStore } from "react";
 import styles from "./workspace-shell.module.css";
 
 type UpdatePhase = "disabled" | "idle" | "checking" | "available" | "downloading" | "installing" | "failed" | "information";
-export type DesktopChromeState = { protocolVersion: 1; availableVersion: string | null; phase?: UpdatePhase; progress?: number | null; offerID?: string | null };
+export type DesktopChromeState = { protocolVersion: 1; surface?: "workspace" | "settings"; availableVersion: string | null; phase?: UpdatePhase; progress?: number | null; offerID?: string | null };
 declare global { interface Window { talentSignalDesktop?: DesktopChromeState } }
 
 // Presentation only: the native host owns trust, the offered version and installation.
@@ -56,8 +56,7 @@ export function DesktopUpdateButton() {
 
 export function DesktopSettingsLink({ onClick }: { onClick: () => void }) {
   const state = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
-  if (!state) return null;
-  return <a href="talentsignal-desktop://settings" onClick={onClick}>
-    <SlidersHorizontal aria-hidden="true" size={16} /><span>连接与调试</span><kbd>⌘ ,</kbd>
+  return <a href={state ? "talentsignal-desktop://settings" : "/workspace/settings"} onClick={onClick}>
+    <GearSix aria-hidden="true" size={16} /><span>设置</span>{state ? <kbd>⌘ ,</kbd> : null}
   </a>;
 }

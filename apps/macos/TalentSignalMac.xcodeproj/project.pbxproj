@@ -16,8 +16,10 @@
 		1DD909C228F16F50CF040D4D /* TalentSignalMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF63B8C4CBD1F557FB2E251 /* TalentSignalMacApp.swift */; };
 		1EB77A7768D1C5DD7EB96B17 /* SystemCompanionTrialExportClipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96C6F5B05C5A70598C18A9CE /* SystemCompanionTrialExportClipboard.swift */; };
 		2A477C8EA7B570B84B1201DA /* SelectedTextServiceProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E35514A6284DBB5083CB38 /* SelectedTextServiceProviderTests.swift */; };
+		2F42B227B39C166E8FBE8119 /* WorkspaceSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 405A0D22CC70290589F845B2 /* WorkspaceSettingsTests.swift */; };
 		346977F72FEE9A8CE680927C /* ActionCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95968B80225F1074D1C652DC /* ActionCenterView.swift */; };
 		3A5542F18A3DB78CE2F57A55 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B9B30DF64BA43145B533741 /* AppModel.swift */; };
+		3E22F7949308564FBF8AE736 /* WorkspaceSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F446A4493D3BC8752DD69A /* WorkspaceSettingsUITests.swift */; };
 		3FE0346C7FE6B8983C315C3A /* FixtureRelationshipService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F8B857FFA895078C5309513 /* FixtureRelationshipService.swift */; };
 		44BD76854EA96A80ED13AAB4 /* QuietWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C301747C2FF5E264512C207 /* QuietWorkspaceView.swift */; };
 		46F9C7CA93CCFEEFD18E6725 /* SystemWindowCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A2935D6338E63247EADFD31 /* SystemWindowCaptureService.swift */; };
@@ -97,7 +99,9 @@
 		3389E0A990B828DC5A3EE74C /* LiveBackendRelationshipServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBackendRelationshipServiceTests.swift; sourceTree = "<group>"; };
 		3F52E17314778036653DF311 /* RelationshipWorkspaceLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipWorkspaceLayoutTests.swift; sourceTree = "<group>"; };
 		403CD2B6C2719BC492AABAF8 /* UnknownResolutionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnknownResolutionStore.swift; sourceTree = "<group>"; };
+		405A0D22CC70290589F845B2 /* WorkspaceSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSettingsTests.swift; sourceTree = "<group>"; };
 		43E35514A6284DBB5083CB38 /* SelectedTextServiceProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextServiceProviderTests.swift; sourceTree = "<group>"; };
+		48F446A4493D3BC8752DD69A /* WorkspaceSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSettingsUITests.swift; sourceTree = "<group>"; };
 		4B87A825394469818EA938A9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4BD2D0F76015AF2901E23C8E /* RelationshipWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipWorkspaceView.swift; sourceTree = "<group>"; };
 		4C301747C2FF5E264512C207 /* QuietWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuietWorkspaceView.swift; sourceTree = "<group>"; };
@@ -175,6 +179,7 @@
 			isa = PBXGroup;
 			children = (
 				27E176B0638C441E812A4A9C /* TalentSignalMacUITests.swift */,
+				48F446A4493D3BC8752DD69A /* WorkspaceSettingsUITests.swift */,
 			);
 			path = UITests;
 			sourceTree = "<group>";
@@ -296,6 +301,7 @@
 				97C5330D59690EF2CAB4594F /* TodayAttentionProjectionTests.swift */,
 				32D9E559B7EAF5ECCEBCC0F2 /* WindowTextRecognitionTests.swift */,
 				8FF551492E28E9FD050FA11A /* WorkspaceOriginTests.swift */,
+				405A0D22CC70290589F845B2 /* WorkspaceSettingsTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -438,6 +444,7 @@
 				8DFA0A97B3E5EED330627081 /* TodayAttentionProjectionTests.swift in Sources */,
 				9FF8153492855C05CCE8F509 /* WindowTextRecognitionTests.swift in Sources */,
 				9629440168288F02E2B7AFB0 /* WorkspaceOriginTests.swift in Sources */,
+				2F42B227B39C166E8FBE8119 /* WorkspaceSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -491,6 +498,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				776AB6E98F8C341FB55BDF7B /* TalentSignalMacUITests.swift in Sources */,
+				3E22F7949308564FBF8AE736 /* WorkspaceSettingsUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -52,3 +52,10 @@
 .cropActions > :first-child { margin-right: auto; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 540px) { .examples > :nth-child(n+2) { display: none; } .dialog { padding: 18px; } .secondary, .primary { min-height: 44px; } }
+
+.trigger[data-labelled="true"] { display: inline-flex; flex-direction: column; gap: 10px; border-radius: 10px; }
+.trigger[data-labelled="true"] .camera { top: 52px; bottom: auto; }
+.triggerLabel { font-size: 13px; line-height: 20px; white-space: nowrap; color: var(--ink); }
+.localData summary { min-height: 44px; padding: 11px 0; cursor: pointer; }
+.settings h2 { font-size: 15px; }
+.settings p { font-size: 13px; }

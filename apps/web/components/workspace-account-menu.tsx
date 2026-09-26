@@ -3,12 +3,9 @@
 import { clearTimeWorkspaceStorage } from "@/lib/time-workspace-storage";
 import {
   CaretDown,
-  CaretRight,
-  GearSix,
   Globe,
   SignOut,
 } from "@phosphor-icons/react";
-import Link from "next/link";
 import { useEffect, useRef } from "react";
 
 import {
@@ -25,9 +22,6 @@ import { PersonDirectoryAvatar } from "./person-directory-avatar";
 import { AvatarEditor } from "./avatar-editor";
 import styles from "./workspace-shell.module.css";
 
-const links = [
-  ["/workspace/settings", "设置", GearSix],
-] as const;
 
 export function WorkspaceAccountMenu({
   accountName,
@@ -137,13 +131,6 @@ export function WorkspaceAccountMenu({
           </span>
         </span>
         <hr />
-        {links.map(([href, label, LinkIcon]) => (
-          <Link href={href} key={href} onClick={() => close()}>
-            <LinkIcon aria-hidden="true" size={16} />
-            <span>{label}</span>
-            <CaretRight aria-hidden="true" size={12} />
-          </Link>
-        ))}
         <DesktopSettingsLink onClick={() => close()} />
         <span className={styles.accountMetaRow}>
           <Globe aria-hidden="true" size={16} />

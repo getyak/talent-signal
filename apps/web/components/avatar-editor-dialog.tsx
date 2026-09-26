@@ -110,7 +110,7 @@ export default function AvatarEditorDialog({ request, onClose }: { request: Avat
           <Dialog.Title className={styles.title}>{self ? "我的头像" : "联系人头像"}</Dialog.Title>
           <Dialog.Close className={styles.close} disabled={saving} aria-label="关闭头像设置"><X size={18} /></Dialog.Close>
         </div>
-        <Dialog.Description className={styles.description}>仅保存在此浏览器，按当前账号隔离；不会修改来源平台的头像。</Dialog.Description>
+        <Dialog.Description className={styles.description}>选一张照片，或挑一个喜欢的图案。</Dialog.Description>
         {bitmap ? <AvatarCropEditor key={cropVersion} bitmap={bitmap}
           onApply={photo => { setDraft({ style: "auto", photo }); setBitmap(null); }} onCancel={() => setBitmap(null)} /> : <>
           <div className={styles.preview}>
@@ -135,7 +135,8 @@ export default function AvatarEditorDialog({ request, onClose }: { request: Avat
         <button className={styles.upload} type="button" disabled={busy} onClick={() => input.current?.click()}>
           <UploadSimple aria-hidden="true" size={16} />{reading ? "正在处理图片…" : "上传图片"}
         </button>
-        <p className={styles.hint}>JPG、PNG 或 WebP，最大 8 MB。图片在本机裁切压缩后保存。</p>
+        <p className={styles.hint}>JPG、PNG 或 WebP · 最大 8 MB · 可调整裁切</p>
+        <details className={styles.localData}><summary>保存范围与来源</summary><p>仅保存在此浏览器或应用的当前账号中，暂不跨设备同步。不会修改来源平台的照片。图案由 DiceBear 在本机生成。</p></details>
         {draft.photo && !bitmap ? <button className={styles.textButton} type="button" disabled={busy} onClick={() => setDraft(current => ({ style: current.style, seed: current.seed }))}>移除自选图片</button> : null}
         {error ? <p className={styles.error} role="alert">{error}</p> : null}
         {conflict ? <button className={styles.secondary} type="button" disabled={busy} onClick={loadLatest}>载入最新设置</button> : null}

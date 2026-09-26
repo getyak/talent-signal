@@ -1,494 +1,83 @@
 "use client";
 
-import {
-  ArrowRight,
-  CaretLeft,
-  Moon,
-  Sun,
-} from "@phosphor-icons/react";
 import type { AccountSettings } from "@talent-signal/contracts";
+import { ArrowUpRight, CaretRight, Moon, Sun } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
-
+import { useSyncExternalStore, type ReactNode } from "react";
 import { AccountSettingsPanel } from "./account-settings";
 import { AgentResponsePreference } from "./agent-response-preference";
-import { AvatarDefaultSettings, AvatarEditor } from "./avatar-editor";
-import {
-  SETTINGS_SECTIONS,
-  settingsDrilldownSections,
-  type SettingsSection,
-} from "@/lib/settings-sections";
+import { AvatarDefaultSettings } from "./avatar-editor";
+import { SETTINGS_SECTIONS, type SettingsSection } from "@/lib/settings-sections";
+import { applyTheme, subscribeTheme, themeSnapshot } from "@/lib/theme-preference";
 import styles from "./settings-workspace.module.css";
 
-export type { SettingsSection } from "@/lib/settings-sections";
-
-const SECTION_DESCRIPTIONS: Partial<Record<SettingsSection, string>> = {
-  account: "管理自己的显示名称、登录方式与访问设备。",
-  workspace: "空间中的名称、成员与归属，始终有清楚的记录。",
-  appearance: "只改变呈现方式与回复展开方式，不改变来源判断或操作权限。",
-  connections: "查看已连接的服务、资料入口与各自的权限。",
-  advanced: "这些工具面向排查问题；不会创建、批准或发送任何外部操作。",
-  testing: "隔离的评测与测试空间。这里不进入日常产品导航。",
-};
-
-const LOGIN_METHOD_LABELS: Record<string, string> = {
-  google: "Google",
-  apple: "Apple",
-  password: "邮箱密码",
-};
-
-function loginMethodSummary(methods: readonly string[]): string {
-  if (methods.length === 0) return "受限测试会话";
-  return methods.map((method) => LOGIN_METHOD_LABELS[method] ?? method).join("、");
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  return <section className={styles.group}><h2>{title}</h2>{children}</section>;
 }
-
-function Group({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={styles.group}>
-      <div className={styles.groupHead}>
-        <h2>{title}</h2>
-        {description ? <p>{description}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
+function Row({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return <div className={styles.row}><div><strong>{title}</strong>{description && <p>{description}</p>}</div>{children}</div>;
 }
-
-function Row({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className={styles.row}>
-      <div>
-        <strong>{title}</strong>
-        {description ? <p>{description}</p> : null}
-      </div>
-      {children}
-    </div>
-  );
+function Destination({ href, title, description }: { href: string; title: string; description: string }) {
+  return <Link className={styles.destination} href={href}><span><strong>{title}</strong><small>{description}</small></span><CaretRight size={16} aria-hidden="true" /></Link>;
 }
-
-function RowLink({
-  href,
-  label,
-}: {
-  href: string;
-  label: string;
-}) {
-  return (
-    <Link className={styles.rowLink} href={href}>
-      {label}
-      <ArrowRight aria-hidden="true" size={13} />
-    </Link>
-  );
-}
-
-const THEME_EVENT = "talent-signal:theme-change";
-
-function subscribeTheme(onChange: () => void) {
-  window.addEventListener(THEME_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    window.removeEventListener(THEME_EVENT, onChange);
-    window.removeEventListener("storage", onChange);
-  };
-}
-
-function themeSnapshot(): "light" | "dark" {
-  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-}
-
-function subscribeNever() {
-  return () => {};
-}
-
 function ThemeChoice() {
   const theme = useSyncExternalStore(subscribeTheme, themeSnapshot, () => "light");
-
-  function choose(next: "light" | "dark") {
-    document.documentElement.dataset.theme = next;
-    try {
-      window.localStorage.setItem("talent-signal-theme", next);
-    } catch {
-      /* Theme still applies for this session without storage. */
-    }
-    window.dispatchEvent(new Event(THEME_EVENT));
-  }
-
-  return (
-    <div aria-label="外观" className={styles.segmented} role="group">
-      <button
-        aria-pressed={theme === "light"}
-        onClick={() => choose("light")}
-        type="button"
-      >
-        <Sun aria-hidden="true" size={13} /> 浅色
-      </button>
-      <button
-        aria-pressed={theme === "dark"}
-        onClick={() => choose("dark")}
-        type="button"
-      >
-        <Moon aria-hidden="true" size={13} /> 深色
-      </button>
-    </div>
-  );
+  return <div className={styles.themes} role="group" aria-label="界面主题">
+    {([{ value: "light", label: "浅色", Icon: Sun }, { value: "dark", label: "深色", Icon: Moon }] as const).map(({ value, label, Icon }) =>
+      <button key={value} type="button" aria-pressed={theme === value} onClick={() => applyTheme(value)}>        <span className={styles.themePreview} data-theme-preview={value} aria-hidden="true"><i /><span><b /><b /><b /></span></span>
+        <span className={styles.themeLabel}><Icon size={16} aria-hidden="true" />{label}<span aria-hidden="true" className={styles.radio} /></span>
+      </button>)}
+  </div>;
 }
-
 function AppearancePane({ sessionVersion }: { sessionVersion: string | null }) {
-  const timeZone = useSyncExternalStore(
-    subscribeNever,
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "未提供",
-    () => "正在读取…",
-  );
-
-  return (
-    <div className={styles.pane}>
-      <Group
-        description="界面只改变呈现方式；明暗主题保存在这台设备上。"
-        title="界面"
-      >
-        <Row description="选择这台设备上的显示主题。" title="外观">
-          <ThemeChoice />
-        </Row>
-        <Row description="工作台界面语言。" title="语言">
-          <span className={styles.rowValue}>简体中文</span>
-        </Row>
-        <Row
-          description="按浏览器报告的时区解释时间；产品不会根据语言猜测时区。"
-          title="时区"
-        >
-          <span className={styles.rowValue}>{timeZone}</span>
-        </Row>
-      </Group>
-      <AvatarDefaultSettings />
-      <Group
-        description="只改变回复的展开方式，不改变来源判断或操作权限。"
-        title="智能助理回复"
-      >
-        {sessionVersion ? (
-          <AgentResponsePreference embedded key={sessionVersion} sessionVersion={sessionVersion} />
-        ) : (
-          <p className={styles.notice}>
-            登录空间暂不可用，无法读取已保存的回复偏好。重新登录后这里会显示真实偏好。
-          </p>
-        )}
-      </Group>
-    </div>
-  );
+  const timeZone = useSyncExternalStore(() => () => {}, () => Intl.DateTimeFormat().resolvedOptions().timeZone, () => "—");
+  return <div className={styles.pane}>
+    <Group title="界面主题"><ThemeChoice /></Group>
+    <AvatarDefaultSettings />
+    <Group title="回复偏好">{sessionVersion ? <AgentResponsePreference sessionVersion={sessionVersion} embedded /> : <p className={styles.notice}>重新登录后可设置回复偏好。</p>}</Group>
+    <details className={styles.disclosure}><summary>语言与时区</summary>
+      <Row title="显示语言"><span className={styles.rowValue}>简体中文</span></Row>
+      <Row title="当前时区" description="跟随设备设置。"><span className={styles.rowValue}>{timeZone}</span></Row>
+    </details>
+  </div>;
 }
-
 function ConnectionsPane() {
-  return (
-    <div className={styles.pane}>
-      <Group
-        description="查看已连接的服务、资料入口与各自的权限。"
-        title="来源与连接"
-      >
-        <Row
-          description="查看每个连接的范围、失效与重新授权状态。"
-          title="扩展与权限"
-        >
-          <RowLink href="/workspace/extensions" label="管理扩展" />
-        </Row>
-        <Row description="账号专属的来源、授权与删除状态。" title="来源">
-          <RowLink href="/workspace/captures" label="打开来源" />
-        </Row>
-      </Group>
-    </div>
-  );
+  return <div className={styles.pane}><Group title="资料与连接">
+    <Destination href="/workspace/extensions" title="连接服务" description="查看可用扩展与连接状态" />
+    <Destination href="/workspace/captures" title="已导入资料" description="查看和管理已交给工作区的资料" />
+  </Group><details className={styles.disclosure}><summary>设备权限</summary><p>截屏、录音和通知权限在对应设备的原生应用中管理。</p></details></div>;
 }
-
 function AdvancedPane({ labEnabled }: { labEnabled: boolean }) {
-  return (
-    <div className={styles.pane}>
-      <Group
-        description="这些工具面向排查问题；不会创建、批准或发送任何外部操作。"
-        title="高级"
-      >
-        <Row description="查看系统组件与最近的核验结果。" title="系统检测">
-          <RowLink href="/workspace/settings/diagnostics" label="打开检测" />
-        </Row>
-        <Row description="产品运行的反馈记录。" title="运行反馈">
-          <RowLink href="/workspace/monitor" label="打开反馈" />
-        </Row>
-        <Row
-          description="冻结的边界案例，用于独立验证授权与来源语义。"
-          title="冻结边界案例"
-        >
-          <RowLink href="/workspace/boundaries" label="打开案例" />
-        </Row>
-      </Group>
-      {labEnabled ? (
-        <Group description="隔离的评测与测试空间。" title="测试与诊断">
-          <Row description="隔离场景、重放与 Reality Receipt。" title="场景评测">
-            <RowLink href="/workspace/lab" label="打开 Lab" />
-          </Row>
-          <Row description="用自己的账号进入隔离测试空间。" title="测试空间">
-            <RowLink href="/workspace/settings/testing" label="打开测试空间" />
-          </Row>
-        </Group>
-      ) : null}
-    </div>
-  );
+  return <div className={styles.pane}><Group title="问题排查">
+    <Destination href="/workspace/settings/diagnostics" title="连接诊断" description="遇到加载或连接问题时，检查服务状态" />
+    <Destination href="/workspace/monitor" title="运行记录" description="查看任务进度与需要处理的问题" />
+    <Destination href="/workspace/boundaries" title="数据与操作边界" description="了解资料访问与操作授权范围" />
+  </Group>{labEnabled && <Group title="内部测试"><Destination href="/workspace/settings/testing" title="测试空间" description="使用隔离的合成资料验证功能" /><Destination href="/workspace/lab" title="功能实验室" description="查看当前启用的实验功能" /></Group>}</div>;
 }
-
-function TestingPane() {
-  return (
-    <div className={styles.pane}>
-      <Group
-        description="隔离的评测与测试空间。这里不进入日常产品导航。"
-        title="测试与诊断"
-      >
-        <Row description="隔离场景、重放与 Reality Receipt。" title="场景评测">
-          <RowLink href="/workspace/lab" label="打开 Lab" />
-        </Row>
-        <Row description="用自己的账号进入隔离测试空间。" title="测试空间">
-          <RowLink href="/workspace/settings/testing" label="打开测试空间" />
-        </Row>
-        <Row description="系统组件与最近核验结果。" title="系统检测">
-          <RowLink href="/workspace/settings/diagnostics" label="打开检测" />
-        </Row>
-      </Group>
-    </div>
-  );
-}
-
-/**
- * The default overview. It leads with the real account identity, then grouped
- * rows that each state one consequence and one compact control or drilldown.
- */
-function SettingsOverview({
-  initial,
-  labEnabled,
-}: {
-  initial: AccountSettings;
-  labEnabled: boolean;
+const titles: Record<SettingsSection, string> = { overview: "个人资料", account: "账号与安全", workspace: "工作空间", appearance: "外观与偏好", connections: "连接与权限", advanced: "帮助与诊断", testing: "测试与诊断" };
+const hints: Partial<Record<SettingsSection, string>> = { account: "管理登录方式与访问设备。", workspace: "空间资料、成员与访问权限。", appearance: "让工作区更合你的习惯。", connections: "管理工作区使用的资料与服务。" };
+export function SettingsWorkspace({ initial, sessionVersion, section, labEnabled, recovery, avatarUrl }: {
+  avatarUrl?: string | null; initial: AccountSettings | null; sessionVersion: string | null; section: SettingsSection; labEnabled: boolean;
+  recovery?: { operationRef: string | null; roles: { current: { provider: string; expiresAt: string } | null; duplicate: { provider: string; expiresAt: string } | null } };
 }) {
-  const role = initial.workspace.is_owner
-    ? "所有者"
-    : initial.workspace.role === "admin"
-      ? "管理员"
-      : "成员";
-
-  return (
-    <>
-      <article className={styles.featured}>
-        <AvatarEditor id="self" self label={initial.user.display_name} size={64} />
-        <div className={styles.featuredCopy}>
-          <h2>{initial.user.display_name}</h2>
-          <p>{initial.user.email}</p>
-          <span>
-            {initial.workspace.name} · {role}
-            {initial.workspace.is_test ? " · 测试" : ""}
-          </span>
-        </div>
-        <RowLink href="/workspace/settings?section=account" label="管理账号与安全" />
-      </article>
-
-      <Group title="账号">
-        <Row
-          description="显示名称在账号页面中修改，保存后会重新核验。"
-          title="显示名称"
-        >
-          <span className={styles.rowValue}>{initial.user.display_name}</span>
-        </Row>
-        <Row title="登录方式">
-          <span className={styles.rowValue}>
-            {loginMethodSummary(initial.user.login_methods)}
-          </span>
-        </Row>
-        <Row description="退出会话后，该设备需要重新登录。" title="登录会话">
-          <span className={styles.rowValue}>
-            {initial.sessions.length} 个登录会话
-          </span>
-        </Row>
-        <Row description="空间名称、成员角色与最近的管理记录。" title="工作空间">
-          <RowLink href="/workspace/settings?section=workspace" label="查看空间" />
-        </Row>
-      </Group>
-
-      <Group title="界面与偏好">
-        <Row description="只保存在这台设备上。" title="外观">
-          <ThemeChoice />
-        </Row>
-        <Row title="头像" description="默认风格与单独设置的联系人头像。"><RowLink href="/workspace/settings?section=appearance" label="设置头像风格" /></Row>
-        <Row title="语言">
-          <span className={styles.rowValue}>简体中文</span>
-        </Row>
-        <Row
-          description="只改变回复的展开方式，不改变来源判断或权限。"
-          title="回复偏好"
-        >
-          <RowLink href="/workspace/settings?section=appearance" label="打开偏好" />
-        </Row>
-      </Group>
-
-      <Group title="连接与来源">
-        <Row description="每个连接的范围、失效与重新授权状态。" title="扩展与权限">
-          <RowLink href="/workspace/extensions" label="管理扩展" />
-        </Row>
-        <Row description="账号专属的来源、授权与删除状态。" title="来源">
-          <RowLink href="/workspace/captures" label="打开来源" />
-        </Row>
-      </Group>
-
-      <Group title="本机能力">
-        <Row
-          description="系统权限、截图与语音由 Talent Signal 原生应用负责；此 Web 版本不提供这些开关。"
-          title="桌面与 iOS 能力"
-        >
-          <span className={styles.rowValue}>在原生应用中管理</span>
-        </Row>
-      </Group>
-
-      <Group title="排查与测试">
-        <Row description="查看系统组件与最近的核验结果。" title="系统检测">
-          <RowLink href="/workspace/settings/diagnostics" label="打开检测" />
-        </Row>
-        <Row description="产品运行的反馈记录。" title="运行反馈">
-          <RowLink href="/workspace/monitor" label="打开反馈" />
-        </Row>
-        <Row
-          description="冻结的边界案例，用于独立验证授权与来源语义。"
-          title="冻结边界案例"
-        >
-          <RowLink href="/workspace/boundaries" label="打开案例" />
-        </Row>
-        {labEnabled ? (
-          <Row description="隔离场景、重放与测试空间。" title="测试与诊断">
-            <RowLink href="/workspace/settings?section=testing" label="打开" />
-          </Row>
-        ) : null}
-      </Group>
-    </>
-  );
-}
-
-export type StagedRecoveryProjection = {
-  operationRef: string | null;
-  roles: {
-    current: { provider: string; expiresAt: string } | null;
-    duplicate: { provider: string; expiresAt: string } | null;
-  };
-};
-
-export function SettingsWorkspace({
-  initial,
-  sessionVersion,
-  section,
-  labEnabled,
-  recovery = { operationRef: null, roles: { current: null, duplicate: null } },
-}: {
-  initial: AccountSettings | null;
-  sessionVersion: string | null;
-  section: SettingsSection;
-  labEnabled: boolean;
-  recovery?: StagedRecoveryProjection;
-}) {
-  const drilldownSections = settingsDrilldownSections(labEnabled);
-  const current = SETTINGS_SECTIONS.find((item) => item.id === section);
-  const overview = section === "overview";
-
-  return (
-    <main className={styles.page} id="main-content" tabIndex={-1}>
-      {overview ? (
-        <header className={styles.heading}>
-          <h1>设置</h1>
-          <p>只保留真正影响工作区、建议和信息边界的选项。</p>
-        </header>
-      ) : (
-        <>
-          <nav aria-label="设置分区" className={styles.breadcrumb}>
-            <Link href="/workspace/settings">
-              <CaretLeft aria-hidden="true" size={13} />
-              设置
-            </Link>
-            <strong>{current?.label ?? "设置"}</strong>
-          </nav>
-          <header className={styles.sectionHeading}>
-            <h1>{current?.label ?? "设置"}</h1>
-            {SECTION_DESCRIPTIONS[section] ? (
-              <p>{SECTION_DESCRIPTIONS[section]}</p>
-            ) : null}
-          </header>
-          <div className={styles.sectionTabs}>
-            {drilldownSections.map((item) => (
-              <Link
-                aria-current={item.id === section ? "page" : undefined}
-                href={item.href}
-                key={item.id}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className={styles.pane}>
-        {overview ? (
-          initial ? (
-            <SettingsOverview initial={initial} labEnabled={labEnabled} />
-          ) : (
-            <section className={styles.unavailable}>
-              <h2>账号设置暂时无法连接</h2>
-              <p className={styles.notice}>
-                账号服务不可用时，系统不会展示缓存或示例中的身份、成员或会话。
-              </p>
-              <Link className={styles.rowLink} href="/login?callbackUrl=%2Fworkspace%2Fsettings">
-                重新登录
-              </Link>
-            </section>
-          )
-        ) : null}
-
-        {section === "account" || section === "workspace" ? (
-          initial ? (
-            <AccountSettingsPanel
-              embedded
-              initial={initial}
-              key={`${initial.workspace.id}-${section}`}
-              recovery={recovery}
-              section={section}
-            />
-          ) : (
-            <section className={styles.unavailable}>
-              <h2>账号设置暂时无法连接</h2>
-              <p className={styles.notice}>
-                账号服务不可用时，系统不会展示缓存或示例中的身份、成员或会话。
-              </p>
-              <Link className={styles.rowLink} href="/login?callbackUrl=%2Fworkspace%2Fsettings">
-                重新登录
-              </Link>
-            </section>
-          )
-        ) : null}
-
-        {section === "appearance" ? (
-          <AppearancePane sessionVersion={sessionVersion} />
-        ) : null}
-
-        {section === "connections" ? <ConnectionsPane /> : null}
-
-        {section === "advanced" ? <AdvancedPane labEnabled={labEnabled} /> : null}
-
-        {section === "testing" && labEnabled ? <TestingPane /> : null}
-      </div>
-    </main>
-  );
+  const primary = ["overview", "account", "appearance", "workspace", "connections"];
+  const link = (id: SettingsSection) => { const item = SETTINGS_SECTIONS.find(item => item.id === id)!; return <Link key={id} href={item.href} aria-current={section === id ? "page" : undefined}>{titles[id]}</Link>; };
+  return <main className={styles.page} id="main-content" tabIndex={-1} data-settings-workspace>
+    <nav className={styles.navigation} aria-label="设置分区" data-settings-navigation>
+      <h1>设置</h1>
+      <div className={styles.primaryNav}>{primary.map(id => link(id as SettingsSection))}</div>
+      <details className={styles.more} open={section === "advanced" || section === "testing" ? true : undefined}>
+        <summary>更多设置</summary>{link("advanced")}{labEnabled && link("testing")}
+      </details>
+    </nav>
+    <div className={styles.content}>
+      <header className={styles.heading}><h2>{titles[section]}</h2>{hints[section] && <p>{hints[section]}</p>}</header>
+      {["overview", "account", "workspace"].includes(section) ? initial ?
+        <AccountSettingsPanel key={`${initial.workspace.id}-${initial.user.id}-${section}`} initial={initial} avatarUrl={avatarUrl} section={section === "overview" ? "profile" : section as "account" | "workspace"} embedded recovery={recovery} /> :
+        <section className={styles.unavailable}><h3>账号设置暂时无法连接</h3><p>暂时无法读取最新资料。请重试，或重新登录。</p><div><a href="/workspace/settings">重新载入</a><Link href="/login?callbackUrl=%2Fworkspace%2Fsettings">重新登录 <ArrowUpRight aria-hidden="true" size={14} /></Link></div></section> : null}
+      {section === "appearance" && <AppearancePane sessionVersion={sessionVersion} />}
+      {section === "connections" && <ConnectionsPane />}
+      {(section === "advanced" || section === "testing") && <AdvancedPane labEnabled={labEnabled} />}
+    </div>
+  </main>;
 }

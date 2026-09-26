@@ -1219,3 +1219,14 @@
 .shell:has(.sidebarState[data-collapsed="true"]) .desktopUpdate span { display: none; }
 @media (prefers-reduced-motion: reduce) { .desktopUpdate { transition: none; } }
 @media (max-width: 760px) { .desktopUpdate { min-height: 36px; } }
+
+/* The native settings scene owns its own navigation. Presentation only. */
+:global(html[data-desktop-surface="settings"]) .shell,
+:global(html[data-desktop-surface="settings"]) .shell:has(.sidebarState[data-collapsed="true"]) {
+  display: block;
+  min-height: 100dvh;
+}
+:global(html[data-desktop-surface="settings"]) .shell > .sidebar,
+:global(html[data-desktop-surface="settings"]) .routeHeader,
+:global(html[data-desktop-surface="settings"]) .mobileHeader { display: none; }
+:global(html[data-desktop-surface="settings"]) .stage { min-height: 100dvh; padding: 0; }

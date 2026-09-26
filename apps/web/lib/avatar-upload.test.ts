@@ -45,3 +45,14 @@ describe("bounded local avatar processing", () => {
     expect(bitmap.close).toHaveBeenCalledOnce();
   });
 });
+
+it("centers the crop, re-encodes bounded output and releases the decoded source", async () => {
+  const bitmap = { width: 800, height: 400, close: vi.fn() };
+  vi.stubGlobal("createImageBitmap", vi.fn().mockResolvedValue(bitmap));
+  const drawImage = vi.fn();
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage, clearRect: vi.fn() } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/webp;base64,AAAA");
+  expect(await prepareAvatarUpload(new File(["image"], "photo.png", { type: "image/png" }))).toBe("data:image/webp;base64,AAAA");
+  expect(drawImage).toHaveBeenCalledWith(bitmap, 200, 0, 400, 400, 0, 0, 192, 192);
+  expect(bitmap.close).toHaveBeenCalledOnce();
+});

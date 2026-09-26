@@ -13,7 +13,7 @@ export function IdentityAvatar({ id, label, url, className = "", size, preferenc
   const [loaded, setLoaded] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const photo = avatar.photo !== failed ? avatar.photo : null;
-  const generationSeed = preference?.seed;
+  const generationSeed = preference?.seed ?? `avatar-${avatar.hash}`;
   const generated = useMemo(() => generationSeed && (avatar.style === "shapes" || avatar.style === "glass") ? {
     light: generatedAvatar(avatar.style, generationSeed, false),
     dark: generatedAvatar(avatar.style, generationSeed, true),
@@ -32,16 +32,7 @@ export function IdentityAvatar({ id, label, url, className = "", size, preferenc
       <img alt="" src={generated.light} width={192} height={192} className={styles.generated} data-appearance="light" />
       {/* eslint-disable-next-line @next/next/no-img-element -- local generated SVG, no network or optimizer. */}
       <img alt="" src={generated.dark} width={192} height={192} className={styles.generated} data-appearance="dark" />
-    </> : (
-      <svg viewBox="0 0 64 64" className={styles.pattern} focusable="false" data-pattern={avatar.style}>
-        <g transform={`rotate(${avatar.hash % 360} 32 32)`}>
-          <circle cx="20" cy="22" r={12 + avatar.hash % 7} fill="currentColor" opacity=".24" />
-          <rect x="27" y="27" width="38" height="38" rx={avatar.style === "glass" ? 19 : 9} fill="currentColor" opacity=".38" />
-          <circle cx="43" cy="12" r="17" fill="currentColor" opacity=".14" />
-          <path d="M-3 45 29 18 37 64Z" fill="currentColor" opacity=".19" />
-        </g>
-      </svg>
-    )}
+    </> : null}
     {photo ? (
       // eslint-disable-next-line @next/next/no-img-element -- preserve authorized source URLs; never proxy private photos.
       <img ref={checkCachedPhoto} key={photo} alt="" src={photo} width={size ?? 64} height={size ?? 64} loading="lazy" decoding="async" referrerPolicy="no-referrer"

@@ -14,15 +14,16 @@ const choices: { value: AvatarStyle; label: string }[] = [
   { value: "initials", label: "姓名" }, { value: "shapes", label: "几何" }, { value: "glass", label: "柔光" },
 ];
 
-export function AvatarEditor({ id, label, url, self = false, size = 72, className }: {
-  id: string; label: string; url?: string | null; self?: boolean; size?: number; className?: string;
+export function AvatarEditor({ id, label, url, self = false, size = 72, className, triggerLabel }: {
+  id: string; label: string; url?: string | null; self?: boolean; size?: number; className?: string; triggerLabel?: string;
 }) {
   const openEditor = useAvatarEditor();
   return <button type="button" className={`${styles.trigger} ${className ?? ""}`} disabled={!openEditor}
-    data-compact={size <= 40} aria-haspopup="dialog" aria-label={self ? "编辑我的头像" : `编辑 ${label} 的头像`}
+    data-compact={size <= 40} data-labelled={Boolean(triggerLabel)} aria-haspopup="dialog" aria-label={self ? "编辑我的头像" : `编辑 ${label} 的头像`}
     onClick={event => openEditor?.({ id, label, url, self }, event.currentTarget)}>
     <PersonDirectoryAvatar id={id} label={label} url={url} self={self} size={size} />
     <span className={styles.camera}><Camera size={13} aria-hidden="true" /></span>
+    {triggerLabel && <span className={styles.triggerLabel}>{triggerLabel}</span>}
   </button>;
 }
 
@@ -49,7 +50,7 @@ export function AvatarDefaultSettings() {
     } finally { setBusy(false); }
   }
   return <section className={styles.settings} aria-label="默认头像风格">
-    <div><h2>默认头像风格</h2><p>没有照片时使用。单独设置过的联系人保持自己的风格。</p></div>
+    <div><h2>联系人默认头像</h2><p>没有照片时使用。单独设置过的联系人保持自己的风格。</p></div>
     <div className={styles.defaults}>
       {choices.map(choice => <button className={styles.defaultOption} disabled={!store || busy} aria-pressed={defaultStyle === choice.value} key={choice.value} type="button" onClick={() => void select(choice.value)}>
         <span className={styles.examples}>
@@ -60,7 +61,7 @@ export function AvatarDefaultSettings() {
         <span>{choice.label}{defaultStyle === choice.value ? <Check size={14} aria-hidden="true" /> : null}</span>
       </button>)}
     </div>
-    <p className={styles.hint}>仅保存在此浏览器的当前账号中。没有姓名时始终使用抽象图案。</p>
+    <p className={styles.hint}>没有姓名时，使用稳定的抽象图案。</p>
     <details className={styles.localData}>
       <summary>管理本机头像数据</summary>
       <p>清除当前账号在此浏览器中上传的头像和风格设置，恢复已有来源照片与姓名头像。</p>

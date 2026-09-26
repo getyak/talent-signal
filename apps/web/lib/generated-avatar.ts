@@ -10,8 +10,13 @@ const styles = {
   glass: new Style(glassDefinition as StyleDefinition),
 };
 
+const cache = new Map<string, string>();
+
 export function generatedAvatar(style: "shapes" | "glass", seed: string, dark: boolean) {
-  return new Avatar(styles[style], {
+  const key = `${style}:${seed}:${dark}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const result = new Avatar(styles[style], {
     seed,
     size: 192,
     animationVariant: ["none"],
@@ -22,4 +27,7 @@ export function generatedAvatar(style: "shapes" | "glass", seed: string, dark: b
       shape3Color: avatarPalette.map(color => color[dark ? 2 : 0]),
     } : {}),
   }).toDataUri();
+  if (cache.size >= 256) cache.delete(cache.keys().next().value!);
+  cache.set(key, result);
+  return result;
 }

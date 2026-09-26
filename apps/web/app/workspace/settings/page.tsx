@@ -22,7 +22,8 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ section?: string }>;
 }) {
-  if (!(await auth())?.user) {
+  const session = await auth();
+  if (!session?.user) {
     redirect("/login?callbackUrl=%2Fworkspace%2Fsettings");
   }
 
@@ -113,6 +114,7 @@ export default async function SettingsPage({
   return (
     <SettingsWorkspace recovery={recovery}
       initial={data}
+      avatarUrl={data?.user.kind === "lab_human" ? null : session.user.image ?? null}
       labEnabled={labEnabled}
       section={section}
       sessionVersion={sessionVersion}
