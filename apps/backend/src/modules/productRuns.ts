@@ -1,5 +1,5 @@
 import { saveProductRunCase } from "./productRunCases.js";
-import { saveProductRunOutput, productRunSink, metadataOnlyProductSpan } from "./productRunStorage.js";
+import { saveProductRunOutput, productRunSink, metadataOnlyProductSpan, cleanupProductRunSources } from "./productRunStorage.js";
 import { loadScreenshotContactTask } from "./screenshotContactTasks.js";
 import { randomUUID } from "node:crypto";
 import { withProductRunCapture, captureObservationContent, observationID } from "@talent-signal/agent";
@@ -223,12 +223,6 @@ export function registerProductRunMonitoring(app: FastifyInstance, pool: Pool, a
   registerRecurringJob(app, {
     name: "product-run-source-cleanup",
     intervalMs: 60_000,
-    run: () => inTransaction(pool, async client => {
-      await client.query(`DELETE FROM product_run_spans WHERE run_id IN (SELECT id FROM product_runs WHERE NOT product_run_source_available(id))`);
-      await client.query(`UPDATE product_run_feedback_events SET output='null'::jsonb,comment='',correction='',selected_text=''
-        WHERE run_id IN (SELECT id FROM product_runs WHERE NOT product_run_source_available(id))`);
-      await client.query(`UPDATE product_runs SET input=NULL,output=NULL,objective='',comment='',correction='',selected_text=''
-        WHERE input IS NOT NULL AND NOT product_run_source_available(id)`);
-    }),
+    run: () => cleanupProductRunSources(pool),
   });
 }

@@ -1,3 +1,5 @@
+import { beginQueueRunMonitoring, completeQueueRunMonitoring, queueRunCorrelation } from "./conversationQueueMonitoring.js";
+import { conversationRunDiagnostics } from "./conversationRunDiagnostics.js";
 import { randomUUID } from "node:crypto";
 
 import { createVisibleTextFilter, type AgentVisibleProgressStage } from "@talent-signal/agent";
@@ -367,7 +369,10 @@ export class ConversationQueueRunner {
         fence,
         status: "completed",
       });
-      if (finalized.applied) return true;
+      if (finalized.applied) {
+        await completeQueueRunMonitoring(this.options.pool, claimed, result, this.options.logger);
+        return true;
+      }
       if (finalized.effectiveStatus === "running") {
         // A stop raced completion. Finalize the truthful cancelled state; the
         // fenced update cannot clobber another worker's claim.
@@ -377,7 +382,11 @@ export class ConversationQueueRunner {
         });
         return cancelled.applied;
       }
-      return finalized.effectiveStatus === "completed";
+      if (finalized.effectiveStatus === "completed") {
+        await completeQueueRunMonitoring(this.options.pool, claimed, result, this.options.logger);
+        return true;
+      }
+      return false;
     } catch (error) {
       if (error instanceof ConversationQueueLeaseLostError) return false;
       if (
@@ -484,6 +493,8 @@ export class ConversationQueueRunner {
     const run: ActiveRun = { fence, controller, promise: Promise.resolve() };
     this.active.set(claimed.runId, run);
     const promise = (async () => {
+      const monitor = await beginQueueRunMonitoring(this.options.pool, claimed, this.options.logger);
+      return monitor.capture(async () => {
       let entryImages: Awaited<ReturnType<typeof readConversationRunImages>>["images"] = [];
       try {
         const selection = this.options.selectProvider
@@ -506,6 +517,7 @@ export class ConversationQueueRunner {
           (image) => image.messageId === claimed.messageId,
         );
         const execution = await executeUnscopedChatTask({
+          taskID: claimed.runId,
           request: {
             idempotency_key: `conversation-queue:${claimed.entryId}`,
             session_id: claimed.sessionId,
@@ -569,7 +581,12 @@ export class ConversationQueueRunner {
           return;
         }
         if (execution.remoteStatus === "fallback") {
-          await this.finalizeRetained(fence, "MODEL_RUN_FAILED", { auth, claimed, partialText: previewText });
+          const failureCode = execution.remoteFailureCode ?? "MODEL_RUN_FAILED";
+          this.options.logger.warn(
+            { ...queueRunCorrelation(claimed), ...execution.remoteDiagnostics, failure_code: failureCode },
+            "conversation queue model run did not complete",
+          );
+          await this.finalizeRetained(fence, failureCode, { auth, claimed, partialText: previewText });
           return;
         }
         const result = serializedResult(
@@ -585,7 +602,7 @@ export class ConversationQueueRunner {
           return;
         }
         this.options.logger.error(
-          { queue_entry_id: claimed.entryId, err: error },
+          { ...queueRunCorrelation(claimed), ...conversationRunDiagnostics(error) },
           "conversation queue run failed",
         );
         if (reason === "USER_CANCELLED") {
@@ -603,7 +620,9 @@ export class ConversationQueueRunner {
         this.active.delete(claimed.runId);
         publishConversationQueueChanged(claimed.accountId, claimed.sessionId);
         this.schedule(this.pollIntervalMs);
+        await monitor.settle();
       }
+      });
     })();
     run.promise = promise;
     await promise;

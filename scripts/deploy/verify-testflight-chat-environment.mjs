@@ -4,6 +4,7 @@ import { verifySecretEnvironment } from "../verify-secret-environment.mjs";
 // Node >=22.19 (the repository engine) strips these configuration-only types.
 // Read the same authority before a build; never maintain a second endpoint list.
 import { claudeHarnessConfiguration, claudeHarnessConfigurationReceipt } from "../../apps/agent/src/claudeHarnessConfiguration.ts";
+import { workspaceConversationTimeoutMs } from "../../apps/backend/src/modules/workspaceConversationBudget.ts";
 
 export const TESTFLIGHT_CHAT_ADMISSION_NAME =
   "TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING";
@@ -59,6 +60,7 @@ export function verifyTestflightChatEnvironment(environment) {
     let configuration;
     try {
       configuration = claudeHarnessConfigurationReceipt(claudeHarnessConfiguration(environment));
+      workspaceConversationTimeoutMs("claude-agent-sdk", environment.TALENT_SIGNAL_CONVERSATION_TIMEOUT_MS ?? "");
     } catch (error) {
       // The shared validator emits fixed codes, never credential or URL values.
       issues.push(error.message);

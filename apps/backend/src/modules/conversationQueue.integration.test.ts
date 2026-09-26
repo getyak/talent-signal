@@ -2,6 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { CONTRACT_VERSION } from "@talent-signal/contracts";
 
+import { captureProductStep } from "@talent-signal/agent";
+import { ProductRunService } from "./productRuns.js";
+import { cleanupProductRunSources } from "./productRunStorage.js";
 import type { AgentProviderInputPart, AgentProviderRequest, AgentProviderResult } from "@talent-signal/agent";
 import { Pool } from "pg";
 import Fastify from "fastify";
@@ -946,6 +949,10 @@ suite("durable conversation queue", () => {
         (await entryRow(seeded.sessionId, seeded.accountId))[0]?.status === "completed",
       );
       expect(provider.calls).toHaveLength(2);
+      await runner.close();
+      const runs = (await pool!.query("SELECT id,status FROM product_runs WHERE session_id=$1 ORDER BY created_at",[seeded.sessionId])).rows;
+      expect(runs.map(row => row.status)).toEqual(["failed","completed"]);
+      expect(new Set(runs.map(row => row.id)).size).toBe(2);
     } finally {
       await runner.close();
       await removeProofAccount(seeded.accountId);
@@ -1015,6 +1022,11 @@ suite("durable conversation queue", () => {
       expect(provider.calls).toHaveLength(1);
       const session = await getAgentSession(pool!, seeded.auth, seeded.sessionId);
       expect(session.payload?.turns).toHaveLength(1);
+      await runner.close();
+      const runs = (await pool!.query("SELECT id,task_id,status,output FROM product_runs WHERE session_id=$1",[seeded.sessionId])).rows;
+      expect(runs).toHaveLength(1);
+      expect(runs[0]).toMatchObject({status:"completed",task_id:runs[0].id});
+      expect(JSON.stringify(runs[0].output)).toContain("已经生成");
     } finally {
       await runner.close();
       await removeProofAccount(seeded.accountId);
@@ -2058,5 +2070,75 @@ suite("conversation image compatibility and followups", () => {
       await runner.close();
       await removeProofAccount(seeded.accountId);
     }
+  });
+});
+
+
+suite("queue attempt monitoring", () => {
+  it("binds the canonical answer and LLM span, then removes revoked content", async () => {
+    const seeded=await seedSession(), provider=new ScriptedConversationProvider();
+    const run=provider.run.bind(provider);
+    provider.run=(...args) => captureProductStep("synthetic.llm","llm",{prompt:args[0].objective},()=>run(...args),{model:provider.model});
+    provider.postGateDeltas=["synthetic exact answer"];
+    const runner=await startRunner(provider);
+    try {
+      const messageID=randomUUID();
+      await admitConversationQueueEntry(pool!,seeded.auth,{idempotency_key:randomUUID(),session_id:seeded.sessionId,message_id:messageID,objective:"synthetic monitor objective"});
+      await waitFor(async ()=>(await entryRow(seeded.sessionId,seeded.accountId))[0]?.status==="completed");
+      await runner.close();
+      const id=(await entryRow(seeded.sessionId,seeded.accountId))[0]!.run_id!;
+      const detail=await new ProductRunService(pool!).detail(seeded.auth,id);
+      expect(detail.run).toMatchObject({id,task_id:id,content_available:true,status:"completed"});
+      expect(JSON.stringify(detail.output)).toContain("synthetic exact answer");
+      expect(detail.spans.some(span=>span.kind==="llm" && JSON.stringify(span.output).includes("synthetic exact answer"))).toBe(true);
+      expect(detail.spans.some(span=>span.metadata.message_id===messageID)).toBe(true);
+      await pool!.query("UPDATE agent_sessions SET payload=NULL,deleted_at=now() WHERE account_id=$1 AND id=$2",[seeded.accountId,seeded.sessionId]);
+      await cleanupProductRunSources(pool!);
+      const revoked=await new ProductRunService(pool!).detail(seeded.auth,id);
+      expect(revoked.run.content_available).toBe(false);
+      expect(revoked.output).toBeNull();
+      expect(revoked.spans).toEqual([]);
+    } finally { await runner.close();await removeProofAccount(seeded.accountId); }
+  });
+
+  it("retains safe failure diagnostics through cleanup without provider prose or source content",async()=>{
+    const seeded=await seedSession(),provider=new ScriptedConversationProvider();
+    provider.failWith=new Error("private-provider-error sk-secret-123");
+    const runner=await startRunner(provider);
+    try {
+      await admitConversationQueueEntry(pool!,seeded.auth,{idempotency_key:randomUUID(),session_id:seeded.sessionId,message_id:randomUUID(),objective:"private-user-objective"});
+      await waitFor(async ()=>(await entryRow(seeded.sessionId,seeded.accountId))[0]?.status==="failed");
+      await runner.close();
+      const id=(await entryRow(seeded.sessionId,seeded.accountId))[0]!.run_id!;
+      await cleanupProductRunSources(pool!);
+      const detail=await new ProductRunService(pool!).detail(seeded.auth,id);
+      expect(detail.run.status).toBe("failed");
+      expect(detail.output).toBeNull();
+      expect(detail.spans.some(span=>span.metadata.failure_code==="MODEL_RUN_FAILED")).toBe(true);
+      expect(JSON.stringify(detail)).not.toMatch(/private-provider-error|sk-secret|private-user-objective/);
+      await pool!.query("UPDATE product_runs SET expires_at=now()-interval '1 second' WHERE id=$1",[id]);
+      await cleanupProductRunSources(pool!);
+      expect((await pool!.query("SELECT id FROM product_run_spans WHERE run_id=$1",[id])).rowCount).toBe(0);
+    } finally {await runner.close();await removeProofAccount(seeded.accountId);}
+  });
+
+  it("keeps sending successful when diagnostic admission fails and never logs a false binding",async()=>{
+    const seeded=await seedSession(),provider=new ScriptedConversationProvider();
+    const original=pool!.query.bind(pool!);
+    const query=vi.spyOn(pool!,"query").mockImplementation(((...args: unknown[])=>{
+      if(typeof args[0]==="string" && args[0].includes("INSERT INTO product_runs")) return Promise.reject(new Error("synthetic monitor failure"));
+      return (original as (...args:unknown[])=>unknown)(...args);
+    }) as never);
+    const logger={info:vi.fn(),warn:vi.fn(),error:vi.fn()};
+    const runner=new ConversationQueueRunner({pool:pool!,provider,logger,pollIntervalMs:10,heartbeatMs:40,recoveryIntervalMs:10_000});
+    runner.start();
+    try {
+      await admitConversationQueueEntry(pool!,seeded.auth,{idempotency_key:randomUUID(),session_id:seeded.sessionId,message_id:randomUUID(),objective:"diagnostic outage"});
+      await waitFor(async ()=>(await entryRow(seeded.sessionId,seeded.accountId))[0]?.status==="completed");
+      await runner.close();
+      expect((await getAgentSession(pool!,seeded.auth,seeded.sessionId)).payload?.turns).toHaveLength(1);
+      expect(logger.info.mock.calls.some(call=>call[1]==="conversation reply linked to monitoring")).toBe(false);
+      expect(logger.warn.mock.calls.some(call=>call[0].failure_code==="MONITORING_BINDING_UNAVAILABLE")).toBe(true);
+    } finally {query.mockRestore();await runner.close();await removeProofAccount(seeded.accountId);}
   });
 });

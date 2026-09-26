@@ -1,7 +1,9 @@
+import { conversationRunDiagnostics } from "./conversationRunDiagnostics.js";
+import { recordProductEvent } from "@talent-signal/agent";
 import { calendarDraftContextForRequest } from "./calendarDraftContext.js";
 import { createHarnessSourceGuard } from "./harnessSourceGuard.js";
 import { loadAgentResponsePreference } from "./agentPreferences.js";
-import type { AgentProviderInputPart, RuntimeObservationContext } from "@talent-signal/agent";
+import { claudeHarnessInterruptionCode, type AgentProviderInputPart, type RuntimeObservationContext } from "@talent-signal/agent";
 import type { HarnessContinuationFactory } from "@talent-signal/agent";
 import { createHarnessContinuationFactory } from "./harnessSessions.js";
 import { measureLabServerStage } from "../lib/labDiagnostics.js";
@@ -67,6 +69,9 @@ export interface UnscopedChatExecution {
   conversationSources?: AgentSessionChatSource[];
   previousTaskIDs: string[];
   remoteStatus: "agent_completed" | "completed" | "disabled" | "fallback";
+  /** Bounded operator diagnostic; never a raw provider error or user content. */
+  remoteFailureCode?: "MODEL_RUN_TIMEOUT";
+  remoteDiagnostics?: Record<string, string | number | boolean | null>;
   providerResult: RemoteChatAnswerResult | null;
   agentProviderResult: {
     providerID: string;
@@ -117,6 +122,8 @@ function localFallbackBlock(
 
 export async function executeUnscopedChatTask(input: {
   request: UnscopedChatTaskRequest;
+  /** Host-owned queue attempt identity; never accepted from the public request. */
+  taskID?: string;
   provider: RemoteChatAnswerProviding | null;
   database?: DatabaseClient;
   probePool?: Pool;
@@ -135,7 +142,7 @@ export async function executeUnscopedChatTask(input: {
   /** Honest host note about images omitted by the bounded image budget. */
   imageContextNote?: string;
 }): Promise<UnscopedChatExecution> {
-  const taskID = randomUUID();
+  const taskID = input.taskID ?? randomUUID();
   const calendarContext = calendarDraftContextForRequest(taskID, input.request.time_zone, input.referenceTime ?? input.createdAt ?? new Date());
   let observation: RuntimeObservationContext | undefined;
   // Ephemeral contact reads also need authority, even without an observation
@@ -206,6 +213,8 @@ export async function executeUnscopedChatTask(input: {
   let remoteStatus: UnscopedChatExecution["remoteStatus"] = input.provider
     ? "fallback"
     : "disabled";
+  let remoteFailureCode: UnscopedChatExecution["remoteFailureCode"];
+  let remoteDiagnostics: UnscopedChatExecution["remoteDiagnostics"];
   let block: ChatResponseBlock;
   let agentEvent: UnscopedChatTaskResponse["agent_event"] = null;
   let memoryProposalRef:
@@ -278,7 +287,13 @@ export async function executeUnscopedChatTask(input: {
         proposedSessionTitle = providerResult.session_title ?? null;
         remoteStatus = "completed";
       }
-    } catch {
+    } catch (error) {
+      remoteDiagnostics = conversationRunDiagnostics(error);
+      await recordProductEvent("conversation.model.failure", "context", undefined, undefined, remoteDiagnostics, { failed: true });
+      if (input.provider.providerId === "claude-agent-sdk" &&
+        ["WORKSPACE_CONVERSATION_TIMEOUT", "CLAUDE_HARNESS_TIMEOUT"].includes(claudeHarnessInterruptionCode(error))) {
+        remoteFailureCode = "MODEL_RUN_TIMEOUT";
+      }
       providerResult = null;
       agentProviderResult = null;
       if (input.provider.providerId === "claude-agent-sdk" || input.signal?.aborted) {
@@ -335,6 +350,8 @@ export async function executeUnscopedChatTask(input: {
       created_at: (input.createdAt ?? new Date()).toISOString(),
     },
     remoteStatus,
+    ...(remoteFailureCode ? { remoteFailureCode } : {}),
+    ...(remoteDiagnostics ? { remoteDiagnostics } : {}),
     providerResult,
     agentProviderResult,
   };
