@@ -49,7 +49,7 @@ function ConnectionsPane() {
 }
 function AdvancedPane({ labEnabled }: { labEnabled: boolean }) {
   return <div className={styles.pane}><Group title="问题排查">
-    <Destination href="/workspace/diagnostics" title="连接诊断" description="遇到加载或连接问题时，检查服务状态" />
+    <Destination href="/workspace/settings/diagnostics" title="连接诊断" description="遇到加载或连接问题时，检查服务状态" />
     <Destination href="/workspace/monitor" title="运行记录" description="查看任务进度与需要处理的问题" />
     <Destination href="/workspace/boundaries" title="数据与操作边界" description="了解资料访问与操作授权范围" />
   </Group>{labEnabled && <Group title="内部测试"><Destination href="/workspace/settings/testing" title="测试空间" description="使用隔离的合成资料验证功能" /><Destination href="/workspace/lab" title="功能实验室" description="查看当前启用的实验功能" /></Group>}</div>;

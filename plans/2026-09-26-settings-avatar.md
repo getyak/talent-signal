@@ -84,3 +84,14 @@ Existing avatar library: https://www.figma.com/design/7Z8yHplvwjVhpq8IuKv87f?nod
   shared database is migrated or seeded.
 - A first highly parallel native build was interrupted during host contention;
   the resumed build uses two jobs and the same build cache.
+
+## PR #251 CI follow-up
+
+The Web quality job found a broken diagnostics destination: the redesign linked
+to `/workspace/diagnostics`, while the authenticated route remains
+`/workspace/settings/diagnostics`. The existing workspace composition test
+reproduced the failure locally. Restore the actual route without weakening the
+test or changing workflow gates. Local verification passed: all 18 composition
+tests, the full Web suite (1,379 passed, one intentionally skipped), scoped lint
+and documentation checks. The pushed revision still needs remote confirmation
+from the required checks and both Vercel previews.
